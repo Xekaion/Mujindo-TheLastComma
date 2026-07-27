@@ -1,0 +1,49 @@
+:root {
+  --ink: #08090b;
+  --paper: #e8dfc8;
+  --muted: #a89e88;
+  --ember: #d55b3e;
+  --aether: #67c6b3;
+  --gold: #c6a15b;
+  --panel: rgba(11, 13, 16, 0.88);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  margin: 0;
+  background: var(--ink);
+  color: var(--paper);
+  font-family:
+    Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  color: inherit;
+}
+
+::selection {
+  background: rgba(103, 198, 179, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

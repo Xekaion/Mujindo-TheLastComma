@@ -1,0 +1,1141 @@
+.menu-screen,
+.game-screen {
+  position: relative;
+  width: 100vw;
+  height: 100dvh;
+  min-height: 620px;
+  overflow: hidden;
+  background: #07080a;
+  isolation: isolate;
+}
+
+.menu-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -3;
+  background:
+    linear-gradient(90deg, rgba(5, 6, 8, 0.93) 0%, rgba(5, 6, 8, 0.72) 36%, rgba(5, 6, 8, 0.08) 78%),
+    linear-gradient(0deg, rgba(5, 6, 8, 0.82) 0%, transparent 42%),
+    url("/assets/menu-title-background.png") center / cover no-repeat;
+  transform: scale(1.015);
+  animation: menu-breathe 16s ease-in-out infinite alternate;
+}
+
+.menu-grain {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  opacity: 0.18;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.025) 4px),
+    radial-gradient(circle at 30% 20%, rgba(198, 161, 91, 0.12), transparent 31%);
+  mix-blend-mode: screen;
+}
+
+.menu-copy {
+  position: absolute;
+  left: clamp(34px, 7vw, 118px);
+  top: 50%;
+  width: min(650px, 49vw);
+  transform: translateY(-52%);
+}
+
+.menu-kicker,
+.modal-kicker {
+  margin: 0 0 14px;
+  color: var(--gold);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.menu-copy h1 {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  color: #eee4cd;
+  font-family: Georgia, "Times New Roman", "Nanum Myeongjo", serif;
+  font-weight: 600;
+  letter-spacing: -0.06em;
+  line-height: 0.86;
+  text-shadow: 0 4px 30px #000;
+}
+
+.menu-copy h1 span {
+  font-size: clamp(76px, 9.5vw, 158px);
+}
+
+.menu-copy h1 small {
+  padding-left: 7px;
+  color: #c5b38a;
+  font-size: clamp(20px, 2vw, 31px);
+  font-weight: 500;
+  letter-spacing: 0.35em;
+}
+
+.menu-lead {
+  margin: 35px 0 29px;
+  color: rgba(232, 223, 200, 0.78);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(15px, 1.2vw, 19px);
+  line-height: 1.75;
+  letter-spacing: -0.02em;
+}
+
+.menu-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.primary-button,
+.secondary-button {
+  position: relative;
+  display: flex;
+  min-width: 214px;
+  min-height: 66px;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  border: 1px solid rgba(213, 189, 139, 0.54);
+  border-radius: 2px;
+  padding: 13px 22px;
+  cursor: pointer;
+  overflow: hidden;
+  background:
+    linear-gradient(110deg, rgba(150, 45, 37, 0.82), rgba(87, 26, 27, 0.92)),
+    url("/assets/augment-ui-atlas.png") center 78% / 780% auto;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 223, 157, 0.08),
+    0 14px 45px rgba(0, 0, 0, 0.26);
+  text-align: left;
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    filter 160ms ease;
+}
+
+.primary-button::after,
+.secondary-button::after {
+  position: absolute;
+  inset: 3px;
+  border: 1px solid rgba(255, 230, 176, 0.08);
+  content: "";
+  pointer-events: none;
+}
+
+.secondary-button {
+  border-color: rgba(180, 166, 133, 0.3);
+  background: rgba(12, 14, 17, 0.86);
+}
+
+.primary-button:hover,
+.secondary-button:hover:not(:disabled) {
+  z-index: 1;
+  border-color: #d9c18a;
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
+.primary-button span,
+.secondary-button span,
+.primary-button.compact {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.primary-button small,
+.secondary-button small {
+  margin-top: 4px;
+  color: rgba(239, 227, 202, 0.56);
+  font-size: 10px;
+}
+
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+.menu-features {
+  position: absolute;
+  right: clamp(28px, 4vw, 68px);
+  bottom: 56px;
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  gap: 8px;
+}
+
+.menu-features span {
+  border: 1px solid rgba(202, 182, 141, 0.18);
+  padding: 9px 13px;
+  background: rgba(6, 8, 10, 0.7);
+  color: rgba(233, 222, 197, 0.66);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(8px);
+}
+
+.menu-controls {
+  position: absolute;
+  bottom: 24px;
+  left: clamp(34px, 7vw, 118px);
+  margin: 0;
+  color: rgba(232, 223, 200, 0.38);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.game-canvas {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(100vw, 177.78vh);
+  height: min(100vh, 56.25vw);
+  aspect-ratio: 16 / 9;
+  background: #050608;
+  cursor: crosshair;
+  image-rendering: auto;
+  touch-action: none;
+  transform: translate(-50%, -50%);
+}
+
+.top-hud {
+  position: absolute;
+  z-index: 5;
+  top: 20px;
+  right: 22px;
+  left: 22px;
+  display: grid;
+  grid-template-columns: minmax(310px, 390px) 1fr minmax(250px, 300px);
+  align-items: start;
+  gap: 20px;
+  pointer-events: none;
+}
+
+.hud-panel {
+  border: 1px solid rgba(198, 174, 124, 0.34);
+  background:
+    linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84)),
+    url("/assets/augment-ui-atlas.png") 50% 98% / 640% auto;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 10px 35px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
+}
+
+.vitals {
+  display: grid;
+  min-height: 72px;
+  grid-template-columns: 58px 1fr auto;
+  align-items: center;
+  gap: 11px;
+  padding: 8px 13px 8px 8px;
+  clip-path: polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%);
+}
+
+.portrait {
+  display: grid;
+  width: 52px;
+  height: 52px;
+  place-items: end center;
+  border: 1px solid rgba(213, 188, 133, 0.48);
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    linear-gradient(0deg, rgba(5, 6, 8, 0.2), transparent),
+    url("/assets/characters-sprite-atlas.png") 0 0 / 400% 200%;
+}
+
+.portrait span {
+  width: 100%;
+  padding: 2px;
+  background: rgba(5, 6, 8, 0.78);
+  color: #d9c69b;
+  font-size: 9px;
+  text-align: center;
+}
+
+.bars {
+  display: grid;
+  gap: 8px;
+}
+
+.bar {
+  position: relative;
+  height: 15px;
+  border: 1px solid rgba(211, 190, 148, 0.3);
+  background: rgba(2, 3, 4, 0.78);
+  overflow: hidden;
+}
+
+.bar i {
+  position: absolute;
+  inset: 1px auto 1px 1px;
+  display: block;
+  transition: width 180ms linear;
+}
+
+.health-bar i {
+  background: linear-gradient(90deg, #712b2c, #c34c43);
+  box-shadow: 0 0 12px rgba(218, 71, 61, 0.4);
+}
+
+.xp-bar {
+  height: 11px;
+}
+
+.xp-bar i {
+  background: linear-gradient(90deg, #347d78, #65c7b4);
+  box-shadow: 0 0 12px rgba(101, 199, 180, 0.34);
+}
+
+.bar span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: rgba(242, 231, 205, 0.82);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 3px #000;
+}
+
+.vitals > strong {
+  color: #d8c28e;
+  font-family: Georgia, serif;
+  font-size: 12px;
+}
+
+.room-heading {
+  padding-top: 4px;
+  text-align: center;
+  text-shadow: 0 3px 12px #000;
+}
+
+.room-heading small {
+  color: rgba(221, 204, 168, 0.56);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+}
+
+.room-heading h2 {
+  margin: 5px 0 3px;
+  color: #e8dfc8;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+}
+
+.room-heading span {
+  color: rgba(232, 223, 200, 0.56);
+  font-size: 9px;
+}
+
+.minimap {
+  display: grid;
+  grid-template-columns: 1fr 92px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 11px 9px 15px;
+}
+
+.minimap > div:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.minimap small {
+  color: rgba(232, 223, 200, 0.46);
+  font-size: 8px;
+  letter-spacing: 0.14em;
+}
+
+.minimap strong {
+  margin-top: 4px;
+  color: #d8c28e;
+  font-family: Georgia, serif;
+  font-size: 13px;
+}
+
+.minimap-grid {
+  display: grid !important;
+  width: 84px;
+  height: 62px;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: repeat(7, 1fr);
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid rgba(211, 190, 148, 0.22);
+  background: rgba(0, 0, 0, 0.5);
+}
+
+.map-cell {
+  display: block;
+  border: 1px solid rgba(174, 162, 136, 0.1);
+  opacity: 0.25;
+}
+
+.map-cell.is-visited {
+  border-color: rgba(204, 188, 151, 0.52);
+  background: #4f4b43;
+  opacity: 1;
+}
+
+.map-cell.is-current {
+  border-color: #f2d997;
+  background: #d4aa58;
+  box-shadow: 0 0 5px rgba(242, 217, 151, 0.8);
+}
+
+.map-cell.is-shelter {
+  background: #55a995;
+}
+
+.map-cell.is-boss {
+  background: #9f3b3b;
+}
+
+.build-rail {
+  position: absolute;
+  z-index: 12;
+  top: 112px;
+  right: 0;
+  bottom: 64px;
+  display: flex;
+  transform: translateX(calc(100% - 58px));
+  transition: transform 240ms ease;
+}
+
+.build-rail.is-open {
+  transform: translateX(0);
+}
+
+.build-toggle {
+  display: flex;
+  width: 58px;
+  height: 152px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(198, 174, 124, 0.4);
+  border-right: 0;
+  padding: 0;
+  cursor: pointer;
+  background: rgba(10, 11, 13, 0.9);
+  writing-mode: vertical-rl;
+}
+
+.build-toggle span {
+  color: #d6c59e;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+}
+
+.build-toggle strong {
+  color: #67c6b3;
+  font-family: Georgia, serif;
+  font-size: 19px;
+}
+
+.build-toggle small {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(221, 205, 169, 0.28);
+  color: rgba(232, 223, 200, 0.5);
+  font-size: 8px;
+  writing-mode: horizontal-tb;
+}
+
+.build-content {
+  width: min(360px, 84vw);
+  height: 100%;
+  border: 1px solid rgba(198, 174, 124, 0.42);
+  padding: 18px;
+  background:
+    linear-gradient(rgba(8, 10, 12, 0.96), rgba(8, 9, 11, 0.93)),
+    url("/assets/augment-ui-atlas.png") center bottom / 180% auto;
+  box-shadow: -18px 18px 60px rgba(0, 0, 0, 0.48);
+  overflow: hidden;
+}
+
+.build-content > header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(203, 179, 127, 0.2);
+}
+
+.build-content > header small,
+.synergy-list > small {
+  color: rgba(232, 223, 200, 0.44);
+  font-size: 8px;
+  letter-spacing: 0.18em;
+}
+
+.build-content h3 {
+  margin: 4px 0 0;
+  color: #e7dcc4;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 19px;
+  font-weight: 500;
+}
+
+.build-content > header button {
+  border: 0;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(232, 223, 200, 0.54);
+  font-size: 24px;
+}
+
+.synergy-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 14px 0;
+}
+
+.synergy-list > small {
+  width: 100%;
+}
+
+.synergy-list span {
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(255, 255, 255, 0.025);
+  color: #ded2ba;
+  font-size: 9px;
+}
+
+.synergy-list b {
+  margin-left: 4px;
+  color: var(--aether);
+}
+
+.augment-stack-list {
+  display: grid;
+  max-height: calc(100% - 118px);
+  gap: 7px;
+  overflow: auto;
+  scrollbar-color: #685b43 transparent;
+}
+
+.augment-stack-list > p {
+  color: rgba(232, 223, 200, 0.44);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.augment-stack-list article {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(208, 188, 146, 0.15);
+  padding: 4px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.augment-stack-list article > div {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.augment-stack-list strong {
+  overflow: hidden;
+  color: #ded2ba;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.augment-stack-list small {
+  margin-top: 3px;
+  color: rgba(104, 202, 183, 0.62);
+  font-size: 8px;
+}
+
+.augment-stack-list article > b {
+  color: #d3b976;
+  font-family: Georgia, serif;
+  font-size: 15px;
+}
+
+.augment-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  border-radius: 7px;
+  background-image: url("/assets/augment-ui-atlas.png");
+  background-repeat: no-repeat;
+  filter: saturate(0.9) contrast(1.05);
+}
+
+.toast {
+  position: absolute;
+  z-index: 8;
+  bottom: 23px;
+  left: 50%;
+  display: flex;
+  max-width: min(660px, 80vw);
+  align-items: center;
+  gap: 9px;
+  border: 1px solid rgba(209, 187, 141, 0.24);
+  padding: 9px 17px;
+  background: rgba(6, 8, 10, 0.82);
+  color: rgba(235, 224, 202, 0.72);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  transform: translateX(-50%);
+  backdrop-filter: blur(9px);
+}
+
+.toast i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--aether);
+  box-shadow: 0 0 10px var(--aether);
+}
+
+.modal-layer {
+  position: absolute;
+  z-index: 30;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 26px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(34, 29, 26, 0.6), rgba(2, 3, 5, 0.93)),
+    repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.015) 4px);
+  backdrop-filter: blur(5px);
+  animation: modal-in 220ms ease both;
+}
+
+.augment-modal {
+  width: min(1120px, 94vw);
+  text-align: center;
+}
+
+.augment-modal > h2,
+.story-modal h2,
+.shelter-modal h2,
+.death-modal h2,
+.ending-modal h2,
+.pause-modal h2 {
+  margin: 0;
+  color: #ede2ca;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(30px, 3.1vw, 48px);
+  font-weight: 500;
+  letter-spacing: -0.04em;
+}
+
+.augment-modal > p:not(.modal-kicker) {
+  margin: 10px 0 25px;
+  color: rgba(232, 223, 200, 0.5);
+  font-size: 11px;
+}
+
+.augment-choices {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 13px;
+}
+
+.augment-card {
+  position: relative;
+  display: flex;
+  min-height: 390px;
+  flex-direction: column;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--augment-color) 55%, #675d4b);
+  padding: 28px 22px 23px;
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgba(23, 23, 24, 0.97), rgba(8, 9, 11, 0.98)),
+    url("/assets/augment-ui-atlas.png") center 86% / 360% auto;
+  box-shadow:
+    inset 0 0 30px color-mix(in srgb, var(--augment-color) 8%, transparent),
+    0 24px 70px rgba(0, 0, 0, 0.28);
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+
+.augment-card::before {
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(226, 205, 163, 0.11);
+  content: "";
+}
+
+.augment-card:hover {
+  z-index: 1;
+  border-color: var(--augment-color);
+  box-shadow:
+    inset 0 0 45px color-mix(in srgb, var(--augment-color) 13%, transparent),
+    0 28px 80px rgba(0, 0, 0, 0.45);
+  transform: translateY(-8px);
+}
+
+.choice-key {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid rgba(222, 202, 159, 0.35);
+  color: rgba(232, 223, 200, 0.55);
+  font-family: Georgia, serif;
+  font-size: 11px;
+}
+
+.augment-card > small {
+  margin-top: 8px;
+  color: var(--augment-color);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+}
+
+.augment-card h3 {
+  margin: 8px 0 4px;
+  color: #eadfc7;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 24px;
+  font-weight: 500;
+}
+
+.augment-card > strong {
+  color: var(--augment-color);
+  font-family: Georgia, serif;
+  font-size: 11px;
+  letter-spacing: 0.15em;
+}
+
+.augment-card > p {
+  min-height: 39px;
+  margin: 16px 0 18px;
+  color: rgba(236, 225, 201, 0.72);
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.augment-card > em {
+  color: rgba(232, 223, 200, 0.38);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 10px;
+  font-style: normal;
+  line-height: 1.6;
+}
+
+.story-modal,
+.shelter-modal,
+.death-modal,
+.ending-modal,
+.pause-modal {
+  width: min(690px, 92vw);
+  border: 1px solid rgba(205, 182, 135, 0.42);
+  padding: clamp(35px, 5vw, 68px);
+  background:
+    linear-gradient(130deg, rgba(14, 15, 17, 0.97), rgba(8, 9, 11, 0.98)),
+    url("/assets/augment-ui-atlas.png") center bottom / 190% auto;
+  box-shadow:
+    inset 0 0 0 4px rgba(0, 0, 0, 0.4),
+    0 32px 100px rgba(0, 0, 0, 0.6);
+  text-align: center;
+}
+
+.story-modal > p:not(.modal-kicker),
+.shelter-modal > p:not(.modal-kicker),
+.death-modal > p:not(.modal-kicker),
+.ending-modal > p:not(.modal-kicker) {
+  margin: 23px auto 30px;
+  color: rgba(232, 223, 200, 0.67);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 13px;
+  line-height: 2;
+  word-break: keep-all;
+}
+
+.primary-button.compact {
+  display: inline-flex;
+  min-width: 180px;
+  min-height: 50px;
+  align-items: center;
+  padding: 10px 22px;
+  text-align: center;
+}
+
+.shelter-modal dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin: 0 0 28px;
+  border-top: 1px solid rgba(209, 187, 142, 0.16);
+  border-bottom: 1px solid rgba(209, 187, 142, 0.16);
+}
+
+.shelter-modal dl > div {
+  padding: 16px 8px;
+}
+
+.shelter-modal dt {
+  color: rgba(232, 223, 200, 0.44);
+  font-size: 8px;
+  letter-spacing: 0.1em;
+}
+
+.shelter-modal dd {
+  margin: 5px 0 0;
+  color: #65c7b4;
+  font-family: Georgia, serif;
+  font-size: 22px;
+}
+
+.modal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.text-button {
+  border: 0;
+  border-bottom: 1px solid rgba(232, 223, 200, 0.25);
+  padding: 7px 0;
+  cursor: pointer;
+  background: transparent;
+  color: rgba(232, 223, 200, 0.55);
+  font-size: 10px;
+}
+
+.run-summary {
+  display: flex;
+  justify-content: center;
+  gap: 9px;
+  margin-bottom: 30px;
+}
+
+.run-summary span {
+  min-width: 90px;
+  border: 1px solid rgba(215, 190, 138, 0.18);
+  padding: 10px;
+  color: rgba(232, 223, 200, 0.48);
+  font-size: 9px;
+}
+
+.run-summary b {
+  display: block;
+  margin-top: 4px;
+  color: #d8c28e;
+  font-family: Georgia, serif;
+  font-size: 19px;
+}
+
+.ending-modal {
+  width: min(860px, 94vw);
+}
+
+.ending-choices {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.ending-choices button {
+  display: flex;
+  min-height: 150px;
+  flex-direction: column;
+  align-items: flex-start;
+  border: 1px solid rgba(210, 187, 140, 0.27);
+  padding: 22px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.025);
+  text-align: left;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
+}
+
+.ending-choices button:hover {
+  border-color: #d1b878;
+  background: rgba(198, 161, 91, 0.08);
+}
+
+.ending-choices small {
+  color: var(--gold);
+  font-size: 8px;
+  letter-spacing: 0.15em;
+}
+
+.ending-choices strong {
+  margin: 9px 0;
+  color: #e8dfc8;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 19px;
+}
+
+.ending-choices span {
+  color: rgba(232, 223, 200, 0.52);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.touch-controls {
+  position: absolute;
+  z-index: 16;
+  right: 18px;
+  bottom: 18px;
+  left: 18px;
+  display: none;
+  align-items: end;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.dpad {
+  display: grid;
+  width: 138px;
+  grid-template-columns: repeat(3, 44px);
+  grid-template-rows: repeat(2, 44px);
+  gap: 3px;
+}
+
+.dpad button,
+.dash-button {
+  border: 1px solid rgba(218, 197, 153, 0.3);
+  border-radius: 50%;
+  background: rgba(7, 9, 11, 0.7);
+  color: rgba(239, 228, 202, 0.76);
+  pointer-events: auto;
+  touch-action: none;
+  backdrop-filter: blur(8px);
+}
+
+.dpad button:first-child {
+  grid-column: 2;
+}
+
+.dpad button:nth-child(2) {
+  grid-column: 1;
+}
+
+.dash-button {
+  width: 76px;
+  height: 76px;
+  border-color: rgba(103, 198, 179, 0.5);
+  color: #81d8c7;
+  font-size: 11px;
+}
+
+@keyframes menu-breathe {
+  from {
+    transform: scale(1.015);
+  }
+  to {
+    transform: scale(1.045);
+  }
+}
+
+@keyframes modal-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 900px) {
+  .menu-screen,
+  .game-screen {
+    min-height: 520px;
+  }
+
+  .menu-backdrop {
+    background:
+      linear-gradient(0deg, rgba(5, 6, 8, 0.96) 0%, rgba(5, 6, 8, 0.62) 70%, rgba(5, 6, 8, 0.25)),
+      url("/assets/menu-title-background.png") 64% center / cover no-repeat;
+  }
+
+  .menu-copy {
+    top: auto;
+    right: 22px;
+    bottom: 88px;
+    left: 22px;
+    width: auto;
+    transform: none;
+  }
+
+  .menu-copy h1 span {
+    font-size: clamp(62px, 18vw, 104px);
+  }
+
+  .menu-lead {
+    margin: 23px 0 20px;
+  }
+
+  .menu-features {
+    display: none;
+  }
+
+  .menu-controls {
+    right: 22px;
+    bottom: 20px;
+    left: 22px;
+    text-align: center;
+  }
+
+  .top-hud {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    grid-template-columns: 1fr 120px;
+  }
+
+  .room-heading {
+    position: absolute;
+    top: 70px;
+    left: 50%;
+    width: 240px;
+    transform: translateX(-50%);
+  }
+
+  .room-heading h2 {
+    font-size: 16px;
+  }
+
+  .minimap {
+    grid-template-columns: 1fr;
+    padding: 5px;
+  }
+
+  .minimap > div:first-child {
+    display: none;
+  }
+
+  .minimap-grid {
+    width: 100%;
+  }
+
+  .vitals {
+    min-width: 0;
+  }
+
+  .touch-controls {
+    display: flex;
+  }
+
+  .toast {
+    bottom: 108px;
+  }
+
+  .build-rail {
+    top: 98px;
+    bottom: 98px;
+  }
+
+  .augment-choices {
+    grid-template-columns: 1fr;
+    max-height: 67vh;
+    overflow: auto;
+  }
+
+  .augment-card {
+    min-height: 180px;
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    grid-template-rows: auto;
+    align-items: center;
+    gap: 2px 14px;
+    padding: 18px;
+    text-align: left;
+  }
+
+  .augment-card .augment-icon {
+    grid-row: 1 / span 6;
+  }
+
+  .augment-card > small,
+  .augment-card h3,
+  .augment-card > strong,
+  .augment-card > p,
+  .augment-card > em {
+    margin: 0;
+  }
+
+  .augment-card > p {
+    min-height: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .menu-actions {
+    flex-direction: column;
+  }
+
+  .primary-button,
+  .secondary-button {
+    width: 100%;
+  }
+
+  .menu-copy {
+    bottom: 64px;
+  }
+
+  .menu-lead {
+    font-size: 13px;
+  }
+
+  .portrait {
+    display: none;
+  }
+
+  .vitals {
+    grid-template-columns: 1fr auto;
+  }
+
+  .top-hud {
+    grid-template-columns: 1fr 82px;
+  }
+
+  .minimap-grid {
+    width: 70px;
+    height: 52px;
+  }
+
+  .modal-layer {
+    align-items: end;
+    padding: 12px;
+  }
+
+  .story-modal,
+  .shelter-modal,
+  .death-modal,
+  .ending-modal,
+  .pause-modal {
+    width: 100%;
+    max-height: 88vh;
+    padding: 30px 20px;
+    overflow: auto;
+  }
+
+  .ending-choices {
+    grid-template-columns: 1fr;
+  }
+}
