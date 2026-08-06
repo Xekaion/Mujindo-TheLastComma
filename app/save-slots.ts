@@ -14,6 +14,7 @@ export type SaveRunPayload = JsonRecord & {
     level: number;
     rooms?: number;
     augments: Record<string, number>;
+    endingSeen?: boolean;
     profession?: string | null;
     inventory?: unknown[];
     equipment?: JsonRecord;
@@ -110,6 +111,13 @@ export function isSaveRunPayload(value: unknown): value is SaveRunPayload {
     return false;
   }
 
+  if (
+    value.player.endingSeen !== undefined &&
+    typeof value.player.endingSeen !== "boolean"
+  ) {
+    return false;
+  }
+
   if (value.world !== undefined) {
     if (!isRecord(value.world)) return false;
     if (value.world.rooms !== undefined && !isRecord(value.world.rooms)) return false;
@@ -192,6 +200,26 @@ export function writeSaveSlot(
   } catch {
     return false;
   }
+}
+
+export function markSaveSlotEndingSeen(
+  slot: SaveSlotId,
+  storage?: StorageLike | null,
+): boolean {
+  const save = readSaveSlot(slot, storage);
+  if (!save) return false;
+
+  return writeSaveSlot(
+    slot,
+    {
+      ...save,
+      player: {
+        ...save.player,
+        endingSeen: true,
+      },
+    },
+    storage,
+  );
 }
 
 export function removeSaveSlot(

@@ -40,6 +40,7 @@ import {
 } from "./map-teleport";
 import {
   SAVE_SLOT_IDS,
+  markSaveSlotEndingSeen,
   migrateLegacySave,
   readSaveSlot,
   readSaveSlotSummaries,
@@ -48,6 +49,12 @@ import {
   type SaveSlotId,
   type SaveSlotSummary,
 } from "./save-slots";
+import {
+  BLANK_CARTOGRAPHER_KIND,
+  ENDING_CONTINUE_LABEL,
+  FIRST_BOSS_ENDING_CHAPTERS,
+  shouldRevealFirstBossEnding,
+} from "./ending";
 import {
   normalizeAutoSalvageThreshold,
   readAutoSalvagePreference,
@@ -1602,6 +1609,7 @@ export default function GameCanvas() {
     title: "끝을 찾는 자",
     body: "하린은 사라진 동생 라온의 목소리를 따라, 끝이 없다는 지도 안으로 발을 내디뎠다.",
   });
+  const [endingChapterIndex, setEndingChapterIndex] = useState(0);
   const [toast, setToast] = useState("WASD로 움직이세요. 공격은 자동입니다.");
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildTab, setBuildTab] = useState<"build" | "gear">("build");
@@ -1857,7 +1865,9 @@ export default function GameCanvas() {
         if (world.visitedLookup[key]) nearbyVisited.push(key);
       }
     }
-    const boss = world.enemies.find((enemy) => enemy.kind === 5);
+    const boss = world.enemies.find(
+      (enemy) => enemy.kind === BLANK_CARTOGRAPHER_KIND,
+    );
     setHud({
       player: {
         ...player,
@@ -1898,6 +1908,16 @@ export default function GameCanvas() {
       },
     });
   }, []);
+
+  const continueAfterEnding = useCallback(() => {
+    pendingEndingRef.current = false;
+    playerRef.current.endingSeen = true;
+    markSaveSlotEndingSeen(activeSaveSlotRef.current);
+    setEndingChapterIndex(0);
+    setToast("끝은 사라졌습니다. 최초의 문장을 지우기 위한 무한 원정이 시작됩니다.");
+    setGameMode("playing");
+    syncHud();
+  }, [setGameMode, syncHud]);
 
   const openMap = useCallback(() => {
     const world = worldRef.current;
@@ -2040,7 +2060,9 @@ export default function GameCanvas() {
         return;
       }
       if (kind === "boss") {
-        enemies.push(makeEnemy(5, WIDTH / 2, 210, depth, true));
+        enemies.push(
+          makeEnemy(BLANK_CARTOGRAPHER_KIND, WIDTH / 2, 210, depth, true),
+        );
         for (let i = 0; i < Math.min(5, 2 + Math.floor(depth / 4)); i += 1) {
           const angle = (Math.PI * 2 * i) / 5;
           enemies.push(
@@ -2362,6 +2384,7 @@ export default function GameCanvas() {
   const resumeAfterAugmentChoice = useCallback(() => {
     if (pendingEndingRef.current) {
       pendingEndingRef.current = false;
+      setEndingChapterIndex(0);
       setGameMode("ending");
     } else if (pendingStoryRef.current) {
       const pending = pendingStoryRef.current;
@@ -2447,6 +2470,9 @@ export default function GameCanvas() {
       }
       const data = candidate;
       activateSaveSlot(slot);
+      pendingStoryRef.current = null;
+      pendingEndingRef.current = false;
+      setEndingChapterIndex(0);
       const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
       const normalizedEquipment = normalizeEquipment(data.player.equipment);
       const normalizedInventory = Array.isArray(data.player.inventory)
@@ -2466,6 +2492,7 @@ export default function GameCanvas() {
         ...data.player,
         profession:
           typeof data.player.profession === "string" ? data.player.profession : null,
+        endingSeen: data.player.endingSeen === true,
         x: WIDTH / 2,
         y: HEIGHT / 2,
         augments: { ...data.player.augments },
@@ -2534,6 +2561,7 @@ export default function GameCanvas() {
     keysRef.current.clear();
     pendingStoryRef.current = null;
     pendingEndingRef.current = false;
+    setEndingChapterIndex(0);
     setLootNotice(null);
     const seed = (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) & 0x7fffffff;
     playerRef.current = {
@@ -3317,7 +3345,12 @@ export default function GameCanvas() {
           SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
         );
       player.kills += 1;
-      const baseValue = enemy.kind === 5 ? 80 : enemy.elite ? 20 : 7 + enemy.kind * 2;
+      const baseValue =
+        enemy.kind === BLANK_CARTOGRAPHER_KIND
+          ? 80
+          : enemy.elite
+            ? 20
+            : 7 + enemy.kind * 2;
       const scavengerRank = powerRankOf(player, "scavenger");
       const value = baseValue * Math.pow(1 + scavengerRank * 0.1, 0.75);
       world.orbs.push({ id: idRef.current++, x: enemy.x, y: enemy.y, value });
@@ -3332,7 +3365,11 @@ export default function GameCanvas() {
         Math.min(200, equipmentStats.gearFindPercent),
       );
       const dropSource =
-        enemy.kind === 5 ? "boss" : enemy.elite ? "elite" : "normal";
+        enemy.kind === BLANK_CARTOGRAPHER_KIND
+          ? "boss"
+          : enemy.elite
+            ? "elite"
+            : "normal";
       const sourceChance =
         dropSource === "normal"
           ? Math.min(
@@ -3349,7 +3386,7 @@ export default function GameCanvas() {
               sourceChance * (1 + gearFindPercent / 100),
             );
       if (lootRoll < gearDropChance) {
-        const dropCount = enemy.kind === 5 ? 2 : 1;
+        const dropCount = enemy.kind === BLANK_CARTOGRAPHER_KIND ? 2 : 1;
         for (let dropIndex = 0; dropIndex < dropCount; dropIndex += 1) {
           const rarityRoll = hash(world.seed, enemy.id, dropIndex, player.rooms + 331);
           const forcedRarity = rollGearDropRarity(
@@ -3754,11 +3791,13 @@ export default function GameCanvas() {
       setToast(`방 정복 · 기억 ${Math.round(14 + player.rooms * 1.5)} · 문이 열렸습니다.`);
 
       if (world.roomKind === "boss") {
-        player.endingSeen = true;
-        pendingEndingRef.current = true;
-        if (modeRef.current === "playing") {
-          pendingEndingRef.current = false;
-          setGameMode("ending");
+        if (shouldRevealFirstBossEnding(world.roomKind, player.endingSeen)) {
+          setEndingChapterIndex(0);
+          pendingEndingRef.current = true;
+          if (modeRef.current === "playing") {
+            pendingEndingRef.current = false;
+            setGameMode("ending");
+          }
         }
         return;
       }
@@ -4155,7 +4194,10 @@ export default function GameCanvas() {
           spawnHostileProjectile(enemy.x, enemy.y, teleportAngle, 350, enemy.damage, 9, "witch");
           enemy.shootCooldown = 3.4;
         }
-        if (enemy.kind === 5 && enemy.shootCooldown <= 0) {
+        if (
+          enemy.kind === BLANK_CARTOGRAPHER_KIND &&
+          enemy.shootCooldown <= 0
+        ) {
           const phase = enemy.hp / enemy.maxHp;
           const count = phase > 0.66 ? 8 : phase > 0.33 ? 12 : 16;
           for (let i = 0; i < count; i += 1) {
@@ -4319,7 +4361,7 @@ export default function GameCanvas() {
             projectile.hit.add(enemy.id);
             let hitDamage = projectile.damage;
             const giantbaneRank = powerRankOf(player, "giantbane");
-            if (enemy.elite || enemy.kind === 5) {
+            if (enemy.elite || enemy.kind === BLANK_CARTOGRAPHER_KIND) {
               hitDamage *= Math.pow(1 + giantbaneRank * 0.15, 0.65);
               hitDamage *= 1 + equipmentStats.eliteDamagePercent / 100;
               if (hasLegendaryPower(player, "hunterSigil")) hitDamage *= 1.18;
@@ -5820,12 +5862,30 @@ export default function GameCanvas() {
         context.ellipse(enemy.x, enemy.y + enemy.radius * 0.7, enemy.radius, enemy.radius * 0.42, 0, 0, Math.PI * 2);
         context.fill();
         const size =
-          enemy.kind === 5 ? 185 : enemy.kind === 6 ? 112 : enemy.kind === 7 ? 118 : 72 + enemy.radius;
+          enemy.kind === BLANK_CARTOGRAPHER_KIND
+            ? 185
+            : enemy.kind === 6
+              ? 112
+              : enemy.kind === 7
+                ? 118
+                : 72 + enemy.radius;
         const spriteAlpha = enemy.slow > 0 ? 0.78 : 1;
         const walkWidth =
-          enemy.kind === 5 ? 250 : enemy.kind === 6 ? 192 : enemy.kind === 7 ? 132 : size * 1.2;
+          enemy.kind === BLANK_CARTOGRAPHER_KIND
+            ? 250
+            : enemy.kind === 6
+              ? 192
+              : enemy.kind === 7
+                ? 132
+                : size * 1.2;
         const walkHeight =
-          enemy.kind === 5 ? 225 : enemy.kind === 6 ? 144 : enemy.kind === 7 ? 152 : size * 1.25;
+          enemy.kind === BLANK_CARTOGRAPHER_KIND
+            ? 225
+            : enemy.kind === 6
+              ? 144
+              : enemy.kind === 7
+                ? 152
+                : size * 1.25;
         const directionFrame =
           ENEMY_DIRECTION_FRAMES[enemy.kind][enemy.facing] ??
           ({ row: enemy.facing, flipX: false } satisfies DirectionFrame);
@@ -5847,15 +5907,15 @@ export default function GameCanvas() {
                 enemy.kind + 1,
                 enemy.x,
                 enemy.y + 12,
-                enemy.kind === 5 ? 205 : size,
-                enemy.kind === 5 ? 190 : size * 1.12,
+                enemy.kind === BLANK_CARTOGRAPHER_KIND ? 205 : size,
+                enemy.kind === BLANK_CARTOGRAPHER_KIND ? 190 : size * 1.12,
                 spriteAlpha,
               )
             : false);
         if (!drawn) {
           context.beginPath();
           context.fillStyle =
-            enemy.kind === 5
+            enemy.kind === BLANK_CARTOGRAPHER_KIND
               ? "#812f36"
               : enemy.kind === 6
                 ? "#a72531"
@@ -5867,19 +5927,32 @@ export default function GameCanvas() {
           context.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
           context.fill();
         }
-        const barWidth = enemy.kind === 5 ? 180 : enemy.radius * 2;
+        const barWidth =
+          enemy.kind === BLANK_CARTOGRAPHER_KIND ? 180 : enemy.radius * 2;
         context.fillStyle = "rgba(0,0,0,.75)";
         context.fillRect(enemy.x - barWidth / 2, enemy.y - enemy.radius - 38, barWidth, 6);
         context.fillStyle =
-          enemy.kind === 5 ? "#d14f55" : enemy.kind === 7 ? "#63dbe8" : "#b96649";
+          enemy.kind === BLANK_CARTOGRAPHER_KIND
+            ? "#d14f55"
+            : enemy.kind === 7
+              ? "#63dbe8"
+              : "#b96649";
         context.fillRect(
           enemy.x - barWidth / 2,
           enemy.y - enemy.radius - 38,
           barWidth * clamp(enemy.hp / enemy.maxHp, 0, 1),
           6,
         );
-        if (enemy.elite || enemy.kind === 5 || enemy.kind === 6 || enemy.kind === 7) {
-          context.font = enemy.kind === 5 ? "700 15px serif" : "600 11px sans-serif";
+        if (
+          enemy.elite ||
+          enemy.kind === BLANK_CARTOGRAPHER_KIND ||
+          enemy.kind === 6 ||
+          enemy.kind === 7
+        ) {
+          context.font =
+            enemy.kind === BLANK_CARTOGRAPHER_KIND
+              ? "700 15px serif"
+              : "600 11px sans-serif";
           context.textAlign = "center";
           context.fillStyle = "#e8dfc8";
           context.fillText(ENEMY_NAMES[enemy.kind], enemy.x, enemy.y - enemy.radius - 46);
@@ -6053,6 +6126,12 @@ export default function GameCanvas() {
       ),
     [hud.player.augments],
   );
+  const endingChapter =
+    FIRST_BOSS_ENDING_CHAPTERS[
+      Math.min(endingChapterIndex, FIRST_BOSS_ENDING_CHAPTERS.length - 1)
+    ];
+  const endingIsFinal =
+    endingChapterIndex === FIRST_BOSS_ENDING_CHAPTERS.length - 1;
   const synergies = useMemo(() => activeSynergies(hud.player), [hud.player]);
   const currentProfession = useMemo(
     () => AUGMENTS.find((augment) => augment.id === hud.player.profession) ?? null,
@@ -6458,7 +6537,7 @@ export default function GameCanvas() {
         <section className="boss-hud" aria-label="보스 체력">
           <div>
             <small>백지의 권역</small>
-            <strong>{ENEMY_NAMES[5]}</strong>
+            <strong>{ENEMY_NAMES[BLANK_CARTOGRAPHER_KIND]}</strong>
           </div>
           <span>
             <i
@@ -7150,36 +7229,65 @@ export default function GameCanvas() {
 
       {mode === "ending" && (
         <div className="modal-layer ending-layer">
-          <section className="ending-modal" role="dialog" aria-modal="true" aria-labelledby="ending-title">
-            <p className="modal-kicker">3막 · 끝이 된 자</p>
-            <h2 id="ending-title">백지 위의 목소리</h2>
-            <p>
-              백지의 지도사는 최초로 이곳에 들어왔던 하린이었다. 라온의 목소리는
-              지도가 하린을 계속 걷게 하려고 만든 미끼였다. 그러나 힘은, 기억은,
-              지금의 빌드는 진짜다.
-            </p>
-            <div className="ending-choices">
-              <button
-                onClick={() => {
-                  setToast("나침반은 닫혔지만, 무진도는 끝나지 않습니다. 무한 탐험 개방.");
-                  setGameMode("playing");
-                }}
-              >
-                <small>짧은 결말</small>
-                <strong>나침반을 닫는다</strong>
-                <span>거짓 목소리를 놓고 현재 빌드로 무한 탐험을 계속합니다.</span>
-              </button>
-              <button
-                onClick={() => {
-                  setToast("라온의 목소리를 따라 더 깊은 좌표로 향합니다. 무한 탐험 개방.");
-                  setGameMode("playing");
-                }}
-              >
-                <small>끝없는 결말</small>
-                <strong>목소리를 따른다</strong>
-                <span>지도와 함께 더 강해지며 끝이 없는 다음 막으로 갑니다.</span>
-              </button>
+          <section
+            className="ending-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ending-title"
+            aria-describedby="ending-copy"
+          >
+            <header className="ending-header">
+              <p className="modal-kicker">{endingChapter.eyebrow}</p>
+              <span aria-label={`반전 기록 ${endingChapterIndex + 1}/${FIRST_BOSS_ENDING_CHAPTERS.length}`}>
+                MEMORY {String(endingChapterIndex + 1).padStart(2, "0")} / {String(FIRST_BOSS_ENDING_CHAPTERS.length).padStart(2, "0")}
+              </span>
+            </header>
+            <h2 id="ending-title">{endingChapter.title}</h2>
+            <div className="ending-progress" aria-hidden="true">
+              {FIRST_BOSS_ENDING_CHAPTERS.map((chapter, index) => (
+                <i
+                  key={chapter.title}
+                  className={index <= endingChapterIndex ? "is-revealed" : ""}
+                />
+              ))}
             </div>
+            <div
+              className="ending-story"
+              id="ending-copy"
+              key={endingChapter.title}
+              aria-live="polite"
+            >
+              {endingChapter.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+            <footer className="ending-actions">
+              <button
+                type="button"
+                className="text-button ending-back"
+                disabled={endingChapterIndex === 0}
+                onClick={() => {
+                  setEndingChapterIndex((current) => Math.max(0, current - 1));
+                }}
+              >
+                이전 기록
+              </button>
+              <button
+                type="button"
+                className="primary-button compact ending-next"
+                onClick={() => {
+                  if (endingIsFinal) {
+                    continueAfterEnding();
+                    return;
+                  }
+                  setEndingChapterIndex((current) =>
+                    Math.min(FIRST_BOSS_ENDING_CHAPTERS.length - 1, current + 1),
+                  );
+                }}
+              >
+                {endingIsFinal ? ENDING_CONTINUE_LABEL : "다음 기억을 읽는다"}
+              </button>
+            </footer>
           </section>
         </div>
       )}

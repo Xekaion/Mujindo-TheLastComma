@@ -2140,6 +2140,220 @@ button.map-cell {
   }
 }
 
+/* First-boss revelation sequence -------------------------------------- */
+.ending-modal {
+  width: min(920px, calc(100vw - 40px));
+  height: min(760px, calc(100dvh - 40px));
+  max-height: calc(100dvh - 40px);
+  display: grid;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+  padding: clamp(28px, 4vw, 52px);
+  overflow: hidden;
+  text-align: left;
+}
+
+.ending-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.ending-header .modal-kicker {
+  margin: 0;
+}
+
+.ending-header > span {
+  color: rgba(216, 186, 115, 0.68);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  white-space: nowrap;
+}
+
+.ending-modal > h2 {
+  margin-top: 12px;
+  text-align: left;
+}
+
+.ending-progress {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 6px;
+  margin: 22px 0 18px;
+}
+
+.ending-progress i {
+  height: 2px;
+  background: rgba(216, 186, 115, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+  transition: background 260ms ease, box-shadow 260ms ease;
+}
+
+.ending-progress i.is-revealed {
+  background: linear-gradient(90deg, #7d5b2d, #e2c77e);
+  box-shadow: 0 0 12px rgba(216, 186, 115, 0.25);
+}
+
+.ending-story {
+  min-height: 0;
+  padding: 25px 29px 27px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  border: 1px solid rgba(216, 186, 115, 0.15);
+  background:
+    linear-gradient(90deg, rgba(216, 186, 115, 0.04), transparent 14% 86%, rgba(216, 186, 115, 0.025)),
+    rgba(0, 0, 0, 0.22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.025),
+    inset 0 -30px 50px rgba(0, 0, 0, 0.14);
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(196, 159, 87, 0.68) rgba(0, 0, 0, 0.26);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  animation: ending-memory-reveal 420ms cubic-bezier(0.2, 0.74, 0.24, 1) both;
+}
+
+.ending-story p {
+  max-width: 760px;
+  margin: 0 auto 13px;
+  color: rgba(235, 226, 207, 0.72);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(13px, 1.15vw, 15px);
+  line-height: 1.92;
+  letter-spacing: -0.012em;
+  text-align: left;
+  word-break: keep-all;
+}
+
+.ending-story p:first-child {
+  color: rgba(245, 235, 211, 0.94);
+}
+
+.ending-story p:last-child {
+  margin-bottom: 0;
+  color: #e1c982;
+}
+
+.ending-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 18px;
+  padding-top: 22px;
+}
+
+.ending-actions .ending-back {
+  min-width: 92px;
+}
+
+.ending-actions .ending-back:disabled {
+  cursor: default;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.ending-actions .ending-next {
+  min-width: 220px;
+}
+
+@keyframes ending-memory-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(9px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 700px) {
+  .ending-modal {
+    width: 100%;
+    height: calc(100dvh - 24px);
+    max-height: calc(100dvh - 24px);
+    padding: 27px 20px 20px;
+    overflow: hidden;
+  }
+
+  .ending-header {
+    align-items: flex-start;
+  }
+
+  .ending-header > span {
+    font-size: 8px;
+    letter-spacing: 0.11em;
+  }
+
+  .ending-modal > h2 {
+    margin-top: 9px;
+    font-size: clamp(27px, 8vw, 38px);
+  }
+
+  .ending-progress {
+    gap: 3px;
+    margin: 15px 0 12px;
+  }
+
+  .ending-story {
+    padding: 18px 15px 20px;
+  }
+
+  .ending-story p {
+    margin-bottom: 11px;
+    font-size: 13px;
+    line-height: 1.78;
+  }
+
+  .ending-actions {
+    gap: 12px;
+    padding-top: 15px;
+  }
+
+  .ending-actions .ending-next {
+    min-width: min(220px, 64vw);
+  }
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .ending-modal {
+    height: calc(100dvh - 20px);
+    max-height: calc(100dvh - 20px);
+    padding: 18px 25px 15px;
+    overflow: hidden;
+  }
+
+  .ending-modal > h2 {
+    margin-top: 6px;
+    font-size: 28px;
+  }
+
+  .ending-progress {
+    margin: 9px 0;
+  }
+
+  .ending-story {
+    padding: 13px 19px;
+  }
+
+  .ending-story p {
+    margin-bottom: 7px;
+    font-size: 12px;
+    line-height: 1.62;
+  }
+
+  .ending-actions {
+    padding-top: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ending-story {
+    animation: none;
+  }
+}
+
 /* Automatic and rarity-filter salvage controls V1 --------------------- */
 .inventory-screen-batch-toolbar--active {
   flex-wrap: wrap;
@@ -2652,7 +2866,6 @@ button.map-cell {
   .story-modal,
   .shelter-modal,
   .death-modal,
-  .ending-modal,
   .pause-modal {
     width: 100%;
     max-height: 88vh;
@@ -3973,7 +4186,6 @@ button.equipment-slot-card:hover {
   .profession-modal,
   .shelter-modal,
   .death-modal,
-  .ending-modal,
   .pause-modal {
     max-height: calc(100dvh - 24px);
     padding-top: 28px;

@@ -490,7 +490,10 @@ test("twenty new augments are unique, profession-ready, and wired into combat", 
   assert.match(source, /const executionThreshold = Math\.min\(0\.4/);
   assert.match(source, /Math\.pow\(1 \+ armorRank \* 0\.1, 0\.62\)/);
   assert.match(source, /player\.hp \+ regenerationRank \* 0\.14 \* dt/);
-  assert.match(source, /const baseValue = enemy\.kind === 5/);
+  assert.match(
+    source,
+    /const baseValue =[\s\S]{0,90}?enemy\.kind === BLANK_CARTOGRAPHER_KIND/,
+  );
 });
 
 test("ten simple augments use exact card values and affect runtime calculations", async () => {
@@ -600,6 +603,98 @@ test("corrupt saves are rejected without overwriting occupied slot 1", async () 
   storage.setItem(saves.saveSlotKey(1), "corrupt-but-owned");
   assert.equal(saves.migrateLegacySave(storage), "slot-occupied");
   assert.equal(storage.getItem(saves.saveSlotKey(1)), "corrupt-but-owned");
+});
+
+test("the ending receipt patches only the one-time story flag at the saved shelter", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  const checkpoint = structuredClone(sampleSave);
+  const originalWorld = structuredClone(checkpoint.world);
+  const originalAugments = structuredClone(checkpoint.player.augments);
+
+  assert.equal(saves.writeSaveSlot(2, checkpoint, storage), true);
+  assert.equal(saves.markSaveSlotEndingSeen(2, storage), true);
+  const patched = saves.readSaveSlot(2, storage);
+
+  assert.equal(patched.player.endingSeen, true);
+  assert.equal(patched.savedAt, checkpoint.savedAt, "the shelter timestamp must not move");
+  assert.deepEqual(patched.world, originalWorld, "the shelter checkpoint must not move");
+  assert.deepEqual(
+    patched.player.augments,
+    originalAugments,
+    "unstable run progress must not be written by an ending receipt",
+  );
+  assert.equal(saves.markSaveSlotEndingSeen(1, storage), false);
+
+  const malformed = structuredClone(sampleSave);
+  malformed.player.endingSeen = "yes";
+  assert.equal(saves.writeSaveSlot(3, malformed, storage), false);
+  assert.equal(
+    saves.writeSaveSlot(3, structuredClone(sampleSave), storage),
+    true,
+    "legacy saves without the optional flag remain valid",
+  );
+});
+
+test("the blank cartographer owns the first boss and its long ending can trigger only once", async () => {
+  const [ending, source, css] = await Promise.all([
+    importTypeScriptModule("app/ending.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
+
+  assert.equal(ending.BLANK_CARTOGRAPHER_KIND, 5);
+  assert.equal(ending.ENDING_CONTINUE_LABEL, "모험을 계속한다");
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", false), true);
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", true), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("elite", false), false);
+  assert.ok(ending.FIRST_BOSS_ENDING_CHAPTERS.length >= 8);
+
+  const paragraphs = ending.FIRST_BOSS_ENDING_CHAPTERS.flatMap(
+    (chapter) => chapter.paragraphs,
+  );
+  const fullEnding = paragraphs.join(" ");
+  assert.ok(paragraphs.length >= 38, "the twist must remain a substantial epilogue");
+  for (const revelation of [
+    "이번의 나",
+    "그는 이미 죽어 있었다",
+    "기억의 재",
+    "최초의 쉼표",
+    "끝은 사라졌다",
+  ]) {
+    assert.match(fullEnding, new RegExp(revelation));
+  }
+
+  assert.match(
+    source,
+    /if \(kind === "boss"\) \{[\s\S]{0,160}?makeEnemy\(BLANK_CARTOGRAPHER_KIND,/,
+    "every first boss spawn must explicitly select the blank cartographer",
+  );
+  assert.match(
+    source,
+    /if \(world\.roomKind === "boss"\) \{[\s\S]{0,180}?shouldRevealFirstBossEnding\(world\.roomKind, player\.endingSeen\)[\s\S]{0,280}?return;/,
+    "later boss clears must return without scheduling another ending",
+  );
+  assert.match(
+    source,
+    /const continueAfterEnding[\s\S]{0,260}?playerRef\.current\.endingSeen = true;[\s\S]{0,100}?markSaveSlotEndingSeen\(activeSaveSlotRef\.current\)/,
+    "only the final continuation action may seal the ending receipt",
+  );
+  assert.match(source, /endingSeen: data\.player\.endingSeen === true/);
+  assert.match(
+    source,
+    /endingIsFinal \? ENDING_CONTINUE_LABEL : "다음 기억을 읽는다"/,
+  );
+  assert.match(
+    css,
+    /\.ending-modal\s*\{[^}]*height:[^}]*overflow:\s*hidden;/,
+    "the long ending must stay inside the viewport",
+  );
+  assert.match(
+    css,
+    /\.ending-story\s*\{[^}]*overflow-y:\s*auto;/,
+    "only the story transcript should scroll",
+  );
 });
 
 test("each shelter heals and saves only on its first coordinate visit", async () => {
@@ -842,7 +937,10 @@ test("the Proofreader walk atlas fills all canonical direction cells without edg
   );
   assert.match(source, /ENEMY_DIRECTION_FRAMES\[enemy\.kind\]\[enemy\.facing\]/);
   assert.match(source, /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\]/);
-  assert.match(source, /enemy\.kind === 6 \? 192[\s\S]{0,180}?enemy\.kind === 6 \? 144/);
+  assert.match(
+    source,
+    /enemy\.kind === 6\s*\?\s*192[\s\S]{0,280}?enemy\.kind === 6\s*\?\s*144/,
+  );
 });
 
 test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive rift pattern", async () => {
