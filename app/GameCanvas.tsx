@@ -82,14 +82,18 @@ import {
   GEAR_DROP_SCAVENGER_CHANCE_PER_RANK,
   GEAR_ICON_COLUMNS,
   GEAR_ICON_ROWS,
+  GEAR_AFFIX_DEFINITIONS,
   GEAR_RARITIES,
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   aggregateEquipmentStats,
+  calculateEquipmentCombatPower,
+  calculateEquipmentPowerDelta,
   calculateGearPowerScore,
   createEmptyEquipment,
-  formatEnhancedGearAffix,
+  formatGearNumericValue,
   gearIconCell,
+  getGearAffixDisplay,
   getGearSalvageAshBreakdown,
   getGearEnhancementRule,
   normalizeEquipment,
@@ -2826,6 +2830,13 @@ export default function GameCanvas() {
       }
 
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      const previousEquipmentPower = calculateEquipmentCombatPower(player.equipment);
+      const optionGainSummary = item.affixes
+        .map((affix) => {
+          const nextStageGain = getGearAffixDisplay(affix, item).nextStageGainLabel;
+          return `${GEAR_AFFIX_DEFINITIONS[affix.stat].name} ${nextStageGain}`;
+        })
+        .join(" · ") || "옵션 증가 없음";
       player.memoryAsh -= rule.ashCost;
       const roll = Math.random() * 100;
       if (roll < rule.successPercent) {
@@ -2837,8 +2848,12 @@ export default function GameCanvas() {
         if (inventoryIndex >= 0) player.inventory[inventoryIndex] = enhancedItem;
         else if (equippedSlot) player.equipment[equippedSlot] = enhancedItem;
         setSelectedGearId(enhancedItem.id);
+        const powerGain = equippedSlot
+          ? calculateEquipmentCombatPower(player.equipment) - previousEquipmentPower
+          : enhancedItem.powerScore - item.powerScore;
+        const powerGainLabel = equippedSlot ? "장착 전투력" : "아이템 전투력";
         setToast(
-          `강화 성공 · ${enhancedItem.displayName} +${enhancedItem.enhancement} · 전투력 ${enhancedItem.powerScore}`,
+          `강화 성공 · ${enhancedItem.displayName} +${enhancedItem.enhancement} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
         );
       } else if (roll < rule.successPercent + rule.destroyPercent) {
         if (inventoryIndex >= 0) player.inventory.splice(inventoryIndex, 1);
@@ -2881,6 +2896,24 @@ export default function GameCanvas() {
         setToast(`기억의 재가 ${rule.ashCost - player.memoryAsh}개 부족합니다.`);
         return;
       }
+      const previewItem: GearItem = {
+        ...item,
+        enhancement: rule.target,
+        powerScore: calculateGearPowerScore({ ...item, enhancement: rule.target }),
+      };
+      const equippedSlot = EQUIPMENT_SLOTS.find(
+        (slot) => player.equipment[slot]?.id === item.id,
+      );
+      const powerGain = equippedSlot
+        ? calculateEquipmentPowerDelta(player.equipment, previewItem)
+        : previewItem.powerScore - item.powerScore;
+      const powerGainLabel = equippedSlot ? "장착 종합 전투력" : "아이템 전투력";
+      const optionGainSummary = item.affixes
+        .map((affix) => {
+          const nextStageGain = getGearAffixDisplay(affix, item).nextStageGainLabel;
+          return `${GEAR_AFFIX_DEFINITIONS[affix.stat].name} ${nextStageGain}`;
+        })
+        .join(" · ") || "옵션 증가 없음";
       if (rule.destroyPercent <= 0) {
         performGearEnhancement(itemId);
         return;
@@ -2890,7 +2923,7 @@ export default function GameCanvas() {
         {
           eyebrow: "FORGE WARNING",
           title: `${item.displayName} +${item.enhancement} → +${rule.target}`,
-          body: `실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
+          body: `이번 강화 증가분: ${optionGainSummary} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain}. 실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
           confirmLabel: "강화 시도",
           tone: "danger",
         },
@@ -6155,11 +6188,7 @@ export default function GameCanvas() {
     [hud.player.equipment],
   );
   const equippedPower = useMemo(
-    () =>
-      EQUIPMENT_SLOTS.reduce(
-        (sum, slot) => sum + (hud.player.equipment[slot]?.powerScore ?? 0),
-        0,
-      ),
+    () => calculateEquipmentCombatPower(hud.player.equipment),
     [hud.player.equipment],
   );
   const selectedGear = useMemo(
@@ -6170,7 +6199,7 @@ export default function GameCanvas() {
     ? hud.player.equipment[selectedGear.slot]
     : null;
   const selectedPowerDelta = selectedGear
-    ? selectedGear.powerScore - (selectedGearComparison?.powerScore ?? 0)
+    ? calculateEquipmentPowerDelta(hud.player.equipment, selectedGear)
     : 0;
   const buildMetrics = useMemo(() => {
     const damageMultiplier =
@@ -6198,23 +6227,23 @@ export default function GameCanvas() {
       0.75,
     );
     return [
-      { label: "피해 계수", value: `×${damageMultiplier.toFixed(2)}` },
+      { label: "피해 계수", value: `×${formatGearNumericValue(damageMultiplier)}` },
       {
         label: "발사 속도",
-        value: `${fireRate.toFixed(1)}/초`,
+        value: `${formatGearNumericValue(fireRate)}/초`,
       },
       {
         label: "투사체",
-        value: `${1 + powerRankOf(hud.player, "split")}발 · 크기 +${Math.round(gearStats.projectileSizePercent)}%`,
+        value: `${1 + powerRankOf(hud.player, "split")}발 · 크기 +${formatGearNumericValue(gearStats.projectileSizePercent)}%`,
       },
       {
         label: "치명타",
-        value: `${Math.round(critChance * 100)}% · 피해 +${Math.round(gearStats.critDamagePercent)}%`,
+        value: `${formatGearNumericValue(critChance * 100)}% · 피해 +${formatGearNumericValue(gearStats.critDamagePercent)}%`,
       },
       { label: "장비 전투력", value: equippedPower.toLocaleString("ko-KR") },
-      { label: "피해 감소", value: `${Math.round(gearStats.damageReductionPercent)}%` },
-      { label: "정예·보스 피해", value: `+${Math.round(gearStats.eliteDamagePercent)}%` },
-      { label: "장비 발견", value: `+${Math.round(gearStats.gearFindPercent)}%` },
+      { label: "피해 감소", value: `${formatGearNumericValue(gearStats.damageReductionPercent)}%` },
+      { label: "정예·보스 피해", value: `+${formatGearNumericValue(gearStats.eliteDamagePercent)}%` },
+      { label: "장비 발견", value: `+${formatGearNumericValue(gearStats.gearFindPercent)}%` },
     ];
   }, [equippedPower, gearStats, hud.player, synergies]);
   const nearestLandmark = useMemo(() => {
@@ -6767,12 +6796,21 @@ export default function GameCanvas() {
                     <b className="gear-quality-value">{selectedGear.qualityScore}%</b>
                   </div>
                   <div className="gear-item-affixes">
-                    {selectedGear.affixes.map((affix) => (
-                      <span key={affix.stat}>
-                        {formatEnhancedGearAffix(selectedGear, affix)}
-                        <em>{affix.rollPercent}%</em>
-                      </span>
-                    ))}
+                    {selectedGear.affixes.map((affix) => {
+                      const display = getGearAffixDisplay(affix, selectedGear);
+                      return (
+                        <span key={affix.stat}>
+                          <span className="gear-affix-display-copy">
+                            <b>{display.totalLabel}</b>
+                            <br />
+                            <small>
+                              {display.baseLabel} · {display.enhancementLabel}
+                            </small>
+                          </span>
+                          <em>품질 {affix.rollPercent}/100</em>
+                        </span>
+                      );
+                    })}
                     {selectedGear.legendaryPowerId && (
                       <strong>{LEGENDARY_POWERS[selectedGear.legendaryPowerId].name} · {LEGENDARY_POWERS[selectedGear.legendaryPowerId].description}</strong>
                     )}

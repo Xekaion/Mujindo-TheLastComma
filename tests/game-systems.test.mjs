@@ -1593,7 +1593,7 @@ test("fresh equipment drops stay within a deterministic player-level five-band",
   assert.deepEqual(normalizedLegacyItem.affixes, legacyHighLevelItem.affixes);
 });
 
-test("rarity premium follows the level-100 equivalence ladder without replacing progression", async () => {
+test("rarity tier rating preserves the level-100 equivalence ladder without faking combat power", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   assert.equal(equipment.GEAR_POWER_PER_LEVEL, 8);
   assert.deepEqual(equipment.GEAR_RARITY_LEVEL_EQUIVALENT, {
@@ -1618,81 +1618,383 @@ test("rarity premium follows the level-100 equivalence ladder without replacing 
     cosmic: 40,
   };
 
-  const averagePower = (level, rarity, slot) => {
-    let total = 0;
-    const sampleCount = 512;
-    for (let seed = 0; seed < sampleCount; seed += 1) {
-      total += equipment.rollGear(`power-band-${slot}-${seed}`, {
-        level,
-        rarity,
-        slot,
-      }).powerScore;
-    }
-    return total / sampleCount;
+  const commonAnchor = equipment.calculateGearTierRating({
+    level: equivalentLevels.common,
+    rarity: "common",
+  });
+  assert.equal(commonAnchor, equivalentLevels.common * equipment.GEAR_POWER_PER_LEVEL);
+
+  for (const rarity of equipment.GEAR_RARITIES) {
+    const targetLevel = equivalentLevels[rarity];
+    assert.equal(
+      equipment.calculateGearTierRating({ level: targetLevel, rarity }),
+      commonAnchor,
+      `level-${targetLevel} ${rarity} must share the exact level-100 common tier anchor`,
+    );
+    assert.equal(
+      equipment.calculateGearTierRating({ level: targetLevel + 1, rarity }),
+      commonAnchor + equipment.GEAR_POWER_PER_LEVEL,
+      `${rarity} tier rating must still gain exactly one item-level step`,
+    );
+  }
+});
+
+test("gear option text keeps two decimals and exposes the exact enhancement contribution", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+
+  assert.equal(equipment.formatGearNumericValue(12.345), "12.35");
+  assert.equal(equipment.formatGearNumericValue(-12.345), "-12.35");
+  assert.equal(equipment.formatGearNumericValue(-0.001), "0.00");
+  assert.equal(
+    equipment.formatGearAffix("damagePercent", 12.345),
+    `${equipment.GEAR_AFFIX_DEFINITIONS.damagePercent.name} +12.35%`,
+  );
+  assert.equal(
+    equipment.formatGearAffix("damageReductionPercent", 4.567),
+    `${equipment.GEAR_AFFIX_DEFINITIONS.damageReductionPercent.name} -4.57%`,
+    "reduction affixes must retain their semantic minus sign",
+  );
+  assert.equal(
+    equipment.formatGearAffix("maxHpFlat", 123.456),
+    `${equipment.GEAR_AFFIX_DEFINITIONS.maxHpFlat.name} +123.46`,
+  );
+
+  const affix = {
+    stat: "damagePercent",
+    value: 10,
+    rollPercent: 50,
+    label: "stale",
+  };
+  const item = { rarity: "rare", enhancement: 3 };
+  const display = equipment.getGearAffixDisplay(affix, item);
+  assert.deepEqual(
+    {
+      totalValue: display.totalValue,
+      baseValue: display.baseValue,
+      enhancementValue: display.enhancementValue,
+      nextStageGainValue: display.nextStageGainValue,
+    },
+    {
+      totalValue: 13,
+      baseValue: 10,
+      enhancementValue: 3,
+      nextStageGainValue: 1,
+    },
+  );
+  assert.equal(display.totalLabel, equipment.formatEnhancedGearAffix(item, affix));
+  assert.match(display.totalLabel, /\+13\.00%$/);
+  assert.match(display.baseLabel, /\+10\.00%$/);
+  assert.match(display.enhancementLabel, /\+3\.00%p$/);
+  assert.match(display.nextStageGainLabel, /\+1\.00%p$/);
+
+  const reductionDisplay = equipment.getGearAffixDisplay(
+    { ...affix, stat: "damageReductionPercent" },
+    item,
+  );
+  assert.match(reductionDisplay.totalLabel, /-13\.00%$/);
+  assert.match(reductionDisplay.baseLabel, /-10\.00%$/);
+  assert.match(reductionDisplay.enhancementLabel, /-3\.00%p$/);
+  assert.doesNotMatch(
+    [
+      display.totalLabel,
+      display.baseLabel,
+      display.enhancementLabel,
+      display.nextStageGainLabel,
+      equipment.getGearAffixDisplay(
+        { ...affix, stat: "damageReductionPercent" },
+        { rarity: "common", enhancement: 0 },
+      ).enhancementLabel,
+      equipment.formatGearNumericValue(-0),
+    ].join(" "),
+    /-0\.00/,
+    "rounded zero must never surface as negative zero",
+  );
+});
+
+test("comprehensive equipment power models every live stat, runtime caps, and multiplicative synergy", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const makeItem = ({
+    slot,
+    stat = null,
+    value = 0,
+    rarity = "common",
+    enhancement = 0,
+    legendaryPowerId = null,
+  }) => ({
+    id: `test-${slot}-${stat ?? legendaryPowerId ?? "empty"}-${value}-${enhancement}`,
+    slot,
+    rarity,
+    level: 1,
+    baseName: equipment.GEAR_BASE_NAMES[slot][0],
+    displayName: "test gear",
+    iconIndex: equipment.gearIconIndex(slot, equipment.GEAR_BASE_NAMES[slot][0]),
+    affixes: stat
+      ? [{ stat, value, rollPercent: 100, label: equipment.formatGearAffix(stat, value) }]
+      : [],
+    legendaryPowerId,
+    enhancement,
+    qualityScore: 100,
+    powerScore: 1,
+  });
+  const loadoutOf = (...items) => {
+    const loadout = equipment.createEmptyEquipment();
+    for (const item of items) loadout[item.slot] = item;
+    return loadout;
+  };
+  const scoreStat = (stat, value) => {
+    const slot = equipment.GEAR_AFFIX_DEFINITIONS[stat].slots[0];
+    return equipment.calculateEquipmentCombatPower(
+      loadoutOf(makeItem({ slot, stat, value })),
+    );
   };
 
-  for (const slot of equipment.EQUIPMENT_SLOTS) {
-    const exactCommonPower = equipment.calculateGearPowerScore({
-      slot,
-      rarity: "common",
-      level: equivalentLevels.common,
-      affixes: [],
-      legendaryPowerId: null,
-      enhancement: 0,
-    });
-    for (const rarity of equipment.GEAR_RARITIES) {
-      assert.equal(
-        equipment.calculateGearPowerScore({
-          slot,
-          rarity,
-          level: equivalentLevels[rarity],
-          affixes: [],
-          legendaryPowerId: null,
-          enhancement: 0,
-        }),
-        exactCommonPower,
-        `${slot}: ${rarity} must share the exact empty-affix +0 balance anchor`,
-      );
-    }
+  const emptyPower = equipment.calculateEquipmentCombatPower(
+    equipment.createEmptyEquipment(),
+  );
+  assert.equal(emptyPower, 1_000, "the documented equipment-only baseline must remain stable");
 
-    let previousEnhancedPower = 0;
-    for (const rarity of equipment.GEAR_RARITIES) {
-      const enhancedPower = equipment.calculateGearPowerScore({
-        slot,
-        rarity,
-        level: equivalentLevels[rarity],
-        affixes: [],
-        legendaryPowerId: null,
-        enhancement: 10,
-      });
-      assert.ok(
-        enhancedPower > previousEnhancedPower,
-        `${slot}: +10 ${rarity} must beat the preceding rarity at the shared +0 anchor`,
-      );
-      previousEnhancedPower = enhancedPower;
-    }
+  const monotonicRanges = {
+    damagePercent: [20, 80],
+    attackSpeedPercent: [20, 80],
+    projectileSpeedPercent: [50, 150],
+    maxHpFlat: [50, 200],
+    damageReductionPercent: [15, 45],
+    moveSpeedPercent: [20, 80],
+    dashCooldownPercent: [30, 100],
+    pickupRadiusPercent: [100, 500],
+    xpGainPercent: [20, 100],
+    critChancePercent: [15, 50],
+    critDamagePercent: [50, 200],
+    projectileSizePercent: [50, 140],
+    eliteDamagePercent: [50, 200],
+    lifeOnHitFlat: [5, 15],
+    gearFindPercent: [50, 150],
+  };
+  assert.deepEqual(Object.keys(monotonicRanges), equipment.GEAR_AFFIX_STATS);
+  for (const stat of equipment.GEAR_AFFIX_STATS) {
+    const [lowerValue, higherValue] = monotonicRanges[stat];
+    const lowerPower = scoreStat(stat, lowerValue);
+    const higherPower = scoreStat(stat, higherValue);
+    assert.ok(lowerPower > emptyPower, `${stat} must contribute to comprehensive power`);
+    assert.ok(
+      higherPower > lowerPower,
+      `${stat} must remain monotonic before its runtime cap`,
+    );
+  }
 
-    const commonAtAnchor = averagePower(equivalentLevels.common, "common", slot);
-    const commonAboveAnchor = averagePower(equivalentLevels.common + 1, "common", slot);
-    for (const rarity of equipment.GEAR_RARITIES) {
-      const targetLevel = equivalentLevels[rarity];
-      const equivalentPower = averagePower(targetLevel, rarity, slot);
-      const relativeGap = Math.abs(equivalentPower - commonAtAnchor) / commonAtAnchor;
-      assert.ok(
-        relativeGap <= 0.01,
-        `${slot}: level-${targetLevel} ${rarity} differs from level-100 common by ${(relativeGap * 100).toFixed(2)}%`,
-      );
-      if (rarity !== "common") {
-        assert.ok(
-          commonAboveAnchor > equivalentPower,
-          `${slot}: one additional common item level must retake the lead over level-${targetLevel} ${rarity}`,
-        );
-        assert.ok(
-          averagePower(targetLevel + 1, rarity, slot) > commonAtAnchor,
-          `${slot}: one additional ${rarity} item level must move above the shared anchor`,
-        );
-      }
-    }
+  for (const [stat, cap, overflow] of [
+    ["damageReductionPercent", 65, 500],
+    ["critChancePercent", 70, 500],
+    ["projectileSizePercent", 150, 500],
+    ["lifeOnHitFlat", 18.75, 500],
+    ["gearFindPercent", 200, 500],
+  ]) {
+    assert.equal(
+      scoreStat(stat, overflow),
+      scoreStat(stat, cap),
+      `${stat} must stop adding power at the same cap used by live combat`,
+    );
+  }
+
+  const assertMultiplicativeSynergy = (first, second, description) => {
+    const firstPower = equipment.calculateEquipmentCombatPower(loadoutOf(first));
+    const secondPower = equipment.calculateEquipmentCombatPower(loadoutOf(second));
+    const combinedPower = equipment.calculateEquipmentCombatPower(loadoutOf(first, second));
+    assert.ok(
+      combinedPower - emptyPower
+        > (firstPower - emptyPower) + (secondPower - emptyPower),
+      `${description} must be valued as a multiplicative interaction`,
+    );
+  };
+  assertMultiplicativeSynergy(
+    makeItem({ slot: "weapon", stat: "damagePercent", value: 100 }),
+    makeItem({ slot: "offhand", stat: "attackSpeedPercent", value: 100 }),
+    "damage and attack speed",
+  );
+  assertMultiplicativeSynergy(
+    makeItem({ slot: "helm", stat: "critChancePercent", value: 70 }),
+    makeItem({ slot: "relic", stat: "critDamagePercent", value: 100 }),
+    "critical chance and critical damage",
+  );
+  assertMultiplicativeSynergy(
+    makeItem({ slot: "armor", stat: "maxHpFlat", value: 100 }),
+    makeItem({ slot: "belt", stat: "damageReductionPercent", value: 50 }),
+    "maximum health and damage reduction",
+  );
+});
+
+test("combat power values only implemented legendary effects and computes contextual replacement deltas", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const makeItem = ({
+    slot,
+    stat = null,
+    value = 0,
+    rarity = "common",
+    enhancement = 0,
+    legendaryPowerId = null,
+  }) => ({
+    id: `power-${slot}-${stat ?? legendaryPowerId ?? "empty"}-${value}-${enhancement}`,
+    slot,
+    rarity,
+    level: 1,
+    baseName: equipment.GEAR_BASE_NAMES[slot][0],
+    displayName: "power test gear",
+    iconIndex: equipment.gearIconIndex(slot, equipment.GEAR_BASE_NAMES[slot][0]),
+    affixes: stat
+      ? [{ stat, value, rollPercent: 100, label: equipment.formatGearAffix(stat, value) }]
+      : [],
+    legendaryPowerId,
+    enhancement,
+    qualityScore: 100,
+    powerScore: 1,
+  });
+  const loadoutOf = (...items) => {
+    const loadout = equipment.createEmptyEquipment();
+    for (const item of items) loadout[item.slot] = item;
+    return loadout;
+  };
+  const emptyPower = equipment.calculateEquipmentCombatPower(
+    equipment.createEmptyEquipment(),
+  );
+  const activePowers = [
+    "crescentEcho",
+    "hunterSigil",
+    "lastMemory",
+    "riftStride",
+    "commaResonance",
+  ];
+  const inactivePowers = [
+    "mirrorAegis",
+    "starfallMantle",
+    "bloodwovenGrip",
+    "ashboundGirdle",
+    "phantomMarch",
+  ];
+
+  for (const legendaryPowerId of activePowers) {
+    const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
+    const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
+    assert.ok(
+      equipment.calculateEquipmentCombatPower(loadoutOf(item)) > emptyPower,
+      `${legendaryPowerId} is implemented at runtime and must contribute power`,
+    );
+    assert.ok(
+      equipment.calculateGearPowerScore(item) > 1,
+      `${legendaryPowerId} must contribute to intrinsic item power too`,
+    );
+  }
+  for (const legendaryPowerId of inactivePowers) {
+    const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
+    const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
+    assert.equal(
+      equipment.calculateEquipmentCombatPower(loadoutOf(item)),
+      emptyPower,
+      `${legendaryPowerId} must not claim power before its runtime behavior exists`,
+    );
+    assert.equal(equipment.calculateGearPowerScore(item), 1);
+  }
+
+  const equippedWeapon = makeItem({
+    slot: "weapon",
+    stat: "damagePercent",
+    value: 20,
+  });
+  const attackSpeedItem = makeItem({
+    slot: "offhand",
+    stat: "attackSpeedPercent",
+    value: 80,
+  });
+  const candidateWeapon = makeItem({
+    slot: "weapon",
+    stat: "damagePercent",
+    value: 100,
+  });
+  const currentLoadout = loadoutOf(equippedWeapon, attackSpeedItem);
+  const nextLoadout = { ...currentLoadout, weapon: candidateWeapon };
+  const expectedDelta =
+    equipment.calculateEquipmentCombatPower(nextLoadout)
+    - equipment.calculateEquipmentCombatPower(currentLoadout);
+  const contextualDelta = equipment.calculateEquipmentPowerDelta(
+    currentLoadout,
+    candidateWeapon,
+  );
+  assert.equal(contextualDelta, expectedDelta);
+  assert.ok(
+    contextualDelta
+      > equipment.calculateGearPowerScore(candidateWeapon)
+        - equipment.calculateGearPowerScore(equippedWeapon),
+    "replacement power must include synergy with the rest of the equipped build",
+  );
+  assert.equal(currentLoadout.weapon, equippedWeapon, "comparison must not mutate the loadout");
+});
+
+test("enhancement power comes only from enhanced affixes and stale saves recompute derived values", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const emptyItem = {
+    slot: "weapon",
+    rarity: "cosmic",
+    level: 999,
+    affixes: [],
+    legendaryPowerId: null,
+    enhancement: 0,
+  };
+  assert.equal(equipment.calculateGearPowerScore(emptyItem), 1);
+  assert.equal(
+    equipment.calculateGearPowerScore({ ...emptyItem, enhancement: 10 }),
+    1,
+    "level, rarity, and enhancement cannot invent combat power without an affix or active effect",
+  );
+
+  const affix = {
+    stat: "damagePercent",
+    value: 100,
+    rollPercent: 100,
+    label: equipment.formatGearAffix("damagePercent", 100),
+  };
+  const commonItem = {
+    ...emptyItem,
+    rarity: "common",
+    level: 1,
+    affixes: [affix],
+  };
+  const legendaryItem = { ...commonItem, rarity: "legendary" };
+  const commonBasePower = equipment.calculateGearPowerScore(commonItem);
+  const legendaryBasePower = equipment.calculateGearPowerScore(legendaryItem);
+  assert.equal(commonBasePower, legendaryBasePower);
+  const commonGain =
+    equipment.calculateGearPowerScore({ ...commonItem, enhancement: 1 })
+    - commonBasePower;
+  const legendaryGain =
+    equipment.calculateGearPowerScore({ ...legendaryItem, enhancement: 1 })
+    - legendaryBasePower;
+  assert.ok(commonGain > 0);
+  assert.ok(
+    legendaryGain >= commonGain * 2,
+    "legendary +1 must convert its twice-as-large affix multiplier into real power",
+  );
+
+  const rolled = equipment.rollGear("stale-derived-power-save", {
+    level: 42,
+    slot: "weapon",
+    rarity: "legendary",
+  });
+  const stale = JSON.parse(JSON.stringify(rolled));
+  stale.enhancement = 5;
+  stale.powerScore = -999_999;
+  for (const savedAffix of stale.affixes) savedAffix.label = "stale label";
+  const normalized = equipment.normalizeGearItem(stale);
+  assert.ok(normalized);
+  assert.equal(
+    normalized.powerScore,
+    equipment.calculateGearPowerScore(normalized),
+    "saved power is derived and must be recomputed under the comprehensive formula",
+  );
+  for (const normalizedAffix of normalized.affixes) {
+    assert.equal(
+      normalizedAffix.label,
+      equipment.formatGearAffix(normalizedAffix.stat, normalizedAffix.value),
+      "saved option labels must migrate to the exact two-decimal formatter",
+    );
   }
 });
 
@@ -1931,15 +2233,19 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   const commonAnchor = {
     slot: "armor",
     rarity: "common",
-    level: 100,
-    affixes: [],
+    level: 1,
+    affixes: [{
+      stat: "damagePercent",
+      value: 100,
+      rollPercent: 100,
+      label: equipment.formatGearAffix("damagePercent", 100),
+    }],
     legendaryPowerId: null,
     enhancement: 0,
   };
   const legendaryAnchor = {
     ...commonAnchor,
     rarity: "legendary",
-    level: 70,
   };
   const commonAnchorPower = equipment.calculateGearPowerScore(commonAnchor);
   const legendaryAnchorPower = equipment.calculateGearPowerScore(legendaryAnchor);
@@ -1953,7 +2259,7 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     enhancement: 1,
   }) - legendaryAnchorPower;
   assert.ok(
-    legendaryPlusOneGain >= commonPlusOneGain * 2,
+    commonPlusOneGain > 0 && legendaryPlusOneGain >= commonPlusOneGain * 2,
     `legendary +1 gain ${legendaryPlusOneGain} must be at least twice common ${commonPlusOneGain}`,
   );
 
@@ -2626,9 +2932,13 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   assert.doesNotMatch(overlay, /(?:window\.)?(?:alert|confirm|prompt)\s*\(/);
   assert.match(source, /const requestGameConfirmation[\s\S]{0,900}?setGameConfirmation\(confirmation\)/);
   assert.match(source, /game-confirmation-dialog is-\$\{[\s\S]{0,220}?role="alertdialog"/);
+  const enhancementRequest = source.match(
+    /const enhanceGearItem = useCallback\(([\s\S]*?)\n\s*const returnToMenu = useCallback/,
+  );
+  assert.ok(enhancementRequest, "the inventory enhancement callback must remain wired");
   assert.match(
-    source,
-    /const enhanceGearItem[\s\S]{0,1500}?requestGameConfirmation\([\s\S]{0,500}?performGearEnhancement\(itemId\)/,
+    enhancementRequest[1],
+    /requestGameConfirmation\([\s\S]*?\(\) => performGearEnhancement\(itemId\)/,
     "destructive enhancement must use the shared in-game confirmation layer",
   );
   assert.doesNotMatch(
@@ -2663,8 +2973,8 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     overlay,
-    /const enhancementPowerGain[\s\S]{0,260}?calculateGearPowerScore\(\{[\s\S]{0,180}?enhancement:\s*enhancementRule\.target/,
-    "the workbench must preview the selected rarity's efficiency and exact next power score",
+    /const equipmentWithSelectedItem[\s\S]{0,320}?const enhancementPowerGain[\s\S]{0,240}?calculateEquipmentPowerDelta\(equipmentWithSelectedItem,\s*\{[\s\S]{0,120}?enhancement:\s*enhancementRule\.target/,
+    "the workbench must preview the exact contextual power gained by its next stage",
   );
   assert.match(
     overlay,
@@ -2673,13 +2983,18 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     overlay,
-    /formatEnhancedGearAffix\(item, affix\)/,
-    "hover affixes must show their live enhancement-scaled values",
+    /function GearAffixBreakdown[\s\S]{0,500}?getGearAffixDisplay\(affix, item\)/,
+    "all option rows must use the canonical base and enhancement display split",
   );
   assert.match(
     overlay,
-    /formatEnhancedGearAffix\(selectedItem, affix\)/,
-    "workbench affixes must show their live enhancement-scaled values",
+    /<GearAffixBreakdown item=\{item\} affix=\{affix\} compact/,
+    "hover options must show their live enhancement-scaled values",
+  );
+  assert.match(
+    overlay,
+    /<GearAffixBreakdown item=\{selectedItem\} affix=\{affix\}/,
+    "workbench options must show their live enhancement-scaled values",
   );
   assert.match(
     source,
@@ -3192,8 +3507,8 @@ test("every backpack item shows its equipped-slot power delta before hover", asy
 
   assert.match(
     overlay,
-    /sortedInventory\.map\(\(item,\s*itemIndex\) => \{[\s\S]{0,1000}?equipment\[item\.slot\][\s\S]{0,600}?item\.powerScore\s*-\s*\([^)]*powerScore\s*\?\?\s*0\)/,
-    "each backpack card must compare against the currently equipped item in the same slot",
+    /sortedInventory\.map\(\(item,\s*itemIndex\) => \{[\s\S]{0,300}?const itemPowerDelta = calculateEquipmentPowerDelta\(equipment,\s*item\)/,
+    "each backpack card must use the whole-loadout contextual comparison",
   );
   assert.match(
     overlay,

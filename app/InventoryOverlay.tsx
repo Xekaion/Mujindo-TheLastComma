@@ -19,9 +19,9 @@ import {
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   MAX_GEAR_ENHANCEMENT,
-  calculateGearPowerScore,
-  formatEnhancedGearAffix,
+  calculateEquipmentPowerDelta,
   gearIconCell,
+  getGearAffixDisplay,
   getGearEnhancementRule,
   getGearSalvageAshBreakdown,
   type EquipmentLoadout,
@@ -63,7 +63,7 @@ export type InventoryOverlayProps = {
 };
 
 const TOOLTIP_WIDTH = 390;
-const TOOLTIP_HEIGHT = 620;
+const TOOLTIP_HEIGHT = 720;
 const TOOLTIP_GAP = 20;
 
 type TooltipPosition = {
@@ -169,18 +169,48 @@ function RaritySpectacle({ rarity }: { rarity: GearItem["rarity"] }) {
   );
 }
 
+function GearAffixBreakdown({
+  item,
+  affix,
+  compact = false,
+}: {
+  item: GearItem;
+  affix: GearItem["affixes"][number];
+  compact?: boolean;
+}) {
+  const display = getGearAffixDisplay(affix, item);
+
+  return (
+    <div className={compact ? "inventory-screen-affix-breakdown inventory-screen-affix-breakdown--compact" : "inventory-screen-affix-breakdown"}>
+      <span className="inventory-screen-affix-values">
+        <strong>{display.totalLabel}</strong>
+        <small>
+          {display.baseLabel}
+          <i aria-hidden="true">·</i>
+          {display.enhancementLabel}
+        </small>
+      </span>
+      <em aria-label={`옵션 품질 백분위 ${affix.rollPercent}점`}>
+        품질 {affix.rollPercent}/100
+      </em>
+    </div>
+  );
+}
+
 function GearTooltip({
   item,
   comparisonItem,
+  equipment,
   equipped,
   position,
 }: {
   item: GearItem;
   comparisonItem: GearItem | null;
+  equipment: EquipmentLoadout;
   equipped: boolean;
   position: TooltipPosition;
 }) {
-  const powerDelta = item.powerScore - (comparisonItem?.powerScore ?? 0);
+  const powerDelta = calculateEquipmentPowerDelta(equipment, item);
 
   return (
     <div
@@ -213,18 +243,17 @@ function GearTooltip({
         )}
       </div>
       <div className="inventory-screen-tooltip-quality">
-        <span>옵션 품질</span>
+        <span>옵션 품질 백분위</span>
         <i aria-hidden="true">
           <b style={{ width: `${item.qualityScore}%` }} />
         </i>
-        <strong>{item.qualityScore}%</strong>
+        <strong aria-label={`옵션 품질 백분위 ${item.qualityScore}점`}>
+          품질 {item.qualityScore}/100
+        </strong>
       </div>
       <div className="inventory-screen-tooltip-affixes">
         {item.affixes.map((affix) => (
-          <div key={affix.stat}>
-            <span>{formatEnhancedGearAffix(item, affix)}</span>
-            <em>{affix.rollPercent}%</em>
-          </div>
+          <GearAffixBreakdown item={item} affix={affix} compact key={affix.stat} />
         ))}
       </div>
       {item.legendaryPowerId && (
@@ -330,21 +359,24 @@ export default function InventoryOverlay({
     ? equipment[selectedInventoryItem.slot]
     : null;
   const powerDelta = selectedInventoryItem
-    ? selectedInventoryItem.powerScore - (comparisonItem?.powerScore ?? 0)
+    ? calculateEquipmentPowerDelta(equipment, selectedInventoryItem)
     : 0;
   const enhancementRule = selectedItem
     ? getGearEnhancementRule(selectedItem)
     : null;
   const enhancementEfficiencyPercent = selectedItem
-    ? Math.round(GEAR_ENHANCEMENT_EFFECT_PER_STAGE[selectedItem.rarity] * 100)
-    : 0;
+    ? (GEAR_ENHANCEMENT_EFFECT_PER_STAGE[selectedItem.rarity] * 100).toFixed(2)
+    : "0.00";
+  const equipmentWithSelectedItem: EquipmentLoadout = selectedItem
+    ? { ...equipment, [selectedItem.slot]: selectedItem }
+    : equipment;
   const enhancementPowerGain = selectedItem && enhancementRule
     ? Math.max(
         0,
-        calculateGearPowerScore({
+        calculateEquipmentPowerDelta(equipmentWithSelectedItem, {
           ...selectedItem,
           enhancement: enhancementRule.target,
-        }) - selectedItem.powerScore,
+        }),
       )
     : 0;
   const canAffordEnhancement = enhancementRule
@@ -680,24 +712,19 @@ export default function InventoryOverlay({
                           </strong>
                         </div>
                       )}
-                      <div className="inventory-screen-quality" aria-label={`옵션 품질 ${selectedItem.qualityScore}%`}>
-                        <span>옵션 품질</span>
+                      <div className="inventory-screen-quality" aria-label={`옵션 품질 백분위 ${selectedItem.qualityScore}점`}>
+                        <span>옵션 품질 백분위</span>
                         <span className="inventory-screen-quality-track" aria-hidden="true">
                           <i
                             className="inventory-screen-quality-fill"
                             style={{ "--inventory-screen-quality": `${selectedItem.qualityScore}%` } as CSSProperties}
                           />
                         </span>
-                        <b>{selectedItem.qualityScore}%</b>
+                        <b>품질 {selectedItem.qualityScore}/100</b>
                       </div>
                       <div className="inventory-screen-affixes">
                         {selectedItem.affixes.map((affix) => (
-                          <div className="inventory-screen-affix" key={affix.stat}>
-                            <span>{formatEnhancedGearAffix(selectedItem, affix)}</span>
-                            <em aria-label={`옵션 수치 품질 ${affix.rollPercent}%`}>
-                              {affix.rollPercent}%
-                            </em>
-                          </div>
+                          <GearAffixBreakdown item={selectedItem} affix={affix} key={affix.stat} />
                         ))}
                       </div>
                       {selectedItem.legendaryPowerId && (
@@ -731,8 +758,22 @@ export default function InventoryOverlay({
                               <i aria-hidden="true">→</i>
                               <span>목표 <b>+{enhancementRule.target}</b></span>
                               <em>
-                                {GEAR_RARITY_META[selectedItem.rarity].label} +{enhancementEfficiencyPercent}%/단계
+                                단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}% 추가
                               </em>
+                            </div>
+                            <div className="inventory-screen-enhancement-affix-gains">
+                              <strong>이번 강화 옵션 증가</strong>
+                              <ul>
+                                {selectedItem.affixes.map((affix) => {
+                                  const display = getGearAffixDisplay(affix, selectedItem);
+                                  return (
+                                    <li key={affix.stat}>
+                                      <span>{display.totalLabel}</span>
+                                      <em>{display.nextStageGainLabel}</em>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
                             </div>
                             <dl className="inventory-screen-enhancement-rates">
                               <div className="inventory-screen-enhancement-rate--cost">
@@ -778,7 +819,7 @@ export default function InventoryOverlay({
                           <div className="inventory-screen-enhancement-max">
                             <strong>최대 강화 +{MAX_GEAR_ENHANCEMENT}</strong>
                             <span>
-                              {GEAR_RARITY_META[selectedItem.rarity].label} 등급의 단계당 +{enhancementEfficiencyPercent}% 효율이 모두 적용되었습니다.
+                              {GEAR_RARITY_META[selectedItem.rarity].label} 등급은 단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}%가 추가되며, 최대 효율이 모두 적용되었습니다.
                             </span>
                           </div>
                         )}
@@ -991,8 +1032,7 @@ export default function InventoryOverlay({
               <div className="inventory-screen-grid">
                 {sortedInventory.map((item, itemIndex) => {
                 const selected = item.id === selectedGearId;
-                const equippedComparison = equipment[item.slot];
-                const itemPowerDelta = item.powerScore - (equippedComparison?.powerScore ?? 0);
+                const itemPowerDelta = calculateEquipmentPowerDelta(equipment, item);
                 const checkedForSalvage = selectedForSalvage.has(item.id);
                 const sourceIndex = inventorySourceIndexById.get(item.id) ?? itemIndex;
                 const overCapacity = sourceIndex >= normalizedInventoryCapacity;
@@ -1018,7 +1058,7 @@ export default function InventoryOverlay({
                       onBlur={() => setHoveredItem(null)}
                       aria-label={salvageMode
                         ? `${item.displayName} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${item.displayName} +${item.enhancement}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 옵션 품질 ${item.qualityScore}%`}
+                        : `${item.displayName} +${item.enhancement}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 옵션 품질 백분위 ${item.qualityScore}점`}
                       aria-describedby={!salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageMode ? checkedForSalvage : selected}
                     >
@@ -1038,7 +1078,7 @@ export default function InventoryOverlay({
                         {formatPowerDelta(itemPowerDelta)}
                       </span>
                       <span className="inventory-screen-grid-level">LV.{item.level}</span>
-                      <span className="inventory-screen-grid-quality">품질 {item.qualityScore}%</span>
+                      <span className="inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
                       <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
                       <small className="inventory-screen-grid-name">{item.displayName}</small>
                       {overCapacity && (
@@ -1130,6 +1170,7 @@ export default function InventoryOverlay({
           <GearTooltip
             item={hoveredItem}
             comparisonItem={hoveredComparisonItem}
+            equipment={equipment}
             equipped={hoveredItemIsEquipped}
             position={tooltipPosition}
           />,

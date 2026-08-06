@@ -872,19 +872,6 @@ const RARITY_AFFIX_MULTIPLIER: Readonly<Record<GearRarity, number>> = {
   cosmic: 1.7,
 };
 
-const SLOT_POWER_MULTIPLIER: Readonly<Record<EquipmentSlot, number>> = {
-  weapon: 1.08,
-  offhand: 1.03,
-  helm: 1,
-  shoulders: 1.01,
-  armor: 1.06,
-  gloves: 1.02,
-  belt: 1,
-  legs: 1.01,
-  boots: 0.98,
-  relic: 1.1,
-};
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -1044,8 +1031,24 @@ export function gearIconCell(iconIndex: number): { column: number; row: number }
 
 export function formatGearAffix(stat: GearAffixStat, value: number): string {
   const definition = GEAR_AFFIX_DEFINITIONS[stat];
-  const amount = roundValue(Math.abs(value));
-  return `${definition.name} ${definition.sign}${amount}${definition.unit === "percent" ? "%" : ""}`;
+  const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
+  const amount = formatGearNumericValue(numericValue);
+  const sign = numericValue < 0.005 ? "+" : definition.sign;
+  return `${definition.name} ${sign}${amount}${definition.unit === "percent" ? "%" : ""}`;
+}
+
+/**
+ * Stable two-decimal formatter shared by every equipment surface. It also
+ * normalizes `-0` so tiny floating-point residue never appears as `-0.00`.
+ */
+export function formatGearNumericValue(value: number): string {
+  const finiteValue = Number.isFinite(value) ? value : 0;
+  const normalizedValue = Math.abs(finiteValue) < 0.005 ? 0 : finiteValue;
+  return normalizedValue.toLocaleString("ko-KR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  });
 }
 
 /** Returns the exact live value of an affix after rarity-aware enhancement. */
@@ -1068,6 +1071,90 @@ export function formatEnhancedGearAffix(
     affix.stat,
     getEnhancedGearAffixValue(item, affix),
   );
+}
+
+export type GearAffixDisplay = {
+  /** Current live magnitude after all completed enhancement stages. */
+  totalValue: number;
+  /** Unenhanced rolled magnitude stored in the save. */
+  baseValue: number;
+  /** Current enhancement-only contribution. */
+  enhancementValue: number;
+  /** Contribution that the next successful stage would add. */
+  nextStageGainValue: number;
+  totalLabel: string;
+  baseLabel: string;
+  enhancementLabel: string;
+  nextStageGainLabel: string;
+};
+
+const roundGearDisplayValue = (value: number): number => {
+  const rounded = Math.round((Number.isFinite(value) ? value : 0) * 100) / 100;
+  return Object.is(rounded, -0) ? 0 : rounded;
+};
+
+const formatGearAffixContribution = (
+  stat: GearAffixStat,
+  value: number,
+  percentPoint = false,
+): string => {
+  const definition = GEAR_AFFIX_DEFINITIONS[stat];
+  const unit = definition.unit === "percent" ? (percentPoint ? "%p" : "%") : "";
+  const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
+  const sign = numericValue < 0.005 ? "+" : definition.sign;
+  return `${sign}${formatGearNumericValue(numericValue)}${unit}`;
+};
+
+/**
+ * Gives tooltips one canonical view of the stored roll, accumulated
+ * enhancement, and next-stage gain. Percentage enhancement deltas use `%p`
+ * because they are added to the displayed option magnitude, not multiplied
+ * into the player's final stat a second time.
+ */
+export function getGearAffixDisplay(
+  affix: Pick<GearAffix, "stat" | "value">,
+  item: Pick<GearItem, "rarity" | "enhancement">,
+): GearAffixDisplay {
+  const baseValue = roundGearDisplayValue(Math.abs(affix.value));
+  const totalValue = roundGearDisplayValue(
+    Math.abs(getEnhancedGearAffixValue(item, affix)),
+  );
+  const enhancementValue = roundGearDisplayValue(
+    Math.max(0, totalValue - baseValue),
+  );
+  const normalizedEnhancement = clamp(
+    Number.isFinite(item.enhancement) ? Math.floor(item.enhancement) : 0,
+    0,
+    MAX_GEAR_ENHANCEMENT,
+  );
+  const nextStageGainValue = roundGearDisplayValue(
+    normalizedEnhancement < MAX_GEAR_ENHANCEMENT
+      ? baseValue * GEAR_ENHANCEMENT_EFFECT_PER_STAGE[item.rarity]
+      : 0,
+  );
+  const percentPoint = GEAR_AFFIX_DEFINITIONS[affix.stat].unit === "percent";
+
+  return {
+    totalValue,
+    baseValue,
+    enhancementValue,
+    nextStageGainValue,
+    totalLabel: formatGearAffix(affix.stat, totalValue),
+    baseLabel: `기본 ${formatGearAffixContribution(affix.stat, baseValue)}`,
+    enhancementLabel: `강화 ${formatGearAffixContribution(
+      affix.stat,
+      enhancementValue,
+      percentPoint,
+    )}`,
+    nextStageGainLabel:
+      normalizedEnhancement < MAX_GEAR_ENHANCEMENT
+        ? formatGearAffixContribution(
+            affix.stat,
+            nextStageGainValue,
+            percentPoint,
+          )
+        : "최대 강화",
+  };
 }
 
 export function gearDisplayName(
@@ -1206,35 +1293,186 @@ export function calculateGearQualityScore(
   return clamp(Math.round(average), 1, 100);
 }
 
-export function calculateGearPowerScore(item: PowerScoreInput): number {
-  const level = normalizedLevel(item.level);
-  const enhancement = clamp(
-    Number.isFinite(item.enhancement) ? Math.floor(item.enhancement) : 0,
+/**
+ * Legacy rarity/level comparison anchor kept separate from combat power.
+ * This preserves the requested common 100 = magic 95 = ... = cosmic 40
+ * progression without pretending rarity or item level is itself a stat.
+ */
+export function calculateGearTierRating(
+  item: Pick<GearItem, "level" | "rarity">,
+): number {
+  return (
+    normalizedLevel(item.level) + GEAR_RARITY_LEVEL_EQUIVALENT[item.rarity]
+  ) * GEAR_POWER_PER_LEVEL;
+}
+
+export const BASE_EQUIPMENT_COMBAT_POWER = 1000;
+
+export type EquipmentCombatPowerBreakdown = {
+  total: number;
+  offense: number;
+  defense: number;
+  sustain: number;
+  mobility: number;
+  utility: number;
+  offenseIndex: number;
+  defenseIndex: number;
+  sustainIndex: number;
+  mobilityIndex: number;
+  utilityIndex: number;
+};
+
+const COMBAT_POWER_WEIGHTS = {
+  offense: 600,
+  defense: 250,
+  sustain: 70,
+  mobility: 50,
+  utility: 30,
+} as const;
+
+const BASE_CRIT_CHANCE = 0.05;
+const BASE_CRIT_MULTIPLIER = 1.7;
+const BASE_CRIT_EXPECTATION =
+  1 + BASE_CRIT_CHANCE * (BASE_CRIT_MULTIPLIER - 1);
+
+const hasPower = (
+  powers: ReadonlySet<LegendaryPowerId>,
+  powerId: LegendaryPowerId,
+): boolean => powers.has(powerId);
+
+/**
+ * Converts the same enhanced equipment totals consumed by combat into one
+ * nonlinear score. Multiplicative DPS and EHP interactions are evaluated once
+ * at loadout level, while runtime caps stop dead stats from adding fake power.
+ */
+export function calculateCombatPowerFromEquipmentStats(
+  stats: Readonly<GearStatTotals>,
+  legendaryPowerIds: readonly LegendaryPowerId[] = [],
+): EquipmentCombatPowerBreakdown {
+  const powers = new Set(legendaryPowerIds);
+  const positive = (value: number) =>
+    Number.isFinite(value) ? Math.max(0, value) : 0;
+
+  const damageFactor = 1 + positive(stats.damagePercent) / 100;
+  const attackSpeedFactor = 1 + positive(stats.attackSpeedPercent) / 100;
+  const critChance = clamp(
+    BASE_CRIT_CHANCE + positive(stats.critChancePercent) / 100,
     0,
-    MAX_GEAR_ENHANCEMENT,
+    0.75,
   );
-  const affixPower = item.affixes.reduce((total, affix) => {
-    const definition = GEAR_AFFIX_DEFINITIONS[affix.stat];
-    return total + Math.max(0, affix.value) * definition.powerWeight;
-  }, 0);
-  // Rarity already prices in extra affix slots and unique legendary effects.
-  // Averaging the rolled affix package preserves stat/quality differences
-  // without counting a high tier's larger affix package a second time. The
-  // additive premium implements GEAR_RARITY_LEVEL_EQUIVALENT exactly, while
-  // every item level beyond that shared anchor remains a real upgrade.
-  const normalizedAffixPower = item.affixes.length > 0
-    ? affixPower / item.affixes.length
+  const critMultiplier =
+    BASE_CRIT_MULTIPLIER + positive(stats.critDamagePercent) / 100;
+  const critIndex =
+    (1 + critChance * (critMultiplier - 1)) / BASE_CRIT_EXPECTATION;
+
+  let procFactor = 1;
+  if (hasPower(powers, "crescentEcho")) {
+    const power = LEGENDARY_POWERS.crescentEcho.parameters;
+    procFactor *=
+      1 +
+      (power.projectileCount * power.damageMultiplier) /
+        Math.max(1, power.everyShots);
+  }
+  // Runtime pickup cadence varies by room. Eight-percent expected DPS is a
+  // deliberately conservative reference value for its active eight-shot proc.
+  if (hasPower(powers, "commaResonance")) procFactor *= 1.08;
+  // Rift Stride's damaging trail is active in combat in addition to its dash
+  // cooldown effect; model its conservative average uptime separately.
+  if (hasPower(powers, "riftStride")) procFactor *= 1.06;
+
+  const normalDpsIndex =
+    damageFactor * attackSpeedFactor * critIndex * procFactor;
+  const hunterEliteBonus = hasPower(powers, "hunterSigil")
+    ? LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent
     : 0;
-  return Math.max(
-    1,
-    Math.round(
-       (level * GEAR_POWER_PER_LEVEL +
-         GEAR_RARITY_META[item.rarity].powerBonus +
-         normalizedAffixPower) *
-        SLOT_POWER_MULTIPLIER[item.slot] *
-        getGearEnhancementMultiplier(item.rarity, enhancement),
-    ),
+  const eliteIndex =
+    normalDpsIndex *
+    (1 + (positive(stats.eliteDamagePercent) + hunterEliteBonus) / 100);
+  const projectileSpeedHandling = Math.pow(
+    1 + positive(stats.projectileSpeedPercent) / 100,
+    0.08,
   );
+  const projectileSizeHandling = Math.pow(
+    1 + Math.min(150, positive(stats.projectileSizePercent)) / 100,
+    0.08,
+  );
+  const offenseIndex =
+    (normalDpsIndex * 0.8 + eliteIndex * 0.2) *
+    projectileSpeedHandling *
+    projectileSizeHandling;
+
+  const maxHp = 100 + positive(stats.maxHpFlat);
+  const damageReduction =
+    Math.min(65, positive(stats.damageReductionPercent)) / 100;
+  const lastMemoryFactor = hasPower(powers, "lastMemory")
+    ? 1 + LEGENDARY_POWERS.lastMemory.parameters.restoreMaxHpRatio
+    : 1;
+  const defenseIndex =
+    (maxHp / 100 / Math.max(0.01, 1 - damageReduction)) *
+    lastMemoryFactor;
+
+  const healPerHit = Math.min(1.5, positive(stats.lifeOnHitFlat) * 0.08);
+  const referenceHitsPerSecond = attackSpeedFactor * 1.4 * 0.65;
+  const sustainIndex =
+    1 + Math.min(1, (healPerHit * referenceHitsPerSecond * 10) / maxHp);
+
+  const riftDashBonus = hasPower(powers, "riftStride")
+    ? LEGENDARY_POWERS.riftStride.parameters.dashCooldownPercent
+    : 0;
+  const moveFactor = 1 + positive(stats.moveSpeedPercent) / 100;
+  const dashFactor =
+    1 + (positive(stats.dashCooldownPercent) + riftDashBonus) / 100;
+  const mobilityIndex = Math.sqrt(moveFactor) * Math.pow(dashFactor, 0.18);
+
+  const xpFactor = 1 + positive(stats.xpGainPercent) / 100;
+  const gearFindFactor =
+    1 + Math.min(200, positive(stats.gearFindPercent)) / 100;
+  const pickupFactor = 1 + positive(stats.pickupRadiusPercent) / 100;
+  const utilityIndex =
+    Math.pow(xpFactor, 0.45) *
+    Math.pow(gearFindFactor, 0.45) *
+    Math.pow(pickupFactor, 0.1);
+
+  const offense = COMBAT_POWER_WEIGHTS.offense * offenseIndex;
+  const defense = COMBAT_POWER_WEIGHTS.defense * defenseIndex;
+  const sustain = COMBAT_POWER_WEIGHTS.sustain * sustainIndex;
+  const mobility = COMBAT_POWER_WEIGHTS.mobility * mobilityIndex;
+  const utility = COMBAT_POWER_WEIGHTS.utility * utilityIndex;
+
+  return {
+    total: Math.round(offense + defense + sustain + mobility + utility),
+    offense: Math.round(offense),
+    defense: Math.round(defense),
+    sustain: Math.round(sustain),
+    mobility: Math.round(mobility),
+    utility: Math.round(utility),
+    offenseIndex,
+    defenseIndex,
+    sustainIndex,
+    mobilityIndex,
+    utilityIndex,
+  };
+}
+
+const powerStatsForItem = (item: PowerScoreInput): GearStatTotals => {
+  const totals = createEmptyGearStatTotals();
+  for (const affix of item.affixes) {
+    totals[affix.stat] += getEnhancedGearAffixValue(item, affix);
+  }
+  return totals;
+};
+
+/**
+ * Context-free inventory rating: the item's marginal contribution over an
+ * empty equipment baseline. In-slot comparisons use the full-loadout delta
+ * functions below instead, so interactions with currently equipped gear count.
+ */
+export function calculateGearPowerScore(item: PowerScoreInput): number {
+  const power = calculateCombatPowerFromEquipmentStats(
+    powerStatsForItem(item),
+    item.legendaryPowerId ? [item.legendaryPowerId] : [],
+  ).total;
+  return Math.max(1, power - BASE_EQUIPMENT_COMBAT_POWER);
 }
 
 /**
@@ -1543,6 +1781,39 @@ export function aggregateEquipmentStats(
     totals[stat] = Math.round(totals[stat] * 100) / 100;
   }
   return totals;
+}
+
+/** Returns the absolute, synergy-aware power of the complete equipped build. */
+export function calculateEquipmentCombatPowerBreakdown(
+  equipment: EquipmentLoadout,
+): EquipmentCombatPowerBreakdown {
+  return calculateCombatPowerFromEquipmentStats(
+    aggregateEquipmentStats(equipment),
+    equippedLegendaryPowers(equipment),
+  );
+}
+
+export function calculateEquipmentCombatPower(
+  equipment: EquipmentLoadout,
+): number {
+  return calculateEquipmentCombatPowerBreakdown(equipment).total;
+}
+
+/**
+ * Exact contextual comparison for inventory cards and tooltips. The candidate
+ * replaces its own slot before the complete build is rescored, so critical,
+ * attack-speed, mitigation, sustain, and legendary interactions are preserved.
+ */
+export function calculateEquipmentPowerDelta(
+  equipment: EquipmentLoadout,
+  candidate: GearItem,
+): number {
+  const before = calculateEquipmentCombatPower(equipment);
+  const afterEquipment: EquipmentLoadout = {
+    ...equipment,
+    [candidate.slot]: candidate,
+  };
+  return calculateEquipmentCombatPower(afterEquipment) - before;
 }
 
 export function equippedLegendaryPowers(
