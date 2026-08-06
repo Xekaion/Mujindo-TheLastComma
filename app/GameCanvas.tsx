@@ -13,7 +13,10 @@ import "./game.css";
 import InventoryOverlay from "./InventoryOverlay";
 import ShopOverlay from "./ShopOverlay";
 import {
+  MAX_AUGMENT_STACKS,
   SIMPLE_AUGMENT_BONUSES,
+  clampAugmentStack,
+  normalizeAugmentStacks,
   simpleAugmentMultiplier,
   simpleDefenseDamageMultiplier,
 } from "./augment-balance";
@@ -45,6 +48,7 @@ import {
   readSaveSlot,
   readSaveSlotSummaries,
   removeSaveSlot,
+  writeActiveSaveSlot,
   writeSaveSlot,
   type SaveSlotId,
   type SaveSlotSummary,
@@ -1228,7 +1232,8 @@ const ROOM_DIRECTIONS = [
 ] as const;
 
 const keyOf = (x: number, y: number) => `${x},${y}`;
-const rankOf = (player: Player, id: string) => player.augments[id] ?? 0;
+const rankOf = (player: Player, id: string) =>
+  clampAugmentStack(player.augments[id]);
 const powerRankOf = (player: Player, id: string) =>
   effectiveAugmentRank(player.augments, player.profession, id);
 const xpThreshold = experienceRequiredForLevel;
@@ -1782,6 +1787,7 @@ export default function GameCanvas() {
   const activateSaveSlot = useCallback((slot: SaveSlotId) => {
     activeSaveSlotRef.current = slot;
     setActiveSaveSlot(slot);
+    writeActiveSaveSlot(slot);
   }, []);
 
   const refreshSaveSlots = useCallback(() => {
@@ -2003,12 +2009,12 @@ export default function GameCanvas() {
     player.hp = player.maxHp;
     player.shield =
       10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5;
-    stableAugmentsRef.current = { ...player.augments };
+    stableAugmentsRef.current = normalizeAugmentStacks(player.augments);
     checkpointRef.current = { x: world.roomX, y: world.roomY };
     const data: SaveData = {
       player: {
         ...player,
-        augments: { ...player.augments },
+        augments: normalizeAugmentStacks(player.augments),
         equipment: cloneEquipment(player.equipment),
         inventory: player.inventory.map(cloneGearItem),
         x: WIDTH / 2,
@@ -2379,8 +2385,17 @@ export default function GameCanvas() {
 
   const openAugmentChoice = useCallback(() => {
     const player = playerRef.current;
-    const owned = AUGMENTS.filter((augment) => rankOf(player, augment.id) > 0);
-    const unowned = AUGMENTS.filter((augment) => rankOf(player, augment.id) === 0);
+    const available = AUGMENTS.filter(
+      (augment) => rankOf(player, augment.id) < MAX_AUGMENT_STACKS,
+    );
+    if (available.length === 0) {
+      setChoices([]);
+      setToast(`모든 증강이 ${MAX_AUGMENT_STACKS}스택에 도달했습니다. 더 이상 기억이 과잉 중첩되지 않습니다.`);
+      syncHud();
+      return;
+    }
+    const owned = available.filter((augment) => rankOf(player, augment.id) > 0);
+    const unowned = available.filter((augment) => rankOf(player, augment.id) === 0);
     const pool = [...owned, ...owned, ...unowned]
       .map((augment) => ({
         augment,
@@ -2403,7 +2418,7 @@ export default function GameCanvas() {
     }
     setChoices(picked);
     setGameMode("augment");
-  }, [setGameMode]);
+  }, [setGameMode, syncHud]);
 
   const gainXp = useCallback(
     (amount: number) => {
@@ -2467,9 +2482,8 @@ export default function GameCanvas() {
     const player = playerRef.current;
     player.profession = professionCandidate.id;
     const rawRank = rankOf(player, professionCandidate.id);
-    const effectiveRank = powerRankOf(player, professionCandidate.id);
     setToast(
-      `${PROFESSION_TITLES[professionCandidate.id]} 전직 완료 · ${professionCandidate.name} ${rawRank}스택이 전투력 ${effectiveRank}로 증폭됩니다.`,
+      `${PROFESSION_TITLES[professionCandidate.id]} 전직 완료 · ${professionCandidate.name} ${rawRank}스택 효과가 ${100 + PROFESSION_BONUS_PERCENT}%로 증폭됩니다.`,
     );
     setProfessionCandidate(null);
     syncHud();
@@ -2480,7 +2494,13 @@ export default function GameCanvas() {
     (augment: Augment) => {
       const player = playerRef.current;
       const previous = rankOf(player, augment.id);
-      player.augments[augment.id] = previous + 1;
+      if (previous >= MAX_AUGMENT_STACKS) {
+        setToast(`${augment.name}은 이미 최대 ${MAX_AUGMENT_STACKS}스택입니다.`);
+        resumeAfterAugmentChoice();
+        return;
+      }
+      const nextRank = Math.min(MAX_AUGMENT_STACKS, previous + 1);
+      player.augments[augment.id] = nextRank;
       if (augment.id === "blood" && previous === 0) {
         player.maxHp = 85 + aggregateEquipmentStats(player.equipment).maxHpFlat;
         player.hp = Math.min(player.hp, player.maxHp);
@@ -2493,11 +2513,11 @@ export default function GameCanvas() {
       const synergies = activeSynergies(player);
       setToast(
         synergies.length
-          ? `${augment.name} ${previous + 1}랭크 · 시너지 ${synergies.at(-1)?.name} 활성`
-          : `${augment.name} ${previous + 1}랭크 — 기억이 빌드에 합쳐졌습니다.`,
+          ? `${augment.name} ${nextRank}/${MAX_AUGMENT_STACKS}랭크 · 시너지 ${synergies.at(-1)?.name} 활성`
+          : `${augment.name} ${nextRank}/${MAX_AUGMENT_STACKS}랭크 — 기억이 빌드에 합쳐졌습니다.`,
       );
       syncHud();
-      if (previous + 1 >= PROFESSION_THRESHOLD && player.profession !== augment.id) {
+      if (nextRank >= PROFESSION_THRESHOLD && player.profession !== augment.id) {
         openProfessionChoice(augment, resumeAfterAugmentChoice);
       } else {
         resumeAfterAugmentChoice();
@@ -2549,7 +2569,7 @@ export default function GameCanvas() {
         endingVersion: savedEndingVersion,
         x: WIDTH / 2,
         y: HEIGHT / 2,
-        augments: { ...data.player.augments },
+        augments: normalizeAugmentStacks(data.player.augments),
         equipment: normalizedEquipment,
         inventory: normalizedInventory,
         autoSalvageMaxRarity:
@@ -2586,7 +2606,9 @@ export default function GameCanvas() {
         data.world.visited.map((key) => [key, true] as const),
       );
       worldRef.current = world;
-      stableAugmentsRef.current = { ...(data.stableAugments ?? {}) };
+      stableAugmentsRef.current = normalizeAugmentStacks(
+        data.stableAugments ?? {},
+      );
       checkpointRef.current = { x: data.world.roomX, y: data.world.roomY };
       setBuildPanelOpen(false);
       setInventoryScreenOpen(false);
@@ -6641,11 +6663,11 @@ export default function GameCanvas() {
 
   const ownedAugments = useMemo(
     () =>
-      AUGMENTS.filter((augment) => (hud.player.augments[augment.id] ?? 0) > 0).sort(
+      AUGMENTS.filter((augment) => rankOf(hud.player, augment.id) > 0).sort(
         (a, b) =>
-          (hud.player.augments[b.id] ?? 0) - (hud.player.augments[a.id] ?? 0),
+          rankOf(hud.player, b.id) - rankOf(hud.player, a.id),
       ),
-    [hud.player.augments],
+    [hud.player],
   );
   const endingChapter =
     FIRST_BOSS_ENDING_CHAPTERS[
@@ -6800,7 +6822,7 @@ export default function GameCanvas() {
               <small>마지막 쉼표</small>
             </h1>
             <p className="menu-lead">
-              쓰러진 적의 기억과 장비를 거두고, 끝없이 겹쳐지는 증강을 하나의
+              쓰러진 적의 기억과 장비를 거두고, 증강마다 20단계까지 쌓아 하나의
               문장으로 완성하라. 지도는 무한하지만 당신의 빌드는 그보다 오래 남는다.
             </p>
             <button
@@ -6816,7 +6838,7 @@ export default function GameCanvas() {
             <a className="menu-pvp-action" href="/pvp">
               <span>
                 <strong>기억 결투</strong>
-                <small>온라인 1대1 · 서버 판정 균형전</small>
+                <small>온라인 1대1 · 빌드 연동 적응형 결투</small>
               </span>
               <b>LIVE</b>
             </a>
@@ -6828,7 +6850,7 @@ export default function GameCanvas() {
               <b>영구</b>
             </button>
             <div className="menu-meta-strip" aria-label="무진도 기록 규모">
-              <span><strong>{AUGMENTS.length}</strong> 무한 증강</span>
+              <span><strong>{AUGMENTS.length}</strong> 증강 · 각 {MAX_AUGMENT_STACKS}단계</span>
               <span><strong>{SYNERGIES.length}</strong> 조합 시너지</span>
               <span><strong>{ENEMY_NAMES.length}</strong> 적 계보</span>
               <span><strong>{GEAR_ICON_COLUMNS * GEAR_ICON_ROWS}</strong> 장비 원형 · {EQUIPMENT_SLOTS.length}부위 · {Object.keys(GEAR_RARITY_META).length}등급</span>
@@ -6912,7 +6934,7 @@ export default function GameCanvas() {
         )}
         {menuStage === "landing" && (
           <aside className="menu-features" aria-label="게임 특징">
-            <span>∞ 상한 없는 증강 중첩</span>
+            <span>MAX 모든 증강 20스택</span>
             <span>⚔ 접사와 전설 장비</span>
             <span>⌘ 좌표로 이어지는 무한 방</span>
             <span>✦ 새 쉼터마다 1회 기록</span>
@@ -7097,7 +7119,7 @@ export default function GameCanvas() {
           <header>
             <div>
               <small>{buildTab === "build" ? "현재 기억 조합" : "무진도 전리품 기록"}</small>
-              <h3>{buildTab === "build" ? "하린의 무한 빌드" : `장비고 · ${equippedPower.toLocaleString("ko-KR")}`}</h3>
+              <h3>{buildTab === "build" ? "하린의 20단계 빌드" : `장비고 · ${equippedPower.toLocaleString("ko-KR")}`}</h3>
             </div>
             <button onClick={() => setBuildPanelOpen(false)} aria-label="패널 닫기">
               ×
@@ -7177,7 +7199,7 @@ export default function GameCanvas() {
                           <strong>{augment.name}</strong>
                           <small>
                             {hud.player.profession === augment.id
-                              ? `${PROFESSION_TITLES[augment.id]} · 유효 ×${powerRankOf(hud.player, augment.id)}`
+                              ? `${PROFESSION_TITLES[augment.id]} · 전문 효율 +${PROFESSION_BONUS_PERCENT}%`
                               : stable
                                 ? "고정된 기억"
                                 : "불안정한 기억"}
@@ -7194,7 +7216,7 @@ export default function GameCanvas() {
                             </button>
                           )}
                         </div>
-                        <b>×{level}</b>
+                        <b>×{level}/{MAX_AUGMENT_STACKS}</b>
                       </article>
                     );
                   })
@@ -7460,10 +7482,13 @@ export default function GameCanvas() {
           <section className="augment-modal" role="dialog" aria-modal="true" aria-labelledby="augment-title">
             <p className="modal-kicker">LEVEL {hud.player.level} · 기억 동기화</p>
             <h2 id="augment-title">어떤 실패를 힘으로 바꿀까?</h2>
-            <p>같은 증강은 무한히 다시 나타나며, 모든 랭크가 현재 빌드에 누적됩니다.</p>
+            <p>같은 증강은 최대 20스택까지 누적되며, 최대치에 도달하면 선택지에서 제외됩니다.</p>
             <div className="augment-choices">
               {choices.map((augment, index) => {
-                const nextRank = rankOf(hud.player, augment.id) + 1;
+                const nextRank = Math.min(
+                  MAX_AUGMENT_STACKS,
+                  rankOf(hud.player, augment.id) + 1,
+                );
                 const unlockedSynergy = SYNERGIES.find(
                   (synergy) =>
                     synergy.needs.includes(augment.id) &&
@@ -7515,9 +7540,9 @@ export default function GameCanvas() {
             <small>{professionCandidate.name} 전문 직업</small>
             <h2 id="profession-title">{PROFESSION_TITLES[professionCandidate.id]}</h2>
             <p>
-              {professionCandidate.name}의 실제 {rankOf(hud.player, professionCandidate.id)}스택을
-              전투 계산에서 <b>{rankOf(hud.player, professionCandidate.id) + Math.floor(rankOf(hud.player, professionCandidate.id) / 2)}스택</b>으로
-              증폭합니다. 이후 쌓는 모든 스택에도 같은 전문 보정이 적용됩니다.
+              {professionCandidate.name}의 실제 최대 {MAX_AUGMENT_STACKS}스택은 유지하면서
+              전투 계산에서만 <b>{100 + PROFESSION_BONUS_PERCENT}% 효율</b>로
+              증폭합니다. 전직은 실제 스택 상한을 늘리지 않습니다.
             </p>
             {hud.player.profession && hud.player.profession !== professionCandidate.id && (
               <span className="profession-warning">
@@ -7527,7 +7552,7 @@ export default function GameCanvas() {
             <div className="profession-rank-preview" aria-label="전직 전후 증강 효율">
               <div><small>실제 스택</small><strong>{rankOf(hud.player, professionCandidate.id)}</strong></div>
               <i>→</i>
-              <div><small>전문 전투력</small><strong>{rankOf(hud.player, professionCandidate.id) + Math.floor(rankOf(hud.player, professionCandidate.id) / 2)}</strong></div>
+              <div><small>전문 효율</small><strong>{100 + PROFESSION_BONUS_PERCENT}%</strong></div>
             </div>
             <div className="modal-actions">
               <button className="primary-button compact" onClick={confirmProfession}>

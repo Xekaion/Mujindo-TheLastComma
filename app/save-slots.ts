@@ -1,6 +1,8 @@
 export const LEGACY_SAVE_KEY = "mujindo:last-comma:save-v1";
 export const SAVE_SLOT_KEY_PREFIX = "mujindo:last-comma:save-v2:slot:";
+export const ACTIVE_SAVE_SLOT_KEY = "mujindo:last-comma:active-save-slot-v1";
 export const SAVE_SLOT_IDS = [1, 2, 3] as const;
+export const SAVE_AUGMENT_STACK_CAP = 20;
 
 export type SaveSlotId = (typeof SAVE_SLOT_IDS)[number];
 
@@ -57,6 +59,32 @@ const isPositiveInteger = (value: unknown): value is number =>
 const isStackRecord = (value: unknown): value is Record<string, number> =>
   isRecord(value) && Object.values(value).every(isNonNegativeInteger);
 
+function normalizeSavedAugmentStacks(
+  stacks: Record<string, number>,
+): Record<string, number> {
+  return Object.fromEntries(
+    Object.entries(stacks)
+      .map(([id, value]) => [
+        id,
+        Math.min(SAVE_AUGMENT_STACK_CAP, Math.max(0, Math.floor(value))),
+      ] as const)
+      .filter(([, value]) => value > 0),
+  );
+}
+
+function normalizeSaveRunPayload(save: SaveRunPayload): SaveRunPayload {
+  return {
+    ...save,
+    player: {
+      ...save.player,
+      augments: normalizeSavedAugmentStacks(save.player.augments),
+    },
+    ...(save.stableAugments
+      ? { stableAugments: normalizeSavedAugmentStacks(save.stableAugments) }
+      : {}),
+  };
+}
+
 const hasValidOptionalRooms = (value: JsonRecord) =>
   value.rooms === undefined || isNonNegativeInteger(value.rooms);
 
@@ -82,6 +110,34 @@ export function saveSlotKey(slot: SaveSlotId): string {
     throw new RangeError(`Invalid save slot: ${String(slot)}`);
   }
   return `${SAVE_SLOT_KEY_PREFIX}${slot}`;
+}
+
+export function readActiveSaveSlot(
+  storage?: StorageLike | null,
+): SaveSlotId {
+  const target = resolveStorage(storage);
+  if (!target) return 1;
+  try {
+    const parsed = Number(target.getItem(ACTIVE_SAVE_SLOT_KEY));
+    return isSaveSlotId(parsed) ? parsed : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function writeActiveSaveSlot(
+  slot: SaveSlotId,
+  storage?: StorageLike | null,
+): boolean {
+  if (!isSaveSlotId(slot)) return false;
+  const target = resolveStorage(storage);
+  if (!target) return false;
+  try {
+    target.setItem(ACTIVE_SAVE_SLOT_KEY, String(slot));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function isSaveRunPayload(value: unknown): value is SaveRunPayload {
@@ -145,7 +201,7 @@ export function parseSaveRun(raw: string | null): SaveRunPayload | null {
   if (raw === null) return null;
   try {
     const value: unknown = JSON.parse(raw);
-    return isSaveRunPayload(value) ? value : null;
+    return isSaveRunPayload(value) ? normalizeSaveRunPayload(value) : null;
   } catch {
     return null;
   }
@@ -203,7 +259,10 @@ export function writeSaveSlot(
   if (!target) return false;
 
   try {
-    target.setItem(saveSlotKey(slot), JSON.stringify(save));
+    target.setItem(
+      saveSlotKey(slot),
+      JSON.stringify(normalizeSaveRunPayload(save)),
+    );
     return true;
   } catch {
     return false;
@@ -269,10 +328,12 @@ export function migrateLegacySave(
 
     const legacyRaw = target.getItem(LEGACY_SAVE_KEY);
     if (legacyRaw === null) return "legacy-empty";
-    if (!parseSaveRun(legacyRaw)) return "legacy-invalid";
+    const normalized = parseSaveRun(legacyRaw);
+    if (!normalized) return "legacy-invalid";
 
-    target.setItem(saveSlotKey(1), legacyRaw);
-    return target.getItem(saveSlotKey(1)) === legacyRaw
+    const normalizedRaw = JSON.stringify(normalized);
+    target.setItem(saveSlotKey(1), normalizedRaw);
+    return target.getItem(saveSlotKey(1)) === normalizedRaw
       ? "copied"
       : "write-failed";
   } catch {

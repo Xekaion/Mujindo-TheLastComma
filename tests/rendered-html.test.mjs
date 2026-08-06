@@ -35,7 +35,11 @@ test("server-renders the professional two-stage game title", async () => {
   assert.match(html, /data-menu-stage="landing"/);
   assert.match(html, /class="menu-primary-action"/);
   assert.match(html, /aria-label="무진도 기록 규모"/);
-  assert.match(html, /50<\/strong> 무한 증강/);
+  assert.match(
+    html,
+    /50<\/strong> 증강 · 각 (?:<!-- -->)?20(?:<!-- -->)?단계/,
+    "the title screen must advertise all fifty augments with the universal twenty-stage cap",
+  );
   assert.match(
     html,
     /80<\/strong> 장비 원형 · (?:<!-- -->)?10(?:<!-- -->)?부위 · (?:<!-- -->)?8(?:<!-- -->)?등급/,

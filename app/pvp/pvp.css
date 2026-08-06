@@ -330,6 +330,43 @@
   box-shadow: 0 0 7px rgba(101, 210, 173, 0.65);
 }
 
+.pvp-build-profile {
+  display: grid;
+  gap: 7px;
+  margin: 0 0 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(104, 216, 237, 0.22);
+  background:
+    linear-gradient(110deg, rgba(40, 121, 139, 0.14), transparent 58%),
+    rgba(2, 8, 12, 0.62);
+  box-shadow: inset 0 0 22px rgba(104, 216, 237, 0.035);
+}
+
+.pvp-build-profile > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pvp-build-profile small {
+  color: rgba(154, 215, 226, 0.64);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+}
+
+.pvp-build-profile strong {
+  color: #d8f5f7;
+  font-family: Georgia, serif;
+  font-size: 12px;
+}
+
+.pvp-build-profile > span {
+  color: rgba(218, 210, 192, 0.58);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
 .pvp-notice {
   min-height: 32px;
   margin: 0 0 12px;

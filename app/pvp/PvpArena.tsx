@@ -10,10 +10,16 @@ import {
 } from "react";
 import Link from "next/link";
 import {
+  DEFAULT_PVP_BUILD_PROFILE,
   PVP_ARENA_HEIGHT,
   PVP_ARENA_WIDTH,
   PVP_INPUT_RATE_HZ,
+  PVP_MAX_TOTAL_AUGMENT_STACKS,
+  calculatePvpBuildRating,
+  calculatePvpOffenseScale,
   sanitizeDisplayName,
+  sanitizePvpBuildProfile,
+  type PvpBuildProfile,
   type PvpInput,
   type PvpPlayerSnapshot,
   type PvpSnapshot,
@@ -24,6 +30,11 @@ import {
   getRealtimeClient,
   type RealtimeConnectionState,
 } from "../realtime-client";
+import {
+  calculateEquipmentCombatPower,
+  normalizeEquipment,
+} from "../equipment";
+import { readActiveSaveSlot, readSaveSlot } from "../save-slots";
 import "./pvp.css";
 
 type PvpArenaProps = {
@@ -76,6 +87,22 @@ function connectionLabel(state: RealtimeConnectionState): string {
   }
 }
 
+function readLocalPvpBuildProfile(): PvpBuildProfile {
+  if (typeof window === "undefined") return { ...DEFAULT_PVP_BUILD_PROFILE };
+  const save = readSaveSlot(readActiveSaveSlot());
+  if (!save) return { ...DEFAULT_PVP_BUILD_PROFILE };
+  return sanitizePvpBuildProfile({
+    level: save.player.level,
+    equipmentPower: calculateEquipmentCombatPower(
+      normalizeEquipment(save.player.equipment),
+    ),
+    augmentStacks: Object.values(save.player.augments).reduce(
+      (total, stacks) => total + stacks,
+      0,
+    ),
+  });
+}
+
 export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const snapshotRef = useRef<PvpSnapshot | null>(null);
@@ -98,13 +125,17 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const [snapshot, setSnapshot] = useState<PvpSnapshot | null>(null);
   const [result, setResult] = useState<MatchResultMessage | null>(null);
   const [ping, setPing] = useState<number | null>(null);
-  const [notice, setNotice] = useState("균형 결투는 모든 방랑자에게 같은 전투 규칙을 적용합니다.");
+  const [buildProfile, setBuildProfile] = useState<PvpBuildProfile>(() => ({
+    ...DEFAULT_PVP_BUILD_PROFILE,
+  }));
+  const [notice, setNotice] = useState("마지막 쉼터의 빌드를 읽고 적응형 생존력을 계산합니다.");
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const localName = getLocalDisplayName(suggestedName);
       setDisplayName(localName);
       setDraftName(localName);
+      setBuildProfile(readLocalPvpBuildProfile());
     });
     return () => window.cancelAnimationFrame(frame);
   }, [suggestedName]);
@@ -165,8 +196,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     setSnapshot(null);
     snapshotRef.current = null;
     setNotice("대전 상대의 기억 파장을 탐색하고 있습니다.");
-    getRealtimeClient().joinQueue();
-  }, []);
+    getRealtimeClient().joinQueue(buildProfile);
+  }, [buildProfile]);
 
   const cancelQueue = useCallback(() => {
     getRealtimeClient().cancelQueue();
@@ -453,6 +484,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
 
   const localPlayer = snapshot?.players.find((player) => player.id === playerId) ?? null;
   const opponent = snapshot?.players.find((player) => player.id !== playerId) ?? null;
+  const localBuildRating = calculatePvpBuildRating(buildProfile);
+  const localOffenseScale = calculatePvpOffenseScale(buildProfile);
   const matchActive = Boolean(match && snapshot && snapshot.phase !== "finished");
   const didWin = Boolean(result && result.winnerId && result.winnerId === playerId);
   const isDraw = Boolean(result && result.winnerId === null);
@@ -476,16 +509,16 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       {!matchActive && !result ? (
         <section className="pvp-lobby">
           <div className="pvp-lobby-copy">
-            <span className="pvp-eyebrow">1 VS 1 · BALANCED ARENA</span>
+            <span className="pvp-eyebrow">1 VS 1 · ADAPTIVE BUILD ARENA</span>
             <h1>기억은 강함을<br />증명하고 싶어 한다</h1>
             <p>
-              같은 이동속도, 같은 공격 주기, 같은 생명력. 원정의 무한 스택은 잠시 봉인되고
-              조준과 회피, 거리 조절만이 승패를 가릅니다.
+              마지막 쉼터에 저장된 레벨·장비·증강이 화력에 반영됩니다. 매치의 최고 화력을
+              기준으로 양쪽 최대 체력이 함께 조정되어 빌드 우위는 남고 한방사는 사라집니다.
             </p>
             <div className="pvp-rule-strip">
               <span><b>90</b>초</span>
               <span><b>3</b>킬 선취</span>
-              <span><b>서버</b> 피격 판정</span>
+              <span><b>4.5s</b> 목표 생존</span>
             </div>
           </div>
 
@@ -512,8 +545,17 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
             </form>
             <div className="pvp-readiness">
               <span><i className={connection === "online" ? "is-ready" : ""} />실시간 서버</span>
-              <span><i className="is-ready" />균형 규칙</span>
+              <span><i className="is-ready" />적응형 생존력</span>
               <span><i className="is-ready" />8방향 동기화</span>
+            </div>
+            <div className="pvp-build-profile" aria-label="현재 PVP 빌드 프로필">
+              <div>
+                <small>마지막 쉼터 빌드</small>
+                <strong>LV.{buildProfile.level} · RATING {localBuildRating.toLocaleString("ko-KR")}</strong>
+              </div>
+              <span>
+                장비 {buildProfile.equipmentPower.toLocaleString("ko-KR")} · 증강 {buildProfile.augmentStacks}/{PVP_MAX_TOTAL_AUGMENT_STACKS} · 예상 화력 ×{localOffenseScale.toFixed(2)}
+              </span>
             </div>
             <p className="pvp-notice" role="status">{notice}</p>
             {queued ? (
@@ -549,18 +591,18 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
               <small>나의 기억</small>
               <strong>{localPlayer?.name ?? displayName}</strong>
               <div><i style={{ width: `${clamp(((localPlayer?.hp ?? 0) / (localPlayer?.maxHp || 100)) * 100, 0, 100)}%` }} /></div>
-              <span>HP {Math.ceil(localPlayer?.hp ?? 0)} · 회피 {localPlayer && localPlayer.dashCooldownMs <= 0 ? "READY" : `${((localPlayer?.dashCooldownMs ?? 0) / 1_000).toFixed(1)}s`}</span>
+              <span>HP {Math.ceil(localPlayer?.hp ?? 0)}/{Math.ceil(localPlayer?.maxHp ?? 0)} · 화력 ×{(localPlayer?.offenseScale ?? 1).toFixed(2)}</span>
             </article>
             <div className="pvp-scoreboard">
               <small>{snapshot?.phase === "countdown" ? "결투 동기화" : "3킬 선취"}</small>
               <strong><b>{localPlayer?.score ?? 0}</b><i>:</i><b>{opponent?.score ?? 0}</b></strong>
-              <span>{formatClock(snapshot?.remainingMs ?? 90_000)} · {ping ?? "--"}ms</span>
+              <span>{formatClock(snapshot?.remainingMs ?? 90_000)} · 생존력 ×{(snapshot?.vitalityMultiplier ?? 1).toFixed(2)} · {ping ?? "--"}ms</span>
             </div>
             <article className="pvp-combatant is-opponent">
               <small>상대 기억</small>
               <strong>{opponent?.name ?? match?.opponentName ?? "상대 탐색 중"}</strong>
               <div><i style={{ width: `${clamp(((opponent?.hp ?? 0) / (opponent?.maxHp || 100)) * 100, 0, 100)}%` }} /></div>
-              <span>{opponent?.connected === false ? "재접속 대기 중" : `HP ${Math.ceil(opponent?.hp ?? 0)}`}</span>
+              <span>{opponent?.connected === false ? "재접속 대기 중" : `HP ${Math.ceil(opponent?.hp ?? 0)}/${Math.ceil(opponent?.maxHp ?? 0)} · 화력 ×${(opponent?.offenseScale ?? 1).toFixed(2)}`}</span>
             </article>
           </div>
 

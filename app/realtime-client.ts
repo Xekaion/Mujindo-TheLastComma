@@ -3,6 +3,7 @@
 import {
   parseRealtimeServerMessage,
   sanitizeDisplayName,
+  type PvpBuildProfile,
   type PvpInput,
   type RealtimeClientMessage,
   type RealtimeServerMessage,
@@ -185,9 +186,9 @@ class RealtimeClient {
     return displayName;
   }
 
-  joinQueue(): void {
+  joinQueue(profile: PvpBuildProfile): void {
     this.queueActive = true;
-    this.send({ type: "queue" });
+    this.send({ type: "queue", profile });
   }
 
   cancelQueue(): void {

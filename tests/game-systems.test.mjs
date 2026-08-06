@@ -439,7 +439,11 @@ test("20-stack professions unlock across the fifty-augment catalog", async () =>
   assert.equal(professions.isProfessionEligible({ fang: 20 }, "fang"), true);
   assert.equal(professions.effectiveAugmentRank({ fang: 20 }, "fang", "fang"), 30);
   assert.equal(professions.effectiveAugmentRank({ fang: 20 }, "haste", "fang"), 20);
-  assert.equal(professions.effectiveAugmentRank({ fang: 21 }, "fang", "fang"), 31);
+  assert.equal(
+    professions.effectiveAugmentRank({ fang: 21 }, "fang", "fang"),
+    30,
+    "legacy over-cap ranks must not create more than the capped profession effect",
+  );
 });
 
 test("twenty new augments are unique, profession-ready, and wired into combat", async () => {
@@ -549,10 +553,131 @@ test("ten simple augments use exact card values and affect runtime calculations"
   });
   assert.equal(balance.simpleAugmentMultiplier(0, 0.1), 1);
   assert.equal(balance.simpleAugmentMultiplier(20, 0.1), 3);
-  assert.equal(balance.simpleAugmentMultiplier(30, 0.1), 4);
+  assert.equal(balance.simpleAugmentMultiplier(30, 0.1), 3);
   assert.equal(balance.simpleDefenseDamageMultiplier(0), 1);
   assert.ok(Math.abs(balance.simpleDefenseDamageMultiplier(20) - 0.97 ** 20) < 1e-12);
-  assert.ok(Math.abs(balance.simpleDefenseDamageMultiplier(30) - 0.97 ** 30) < 1e-12);
+  assert.equal(
+    balance.simpleDefenseDamageMultiplier(30),
+    balance.simpleDefenseDamageMultiplier(20),
+  );
+});
+
+test("the universal twenty-stack ceiling normalizes runtime choices and every save boundary", async () => {
+  const [balance, saves, source] = await Promise.all([
+    importTypeScriptModule("app/augment-balance.ts"),
+    importTypeScriptModule("app/save-slots.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  assert.equal(balance.MAX_AUGMENT_STACKS, 20);
+  assert.equal(saves.SAVE_AUGMENT_STACK_CAP, balance.MAX_AUGMENT_STACKS);
+  assert.equal(balance.clampAugmentStack(-9), 0);
+  assert.equal(balance.clampAugmentStack(12.9), 12);
+  assert.equal(balance.clampAugmentStack(20), 20);
+  assert.equal(balance.clampAugmentStack(21), 20);
+  assert.equal(balance.clampAugmentStack(9_999), 20);
+  assert.equal(balance.clampAugmentStack(Number.NaN), 0);
+  assert.equal(balance.clampAugmentStack(Number.POSITIVE_INFINITY), 0);
+  assert.equal(balance.clampAugmentStack("20"), 0);
+  assert.deepEqual(
+    balance.normalizeAugmentStacks({
+      fang: 91,
+      haste: 20.8,
+      split: -4,
+      eye: Number.NaN,
+      zero: 0,
+    }),
+    { fang: 20, haste: 20 },
+  );
+  assert.equal(balance.totalAugmentStacks({ fang: 91, haste: 20.8 }), 40);
+
+  const oldSave = structuredClone(sampleSave);
+  oldSave.player.augments = { fang: 99, haste: 21, split: 0 };
+  oldSave.stableAugments = { fang: 88, haste: 25, split: 0 };
+  const readStorage = new MemoryStorage();
+  readStorage.setItem(saves.saveSlotKey(1), JSON.stringify(oldSave));
+  const normalizedOldSave = saves.readSaveSlot(1, readStorage);
+  assert.ok(normalizedOldSave, "a valid pre-cap save must remain readable");
+  assert.deepEqual(normalizedOldSave.player.augments, { fang: 20, haste: 20 });
+  assert.deepEqual(normalizedOldSave.stableAugments, { fang: 20, haste: 20 });
+  assert.equal(
+    saves.readSaveSlotSummaries(readStorage)[0].augmentStacks,
+    40,
+    "slot summaries must count normalized player stacks rather than legacy overflow",
+  );
+
+  const writeStorage = new MemoryStorage();
+  assert.equal(saves.writeSaveSlot(2, oldSave, writeStorage), true);
+  const persisted = JSON.parse(writeStorage.getItem(saves.saveSlotKey(2)));
+  assert.deepEqual(persisted.player.augments, { fang: 20, haste: 20 });
+  assert.deepEqual(persisted.stableAugments, { fang: 20, haste: 20 });
+  assert.deepEqual(saves.readSaveSlot(2, writeStorage).player.augments, {
+    fang: 20,
+    haste: 20,
+  });
+  assert.equal(saves.readSaveSlotSummaries(writeStorage)[1].augmentStacks, 40);
+
+  const migrationStorage = new MemoryStorage();
+  migrationStorage.setItem(saves.LEGACY_SAVE_KEY, JSON.stringify(oldSave));
+  assert.equal(saves.writeActiveSaveSlot(3, migrationStorage), true);
+  assert.equal(saves.readActiveSaveSlot(migrationStorage), 3);
+  assert.equal(saves.migrateLegacySave(migrationStorage), "copied");
+  assert.deepEqual(saves.readSaveSlot(1, migrationStorage).player.augments, {
+    fang: 20,
+    haste: 20,
+  });
+  assert.deepEqual(saves.readSaveSlot(1, migrationStorage).stableAugments, {
+    fang: 20,
+    haste: 20,
+  });
+  migrationStorage.setItem(saves.ACTIVE_SAVE_SLOT_KEY, "99");
+  assert.equal(saves.readActiveSaveSlot(migrationStorage), 1);
+
+  assert.match(
+    source,
+    /const rankOf = \(player: Player, id: string\) =>\s*clampAugmentStack\(player\.augments\[id\]\);/,
+    "every runtime raw-rank read must pass through the universal clamp",
+  );
+  assert.match(
+    source,
+    /const available = AUGMENTS\.filter\(\s*\(augment\) => rankOf\(player, augment\.id\) < MAX_AUGMENT_STACKS,?\s*\);/,
+    "maxed augments must be removed before the choice pool is weighted",
+  );
+  assert.match(
+    source,
+    /const owned = available\.filter[\s\S]{0,160}?const unowned = available\.filter[\s\S]{0,160}?const pool = \[\.\.\.owned, \.\.\.owned, \.\.\.unowned\]/,
+    "owned and unowned choice pools must both derive only from uncapped augments",
+  );
+
+  const openChoice = source.match(
+    /const openAugmentChoice = useCallback\(\(\) => \{([\s\S]*?)\n\s*\}, \[setGameMode, syncHud\]\);/,
+  );
+  assert.ok(openChoice, "the augment choice controller must remain auditable");
+  const allMaxBail = openChoice[1].match(
+    /if \(available\.length === 0\) \{([\s\S]*?)\n\s*\}/,
+  );
+  assert.ok(allMaxBail, "an all-max build needs an explicit no-choice path");
+  assert.match(allMaxBail[1], /setChoices\(\[\]\);/);
+  assert.match(allMaxBail[1], /syncHud\(\);[\s\S]{0,40}?return;/);
+  assert.doesNotMatch(
+    allMaxBail[1],
+    /setGameMode\("augment"\)/,
+    "an exhausted choice pool must not open an empty modal",
+  );
+  assert.ok(
+    openChoice[1].indexOf('if (available.length === 0)') <
+      openChoice[1].indexOf('setGameMode("augment")'),
+    "the exhausted-pool return must precede modal entry",
+  );
+  assert.match(
+    source,
+    /const chooseAugment = useCallback\([\s\S]{0,240}?if \(previous >= MAX_AUGMENT_STACKS\) \{[\s\S]{0,220}?resumeAfterAugmentChoice\(\);[\s\S]{0,40}?return;[\s\S]{0,120}?const nextRank = Math\.min\(MAX_AUGMENT_STACKS, previous \+ 1\);/,
+    "stale clicks must bail out and the authoritative write must clamp once more",
+  );
+  assert.match(
+    source,
+    /augments: normalizeAugmentStacks\(data\.player\.augments\)[\s\S]{0,1600}?stableAugmentsRef\.current = normalizeAugmentStacks\(/,
+    "loading must normalize both volatile and shelter-stable augment ledgers",
+  );
 });
 
 test("three save slots isolate data and preserve the legacy backup on migration", async () => {
@@ -3198,7 +3323,7 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     source,
-    /const savedHpRatio = savedHp \/ savedMaxHp;[\s\S]{0,1200}?const baseMaxHp = rankOf\(hydratedPlayer, ["']blood["']\) > 0 \? 85 : 100;[\s\S]{0,260}?aggregateEquipmentStats\(normalizedEquipment\)\.maxHpFlat[\s\S]{0,260}?hydratedPlayer\.maxHp \* savedHpRatio/,
+    /const savedHpRatio = savedHp \/ savedMaxHp;[\s\S]{0,1600}?const baseMaxHp = rankOf\(hydratedPlayer, ["']blood["']\) > 0 \? 85 : 100;[\s\S]{0,260}?aggregateEquipmentStats\(normalizedEquipment\)\.maxHpFlat[\s\S]{0,260}?hydratedPlayer\.maxHp \* savedHpRatio/,
     "loading a save must rebuild enhanced maximum health while preserving the saved health ratio",
   );
   assert.match(overlay, /onClick=\{\(\) => requestSalvageOne\(selectedItem\.id\)\}/);

@@ -58,7 +58,11 @@ export function isProfessionEligible(
   augments: Readonly<Record<string, number>>,
   augmentId: string,
 ): boolean {
-  return (augments[augmentId] ?? 0) >= PROFESSION_THRESHOLD;
+  const candidate = augments[augmentId] ?? 0;
+  const rawRank = Number.isFinite(candidate)
+    ? Math.min(PROFESSION_THRESHOLD, Math.max(0, Math.floor(candidate)))
+    : 0;
+  return rawRank >= PROFESSION_THRESHOLD;
 }
 
 export function effectiveAugmentRank(
@@ -66,7 +70,12 @@ export function effectiveAugmentRank(
   profession: string | null,
   augmentId: string,
 ): number {
-  const rawRank = augments[augmentId] ?? 0;
+  // A profession amplifies the *effect* of a capped rank. It never creates or
+  // persists a twenty-first stack.
+  const candidate = augments[augmentId] ?? 0;
+  const rawRank = Number.isFinite(candidate)
+    ? Math.min(PROFESSION_THRESHOLD, Math.max(0, Math.floor(candidate)))
+    : 0;
   return profession === augmentId
     ? rawRank + Math.floor((rawRank * PROFESSION_BONUS_PERCENT) / 100)
     : rawRank;

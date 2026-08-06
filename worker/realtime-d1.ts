@@ -1,13 +1,24 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import {
+  PVP_BASE_PROJECTILE_DAMAGE,
+  PVP_BASE_SHOT_COOLDOWN_MS,
+  PVP_BALANCE_VERSION,
+  PVP_BURST_MAX_HEALTH_FRACTION,
+  PVP_BURST_WINDOW_MS,
   PVP_ARENA_HEIGHT,
   PVP_ARENA_WIDTH,
   PVP_COUNTDOWN_MS,
+  PVP_MIN_HITS_TO_KO,
   PVP_ROUND_DURATION_MS,
   PVP_SCORE_TO_WIN,
+  PVP_TARGET_TTK_SECONDS,
+  capPvpHitDamage,
   parseRealtimeClientMessage,
+  resolvePvpMatchBalance,
+  sanitizePvpBuildProfile,
   sanitizeDisplayName,
+  type PvpBuildProfile,
   type PvpInput,
   type PvpPhase,
   type PvpPlayerSnapshot,
@@ -33,6 +44,7 @@ type StoredSession = {
   lastLootAnnouncementAt: number;
   inputWindowStartedAt: number;
   inputCount: number;
+  combatProfile?: PvpBuildProfile;
 };
 
 type MatchPlayer = {
@@ -57,6 +69,11 @@ type MatchPlayer = {
   disconnectedAt: number | null;
   input: PvpInput;
   lastInputSequence: number;
+  buildRating: number;
+  offenseScale: number;
+  projectileDamage: number;
+  damageWindowStartedAt: number;
+  damageWindowAmount: number;
 };
 
 type MatchProjectile = PvpProjectileSnapshot & {
@@ -78,6 +95,9 @@ type PvpMatch = {
   nextProjectileId: number;
   lastSteppedAt: number;
   accumulatorMs: number;
+  balanceVersion: number;
+  vitalityMultiplier: number;
+  targetTtkSeconds: number;
 };
 
 type AcquisitionRecord = {
@@ -115,9 +135,9 @@ const PLAYER_SPEED = 235;
 const DASH_SPEED_MULTIPLIER = 3.15;
 const DASH_DURATION_MS = 165;
 const DASH_COOLDOWN_MS = 1_550;
-const SHOT_COOLDOWN_MS = 360;
+const SHOT_COOLDOWN_MS = PVP_BASE_SHOT_COOLDOWN_MS;
 const PROJECTILE_SPEED = 650;
-const PROJECTILE_DAMAGE = 18;
+const PROJECTILE_DAMAGE = PVP_BASE_PROJECTILE_DAMAGE;
 const PROJECTILE_RADIUS = 8;
 const PROJECTILE_LIFE_MS = 1_650;
 const RESPAWN_MS = 1_900;
@@ -498,6 +518,8 @@ function respawnPlayer(player: MatchPlayer): void {
   player.hp = player.maxHp;
   player.invulnerableMs = 900;
   player.shotCooldownMs = 450;
+  player.damageWindowStartedAt = 0;
+  player.damageWindowAmount = 0;
 }
 
 function stepSimulation(match: PvpMatch, stepNow: number): void {
@@ -545,7 +567,7 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
         vy: player.aimY * PROJECTILE_SPEED,
         radius: PROJECTILE_RADIUS,
         lifeMs: PROJECTILE_LIFE_MS,
-        damage: PROJECTILE_DAMAGE,
+        damage: player.projectileDamage ?? PROJECTILE_DAMAGE,
       });
       match.nextProjectileId += 1;
     }
@@ -575,7 +597,28 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
       distanceSquared(projectile.x, projectile.y, target.x, target.y) <=
         (projectile.radius + 25) ** 2
     ) {
-      target.hp = Math.max(0, target.hp - projectile.damage);
+      const damageWindowStartedAt = Number.isFinite(target.damageWindowStartedAt)
+        ? target.damageWindowStartedAt
+        : 0;
+      const damageWindowAmount = Number.isFinite(target.damageWindowAmount)
+        ? target.damageWindowAmount
+        : 0;
+      if (stepNow - damageWindowStartedAt >= PVP_BURST_WINDOW_MS) {
+        target.damageWindowStartedAt = stepNow;
+        target.damageWindowAmount = 0;
+      } else {
+        target.damageWindowStartedAt = damageWindowStartedAt;
+        target.damageWindowAmount = damageWindowAmount;
+      }
+      const hitDamage = capPvpHitDamage(projectile.damage, target.maxHp);
+      const burstBudget = Math.max(
+        0,
+        target.maxHp * PVP_BURST_MAX_HEALTH_FRACTION -
+          target.damageWindowAmount,
+      );
+      const appliedDamage = Math.min(hitDamage, burstBudget);
+      target.damageWindowAmount += appliedDamage;
+      target.hp = Math.max(0, target.hp - appliedDamage);
       if (target.hp <= 0) {
         const owner = match.players.find(
           (candidate) => candidate.id === projectile.ownerId,
@@ -733,7 +776,16 @@ function pruneWorld(state: RealtimeWorldState, now: number): void {
   compactState(state, now);
 }
 
-function makeMatchPlayer(session: StoredSession, side: 0 | 1): MatchPlayer {
+function makeMatchPlayer(
+  session: StoredSession,
+  side: 0 | 1,
+  maxHp: number,
+  balance: {
+    buildRating: number;
+    offenseScale: number;
+    projectileDamage: number;
+  },
+): MatchPlayer {
   return {
     id: session.playerId,
     name: session.displayName,
@@ -745,8 +797,8 @@ function makeMatchPlayer(session: StoredSession, side: 0 | 1): MatchPlayer {
     vy: 0,
     aimX: side === 0 ? 1 : -1,
     aimY: 0,
-    hp: 100,
-    maxHp: 100,
+    hp: maxHp,
+    maxHp,
     score: 0,
     shotCooldownMs: 500,
     dashCooldownMs: 0,
@@ -756,6 +808,11 @@ function makeMatchPlayer(session: StoredSession, side: 0 | 1): MatchPlayer {
     disconnectedAt: null,
     input: idleInput(),
     lastInputSequence: 0,
+    buildRating: balance.buildRating,
+    offenseScale: balance.offenseScale,
+    projectileDamage: balance.projectileDamage,
+    damageWindowStartedAt: 0,
+    damageWindowAmount: 0,
   };
 }
 
@@ -772,6 +829,9 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
 
     left.queued = false;
     right.queued = false;
+    const leftProfile = sanitizePvpBuildProfile(left.combatProfile);
+    const rightProfile = sanitizePvpBuildProfile(right.combatProfile);
+    const balance = resolvePvpMatchBalance(leftProfile, rightProfile);
     const matchId = crypto.randomUUID();
     const match: PvpMatch = {
       id: matchId,
@@ -782,11 +842,17 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
       finishedAt: null,
       winnerId: null,
       resultReason: null,
-      players: [makeMatchPlayer(left, 0), makeMatchPlayer(right, 1)],
+      players: [
+        makeMatchPlayer(left, 0, balance.maxHp, balance.left),
+        makeMatchPlayer(right, 1, balance.maxHp, balance.right),
+      ],
       projectiles: [],
       nextProjectileId: 1,
       lastSteppedAt: now,
       accumulatorMs: 0,
+      balanceVersion: balance.balanceVersion,
+      vitalityMultiplier: balance.vitalityMultiplier,
+      targetTtkSeconds: balance.targetTtkSeconds,
     };
     state.matches[match.id] = match;
     left.matchId = match.id;
@@ -797,6 +863,7 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
 function joinQueue(
   state: RealtimeWorldState,
   session: StoredSession,
+  profile: PvpBuildProfile,
   directMessages: RealtimeServerMessage[],
 ): void {
   if (session.matchId) {
@@ -820,6 +887,7 @@ function joinQueue(
       });
       return;
     }
+    session.combatProfile = sanitizePvpBuildProfile(profile);
     session.queued = true;
     state.queue.push(session.token);
   }
@@ -898,6 +966,9 @@ function snapshotFor(
         ? PVP_ROUND_DURATION_MS
         : Math.max(0, match.endsAt - now),
     winnerId: match.winnerId,
+    balanceVersion: match.balanceVersion ?? 1,
+    vitalityMultiplier: match.vitalityMultiplier ?? 1,
+    targetTtkSeconds: match.targetTtkSeconds ?? PVP_TARGET_TTK_SECONDS,
     players: match.players.map<PvpPlayerSnapshot>((player) => {
       const participantSession = state.sessions[player.sessionToken];
       return {
@@ -919,6 +990,9 @@ function snapshotFor(
           participantSession && sessionIsOnline(participantSession, now),
         ),
         lastInputSequence: player.lastInputSequence,
+        buildRating: player.buildRating ?? 100,
+        offenseScale: player.offenseScale ?? 1,
+        projectileDamage: player.projectileDamage ?? PROJECTILE_DAMAGE,
       };
     }),
     projectiles: match.projectiles.map(
@@ -1021,6 +1095,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
       lastLootAnnouncementAt: 0,
       inputWindowStartedAt: now,
       inputCount: 0,
+      combatProfile: sanitizePvpBuildProfile(undefined),
     };
     state.sessions[token] = session;
     return {
@@ -1060,7 +1135,7 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
     for (const message of body.messages) {
       switch (message.type) {
         case "queue":
-          joinQueue(state, session, directMessages);
+          joinQueue(state, session, message.profile, directMessages);
           break;
         case "cancel_queue":
           leaveQueue(state, session);
@@ -1202,6 +1277,11 @@ export const PVP_D1_SERVER_RULES = {
   dashCooldownMs: DASH_COOLDOWN_MS,
   shotCooldownMs: SHOT_COOLDOWN_MS,
   projectileDamage: PROJECTILE_DAMAGE,
+  balanceVersion: PVP_BALANCE_VERSION,
+  targetTtkSeconds: PVP_TARGET_TTK_SECONDS,
+  minimumHitsToKo: PVP_MIN_HITS_TO_KO,
+  burstWindowMs: PVP_BURST_WINDOW_MS,
+  burstMaxHealthFraction: PVP_BURST_MAX_HEALTH_FRACTION,
   disconnectForfeitMs: DISCONNECT_FORFEIT_MS,
   obstacles: ARENA_OBSTACLES,
 } as const;

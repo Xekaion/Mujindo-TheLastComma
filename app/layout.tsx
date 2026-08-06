@@ -14,7 +14,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = `${protocol}://${host}`;
   const title = "무진도: 마지막 쉼표";
   const description =
-    "끝없이 이어지는 방에서 무한 증강과 접사·전설 장비를 조합해 나만의 빌드를 완성하는 2D 탑다운 액션 RPG.";
+    "끝없이 이어지는 방에서 50종 증강을 각각 20단계까지 쌓고 접사·전설 장비를 조합하는 2D 탑다운 액션 RPG.";
 
   return {
     metadataBase: new URL(origin),
