@@ -562,6 +562,26 @@ test("ten simple augments use exact card values and affect runtime calculations"
   );
 });
 
+test("opening basic attacks defeat common enemies in two unmodified hits", async () => {
+  const [combatBalance, source] = await Promise.all([
+    importTypeScriptModule("app/combat-balance.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.equal(combatBalance.BASE_PLAYER_ATTACK_DAMAGE, 14);
+  assert.equal(Math.ceil(24 / combatBalance.BASE_PLAYER_ATTACK_DAMAGE), 2);
+  assert.equal(Math.ceil(28 / combatBalance.BASE_PLAYER_ATTACK_DAMAGE), 2);
+  assert.ok(
+    combatBalance.BASE_PLAYER_ATTACK_DAMAGE * 1.7 < 24,
+    "the five-percent opening critical roll must not randomly one-shot even the weakest enemy",
+  );
+  assert.match(source, /import \{ BASE_PLAYER_ATTACK_DAMAGE \} from "\.\/combat-balance";/);
+  assert.match(source, /let damage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
+  assert.match(source, /const riftDamage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
+  assert.match(source, /const resonanceDamage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
+  assert.doesNotMatch(source, /let damage =\s*12 \*/);
+});
+
 test("the universal twenty-stack ceiling normalizes runtime choices and every save boundary", async () => {
   const [balance, saves, source] = await Promise.all([
     importTypeScriptModule("app/augment-balance.ts"),

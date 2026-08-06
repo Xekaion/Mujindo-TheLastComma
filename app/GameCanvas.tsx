@@ -20,6 +20,7 @@ import {
   simpleAugmentMultiplier,
   simpleDefenseDamageMultiplier,
 } from "./augment-balance";
+import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import { experienceRequiredForLevel } from "./progression";
 import {
   BASE_INVENTORY_CAPACITY,
@@ -3714,7 +3715,7 @@ export default function GameCanvas() {
         timeRank > 0 &&
         (player.shotCounter + 1) % Math.max(2, 6 - Math.min(4, timeRank)) === 0;
       let damage =
-        12 *
+        BASE_PLAYER_ATTACK_DAMAGE *
         (1 + powerRankOf(player, "fang") * 0.18) *
         (1 + bloodRank * 0.14 + missingHealthBonus) *
         (1 + powerRankOf(player, "ember") * 0.08) *
@@ -4041,7 +4042,10 @@ export default function GameCanvas() {
         hasLegendaryPower(player, "riftStride")
       ) {
         player.riftTrailCooldown = 0.055;
-        const riftDamage = 12 * (1 + equipmentStats.damagePercent / 100) * 0.4;
+        const riftDamage =
+          BASE_PLAYER_ATTACK_DAMAGE *
+          (1 + equipmentStats.damagePercent / 100) *
+          0.4;
         spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
         for (const enemy of world.enemies) {
           if (distance(player.x, player.y, enemy.x, enemy.y) < 72) {
@@ -5037,7 +5041,9 @@ export default function GameCanvas() {
             player.memoryPickupCounter % 8 === 0
           ) {
             const resonanceDamage =
-              12 * (1 + equipmentStats.damagePercent / 100) * 0.75;
+              BASE_PLAYER_ATTACK_DAMAGE *
+              (1 + equipmentStats.damagePercent / 100) *
+              0.75;
             spawnCombatEffect("muzzle", player.x, player.y, 0.46, 78, "#f0b86e");
             const resonanceSpeed =
               520 *
