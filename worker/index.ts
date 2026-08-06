@@ -3,13 +3,11 @@
 /** Cloudflare Worker entry point for Mujindo's Vinext app and realtime arena. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
-
-export { RealtimeWorld } from "./realtime-world";
+import { handleRealtimeRequest } from "./realtime-d1";
 
 interface Env {
   ASSETS: Fetcher;
-  DB: D1Database;
-  REALTIME_WORLD: DurableObjectNamespace;
+  DB?: D1Database;
   IMAGES: {
     input(stream: ReadableStream): {
       transform(options: Record<string, unknown>): {
@@ -35,12 +33,6 @@ const worker = {
     const url = new URL(request.url);
 
     if (url.pathname.startsWith("/api/realtime/")) {
-      if (!env.REALTIME_WORLD) {
-        return Response.json(
-          { error: "realtime_unavailable", message: "실시간 결투 서버가 준비되지 않았습니다." },
-          { status: 503 },
-        );
-      }
       const headers = new Headers(request.headers);
       if (url.pathname === "/api/realtime/session") {
         const encodedFullName = headers.get("oai-authenticated-user-full-name");
@@ -58,8 +50,7 @@ const worker = {
         if (trustedName) headers.set("x-mujindo-player-name", trustedName);
       }
       const realtimeRequest = new Request(request, { headers });
-      const realtimeId = env.REALTIME_WORLD.idFromName("mujindo-global-v1");
-      return env.REALTIME_WORLD.get(realtimeId).fetch(realtimeRequest);
+      return handleRealtimeRequest(realtimeRequest, env);
     }
 
     if (url.pathname === "/_vinext/image") {

@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import Link from "next/link";
 import {
   PVP_ARENA_HEIGHT,
   PVP_ARENA_WIDTH,
@@ -86,6 +87,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const sequenceRef = useRef(0);
   const [connection, setConnection] = useState<RealtimeConnectionState>("idle");
   const [online, setOnline] = useState(0);
+  const [playerId, setPlayerId] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState(() =>
     sanitizeDisplayName(suggestedName ?? "방랑자"),
   );
@@ -99,9 +101,12 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const [notice, setNotice] = useState("균형 결투는 모든 방랑자에게 같은 전투 규칙을 적용합니다.");
 
   useEffect(() => {
-    const localName = getLocalDisplayName(suggestedName);
-    setDisplayName(localName);
-    setDraftName(localName);
+    const frame = window.requestAnimationFrame(() => {
+      const localName = getLocalDisplayName(suggestedName);
+      setDisplayName(localName);
+      setDraftName(localName);
+    });
+    return () => window.cancelAnimationFrame(frame);
   }, [suggestedName]);
 
   useEffect(() => {
@@ -113,6 +118,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           break;
         case "connected":
           playerIdRef.current = event.playerId;
+          setPlayerId(event.playerId);
           setDisplayName(event.displayName);
           setDraftName(event.displayName);
           setOnline(event.online);
@@ -173,6 +179,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     event.preventDefault();
     if (queued || (snapshot && snapshot.phase !== "finished")) return;
     const normalized = getRealtimeClient().setDisplayName(draftName);
+    playerIdRef.current = null;
+    setPlayerId(null);
     setDisplayName(normalized);
     setDraftName(normalized);
     setNotice("결투명이 새로운 기억에 새겨졌습니다.");
@@ -443,17 +451,17 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     mobileMoveRef.current = { x, y };
   };
 
-  const localPlayer = snapshot?.players.find((player) => player.id === playerIdRef.current) ?? null;
-  const opponent = snapshot?.players.find((player) => player.id !== playerIdRef.current) ?? null;
+  const localPlayer = snapshot?.players.find((player) => player.id === playerId) ?? null;
+  const opponent = snapshot?.players.find((player) => player.id !== playerId) ?? null;
   const matchActive = Boolean(match && snapshot && snapshot.phase !== "finished");
-  const didWin = Boolean(result && result.winnerId && result.winnerId === playerIdRef.current);
+  const didWin = Boolean(result && result.winnerId && result.winnerId === playerId);
   const isDraw = Boolean(result && result.winnerId === null);
 
   return (
     <main className={`pvp-screen is-${connection}`}>
       <div className="pvp-backdrop" aria-hidden="true" />
       <header className="pvp-navigation">
-        <a href="/" className="pvp-back-link">← 무진도 원정</a>
+        <Link href="/" className="pvp-back-link">← 무진도 원정</Link>
         <div className="pvp-title-lockup">
           <small>MUJINDO ONLINE</small>
           <strong>기억 결투</strong>
@@ -586,7 +594,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
               </p>
               <div>
                 <button type="button" onClick={enterQueue}>다시 상대 찾기</button>
-                <a href="/">원정으로 돌아가기</a>
+                <Link href="/">원정으로 돌아가기</Link>
               </div>
             </div>
           )}

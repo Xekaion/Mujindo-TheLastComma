@@ -6,8 +6,12 @@ import ts from "typescript";
 
 const root = process.cwd();
 
+async function readSource(relativePath) {
+  return readFile(path.join(root, relativePath), "utf8");
+}
+
 async function importTypeScriptModule(relativePath) {
-  const source = await readFile(path.join(root, relativePath), "utf8");
+  const source = await readSource(relativePath);
   const output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -18,7 +22,7 @@ async function importTypeScriptModule(relativePath) {
   return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
 }
 
-test("PVP protocol normalizes movement and strips client-authority fields", async () => {
+test("PVP protocol normalizes input and strips client-authority fields", async () => {
   const protocol = await importTypeScriptModule("app/pvp-protocol.ts");
   assert.equal(protocol.PVP_ARENA_WIDTH, 1280);
   assert.equal(protocol.PVP_ARENA_HEIGHT, 720);
@@ -36,7 +40,9 @@ test("PVP protocol normalizes movement and strips client-authority fields", asyn
     dash: false,
     x: 0,
     y: 0,
+    hp: 9_999,
     damage: 999_999,
+    score: 99,
     victory: true,
   });
   assert.deepEqual(parsed, {
@@ -65,60 +71,105 @@ test("PVP protocol normalizes movement and strips client-authority fields", asyn
   );
 });
 
-test("world loot protocol only admits mythic and cosmic acquisitions", async () => {
+test("world loot protocol admits only mythic and cosmic acquisitions", async () => {
   const protocol = await importTypeScriptModule("app/pvp-protocol.ts");
   const base = {
     type: "announce_loot",
     acquisitionId: "acquisition-proof-001",
-    itemName: "  태초의   별검  ",
+    itemName: "  Astral Crown  ",
     itemLevel: 1_200,
     enhancement: 17,
   };
-  assert.equal(
-    protocol.parseRealtimeClientMessage({ ...base, rarity: "legendary" }),
-    null,
-  );
-  assert.deepEqual(
-    protocol.parseRealtimeClientMessage({ ...base, rarity: "mythic" }),
-    {
+  for (const rarity of ["normal", "magic", "advanced", "rare", "heroic", "legendary"]) {
+    assert.equal(protocol.parseRealtimeClientMessage({ ...base, rarity }), null);
+  }
+  for (const rarity of ["mythic", "cosmic"]) {
+    assert.deepEqual(protocol.parseRealtimeClientMessage({ ...base, rarity }), {
       type: "announce_loot",
       acquisitionId: "acquisition-proof-001",
-      itemName: "태초의 별검",
-      rarity: "mythic",
+      itemName: "Astral Crown",
+      rarity,
       itemLevel: 999,
       enhancement: 10,
-    },
-  );
+    });
+  }
 });
 
-test("PVP worker is server authoritative and wired through one durable world", async () => {
-  const [worker, entry, vite, game, page, arena] = await Promise.all([
-    readFile(path.join(root, "worker/realtime-world.ts"), "utf8"),
-    readFile(path.join(root, "worker/index.ts"), "utf8"),
-    readFile(path.join(root, "vite.config.ts"), "utf8"),
-    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
-    readFile(path.join(root, "app/pvp/page.tsx"), "utf8"),
-    readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
+test("Sites binds D1 and the worker delegates every realtime request to the D1 handler", async () => {
+  const [hostingText, entry] = await Promise.all([
+    readSource(".openai/hosting.json"),
+    readSource("worker/index.ts"),
   ]);
+  const hosting = JSON.parse(hostingText);
 
-  assert.match(worker, /PROJECTILE_DAMAGE\s*=\s*18/);
-  assert.match(worker, /target\.hp\s*=\s*Math\.max\(0, target\.hp - projectile\.damage\)/);
-  assert.match(worker, /owner\.score\s*\+=\s*1/);
-  assert.match(worker, /input\.sequence\s*<=\s*matchPlayer\.lastInputSequence/);
-  assert.match(worker, /MAX_INPUTS_PER_SECOND/);
-  assert.match(entry, /REALTIME_WORLD\.idFromName\("mujindo-global-v1"\)/);
-  assert.match(vite, /name:\s*"REALTIME_WORLD"/);
-  assert.match(vite, /new_sqlite_classes:\s*\["RealtimeWorld"\]/);
-  assert.match(page, /<PvpArena/);
-  assert.match(arena, /getRealtimeClient\(\)\.sendPvpInput/);
+  assert.equal(hosting.d1, "DB");
+  assert.match(entry, /import\s*\{\s*handleRealtimeRequest\s*\}\s*from\s*["']\.\/realtime-d1["']/);
+  assert.match(entry, /DB\??:\s*D1Database/);
+  assert.match(entry, /url\.pathname\.startsWith\(["']\/api\/realtime\/["']\)/);
+  assert.match(entry, /return\s+handleRealtimeRequest\(realtimeRequest,\s*env\)/);
+});
 
+test("polling client creates an authenticated session, syncs, and coalesces only the latest input", async () => {
+  const client = await readSource("app/realtime-client.ts");
+
+  assert.match(client, /["']\/api\/realtime\/session["']/);
+  assert.match(client, /["']\/api\/realtime\/sync["']/);
+  assert.match(client, /Authorization\s*:\s*`Bearer\s+\$\{[^}]+\}`/);
+  assert.match(
+    client,
+    /if\s*\(message\.type === "pvp_input"\)\s*\{\s*this\.latestPvpInput\s*=\s*message;?\s*\}\s*else\s*\{\s*this\.enqueueReliable\(message\)/,
+  );
+  assert.match(client, /const sentInput\s*=\s*this\.latestPvpInput/);
+  assert.match(
+    client,
+    /this\.latestPvpInput\?\.sequence\s*===\s*sentInput\.sequence[\s\S]*this\.latestPvpInput\s*=\s*null/,
+  );
+  assert.match(client, /this\.pendingMessages/);
+});
+
+test("D1 realtime handler exposes authenticated routes and compare-and-swap persistence", async () => {
+  const server = await readSource("worker/realtime-d1.ts");
+
+  for (const route of ["/session", "/sync", "/health"]) {
+    assert.ok(server.includes(route), `missing D1 realtime route: ${route}`);
+  }
+  assert.match(server, /Authorization/i);
+  assert.match(server, /request\.headers\.get\(["']authorization["']\)/i);
+  assert.match(server, /\^Bearer\\s\+/i);
+  assert.match(server, /parseRealtimeClientMessage/);
+  assert.match(server, /CREATE TABLE IF NOT EXISTS realtime_world_state/i);
+  assert.match(server, /UPDATE realtime_world_state[\s\S]*WHERE[\s\S]*version\s*=\s*\?/i);
+  assert.match(server, /(?:meta\.)?changes/);
+  assert.match(server, /CAS|compare-and-swap|cas/i);
+});
+
+test("D1 simulation remains fixed-step and server authoritative for movement, damage, and results", async () => {
+  const server = await readSource("worker/realtime-d1.ts");
+
+  assert.match(server, /(?:SIMULATION_STEP_MS|TICK_MS)\s*=\s*50/);
+  assert.match(server, /PLAYER_SPEED\s*=\s*235/);
+  assert.match(server, /PROJECTILE_DAMAGE\s*=\s*18/);
+  assert.match(server, /player\.vx\s*=\s*player\.input\.moveX\s*\*\s*speed/);
+  assert.match(server, /player\.x\s*\+=\s*player\.vx\s*\*\s*deltaSeconds/);
+  assert.match(server, /target\.hp\s*=\s*Math\.max\(0,\s*target\.hp\s*-\s*projectile\.damage\)/);
+  assert.match(server, /owner\.score\s*\+=\s*1/);
+  assert.match(server, /owner\.score\s*>=\s*PVP_SCORE_TO_WIN/);
+  assert.match(server, /finishMatch\([^)]*["']score["']/);
+  assert.match(server, /["']timeout["']/);
+  assert.match(server, /["']draw["']/);
+  assert.match(server, /input\.sequence\s*<=\s*player\.lastInputSequence/);
+});
+
+test("world announcement fires only after the item is actually stored", async () => {
+  const game = await readSource("app/GameCanvas.tsx");
+  const bagFullIndex = game.indexOf("player.inventory.length >= inventoryCapacityRef.current");
   const pickupIndex = game.indexOf("player.inventory.push(cloneGearItem(drop.item));");
   const announcementIndex = game.indexOf("getRealtimeClient().announceLoot", pickupIndex);
-  const bagFullIndex = game.indexOf("player.inventory.length >= inventoryCapacityRef.current");
+
   assert.ok(bagFullIndex >= 0 && bagFullIndex < pickupIndex);
   assert.ok(pickupIndex >= 0 && announcementIndex > pickupIndex);
   assert.match(
-    game.slice(pickupIndex, announcementIndex + 100),
+    game.slice(pickupIndex, announcementIndex + 150),
     /drop\.item\.rarity === "mythic"[\s\S]*drop\.item\.rarity === "cosmic"/,
   );
 });
