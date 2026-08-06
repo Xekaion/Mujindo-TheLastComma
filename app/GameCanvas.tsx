@@ -21,6 +21,18 @@ import {
   simpleDefenseDamageMultiplier,
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
+import {
+  MARGIN_SEVERER_ACTIVE_SECONDS,
+  MARGIN_SEVERER_DAMAGE_MULTIPLIER,
+  MARGIN_SEVERER_HIT_HALF_WIDTH,
+  MARGIN_SEVERER_KIND,
+  MARGIN_SEVERER_MAX_PER_ROOM,
+  MARGIN_SEVERER_RECOVERY_SECONDS,
+  MARGIN_SEVERER_TELEGRAPH_SECONDS,
+  MARGIN_SEVERER_UNLOCK_DEPTH,
+  MARGIN_SEVERER_WALK_ROW_CROPS,
+  marginSeverLine,
+} from "./enemy-balance";
 import { experienceRequiredForLevel } from "./progression";
 import {
   BASE_INVENTORY_CAPACITY,
@@ -174,7 +186,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
 type ProjectileAffinity =
   | "arcane"
   | "ember"
@@ -223,11 +235,20 @@ type Enemy = {
   walkCycle: number;
   moving: boolean;
   elite?: boolean;
-  patternPhase?: "stalk" | "windup" | "charge" | "recover" | "orbit" | "riftWindup";
+  patternPhase?:
+    | "stalk"
+    | "windup"
+    | "charge"
+    | "recover"
+    | "orbit"
+    | "riftWindup"
+    | "inscribe"
+    | "sever";
   patternTimer?: number;
   patternX?: number;
   patternY?: number;
   patternHit?: boolean;
+  strafeDirection?: 1 | -1;
   bossPattern?: BlankCartographerPattern;
   bossPatternIndex?: number;
   bossPhase?: "pursuit" | "telegraph" | "charge" | "timeRifts" | "recovery";
@@ -1177,6 +1198,7 @@ const ENEMY_NAMES = [
   "백지의 지도사",
   "붉은 교정자",
   "시간의 추적자",
+  "여백 절단사",
 ];
 
 const spriteCrops = [
@@ -1198,6 +1220,7 @@ const WALK_IMAGE_KEYS = [
   "walkBoss",
   "walkProofreader",
   "walkTimeStalker",
+  "walkMarginSeverer",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1206,6 +1229,10 @@ const makeDirectionFrames = (
 ): readonly DirectionFrame[] =>
   rows.map((row, index) => ({ row, flipX: flips[index] ?? false }));
 const TIME_STALKER_DIRECTION_FRAMES = makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]);
+const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames(
+  [0, 1, 2, 3, 4, 5, 6, 1],
+  [false, false, false, false, false, false, false, true],
+);
 
 // Each generated enemy sheet has its own authored row order. Missing left-facing
 // poses are synthesized from the matching right-facing pose instead of showing
@@ -1220,6 +1247,9 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   // The Time Stalker sheet authors every facing; never synthesize one by mirroring.
   TIME_STALKER_DIRECTION_FRAMES,
+  // The generated sheet supplies S through E; SE is the exact horizontal
+  // counterpart of its authored SW pose, so only that final diagonal is mirrored.
+  MARGIN_SEVERER_DIRECTION_FRAMES,
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
 // Harin v2 has an irregular authored row order: S, SE, E, NW, N, NE, W, SW.
@@ -2051,10 +2081,11 @@ export default function GameCanvas() {
         BLANK_CARTOGRAPHER_BASE_HP,
         58,
         92,
+        68,
       ];
-      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66];
-      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13];
-      const radii = [21, 20, 28, 32, 22, 62, 24, 26];
+      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58];
+      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11];
+      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23];
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
       const eliteScale = elite ? 2.25 : 1;
       const hp = hpBases[kind] * scale * eliteScale;
@@ -2080,7 +2111,12 @@ export default function GameCanvas() {
         walkCycle: hash(worldRef.current.seed, x | 0, y | 0, kind + 31) * 4,
         moving: true,
         elite,
-        patternPhase: kind === 6 ? "stalk" : kind === 7 ? "orbit" : undefined,
+        patternPhase:
+          kind === 6
+            ? "stalk"
+            : kind === 7 || kind === MARGIN_SEVERER_KIND
+              ? "orbit"
+              : undefined,
         patternTimer:
           kind === BLANK_CARTOGRAPHER_KIND
             ? 1.15
@@ -2088,7 +2124,9 @@ export default function GameCanvas() {
             ? 1.15 + hash(worldRef.current.seed, x | 0, y | 0, 607) * 1.1
             : kind === 7
               ? 1.4 + hash(worldRef.current.seed, x | 0, y | 0, 707) * 1.2
-            : undefined,
+              : kind === MARGIN_SEVERER_KIND
+                ? 1.65 + hash(worldRef.current.seed, x | 0, y | 0, 807) * 1.1
+                : undefined,
         patternX:
           kind === 6
             ? 0
@@ -2099,6 +2137,12 @@ export default function GameCanvas() {
               : undefined,
         patternY: kind === 6 ? 1 : undefined,
         patternHit: false,
+        strafeDirection:
+          kind === MARGIN_SEVERER_KIND
+            ? hash(worldRef.current.seed, x | 0, y | 0, 817) < 0.5
+              ? -1
+              : 1
+            : undefined,
         bossPattern: undefined,
         bossPatternIndex: kind === BLANK_CARTOGRAPHER_KIND ? 0 : undefined,
         bossPhase:
@@ -2121,6 +2165,7 @@ export default function GameCanvas() {
       const baseCount = clamp(4 + Math.floor(2.15 * Math.sqrt(depth + 1)), 4, 16);
       const count = kind === "horde" ? Math.ceil(baseCount * 1.55) : baseCount;
       const seedSalt = world.roomX * 41 + world.roomY * 73 + depth * 97;
+      let marginSevererCount = 0;
 
       if (kind === "shelter") {
         world.enemies = [];
@@ -2140,11 +2185,11 @@ export default function GameCanvas() {
         const unlockedKinds: EnemyKind[] =
           depth < 2
             ? [0, 1]
-            : depth < 4
+            : depth < MARGIN_SEVERER_UNLOCK_DEPTH
               ? [0, 1, 2, 6]
               : depth < 6
-                ? [0, 1, 2, 3, 4, 6]
-                : [0, 1, 2, 3, 4, 6, 7];
+                ? [0, 1, 2, 3, 4, 6, MARGIN_SEVERER_KIND]
+                : [0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND];
         let enemyKind =
           unlockedKinds[
             Math.floor(
@@ -2154,6 +2199,14 @@ export default function GameCanvas() {
           ];
         if (kind === "horde") enemyKind = 0;
         if (kind === "memory" && i % 2 === 0) enemyKind = 4;
+        if (enemyKind === MARGIN_SEVERER_KIND) {
+          if (marginSevererCount >= MARGIN_SEVERER_MAX_PER_ROOM) {
+            enemyKind =
+              hash(world.seed, world.roomX + i, world.roomY, 819) < 0.5 ? 2 : 4;
+          } else {
+            marginSevererCount += 1;
+          }
+        }
         const elite = kind === "elite" && i === 0;
         enemies.push(
           makeEnemy(
@@ -3039,9 +3092,11 @@ export default function GameCanvas() {
       walkBoss: "/assets/walk/cartographer-boss-walk.png",
       walkProofreader: "/assets/walk/proofreader-walk-v2.png",
       walkTimeStalker: "/assets/walk/time-stalker-walk.png",
+      walkMarginSeverer: "/assets/walk/margin-severer-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
+      marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
@@ -4685,6 +4740,113 @@ export default function GameCanvas() {
               2.25 + hash(world.seed, enemy.id, player.rooms, player.kills + 7707) * 1.35;
             enemy.patternX = -(enemy.patternX ?? 1);
           }
+        } else if (enemy.kind === MARGIN_SEVERER_KIND) {
+          const phase = enemy.patternPhase ?? "orbit";
+          if (phase === "orbit") {
+            const preferredDistance = 305;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 145,
+              -0.58,
+              0.66,
+            );
+            const strafeDirection = enemy.strafeDirection ?? 1;
+            const strafeStrength = 0.72 * strafeDirection;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeStrength;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeStrength;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5.5 + enemy.speed / 42) * slowMultiplier) % 4;
+
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const playerIsMoving = rawMoveLength > 0 || player.dashTime > 0;
+              const predictionDistance =
+                playerIsMoving
+                  ? Math.min(155, speed * (player.dashTime > 0 ? 0.2 : 0.34))
+                  : 0;
+              enemy.patternTargetX = clamp(
+                player.x + dx * predictionDistance,
+                96,
+                WIDTH - 96,
+              );
+              enemy.patternTargetY = clamp(
+                player.y + dy * predictionDistance,
+                92,
+                HEIGHT - 92,
+              );
+              enemy.patternX = playerIsMoving ? -dy : -Math.sin(angle);
+              enemy.patternY = playerIsMoving ? dx : Math.cos(angle);
+              enemy.patternPhase = "inscribe";
+              enemy.patternTimer = MARGIN_SEVERER_TELEGRAPH_SECONDS;
+              enemy.patternHit = false;
+              enemy.moving = false;
+              enemy.facing = directionRow(
+                Math.cos(angle),
+                Math.sin(angle),
+                enemy.facing,
+              );
+            }
+          } else if (phase === "inscribe") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "sever";
+              enemy.patternTimer = MARGIN_SEVERER_ACTIVE_SECONDS;
+              enemy.patternHit = false;
+            }
+          } else if (phase === "sever") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "recover";
+              enemy.patternTimer = MARGIN_SEVERER_RECOVERY_SECONDS;
+            } else {
+              const severLine = marginSeverLine(
+                enemy.patternTargetX ?? player.x,
+                enemy.patternTargetY ?? player.y,
+                enemy.patternX ?? 1,
+                enemy.patternY ?? 0,
+              );
+              if (
+                !enemy.patternHit &&
+                distanceToSegment(
+                  player.x,
+                  player.y,
+                  severLine.startX,
+                  severLine.startY,
+                  severLine.endX,
+                  severLine.endY,
+                ) <
+                  player.radius + MARGIN_SEVERER_HIT_HALF_WIDTH
+              ) {
+                enemy.patternHit = true;
+                damagePlayer(enemy.damage * MARGIN_SEVERER_DAMAGE_MULTIPLIER);
+              }
+            }
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "orbit";
+              enemy.patternTimer =
+                2.6 +
+                hash(world.seed, enemy.id, player.rooms, player.kills + 8807) * 0.8;
+              enemy.strafeDirection = enemy.strafeDirection === -1 ? 1 : -1;
+              enemy.patternHit = false;
+              enemy.patternTargetX = undefined;
+              enemy.patternTargetY = undefined;
+            }
+          }
         } else {
           let movement = 1;
           if (enemy.kind === 1 && d < 280) movement = -0.32;
@@ -4732,6 +4894,7 @@ export default function GameCanvas() {
         if (
           enemy.kind !== 6 &&
           enemy.kind !== 7 &&
+          enemy.kind !== MARGIN_SEVERER_KIND &&
           bossCanDealContactDamage &&
           distance(player.x, player.y, enemy.x, enemy.y) <
             player.radius + enemy.radius * 0.72
@@ -5191,12 +5354,13 @@ export default function GameCanvas() {
       height: number,
       alpha = 1,
       flipX = false,
+      sourceRowCrop?: { y: number; height: number },
     ) => {
       if (!image?.complete || !image.naturalWidth || !image.naturalHeight) return false;
       const sourceWidth = image.naturalWidth / 4;
-      const sourceHeight = image.naturalHeight / 8;
+      const sourceHeight = sourceRowCrop?.height ?? image.naturalHeight / 8;
+      const sourceY = sourceRowCrop?.y ?? clamp(Math.floor(facing), 0, 7) * sourceHeight;
       const column = positiveModulo(Math.floor(frameIndex), 4);
-      const row = clamp(Math.floor(facing), 0, 7);
       context.save();
       context.globalAlpha = alpha;
       context.imageSmoothingEnabled = true;
@@ -5207,7 +5371,7 @@ export default function GameCanvas() {
       context.drawImage(
         image,
         column * sourceWidth,
-        row * sourceHeight,
+        sourceY,
         sourceWidth,
         sourceHeight,
         flipX ? -width / 2 : x - width / 2,
@@ -5419,6 +5583,99 @@ export default function GameCanvas() {
         920 * telegraphScale,
         144 * telegraphScale,
       );
+      context.restore();
+      return true;
+    };
+
+    const drawMarginSeverLine = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const phase = enemy.patternPhase;
+      if (phase !== "inscribe" && phase !== "sever") return false;
+      const duration =
+        phase === "inscribe"
+          ? MARGIN_SEVERER_TELEGRAPH_SECONDS
+          : MARGIN_SEVERER_ACTIVE_SECONDS;
+      const progress = clamp(1 - (enemy.patternTimer ?? 0) / duration, 0, 0.999);
+      const frameIndex =
+        phase === "inscribe"
+          ? Math.min(1, Math.floor(progress * 2))
+          : progress < 0.88
+            ? 2
+            : 3;
+      const centerX = enemy.patternTargetX ?? enemy.x;
+      const centerY = enemy.patternTargetY ?? enemy.y;
+      const severLine = marginSeverLine(
+        centerX,
+        centerY,
+        enemy.patternX ?? 1,
+        enemy.patternY ?? 0,
+      );
+      const lineAngle = Math.atan2(
+        severLine.endY - severLine.startY,
+        severLine.endX - severLine.startX,
+      );
+      const lineLength = distance(
+        severLine.startX,
+        severLine.startY,
+        severLine.endX,
+        severLine.endY,
+      );
+      // The authored cells reserve roughly 13% horizontal alpha gutter. Expand
+      // only the transparent atlas rectangle so the painted endpoint seals land
+      // on the exact collision-segment endpoints instead of ending short.
+      const atlasDrawWidth = lineLength / 0.87;
+      const lineHeight = phase === "inscribe" ? 104 : 118;
+      const alpha =
+        phase === "inscribe"
+          ? 0.45 + progress * 0.42
+          : frameIndex === 3
+            ? 0.72
+            : 1;
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+      context.translate(centerX, centerY);
+      context.rotate(lineAngle);
+      context.globalAlpha = alpha;
+      context.globalCompositeOperation =
+        phase === "sever" ? "lighter" : "source-over";
+      context.shadowColor = phase === "sever" ? "#8df7ff" : "#b72d3f";
+      context.shadowBlur = phase === "sever" ? 18 : 8 + progress * 7;
+      context.imageSmoothingEnabled = true;
+
+      if (image?.complete && image.naturalWidth && image.naturalHeight) {
+        const sourceWidth = image.naturalWidth / 2;
+        const sourceHeight = image.naturalHeight / 2;
+        const column = frameIndex % 2;
+        const row = Math.floor(frameIndex / 2);
+        context.drawImage(
+          image,
+          column * sourceWidth,
+          row * sourceHeight,
+          sourceWidth,
+          sourceHeight,
+          -atlasDrawWidth / 2,
+          -lineHeight / 2,
+          atlasDrawWidth,
+          lineHeight,
+        );
+      } else {
+        context.strokeStyle = phase === "sever" ? "#c8fbff" : "#cf4b59";
+        context.lineWidth = phase === "sever" ? 5 : 2;
+        context.beginPath();
+        context.moveTo(-lineLength / 2, 0);
+        context.lineTo(lineLength / 2, 0);
+        context.stroke();
+      }
       context.restore();
       return true;
     };
@@ -6347,6 +6604,15 @@ export default function GameCanvas() {
         }
       }
 
+      // The visible seam and its collision segment share the same stored center
+      // and direction. Keeping this floor pass ahead of actors prevents the VFX
+      // from obscuring silhouettes while still making the danger unmistakable.
+      for (const enemy of world.enemies) {
+        if (enemy.kind === MARGIN_SEVERER_KIND) {
+          drawMarginSeverLine(images.marginSeverLine, enemy);
+        }
+      }
+
       for (const projectile of world.projectiles) {
         drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "trail");
       }
@@ -6417,6 +6683,8 @@ export default function GameCanvas() {
               ? 112
               : enemy.kind === 7
                 ? 118
+                : enemy.kind === MARGIN_SEVERER_KIND
+                  ? 116
                 : 72 + enemy.radius;
         const spriteAlpha = enemy.slow > 0 ? 0.78 : 1;
         const walkWidth =
@@ -6426,6 +6694,8 @@ export default function GameCanvas() {
               ? 192
               : enemy.kind === 7
                 ? 132
+                : enemy.kind === MARGIN_SEVERER_KIND
+                  ? 140
                 : size * 1.2;
         const walkHeight =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
@@ -6434,6 +6704,8 @@ export default function GameCanvas() {
               ? 144
               : enemy.kind === 7
                 ? 152
+                : enemy.kind === MARGIN_SEVERER_KIND
+                  ? 154
                 : size * 1.25;
         const directionFrame =
           ENEMY_DIRECTION_FRAMES[enemy.kind][enemy.facing] ??
@@ -6449,6 +6721,9 @@ export default function GameCanvas() {
             walkHeight,
             spriteAlpha,
             enemy.kind === 7 ? false : directionFrame.flipX,
+            enemy.kind === MARGIN_SEVERER_KIND
+              ? MARGIN_SEVERER_WALK_ROW_CROPS[directionFrame.row]
+              : undefined,
           ) ||
           (enemy.kind <= 5
             ? drawSprite(
@@ -6470,6 +6745,8 @@ export default function GameCanvas() {
                 ? "#a72531"
                 : enemy.kind === 7
                   ? "#394a72"
+                  : enemy.kind === MARGIN_SEVERER_KIND
+                    ? "#75454b"
                   : enemy.elite
                     ? "#b55a3e"
                     : "#746554";
@@ -6485,6 +6762,8 @@ export default function GameCanvas() {
             ? "#d14f55"
             : enemy.kind === 7
               ? "#63dbe8"
+              : enemy.kind === MARGIN_SEVERER_KIND
+                ? "#8deaf0"
               : "#b96649";
         context.fillRect(
           enemy.x - barWidth / 2,
@@ -6496,7 +6775,8 @@ export default function GameCanvas() {
           enemy.elite ||
           enemy.kind === BLANK_CARTOGRAPHER_KIND ||
           enemy.kind === 6 ||
-          enemy.kind === 7
+          enemy.kind === 7 ||
+          enemy.kind === MARGIN_SEVERER_KIND
         ) {
           context.font =
             enemy.kind === BLANK_CARTOGRAPHER_KIND

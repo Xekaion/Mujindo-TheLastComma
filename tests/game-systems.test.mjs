@@ -293,6 +293,55 @@ function alphaCellMetrics(image, column, row, columns, rows, label) {
   };
 }
 
+function alphaRectMetrics(image, left, top, width, height, label) {
+  assert.ok(Number.isInteger(left) && Number.isInteger(top), `${label} needs integer coordinates`);
+  assert.ok(Number.isInteger(width) && width > 0, `${label} needs a positive integer width`);
+  assert.ok(Number.isInteger(height) && height > 0, `${label} needs a positive integer height`);
+  assert.ok(left >= 0 && top >= 0, `${label} starts outside its atlas`);
+  assert.ok(left + width <= image.width, `${label} exceeds the atlas width`);
+  assert.ok(top + height <= image.height, `${label} exceeds the atlas height`);
+
+  let opaquePixels = 0;
+  let minimumX = left + width;
+  let maximumX = left - 1;
+  let minimumY = top + height;
+  let maximumY = top - 1;
+  for (let y = top; y < top + height; y += 1) {
+    for (let x = left; x < left + width; x += 1) {
+      if (image.pixels[(y * image.width + x) * 4 + 3] === 0) continue;
+      opaquePixels += 1;
+      minimumX = Math.min(minimumX, x);
+      maximumX = Math.max(maximumX, x);
+      minimumY = Math.min(minimumY, y);
+      maximumY = Math.max(maximumY, y);
+    }
+  }
+  assert.ok(opaquePixels >= 100, `${label} is effectively empty (${opaquePixels} alpha pixels)`);
+  return {
+    opaquePixels,
+    width: maximumX - minimumX + 1,
+    height: maximumY - minimumY + 1,
+    left: minimumX - left,
+    right: left + width - 1 - maximumX,
+    top: minimumY - top,
+    bottom: top + height - 1 - maximumY,
+  };
+}
+
+function countGreenChromaPixels(image) {
+  let chromaPixels = 0;
+  for (let index = 0; index < image.pixels.length; index += 4) {
+    const red = image.pixels[index];
+    const green = image.pixels[index + 1];
+    const blue = image.pixels[index + 2];
+    const alpha = image.pixels[index + 3];
+    if (alpha > 8 && green > red + 65 && green > blue + 65 && green > 110) {
+      chromaPixels += 1;
+    }
+  }
+  return chromaPixels;
+}
+
 function alphaCellComponents(image, column, row, columns, rows, alphaThreshold = 42) {
   const cellWidth = image.width / columns;
   const cellHeight = image.height / rows;
@@ -1184,12 +1233,14 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/cartographer-boss-walk.png", [1024, 1536]],
     ["public/assets/walk/proofreader-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/time-stalker-walk.png", [1024, 1536]],
+    ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-equipped-v3.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
     ["public/assets/effects/teleport-rift.png", [1024, 1024]],
     ["public/assets/effects/proofreader-telegraph.png", [1536, 1024]],
     ["public/assets/effects/time-stalker-rift-warning-v1.png", [1254, 1254]],
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
+    ["public/assets/effects/margin-sever-line-v1.png", [1254, 1254]],
     ["public/assets/equipment/equipment-types-v3.png", [2800, 2240]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
@@ -1248,7 +1299,7 @@ test("the Proofreader walk atlas fills all canonical direction cells without edg
   assert.match(source, /"walkProofreader"[\s\S]{0,160}?] as const/);
   assert.match(
     source,
-    /makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\)[\s\S]{0,300}?const DIRECTION_NAMES/,
+    /makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\)[\s\S]{0,900}?const DIRECTION_NAMES/,
     "the authored Proofreader rows must retain their canonical direction order",
   );
   assert.match(source, /ENEMY_DIRECTION_FRAMES\[enemy\.kind\]\[enemy\.facing\]/);
@@ -1295,7 +1346,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,120}?\];/,
+    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,400}?MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,40}?\];/,
     "the canonical Time Stalker direction map must occupy kind 7's frame slot",
   );
   assert.match(
@@ -1305,12 +1356,12 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,220}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,40}?\];[\s\S]{0,180}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66\];/,
+    /const hpBases = \[[\s\S]{0,220}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,40}?\];[\s\S]{0,180}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58\];/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
     source,
-    /:\s*\[0, 1, 2, 3, 4, 6, 7\];/,
+    /:\s*\[0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND\];/,
     "deep rooms must include kind 7 in their normal spawn distribution",
   );
   assert.match(source, /const TIME_RIFT_WARNING_SECONDS = 0\.9;/);
@@ -1444,6 +1495,295 @@ test("Time Stalker skill sheets contain four transparent, chroma-clean animation
     "the peak vertical tear must be recovered without leaking an adjacent frame",
   );
   assert.match(source, /const frameIndex = clamp\(Math\.floor\(progress \* 4\), 0, 3\);/);
+});
+
+test("the Margin Severer keeps one deterministic line contract from spawn through collision", async () => {
+  const [balance, source] = await Promise.all([
+    importTypeScriptModule("app/enemy-balance.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.equal(balance.MARGIN_SEVERER_KIND, 8);
+  assert.equal(balance.MARGIN_SEVERER_UNLOCK_DEPTH, 4);
+  assert.equal(balance.MARGIN_SEVERER_MAX_PER_ROOM, 1);
+  assert.equal(balance.MARGIN_SEVERER_TELEGRAPH_SECONDS, 0.95);
+  assert.equal(balance.MARGIN_SEVERER_ACTIVE_SECONDS, 1.55);
+  assert.equal(balance.MARGIN_SEVERER_RECOVERY_SECONDS, 0.8);
+  assert.equal(balance.MARGIN_SEVERER_LINE_LENGTH, 520);
+  assert.equal(balance.MARGIN_SEVERER_HIT_HALF_WIDTH, 12);
+  assert.equal(balance.MARGIN_SEVERER_DAMAGE_MULTIPLIER, 1.2);
+  assert.deepEqual(balance.MARGIN_SEVERER_WALK_ROW_CROPS, [
+    { y: 0, height: 220 },
+    { y: 220, height: 215 },
+    { y: 435, height: 200 },
+    { y: 635, height: 208 },
+    { y: 843, height: 200 },
+    { y: 1043, height: 205 },
+    { y: 1248, height: 204 },
+  ]);
+
+  const line = balance.marginSeverLine(100, 200, 3, 4);
+  assert.deepEqual(line, { startX: -56, startY: -8, endX: 256, endY: 408 });
+  assert.equal((line.startX + line.endX) / 2, 100, "the segment must stay centered on its mark");
+  assert.equal((line.startY + line.endY) / 2, 200, "the segment must stay centered on its mark");
+  assert.equal(
+    Math.hypot(line.endX - line.startX, line.endY - line.startY),
+    balance.MARGIN_SEVERER_LINE_LENGTH,
+    "direction magnitude must not change the sever length",
+  );
+  assert.deepEqual(
+    balance.marginSeverLine(100, 200, 30, 40),
+    line,
+    "scaled direction vectors must produce the same visible and damaging segment",
+  );
+  assert.deepEqual(
+    balance.marginSeverLine(100, 200, 0, 0),
+    { startX: 100, startY: 200, endX: 100, endY: 200 },
+    "a degenerate direction must remain finite and centered",
+  );
+
+  assert.match(
+    source,
+    /type EnemyKind\s*=\s*0\s*\|\s*1\s*\|\s*2\s*\|\s*3\s*\|\s*4\s*\|\s*5\s*\|\s*6\s*\|\s*7\s*\|\s*8/,
+  );
+  assert.match(source, /["']여백 절단사["']/);
+
+  const makeEnemyStart = source.indexOf("const makeEnemy = useCallback(");
+  const makeEnemyEnd = source.indexOf("const spawnRoom = useCallback(", makeEnemyStart);
+  assert.ok(makeEnemyStart >= 0 && makeEnemyEnd > makeEnemyStart, "makeEnemy must stay inspectable");
+  const makeEnemy = source.slice(makeEnemyStart, makeEnemyEnd);
+  const readBalanceArray = (name) => {
+    const match = makeEnemy.match(new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`));
+    assert.ok(match, `${name} is missing from makeEnemy`);
+    return match[1].split(",").map((value) => value.trim()).filter(Boolean);
+  };
+  const hpBases = readBalanceArray("hpBases");
+  const speedBases = readBalanceArray("speedBases");
+  const damageBases = readBalanceArray("damageBases");
+  const radii = readBalanceArray("radii");
+  assert.equal(hpBases.length, 9, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 9, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 9, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 9, "every enemy kind needs an aligned radius entry");
+  assert.deepEqual(
+    [hpBases[8], speedBases[8], damageBases[8], radii[8]],
+    ["68", "58", "11", "23"],
+    "kind 8 must retain its complete authored stat row",
+  );
+  assert.match(
+    makeEnemy,
+    /kind === 7 \|\| kind === MARGIN_SEVERER_KIND[\s\S]{0,80}?\? ["']orbit["']/,
+    "the Margin Severer must begin in its orbit phase",
+  );
+  assert.match(
+    makeEnemy,
+    /kind === MARGIN_SEVERER_KIND[\s\S]{0,100}?1\.65 \+ hash\([^;]*807\) \* 1\.1/,
+    "its initial attack delay must be deterministically staggered",
+  );
+
+  const spawnStart = source.indexOf("const spawnRoom = useCallback(");
+  const spawnEnd = source.indexOf("const determineRoomKind", spawnStart);
+  assert.ok(spawnStart >= 0 && spawnEnd > spawnStart, "spawnRoom must stay inspectable");
+  const spawnRoom = source.slice(spawnStart, spawnEnd);
+  assert.match(spawnRoom, /let marginSevererCount = 0;/);
+  assert.match(
+    spawnRoom,
+    /depth < MARGIN_SEVERER_UNLOCK_DEPTH\s*\? \[0, 1, 2, 6\]/,
+    "kind 8 must be absent before its depth-four unlock",
+  );
+  const unlockedPools = [
+    ...spawnRoom.matchAll(/\[([^\]]*MARGIN_SEVERER_KIND[^\]]*)\]/g),
+  ].map((match) => match[1]);
+  assert.equal(unlockedPools.length, 2, "both post-unlock normal pools must include kind 8");
+  assert.ok(unlockedPools[1].includes("7"), "the deepest pool must retain the Time Stalker");
+  const roomLimitStart = spawnRoom.indexOf("if (enemyKind === MARGIN_SEVERER_KIND)");
+  const roomLimitEnd = spawnRoom.indexOf("const elite =", roomLimitStart);
+  assert.ok(roomLimitStart >= 0 && roomLimitEnd > roomLimitStart, "the room cap guard is missing");
+  const roomLimit = spawnRoom.slice(roomLimitStart, roomLimitEnd);
+  assert.match(roomLimit, /marginSevererCount >= MARGIN_SEVERER_MAX_PER_ROOM/);
+  assert.match(roomLimit, /enemyKind =\s*hash\([^;]+\) < 0\.5 \? 2 : 4;/);
+  assert.match(roomLimit, /else \{\s*marginSevererCount \+= 1;/);
+
+  const controllerStart = source.indexOf("} else if (enemy.kind === MARGIN_SEVERER_KIND) {");
+  const controllerEnd = source.indexOf("\n        } else {\n          let movement = 1;", controllerStart);
+  assert.ok(controllerStart >= 0 && controllerEnd > controllerStart, "kind 8 needs an isolated FSM");
+  const controller = source.slice(controllerStart, controllerEnd);
+  const inscribeIndex = controller.indexOf('phase === "inscribe"');
+  const severIndex = controller.indexOf('phase === "sever"');
+  const recoverIndex = controller.indexOf('enemy.patternPhase = "recover"');
+  assert.ok(
+    inscribeIndex >= 0 && severIndex > inscribeIndex && recoverIndex > severIndex,
+    "the FSM must advance from telegraph to sever to recovery",
+  );
+  assert.match(
+    controller,
+    /enemy\.patternPhase = ["']inscribe["'];\s*enemy\.patternTimer = MARGIN_SEVERER_TELEGRAPH_SECONDS;/,
+  );
+  assert.match(
+    controller,
+    /phase === ["']inscribe["'][\s\S]{0,260}?enemy\.patternPhase = ["']sever["'];\s*enemy\.patternTimer = MARGIN_SEVERER_ACTIVE_SECONDS;/,
+  );
+  assert.match(
+    controller,
+    /phase === ["']sever["'][\s\S]{0,1200}?enemy\.patternPhase = ["']recover["'];\s*enemy\.patternTimer = MARGIN_SEVERER_RECOVERY_SECONDS;/,
+  );
+  assert.equal(
+    (controller.match(/marginSeverLine\(/g) ?? []).length,
+    1,
+    "collision must derive one canonical segment per update",
+  );
+  assert.match(
+    controller,
+    /const severLine = marginSeverLine\(\s*enemy\.patternTargetX \?\? player\.x,\s*enemy\.patternTargetY \?\? player\.y,\s*enemy\.patternX \?\? 1,\s*enemy\.patternY \?\? 0,?\s*\);/,
+  );
+  assert.match(
+    controller,
+    /if \(\s*!enemy\.patternHit &&[\s\S]{0,480}?distanceToSegment\([\s\S]{0,320}?MARGIN_SEVERER_HIT_HALF_WIDTH[\s\S]{0,100}?enemy\.patternHit = true;\s*damagePlayer\(enemy\.damage \* MARGIN_SEVERER_DAMAGE_MULTIPLIER\);/,
+    "the active seam may damage the player only once per attack",
+  );
+  assert.match(
+    source,
+    /enemy\.kind !== 6 &&\s*enemy\.kind !== 7 &&\s*enemy\.kind !== MARGIN_SEVERER_KIND &&/,
+    "kind 8 must not add ordinary contact damage on top of its seam",
+  );
+
+  const drawStart = source.indexOf("const drawMarginSeverLine = (");
+  const drawEnd = source.indexOf("const drawTimeRiftSprite = (", drawStart);
+  assert.ok(drawStart >= 0 && drawEnd > drawStart, "the visible seam renderer is missing");
+  const drawLine = source.slice(drawStart, drawEnd);
+  assert.equal(
+    (drawLine.match(/marginSeverLine\(/g) ?? []).length,
+    1,
+    "rendering must derive the same canonical segment exactly once",
+  );
+  assert.match(drawLine, /const centerX = enemy\.patternTargetX \?\? enemy\.x;/);
+  assert.match(drawLine, /const centerY = enemy\.patternTargetY \?\? enemy\.y;/);
+  assert.match(
+    drawLine,
+    /const severLine = marginSeverLine\(\s*centerX,\s*centerY,\s*enemy\.patternX \?\? 1,\s*enemy\.patternY \?\? 0,?\s*\);/,
+  );
+  const floorDrawIndex = source.indexOf("drawMarginSeverLine(images.marginSeverLine, enemy)");
+  const projectileTrailIndex = source.indexOf(
+    'drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "trail")',
+    floorDrawIndex,
+  );
+  const actorDrawIndex = source.indexOf("const sortedEnemies = [...world.enemies]", floorDrawIndex);
+  assert.ok(
+    floorDrawIndex >= 0 && projectileTrailIndex > floorDrawIndex && actorDrawIndex > floorDrawIndex,
+    "the visible collision seam must render on the floor before projectiles and actors",
+  );
+});
+
+test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, and fully wired", async () => {
+  const [balance, source] = await Promise.all([
+    importTypeScriptModule("app/enemy-balance.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  const walkPath = "public/assets/walk/margin-severer-walk-v1.png";
+  const linePath = "public/assets/effects/margin-sever-line-v1.png";
+  const [walk, lineEffect] = await Promise.all([
+    readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
+    readFile(path.join(root, linePath)).then((png) => decodeRgbaPng(png, linePath)),
+  ]);
+
+  assert.deepEqual([walk.width, walk.height], [1024, 1536]);
+  assert.equal(walk.width % 4, 0, "the walk sheet must retain four animation columns");
+  assert.equal(balance.MARGIN_SEVERER_WALK_ROW_CROPS.length, 7);
+  let previousCropEnd = 0;
+  for (const [row, crop] of balance.MARGIN_SEVERER_WALK_ROW_CROPS.entries()) {
+    assert.equal(crop.y, previousCropEnd, `walk row ${row} must begin after the prior authored row`);
+    previousCropEnd = crop.y + crop.height;
+    for (let column = 0; column < 4; column += 1) {
+      const label = `margin severer row ${row} column ${column}`;
+      const metrics = alphaRectMetrics(walk, column * 256, crop.y, 256, crop.height, label);
+      assert.ok(metrics.opaquePixels >= 8_000, `${label} lacks a complete silhouette`);
+      assert.ok(metrics.width >= 95 && metrics.height >= 165, `${label} is undersized`);
+      assert.ok(metrics.left >= 16 && metrics.right >= 16, `${label} needs horizontal crop safety`);
+      assert.ok(metrics.top >= 8 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
+    }
+  }
+  assert.ok(previousCropEnd < walk.height, "the custom rows must leave a guarded atlas tail");
+  for (let y = previousCropEnd; y < walk.height; y += 1) {
+    for (let x = 0; x < walk.width; x += 1) {
+      assert.equal(
+        walk.pixels[(y * walk.width + x) * 4 + 3],
+        0,
+        "pixels outside the seven exported row crops must remain transparent",
+      );
+    }
+  }
+  assert.equal(countGreenChromaPixels(walk), 0, `${walkPath} retains green-screen contamination`);
+
+  assert.match(
+    source,
+    /walkMarginSeverer:\s*["']\/assets\/walk\/margin-severer-walk-v1\.png["']/,
+    "the authored walk sheet must be preloaded",
+  );
+  assert.match(
+    source,
+    /const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames\(\s*\[0, 1, 2, 3, 4, 5, 6, 1\],\s*\[false, false, false, false, false, false, false, true\],?\s*\);/,
+    "only the absent southeast pose may mirror the authored southwest row",
+  );
+  assert.match(
+    source,
+    /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,40}?\];/,
+    "kind 8 must own the ninth enemy direction-table slot",
+  );
+  assert.match(
+    source,
+    /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\][\s\S]{0,320}?directionFrame\.flipX,[\s\S]{0,120}?enemy\.kind === MARGIN_SEVERER_KIND\s*\? MARGIN_SEVERER_WALK_ROW_CROPS\[directionFrame\.row\]/,
+    "runtime rendering must apply both the SE mirror and the exported custom row crop",
+  );
+
+  assert.deepEqual([lineEffect.width, lineEffect.height], [1254, 1254]);
+  assert.equal(lineEffect.width % 2, 0);
+  assert.equal(lineEffect.height % 2, 0);
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 2; column += 1) {
+      const label = `margin sever line row ${row} column ${column}`;
+      const metrics = alphaCellMetrics(lineEffect, column, row, 2, 2, label);
+      assert.ok(metrics.opaquePixels >= 6_000, `${label} lacks its authored line effect`);
+      assert.ok(metrics.width >= 500, `${label} must span most of its animation cell`);
+      assert.ok(metrics.height >= 50, `${label} is too thin to remain legible in play`);
+      assert.ok(metrics.left >= 20 && metrics.right >= 20, `${label} needs safe horizontal padding`);
+      assert.ok(metrics.top >= 180 && metrics.bottom >= 180, `${label} needs safe vertical padding`);
+    }
+  }
+  assert.equal(
+    countGreenChromaPixels(lineEffect),
+    0,
+    `${linePath} retains green-screen contamination`,
+  );
+  for (const [x, y] of [
+    [0, 0],
+    [lineEffect.width - 1, 0],
+    [0, lineEffect.height - 1],
+    [lineEffect.width - 1, lineEffect.height - 1],
+  ]) {
+    assert.equal(lineEffect.pixels[(y * lineEffect.width + x) * 4 + 3], 0);
+  }
+
+  assert.match(
+    source,
+    /marginSeverLine:\s*["']\/assets\/effects\/margin-sever-line-v1\.png["']/,
+    "the four-frame sever effect must be preloaded",
+  );
+  const rendererStart = source.indexOf("const drawMarginSeverLine = (");
+  const rendererEnd = source.indexOf("const drawTimeRiftSprite = (", rendererStart);
+  const renderer = source.slice(rendererStart, rendererEnd);
+  assert.match(
+    renderer,
+    /phase === ["']inscribe["']\s*\? Math\.min\(1, Math\.floor\(progress \* 2\)\)\s*:\s*progress < 0\.88\s*\? 2\s*:\s*3/,
+    "telegraph frames 0-1 and active frames 2-3 must remain phase-separated",
+  );
+  assert.match(renderer, /const sourceWidth = image\.naturalWidth \/ 2;/);
+  assert.match(renderer, /const sourceHeight = image\.naturalHeight \/ 2;/);
+  assert.match(renderer, /const column = frameIndex % 2;\s*const row = Math\.floor\(frameIndex \/ 2\);/);
+  assert.match(
+    renderer,
+    /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,\s*sourceWidth,\s*sourceHeight,/,
+    "the renderer must crop all four cells instead of sampling the whole atlas",
+  );
 });
 
 test("the memory-stitched armor icon occupies its ten-column atlas cell with transparent gutters", async () => {
@@ -3428,7 +3768,7 @@ test("equipped gear selects a frame-matched composite walk sheet instead of icon
   );
   assert.match(
     source,
-    /sourceWidth\s*=\s*image\.naturalWidth\s*\/\s*4;[\s\S]{0,100}?sourceHeight\s*=\s*image\.naturalHeight\s*\/\s*8;/,
+    /sourceWidth\s*=\s*image\.naturalWidth\s*\/\s*4;[\s\S]{0,140}?sourceHeight\s*=\s*sourceRowCrop\?\.height\s*\?\?\s*image\.naturalHeight\s*\/\s*8;/,
     "the composite must follow the same four-frame by eight-direction walk contract",
   );
 
