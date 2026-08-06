@@ -9048,6 +9048,8 @@ button.equipment-slot-card:hover {
   --inventory-paperdoll-gap: clamp(3px, 0.45vh, 5px);
   --inventory-paperdoll-slot-cap: 76px;
   --inventory-paperdoll-aura-safe: 32px;
+  --inventory-paperdoll-row-spread: clamp(3px, 0.65vh, 5px);
+  --inventory-paperdoll-row-spread-double: clamp(6px, 1.3vh, 10px);
   container-type: normal;
   display: grid;
   grid-template-columns:
@@ -9123,6 +9125,31 @@ button.equipment-slot-card:hover {
 .inventory-screen-equipment-card--legs { grid-column: 3; grid-row: 4; }
 .inventory-screen-equipment-card--belt { grid-column: 1; grid-row: 5; }
 .inventory-screen-equipment-card--boots { grid-column: 3; grid-row: 5; }
+
+/* On desktop, spend a small portion of the unused top/bottom paperdoll room on
+   equal breathing space between the five rows. Individual translate composes
+   with the existing hover transform, so cards never jump when inspected. */
+@media (min-width: 901px) {
+  .inventory-screen-equipment-card--helm,
+  .inventory-screen-equipment-card--relic {
+    translate: 0 calc(0px - var(--inventory-paperdoll-row-spread-double));
+  }
+
+  .inventory-screen-equipment-card--shoulders,
+  .inventory-screen-equipment-card--offhand {
+    translate: 0 calc(0px - var(--inventory-paperdoll-row-spread));
+  }
+
+  .inventory-screen-equipment-card--gloves,
+  .inventory-screen-equipment-card--legs {
+    translate: 0 var(--inventory-paperdoll-row-spread);
+  }
+
+  .inventory-screen-equipment-card--belt,
+  .inventory-screen-equipment-card--boots {
+    translate: 0 var(--inventory-paperdoll-row-spread-double);
+  }
+}
 
 .inventory-screen-slot-clip {
   position: absolute;

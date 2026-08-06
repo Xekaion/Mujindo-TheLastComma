@@ -4258,6 +4258,13 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   assert.match(finalCss, /--inventory-paperdoll-slot-cap:\s*76px;/);
   assert.match(finalCss, /--inventory-paperdoll-aura-safe:\s*32px;/);
   assert.match(finalCss, /grid-template-rows:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/);
+  assert.match(finalCss, /--inventory-paperdoll-row-spread:\s*clamp\(3px,\s*0\.65vh,\s*5px\);/);
+  assert.match(finalCss, /--inventory-paperdoll-row-spread-double:\s*clamp\(6px,\s*1\.3vh,\s*10px\);/);
+  assert.match(
+    finalCss,
+    /@media \(min-width:\s*901px\)[\s\S]{0,900}?equipment-card--helm,[\s\S]{0,120}?equipment-card--relic\s*\{[^}]*translate:\s*0\s+calc\(0px\s*-\s*var\(--inventory-paperdoll-row-spread-double\)\);[\s\S]{0,700}?equipment-card--belt,[\s\S]{0,120}?equipment-card--boots\s*\{[^}]*translate:\s*0\s+var\(--inventory-paperdoll-row-spread-double\);/,
+    "desktop paperdoll rows must spread symmetrically into the available top and bottom room",
+  );
   assert.match(finalCss, /padding-block:\s*var\(--inventory-paperdoll-aura-safe\);/);
   assert.match(finalCss, /height:\s*auto;[\s\S]{0,120}?align-self:\s*stretch;/);
   assert.match(
