@@ -2596,12 +2596,12 @@ button.map-cell {
 .inventory-screen-rarity-spectacle {
   --inventory-rarity-spectacle-image: none;
   --inventory-rarity-spectacle-duration: 4.8s;
-  --inventory-rarity-spectacle-opacity: 0.18;
-  --inventory-rarity-spectacle-active-opacity: 0.34;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(236, 240, 247, 0.46);
   --inventory-rarity-spectacle-glow: 2px;
-  --inventory-rarity-spectacle-brightness: 0.92;
-  --inventory-rarity-spectacle-saturation: 0.9;
+  --inventory-rarity-spectacle-brightness: 1;
+  --inventory-rarity-spectacle-saturation: 1;
   position: absolute;
   z-index: 1;
   inset: -20%;
@@ -2624,15 +2624,15 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--common {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-common-v4.png");
   --inventory-rarity-spectacle-duration: 5.4s;
-  --inventory-rarity-spectacle-opacity: 0.16;
-  --inventory-rarity-spectacle-active-opacity: 0.3;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
 }
 
 .inventory-screen-rarity-spectacle--magic {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-magic-v4.png");
   --inventory-rarity-spectacle-duration: 4.4s;
-  --inventory-rarity-spectacle-opacity: 0.24;
-  --inventory-rarity-spectacle-active-opacity: 0.42;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(73, 159, 255, 0.58);
   --inventory-rarity-spectacle-glow: 3px;
   --inventory-rarity-spectacle-saturation: 1.02;
@@ -2641,8 +2641,8 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--superior {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-superior-v4.png");
   --inventory-rarity-spectacle-duration: 3.7s;
-  --inventory-rarity-spectacle-opacity: 0.3;
-  --inventory-rarity-spectacle-active-opacity: 0.5;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(73, 221, 151, 0.62);
   --inventory-rarity-spectacle-glow: 4px;
   --inventory-rarity-spectacle-saturation: 1.06;
@@ -2651,8 +2651,8 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--rare {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-rare-v4.png");
   --inventory-rarity-spectacle-duration: 2.8s;
-  --inventory-rarity-spectacle-opacity: 0.48;
-  --inventory-rarity-spectacle-active-opacity: 0.7;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(255, 214, 92, 0.74);
   --inventory-rarity-spectacle-glow: 5px;
   --inventory-rarity-spectacle-brightness: 1.02;
@@ -2662,8 +2662,8 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--epic {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-epic-v4.png");
   --inventory-rarity-spectacle-duration: 2.1s;
-  --inventory-rarity-spectacle-opacity: 0.6;
-  --inventory-rarity-spectacle-active-opacity: 0.82;
+  --inventory-rarity-spectacle-opacity: 1;
+  --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(196, 84, 255, 0.78);
   --inventory-rarity-spectacle-glow: 6px;
   --inventory-rarity-spectacle-brightness: 1.06;
@@ -2673,7 +2673,7 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--legendary {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-legendary-v4.png");
   --inventory-rarity-spectacle-duration: 1.28s;
-  --inventory-rarity-spectacle-opacity: 0.78;
+  --inventory-rarity-spectacle-opacity: 1;
   --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(255, 91, 20, 0.9);
   --inventory-rarity-spectacle-glow: 9px;
@@ -2685,7 +2685,7 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--mythic {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-mythic-v4.png");
   --inventory-rarity-spectacle-duration: 1.04s;
-  --inventory-rarity-spectacle-opacity: 0.82;
+  --inventory-rarity-spectacle-opacity: 1;
   --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(255, 55, 157, 0.92);
   --inventory-rarity-spectacle-glow: 11px;
@@ -2697,7 +2697,7 @@ button.map-cell {
 .inventory-screen-rarity-spectacle--cosmic {
   --inventory-rarity-spectacle-image: url("/assets/ui/inventory-rarity-spectacle-cosmic-v4.png");
   --inventory-rarity-spectacle-duration: 820ms;
-  --inventory-rarity-spectacle-opacity: 0.9;
+  --inventory-rarity-spectacle-opacity: 1;
   --inventory-rarity-spectacle-active-opacity: 1;
   --inventory-rarity-spectacle-color: rgba(70, 238, 255, 0.96);
   --inventory-rarity-spectacle-glow: 13px;
@@ -9192,7 +9192,7 @@ button.equipment-slot-card:hover {
   box-sizing: border-box;
   background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
-  opacity: 0.92;
+  opacity: 1;
   transform: none;
 }
 
@@ -9507,21 +9507,57 @@ button.equipment-slot-card:hover {
 .inventory-screen-grid-cell--salvage-mode .inventory-screen-grid-item {
   cursor: pointer;
   transition:
-    opacity 130ms ease,
-    transform 130ms ease,
     border-color 130ms ease,
     box-shadow 130ms ease;
 }
 
 .inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item {
-  opacity: 0.56;
-  transform: scale(0.965);
+  opacity: 1;
+  transform: none;
 }
 
 .inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:hover,
 .inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:focus-visible {
-  opacity: 0.86;
-  transform: translateY(-1px) scale(0.985);
+  opacity: 1;
+  transform: none;
+}
+
+/* Keep rarity identity fully saturated in salvage mode. Only the icon and
+   metadata recede; filtering the slot clip would create a stacking context and
+   pull the authored spectacle in front of the icon. */
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-slot-clip > .inventory-screen-gear-icon {
+  opacity: 0.5;
+  filter: brightness(0.58) saturate(0.72);
+}
+
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) :is(
+  .inventory-screen-grid-delta,
+  .inventory-screen-grid-level,
+  .inventory-screen-grid-quality,
+  .inventory-screen-enhancement-badge
+) {
+  opacity: 0.5;
+}
+
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:hover .inventory-screen-slot-clip > .inventory-screen-gear-icon,
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:focus-visible .inventory-screen-slot-clip > .inventory-screen-gear-icon {
+  opacity: 0.78;
+  filter: brightness(0.82) saturate(0.88);
+}
+
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:hover :is(
+  .inventory-screen-grid-delta,
+  .inventory-screen-grid-level,
+  .inventory-screen-grid-quality,
+  .inventory-screen-enhancement-badge
+),
+.inventory-screen-grid-cell--salvage-mode:not(.inventory-screen-grid-cell--salvage-selected) .inventory-screen-grid-item:focus-visible :is(
+  .inventory-screen-grid-delta,
+  .inventory-screen-grid-level,
+  .inventory-screen-grid-quality,
+  .inventory-screen-enhancement-badge
+) {
+  opacity: 0.78;
 }
 
 .inventory-screen-grid-cell--salvage-selected {
@@ -10252,7 +10288,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity-aura {
   --inventory-rarity-aura-image: none;
   --inventory-rarity-aura-duration: 2.8s;
-  --inventory-rarity-aura-opacity: 0.72;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-active-opacity: 1;
   --inventory-rarity-aura-color: rgba(255, 227, 145, 0.68);
   --inventory-rarity-aura-glow: 4px;
@@ -10281,14 +10317,14 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity-aura--rare {
   --inventory-rarity-aura-image: url("/assets/ui/inventory-rarity-aura-rare-v3.png");
   --inventory-rarity-aura-duration: 2.8s;
-  --inventory-rarity-aura-opacity: 0.72;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-color: rgba(255, 218, 104, 0.58);
 }
 
 .inventory-screen-rarity-aura--epic {
   --inventory-rarity-aura-image: url("/assets/ui/inventory-rarity-aura-epic-v3.png");
   --inventory-rarity-aura-duration: 1.55s;
-  --inventory-rarity-aura-opacity: 0.78;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-color: rgba(190, 102, 255, 0.68);
   --inventory-rarity-aura-glow: 5px;
   --inventory-rarity-aura-saturation: 1.08;
@@ -10297,7 +10333,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity-aura--legendary {
   --inventory-rarity-aura-image: url("/assets/ui/inventory-rarity-aura-legendary-v3.png");
   --inventory-rarity-aura-duration: 780ms;
-  --inventory-rarity-aura-opacity: 0.88;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-color: rgba(255, 105, 26, 0.82);
   --inventory-rarity-aura-glow: 7px;
   --inventory-rarity-aura-saturation: 1.12;
@@ -10306,7 +10342,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity-aura--mythic {
   --inventory-rarity-aura-image: url("/assets/ui/inventory-rarity-aura-mythic-v3.png");
   --inventory-rarity-aura-duration: 680ms;
-  --inventory-rarity-aura-opacity: 0.9;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-color: rgba(255, 61, 142, 0.82);
   --inventory-rarity-aura-glow: 8px;
   --inventory-rarity-aura-saturation: 1.16;
@@ -10315,7 +10351,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity-aura--cosmic {
   --inventory-rarity-aura-image: url("/assets/ui/inventory-rarity-aura-cosmic-v3.png");
   --inventory-rarity-aura-duration: 620ms;
-  --inventory-rarity-aura-opacity: 0.94;
+  --inventory-rarity-aura-opacity: 1;
   --inventory-rarity-aura-color: rgba(87, 234, 255, 0.9);
   --inventory-rarity-aura-glow: 9px;
   --inventory-rarity-aura-saturation: 1.18;
@@ -10373,7 +10409,7 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-tooltip-crest > .inventory-screen-rarity-aura {
   z-index: 3;
-  opacity: 0.92;
+  opacity: 1;
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-gear-icon {

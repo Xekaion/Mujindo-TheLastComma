@@ -3944,8 +3944,18 @@ test("inventory salvage mode toggles whole cards and confirms single or batch ac
   assert.match(css, /\.inventory-screen-grid-cell--salvage-selected\s+\.inventory-screen-grid-item\s*\{/);
   assert.match(
     css,
-    /\.inventory-screen-grid-cell--salvage-mode:not\(\.inventory-screen-grid-cell--salvage-selected\)\s+\.inventory-screen-grid-item\s*\{[^}]*opacity:\s*0\.56;[^}]*transform:\s*scale\(0\.965\);/,
-    "unselected salvage candidates should recede behind selected cards",
+    /\.inventory-screen-grid-cell--salvage-mode:not\(\.inventory-screen-grid-cell--salvage-selected\)\s+\.inventory-screen-grid-item\s*\{[^}]*opacity:\s*1;[^}]*transform:\s*none;/,
+    "unselected salvage candidates must not flatten their rarity effects through parent opacity or scaling",
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-grid-cell--salvage-mode:not\(\.inventory-screen-grid-cell--salvage-selected\)\s+\.inventory-screen-slot-clip\s*>\s*\.inventory-screen-gear-icon\s*\{[^}]*opacity:\s*0\.5;[^}]*filter:\s*brightness\(0\.58\)\s+saturate\(0\.72\);/,
+    "salvage mode should dim only the item icon while preserving rarity-identifying VFX and stacking order",
+  );
+  assert.doesNotMatch(
+    css,
+    /\.inventory-screen-grid-cell--salvage-mode:not\(\.inventory-screen-grid-cell--salvage-selected\)\s+\.inventory-screen-slot-clip\s*\{[^}]*(?:opacity|filter):/,
+    "salvage mode must not turn the slot clip into a stacking context",
   );
   assert.match(
     css,
@@ -3971,6 +3981,11 @@ test("inventory salvage mode toggles whole cards and confirms single or batch ac
     css,
     /\.inventory-screen-grid-cell--salvage-mode \.inventory-screen-rarity-aura\s*\{[^}]*opacity:\s*var\(--inventory-rarity-aura-opacity\);[^}]*animation-play-state:\s*running;/,
     "batch salvage must preserve the authored rare-and-higher animated borders",
+  );
+  assert.doesNotMatch(
+    css,
+    /\.inventory-screen-grid-cell--salvage-mode:not\(\.inventory-screen-grid-cell--salvage-selected\)\s+\.inventory-screen-grid-item\s*\{[^}]*(?:opacity:\s*0\.|scale\()/,
+    "batch salvage must not dim or resample the parent that owns rarity effects",
   );
   assert.doesNotMatch(
     css,
@@ -4132,6 +4147,12 @@ test("all eight inventory rarities use authored spectacle atlases without changi
   assert.ok(spectacleStart >= 0, "the authoritative all-rarity spectacle contract is missing");
   const spectacleCss = css.slice(spectacleStart);
 
+  assert.match(
+    spectacleCss,
+    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,260}?--inventory-rarity-spectacle-opacity:\s*1;[\s\S]{0,100}?--inventory-rarity-spectacle-active-opacity:\s*1;/,
+    "inventory spectacles must remain fully composited while idle",
+  );
+
   for (const [[rarity, assetPath], png] of assets.map((entry, index) => [entry, pngs[index]])) {
     const image = decodeRgbaPng(png, assetPath);
     assert.deepEqual([image.width, image.height], [1536, 768], `${assetPath} atlas dimensions drifted`);
@@ -4153,6 +4174,11 @@ test("all eight inventory rarities use authored spectacle atlases without changi
       spectacleCss,
       new RegExp(`\\.inventory-screen-rarity-spectacle--${rarity}\\s*\\{[^}]*inventory-rarity-spectacle-${rarity}-v4\\.png`),
       `${rarity} must consume its dedicated spectacle atlas`,
+    );
+    assert.match(
+      spectacleCss,
+      new RegExp(`\\.inventory-screen-rarity-spectacle--${rarity}\\s*\\{[^}]*--inventory-rarity-spectacle-opacity:\\s*1;`),
+      `${rarity} spectacle must be fully opaque in its CSS compositing layer`,
     );
   }
 
@@ -4842,7 +4868,7 @@ test("rare and higher inventory aura frames share one exact slot-sized normalize
   }
 
   assert.match(auraCss, /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,500}?inset:\s*-10%;[\s\S]{0,260}?background-size:\s*400%\s+200%;/);
-  assert.match(auraCss, /\.inventory-screen-rarity-aura--legendary\s*\{[^}]*duration:\s*780ms;[^}]*opacity:\s*0\.88;/);
+  assert.match(auraCss, /\.inventory-screen-rarity-aura--legendary\s*\{[^}]*duration:\s*780ms;[^}]*opacity:\s*1;/);
   assert.match(auraCss, /@keyframes\s+inventory-rarity-aura-frames-v3\s*\{[\s\S]{0,620}?87\.5%,\s*100%\s*\{\s*background-position:\s*100%\s+100%;/);
 });
 
