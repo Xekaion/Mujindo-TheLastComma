@@ -125,6 +125,12 @@ test("polling client creates an authenticated session, syncs, and coalesces only
     /this\.latestPvpInput\?\.sequence\s*===\s*sentInput\.sequence[\s\S]*this\.latestPvpInput\s*=\s*null/,
   );
   assert.match(client, /this\.pendingMessages/);
+  assert.match(client, /FAST_POLL_MIN_GAP_MS\s*=\s*24/);
+  assert.match(client, /FAST_POLL_JITTER_MS\s*=\s*36/);
+  assert.match(
+    client,
+    /Date\.now\(\)\s*-\s*this\.lastSyncStartedAt[\s\S]*FAST_POLL_MS\s*-\s*elapsed/,
+  );
 });
 
 test("D1 realtime handler exposes authenticated routes and compare-and-swap persistence", async () => {
@@ -158,6 +164,14 @@ test("D1 simulation remains fixed-step and server authoritative for movement, da
   assert.match(server, /["']timeout["']/);
   assert.match(server, /["']draw["']/);
   assert.match(server, /input\.sequence\s*<=\s*player\.lastInputSequence/);
+  assert.match(server, /MAX_SIMULATION_DEBT_MS\s*=\s*2_000/);
+  assert.match(server, /MAX_STEPS_PER_REQUEST\s*=\s*20/);
+  assert.match(server, /if\s*\(match\)\s*advanceMatch\(state,\s*match,\s*now\)/);
+  assert.doesNotMatch(server, /function\s+advanceMatches\s*\(/);
+  assert.match(
+    server,
+    /async function health\(db:\s*D1Database\)[\s\S]*readWorldState\(db\)/,
+  );
 });
 
 test("world announcement fires only after the item is actually stored", async () => {

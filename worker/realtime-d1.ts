@@ -109,7 +109,8 @@ type SyncRequestBody = {
 const WORLD_STATE_ID = 1;
 const WORLD_STATE_FORMAT = 1;
 const TICK_MS = 50;
-const MAX_CATCH_UP_MS = 250;
+const MAX_SIMULATION_DEBT_MS = 2_000;
+const MAX_STEPS_PER_REQUEST = 20;
 const PLAYER_SPEED = 235;
 const DASH_SPEED_MULTIPLIER = 3.15;
 const DASH_DURATION_MS = 165;
@@ -424,6 +425,24 @@ async function casMutate<T>(
   throw new CasConflict();
 }
 
+async function readWorldState(db: D1Database): Promise<RealtimeWorldState> {
+  const row = await db
+    .prepare(
+      "SELECT version, state_json FROM realtime_world_state WHERE id = ? LIMIT 1",
+    )
+    .bind(WORLD_STATE_ID)
+    .first<WorldRow>();
+  if (!row || !Number.isSafeInteger(row.version) || typeof row.state_json !== "string") {
+    throw new RequestProblem(
+      503,
+      "state_unavailable",
+      "Realtime state is unavailable.",
+      true,
+    );
+  }
+  return parseWorldState(row.state_json);
+}
+
 function sessionIsOnline(session: StoredSession, now: number): boolean {
   return session.expiresAt > now && now - session.lastSeenAt <= ONLINE_WINDOW_MS;
 }
@@ -617,25 +636,47 @@ function advanceMatch(
     return;
   }
 
-  const elapsed = clamp(now - match.lastSteppedAt, 0, MAX_CATCH_UP_MS);
+  const elapsed = Math.max(0, now - match.lastSteppedAt);
   match.lastSteppedAt = now;
   match.accumulatorMs = Math.min(
-    MAX_CATCH_UP_MS,
+    MAX_SIMULATION_DEBT_MS,
     Math.max(0, match.accumulatorMs) + elapsed,
   );
   let simulatedAt = now - match.accumulatorMs;
-  while (match.accumulatorMs >= TICK_MS && match.phase === "playing") {
+  let steps = 0;
+  while (
+    match.accumulatorMs >= TICK_MS &&
+    match.phase === "playing" &&
+    steps < MAX_STEPS_PER_REQUEST
+  ) {
     simulatedAt += TICK_MS;
     stepSimulation(match, simulatedAt);
     match.accumulatorMs -= TICK_MS;
+    steps += 1;
   }
 }
 
-function advanceMatches(state: RealtimeWorldState, now: number): void {
-  for (const match of Object.values(state.matches)) advanceMatch(state, match, now);
-}
-
 function pruneWorld(state: RealtimeWorldState, now: number): void {
+  for (const match of Object.values(state.matches)) {
+    if (match.phase === "finished") continue;
+    if (now >= match.endsAt) {
+      const [left, right] = match.players;
+      if (left.score === right.score) finishMatch(match, null, "draw", now);
+      else finishMatch(match, left.score > right.score ? left.id : right.id, "timeout", now);
+      continue;
+    }
+    const stale = match.players.filter((player) => {
+      const session = state.sessions[player.sessionToken];
+      return !session || now - session.lastSeenAt >= DISCONNECT_FORFEIT_MS;
+    });
+    if (stale.length === 2) {
+      finishMatch(match, null, "draw", now);
+    } else if (stale.length === 1) {
+      const winner = match.players.find((player) => player.id !== stale[0].id)!;
+      finishMatch(match, winner.id, "disconnect", now);
+    }
+  }
+
   for (const [matchId, match] of Object.entries(state.matches)) {
     if (!match.finishedAt || now - match.finishedAt < MATCH_RETENTION_MS) continue;
     for (const participant of match.players) {
@@ -690,11 +731,6 @@ function pruneWorld(state: RealtimeWorldState, now: number): void {
     }
   }
   compactState(state, now);
-}
-
-function maintainWorld(state: RealtimeWorldState, now: number): void {
-  advanceMatches(state, now);
-  pruneWorld(state, now);
 }
 
 function makeMatchPlayer(session: StoredSession, side: 0 | 1): MatchPlayer {
@@ -964,7 +1000,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   const playerId = crypto.randomUUID();
 
   const response = await casMutate(db, (state, now) => {
-    maintainWorld(state, now);
+    pruneWorld(state, now);
     if (Object.keys(state.sessions).length >= MAX_SESSIONS) {
       throw new RequestProblem(
         503,
@@ -1016,8 +1052,9 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
       const match = state.matches[session.matchId];
       const player = match?.players.find((candidate) => candidate.id === session.playerId);
       if (player) player.disconnectedAt = null;
+      if (match) advanceMatch(state, match, now);
     }
-    maintainWorld(state, now);
+    pruneWorld(state, now);
 
     const directMessages: RealtimeServerMessage[] = [];
     for (const message of body.messages) {
@@ -1051,17 +1088,27 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
 }
 
 async function health(db: D1Database): Promise<Response> {
-  const status = await casMutate(db, (state, now) => {
-    maintainWorld(state, now);
-    return {
-      ok: true,
-      online: onlineCount(state, now),
-      queued: state.queue.length,
-      matches: activeMatchCount(state),
-      transport: "d1-poll" as const,
-    };
+  const state = await readWorldState(db);
+  const now = Date.now();
+  const queued = state.queue.filter((token) => {
+    const session = state.sessions[token];
+    return Boolean(
+      session &&
+        session.queued &&
+        !session.matchId &&
+        now - session.lastSeenAt <= QUEUE_STALE_MS,
+    );
+  }).length;
+  const matches = Object.values(state.matches).filter(
+    (match) => match.phase !== "finished" && match.endsAt > now,
+  ).length;
+  return json({
+    ok: true,
+    online: onlineCount(state, now),
+    queued,
+    matches,
+    transport: "d1-poll" as const,
   });
-  return json(status);
 }
 
 function methodNotAllowed(allowed: string): Response {
@@ -1149,7 +1196,8 @@ export async function handleRealtimeRequest(
 
 export const PVP_D1_SERVER_RULES = {
   tickMs: TICK_MS,
-  maxCatchUpMs: MAX_CATCH_UP_MS,
+  maxSimulationDebtMs: MAX_SIMULATION_DEBT_MS,
+  maxStepsPerRequest: MAX_STEPS_PER_REQUEST,
   playerSpeed: PLAYER_SPEED,
   dashCooldownMs: DASH_COOLDOWN_MS,
   shotCooldownMs: SHOT_COOLDOWN_MS,

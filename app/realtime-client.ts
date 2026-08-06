@@ -43,6 +43,8 @@ type SyncResponse = {
 const DISPLAY_NAME_KEY = "mujindo:online-display-name";
 const DEVICE_ID_KEY = "mujindo:online-device-id";
 const FAST_POLL_MS = 90;
+const FAST_POLL_MIN_GAP_MS = 24;
+const FAST_POLL_JITTER_MS = 36;
 const PASSIVE_POLL_MIN_MS = 800;
 const PASSIVE_POLL_JITTER_MS = 150;
 const REQUEST_TIMEOUT_MS = 10_000;
@@ -517,7 +519,19 @@ class RealtimeClient {
   }
 
   private nextPollDelay(): number {
-    if (this.queueActive || this.knownMatchId) return FAST_POLL_MS;
+    const hasUrgentWork =
+      this.pendingMessages.length > 0 || this.latestPvpInput !== null;
+
+    if (this.queueActive || this.knownMatchId || hasUrgentWork) {
+      const elapsed = Math.max(0, Date.now() - this.lastSyncStartedAt);
+      if (elapsed < FAST_POLL_MS) return FAST_POLL_MS - elapsed;
+
+      return (
+        FAST_POLL_MIN_GAP_MS +
+        Math.floor(Math.random() * (FAST_POLL_JITTER_MS + 1))
+      );
+    }
+
     return (
       PASSIVE_POLL_MIN_MS +
       Math.floor(Math.random() * (PASSIVE_POLL_JITTER_MS + 1))
