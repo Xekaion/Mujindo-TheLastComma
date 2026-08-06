@@ -14,6 +14,20 @@ const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
 const localBindingConfig = {
   main: "./worker/index.ts",
   compatibility_flags: ["nodejs_compat"],
+  durable_objects: {
+    bindings: [
+      {
+        name: "REALTIME_WORLD",
+        class_name: "RealtimeWorld",
+      },
+    ],
+  },
+  migrations: [
+    {
+      tag: "realtime-world-v1",
+      new_sqlite_classes: ["RealtimeWorld"],
+    },
+  ],
   d1_databases: d1
     ? [
         {

@@ -23,7 +23,7 @@ async function render() {
   );
 }
 
-test("server-renders the game title and all three save slots", async () => {
+test("server-renders the professional two-stage game title", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -32,11 +32,15 @@ test("server-renders the game title and all three save slots", async () => {
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>무진도: 마지막 쉼표<\/title>/i);
   assert.match(html, /class="menu-screen"/);
-  assert.match(html, /aria-label="저장 파일 슬롯"/);
-  for (const slot of [1, 2, 3]) {
-    assert.match(html, new RegExp(`data-save-slot="${slot}"`));
-  }
-  assert.match(html, /쉼터에서 선택한 슬롯에 자동 저장됩니다\./);
+  assert.match(html, /data-menu-stage="landing"/);
+  assert.match(html, /class="menu-primary-action"/);
+  assert.match(html, /aria-label="무진도 기록 규모"/);
+  assert.match(html, /50<\/strong> 무한 증강/);
+  assert.match(
+    html,
+    /80<\/strong> 장비 원형 · (?:<!-- -->)?10(?:<!-- -->)?부위 · (?:<!-- -->)?8(?:<!-- -->)?등급/,
+  );
+  assert.match(html, /I 장비/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
 
@@ -50,6 +54,7 @@ test("keeps the game shell, save system, profession system, and assets wired", a
 
   assert.match(page, /<GameCanvas \/>/);
   assert.match(layout, /const title = "무진도: 마지막 쉼표"/);
+  assert.match(layout, /icon: "\/favicon\.png"/);
   assert.match(game, /from "\.\/save-slots"/);
   assert.match(game, /from "\.\/professions"/);
   assert.match(game, /className="save-slot-grid"/);
@@ -61,5 +66,6 @@ test("keeps the game shell, save system, profession system, and assets wired", a
     access(new URL("../public/assets/walk/withered-walk-v2.png", import.meta.url)),
     access(new URL("../public/assets/effects/summon-rift.png", import.meta.url)),
     access(new URL("../public/assets/effects/teleport-rift.png", import.meta.url)),
+    access(new URL("../public/favicon.png", import.meta.url)),
   ]);
 });

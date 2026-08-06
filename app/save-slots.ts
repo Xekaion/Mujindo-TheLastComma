@@ -15,6 +15,8 @@ export type SaveRunPayload = JsonRecord & {
     rooms?: number;
     augments: Record<string, number>;
     profession?: string | null;
+    inventory?: unknown[];
+    equipment?: JsonRecord;
   };
   world?: JsonRecord & {
     rooms?: JsonRecord;
@@ -29,6 +31,8 @@ export type SaveSlotSummary = {
   roomsCleared: number;
   augmentStacks: number;
   profession: string | null;
+  inventoryItems: number;
+  equippedItems: number;
 };
 
 export type LegacyMigrationResult =
@@ -84,6 +88,18 @@ export function isSaveRunPayload(value: unknown): value is SaveRunPayload {
   if (!isPositiveInteger(value.player.level)) return false;
   if (!isStackRecord(value.player.augments)) return false;
   if (!hasValidOptionalRooms(value.player)) return false;
+  if (
+    value.player.inventory !== undefined &&
+    !Array.isArray(value.player.inventory)
+  ) {
+    return false;
+  }
+  if (
+    value.player.equipment !== undefined &&
+    !isRecord(value.player.equipment)
+  ) {
+    return false;
+  }
 
   const profession = value.player.profession;
   if (
@@ -139,6 +155,12 @@ export function summarizeSaveSlot(
       typeof profession === "string" && profession.trim().length > 0
         ? profession
         : null,
+    inventoryItems: Array.isArray(save.player.inventory)
+      ? save.player.inventory.length
+      : 0,
+    equippedItems: isRecord(save.player.equipment)
+      ? Object.values(save.player.equipment).filter((item) => item !== null).length
+      : 0,
   };
 }
 

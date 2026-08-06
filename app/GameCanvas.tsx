@@ -10,6 +10,34 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import "./game.css";
+import InventoryOverlay from "./InventoryOverlay";
+import ShopOverlay from "./ShopOverlay";
+import {
+  SIMPLE_AUGMENT_BONUSES,
+  simpleAugmentMultiplier,
+  simpleDefenseDamageMultiplier,
+} from "./augment-balance";
+import { experienceRequiredForLevel } from "./progression";
+import {
+  BASE_INVENTORY_CAPACITY,
+  MAP_TELEPORT_PRODUCT_ID,
+  completeLocalShopPurchase,
+  inventoryCapacityFor,
+  hasMapTeleportEntitlement,
+  readShopEntitlements,
+  shopCheckoutMode,
+  type ShopCheckoutMode,
+  type ShopEntitlements,
+  type ShopProductId,
+  type ShopReceipt,
+} from "./shop";
+import {
+  MAP_TELEPORT_STATUS_LABELS,
+  getMapTeleportStatus,
+  isMapTeleportDepartureSafe,
+  isSafeMapCoordinate,
+  parseMapCoordinateKey,
+} from "./map-teleport";
 import {
   SAVE_SLOT_IDS,
   migrateLegacySave,
@@ -21,15 +49,67 @@ import {
   type SaveSlotSummary,
 } from "./save-slots";
 import {
+  normalizeAutoSalvageThreshold,
+  readAutoSalvagePreference,
+  shouldAutoSalvageRarity,
+  writeAutoSalvagePreference,
+  type AutoSalvageThreshold,
+} from "./auto-salvage";
+import { SPENT_SHELTER_MESSAGE, isFirstShelterRest } from "./shelter-memory";
+import { getRealtimeClient, getRealtimeDeviceId } from "./realtime-client";
+import {
   PROFESSION_BONUS_PERCENT,
   PROFESSION_THRESHOLD,
   PROFESSION_TITLES,
   effectiveAugmentRank,
   isProfessionEligible,
 } from "./professions";
+import {
+  EQUIPMENT_SLOTS,
+  EQUIPMENT_SLOT_LABELS,
+  GEAR_DROP_BASE_CHANCE,
+  GEAR_DROP_CHANCE_CAP,
+  GEAR_DROP_SCAVENGER_CHANCE_CAP,
+  GEAR_DROP_SCAVENGER_CHANCE_PER_RANK,
+  GEAR_ICON_COLUMNS,
+  GEAR_ICON_ROWS,
+  GEAR_RARITIES,
+  GEAR_RARITY_META,
+  LEGENDARY_POWERS,
+  aggregateEquipmentStats,
+  calculateGearPowerScore,
+  createEmptyEquipment,
+  formatEnhancedGearAffix,
+  gearIconCell,
+  getGearSalvageAshBreakdown,
+  getGearEnhancementRule,
+  normalizeEquipment,
+  normalizeGearItem,
+  rollGear,
+  rollGearDropLevel,
+  rollGearDropRarity,
+  type EquipmentLoadout,
+  type EquipmentSlot,
+  type GearItem,
+} from "./equipment";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
+const LOCAL_RARITY_SHOWCASE_SLOTS = [
+  "boots",
+  "gloves",
+  "belt",
+  "helm",
+  "shoulders",
+  "weapon",
+  "armor",
+  "relic",
+] as const satisfies readonly EquipmentSlot[];
+const TIME_RIFT_WARNING_SECONDS = 0.9;
+const TIME_RIFT_SEQUENCE_GAP = 0.34;
+const TIME_RIFT_RADIUS = 74;
+const TIME_RIFT_SPRITE_GRID = 2;
+const TIME_RIFT_SOURCE_INSET_RATIO = 0.025;
 const ROOM_GEOMETRY = {
   left: 74,
   right: WIDTH - 74,
@@ -44,6 +124,16 @@ const ROOM_GEOMETRY = {
   openInsetX: 24,
   openInsetY: 24,
 } as const;
+const WALKABLE_FLOOR_POLYGON = [
+  { x: 270, y: 142 },
+  { x: WIDTH - 270, y: 142 },
+  { x: WIDTH - 146, y: 224 },
+  { x: WIDTH - 146, y: HEIGHT - 224 },
+  { x: WIDTH - 266, y: HEIGHT - 138 },
+  { x: 266, y: HEIGHT - 138 },
+  { x: 146, y: HEIGHT - 224 },
+  { x: 146, y: 224 },
+] as const;
 type GameMode =
   | "menu"
   | "playing"
@@ -56,7 +146,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
 type ProjectileAffinity =
   | "arcane"
   | "ember"
@@ -78,6 +168,14 @@ type Augment = {
   tags: string[];
 };
 
+type GameConfirmation = {
+  eyebrow: string;
+  title: string;
+  body: string;
+  confirmLabel: string;
+  tone?: "warning" | "danger";
+};
+
 type Enemy = {
   id: number;
   kind: EnemyKind;
@@ -97,6 +195,19 @@ type Enemy = {
   walkCycle: number;
   moving: boolean;
   elite?: boolean;
+  patternPhase?: "stalk" | "windup" | "charge" | "recover" | "orbit" | "riftWindup";
+  patternTimer?: number;
+  patternX?: number;
+  patternY?: number;
+  patternHit?: boolean;
+  timeRifts?: Array<{
+    x: number;
+    y: number;
+    delay: number;
+    timer: number;
+    telegraphed: boolean;
+    triggered: boolean;
+  }>;
 };
 
 type Projectile = {
@@ -130,9 +241,25 @@ type MemoryOrb = {
   value: number;
 };
 
+type GearDrop = {
+  id: number;
+  x: number;
+  y: number;
+  item: GearItem;
+  pickupDelay: number;
+  appearanceAge: number;
+};
+
 type BehaviorEffectKind = "summon" | "teleport";
-type CombatEffectKind = "muzzle" | "playerImpact" | "hostileImpact" | "chainArc";
-type EffectKind = BehaviorEffectKind | CombatEffectKind;
+type LootEffectKind = "lootAwakening";
+type CombatEffectKind =
+  | "muzzle"
+  | "playerImpact"
+  | "hostileImpact"
+  | "chainArc"
+  | "timeRiftTelegraph"
+  | "timeRiftBurst";
+type EffectKind = BehaviorEffectKind | LootEffectKind | CombatEffectKind;
 
 type VisualEffect = {
   id: number;
@@ -143,10 +270,191 @@ type VisualEffect = {
   duration: number;
   size: number;
   color?: string;
+  rarity?: GearItem["rarity"];
   angle?: number;
   endX?: number;
   endY?: number;
 };
+
+const EQUIPMENT_RARITY_TIER: Readonly<Record<GearItem["rarity"], number>> = {
+  common: 0,
+  magic: 1,
+  superior: 2,
+  rare: 3,
+  epic: 4,
+  legendary: 5,
+  mythic: 6,
+  cosmic: 7,
+};
+
+type EquipmentRarityVfxConfig = {
+  imageKey: string;
+  imagePath: string;
+  arrivalPattern:
+    | "dustSeal"
+    | "arcaneTriangle"
+    | "thornBloom"
+    | "compassBloom"
+    | "reverseVortex"
+    | "solarCoronation"
+    | "mythicCoronation"
+    | "nebulaCollapse";
+  beamHeight: number;
+  beamWidth: number;
+  awakeningDuration: number;
+  awakeningSize: number;
+  itemRevealAt: number;
+  beamRevealAt: number;
+  itemRisePx: number;
+  rayCount: number;
+  moteCount: number;
+  accentSides: number;
+  spinDirection: 1 | -1;
+};
+
+const EQUIPMENT_RARITY_VFX: Readonly<
+  Record<GearItem["rarity"], EquipmentRarityVfxConfig>
+> = {
+  common: {
+    imageKey: "lootAwakeningCommon",
+    imagePath: "/assets/effects/loot-awakening-common-v5.png",
+    arrivalPattern: "dustSeal",
+    beamHeight: 68,
+    beamWidth: 7,
+    awakeningDuration: 0.7,
+    awakeningSize: 104,
+    itemRevealAt: 0.52,
+    beamRevealAt: 0.76,
+    itemRisePx: 8,
+    rayCount: 4,
+    moteCount: 4,
+    accentSides: 4,
+    spinDirection: 1,
+  },
+  magic: {
+    imageKey: "lootAwakeningMagic",
+    imagePath: "/assets/effects/loot-awakening-magic-v5.png",
+    arrivalPattern: "arcaneTriangle",
+    beamHeight: 78,
+    beamWidth: 8,
+    awakeningDuration: 0.76,
+    awakeningSize: 118,
+    itemRevealAt: 0.58,
+    beamRevealAt: 0.78,
+    itemRisePx: 10,
+    rayCount: 6,
+    moteCount: 6,
+    accentSides: 3,
+    spinDirection: 1,
+  },
+  superior: {
+    imageKey: "lootAwakeningSuperior",
+    imagePath: "/assets/effects/loot-awakening-superior-v5.png",
+    arrivalPattern: "thornBloom",
+    beamHeight: 90,
+    beamWidth: 10,
+    awakeningDuration: 0.82,
+    awakeningSize: 132,
+    itemRevealAt: 0.62,
+    beamRevealAt: 0.8,
+    itemRisePx: 12,
+    rayCount: 7,
+    moteCount: 7,
+    accentSides: 6,
+    spinDirection: -1,
+  },
+  rare: {
+    imageKey: "lootAwakeningRare",
+    imagePath: "/assets/effects/loot-awakening-rare-v5.png",
+    arrivalPattern: "compassBloom",
+    beamHeight: 108,
+    beamWidth: 12,
+    awakeningDuration: 0.9,
+    awakeningSize: 150,
+    itemRevealAt: 0.64,
+    beamRevealAt: 0.82,
+    itemRisePx: 15,
+    rayCount: 8,
+    moteCount: 9,
+    accentSides: 8,
+    spinDirection: 1,
+  },
+  epic: {
+    imageKey: "lootAwakeningEpic",
+    imagePath: "/assets/effects/loot-awakening-epic-v5.png",
+    arrivalPattern: "reverseVortex",
+    beamHeight: 132,
+    beamWidth: 16,
+    awakeningDuration: 0.98,
+    awakeningSize: 172,
+    itemRevealAt: 0.66,
+    beamRevealAt: 0.84,
+    itemRisePx: 18,
+    rayCount: 10,
+    moteCount: 11,
+    accentSides: 5,
+    spinDirection: -1,
+  },
+  legendary: {
+    imageKey: "lootAwakeningLegendary",
+    imagePath: "/assets/effects/loot-awakening-legendary-v5.png",
+    arrivalPattern: "solarCoronation",
+    beamHeight: 174,
+    beamWidth: 22,
+    awakeningDuration: 1.12,
+    awakeningSize: 204,
+    itemRevealAt: 0.66,
+    beamRevealAt: 0.86,
+    itemRisePx: 23,
+    rayCount: 12,
+    moteCount: 14,
+    accentSides: 12,
+    spinDirection: 1,
+  },
+  mythic: {
+    imageKey: "lootAwakeningMythic",
+    imagePath: "/assets/effects/loot-awakening-mythic-v5.png",
+    arrivalPattern: "mythicCoronation",
+    beamHeight: 228,
+    beamWidth: 30,
+    awakeningDuration: 1.28,
+    awakeningSize: 242,
+    itemRevealAt: 0.7,
+    beamRevealAt: 0.88,
+    itemRisePx: 28,
+    rayCount: 14,
+    moteCount: 17,
+    accentSides: 7,
+    spinDirection: -1,
+  },
+  cosmic: {
+    imageKey: "lootAwakeningCosmic",
+    imagePath: "/assets/effects/loot-awakening-cosmic-v5.png",
+    arrivalPattern: "nebulaCollapse",
+    beamHeight: 296,
+    beamWidth: 42,
+    awakeningDuration: 1.5,
+    awakeningSize: 276,
+    itemRevealAt: 0.72,
+    beamRevealAt: 0.9,
+    itemRisePx: 36,
+    rayCount: 16,
+    moteCount: 20,
+    accentSides: 16,
+    spinDirection: -1,
+  },
+};
+
+const EQUIPMENT_RARITIES: readonly GearItem["rarity"][] = [
+  "common",
+  "magic",
+  "superior",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
+  "cosmic",
+];
 
 type RoomRecord = {
   kind: RoomKind;
@@ -178,7 +486,83 @@ type Player = {
   facing: number;
   walkCycle: number;
   moving: boolean;
+  equipment: EquipmentLoadout;
+  inventory: GearItem[];
+  autoSalvageMaxRarity: AutoSalvageThreshold;
+  memoryAsh: number;
+  memoryPickupCounter: number;
+  legendaryArmorReady: boolean;
+  riftTrailCooldown: number;
 };
+
+function pointInsideWalkableFloor(x: number, y: number) {
+  let inside = false;
+  for (
+    let index = 0, previous = WALKABLE_FLOOR_POLYGON.length - 1;
+    index < WALKABLE_FLOOR_POLYGON.length;
+    previous = index, index += 1
+  ) {
+    const a = WALKABLE_FLOOR_POLYGON[index];
+    const b = WALKABLE_FLOOR_POLYGON[previous];
+    const crosses =
+      a.y > y !== b.y > y &&
+      x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y || Number.EPSILON) + a.x;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function constrainPlayerToWalkableFloor(player: Pick<Player, "x" | "y">, doorOpen: boolean) {
+  const inHorizontalDoor =
+    player.y > ROOM_GEOMETRY.horizontalDoorTop &&
+    player.y < ROOM_GEOMETRY.horizontalDoorBottom;
+  const inVerticalDoor =
+    player.x > ROOM_GEOMETRY.verticalDoorLeft &&
+    player.x < ROOM_GEOMETRY.verticalDoorRight;
+
+  if (doorOpen && inHorizontalDoor) {
+    player.x = clamp(player.x, ROOM_GEOMETRY.openInsetX, WIDTH - ROOM_GEOMETRY.openInsetX);
+    return;
+  }
+  if (doorOpen && inVerticalDoor) {
+    player.y = clamp(player.y, ROOM_GEOMETRY.openInsetY, HEIGHT - ROOM_GEOMETRY.openInsetY);
+    return;
+  }
+  if (pointInsideWalkableFloor(player.x, player.y)) return;
+
+  let closestX = player.x;
+  let closestY = player.y;
+  let closestDistanceSquared = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < WALKABLE_FLOOR_POLYGON.length; index += 1) {
+    const start = WALKABLE_FLOOR_POLYGON[index];
+    const end = WALKABLE_FLOOR_POLYGON[(index + 1) % WALKABLE_FLOOR_POLYGON.length];
+    const deltaX = end.x - start.x;
+    const deltaY = end.y - start.y;
+    const segmentLengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const projection = clamp(
+      ((player.x - start.x) * deltaX + (player.y - start.y) * deltaY) /
+        segmentLengthSquared,
+      0,
+      1,
+    );
+
+    const candidateX = start.x + deltaX * projection;
+    const candidateY = start.y + deltaY * projection;
+    const distanceSquared =
+      (player.x - candidateX) ** 2 + (player.y - candidateY) ** 2;
+    if (distanceSquared < closestDistanceSquared) {
+      closestDistanceSquared = distanceSquared;
+      closestX = candidateX;
+      closestY = candidateY;
+    }
+  }
+  player.x = closestX;
+  player.y = closestY;
+}
+
+const isLocalRarityShowcaseHost = () =>
+  typeof window !== "undefined" &&
+  ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
 
 type World = {
   seed: number;
@@ -192,6 +576,7 @@ type World = {
   enemies: Enemy[];
   projectiles: Projectile[];
   orbs: MemoryOrb[];
+  gearDrops: GearDrop[];
   effects: VisualEffect[];
   effectCounts: Record<BehaviorEffectKind, number>;
   transition: number;
@@ -596,6 +981,96 @@ const AUGMENTS: Augment[] = [
     icon: 9,
     tags: ["공격속도", "피"],
   },
+  {
+    id: "strength",
+    name: "공격력 증가",
+    description: "스택당 기본 공격 피해 +10%.",
+    flavor: "가장 단순한 힘은 언제나 가장 확실한 답이 된다.",
+    color: "#e27759",
+    icon: 14,
+    tags: ["공격", "피해"],
+  },
+  {
+    id: "rapidfire",
+    name: "속사",
+    description: "스택당 공격 속도 +8%.",
+    flavor: "망설임을 버리자 다음 탄환이 먼저 길을 찾았다.",
+    color: "#f09a62",
+    icon: 9,
+    tags: ["공격", "속도"],
+  },
+  {
+    id: "range",
+    name: "사거리 증가",
+    description: "스택당 투사체 사거리 +12%.",
+    flavor: "닿지 않던 적도 이제 기억의 끝 안에 들어온다.",
+    color: "#78c8d8",
+    icon: 12,
+    tags: ["투사체", "사거리"],
+  },
+  {
+    id: "velocity",
+    name: "탄속 증가",
+    description: "스택당 투사체 속도 +10%.",
+    flavor: "보이는 순간에는 이미 명중한 뒤다.",
+    color: "#8ed7c2",
+    icon: 6,
+    tags: ["투사체", "속도"],
+  },
+  {
+    id: "expansion",
+    name: "탄환 확대",
+    description: "스택당 투사체 크기 +8%.",
+    flavor: "작은 문장 하나가 전장을 덮는 획으로 번진다.",
+    color: "#d8b86f",
+    icon: 10,
+    tags: ["투사체", "크기"],
+  },
+  {
+    id: "sprint",
+    name: "이동 속도 증가",
+    description: "스택당 이동 속도 +5%.",
+    flavor: "가벼워진 발걸음은 닫히는 문보다 빠르다.",
+    color: "#d9c16d",
+    icon: 4,
+    tags: ["이동", "속도"],
+  },
+  {
+    id: "defense",
+    name: "방어력 증가",
+    description: "스택당 받는 피해 -3%.",
+    flavor: "겹쳐진 기억이 단단한 갑옷이 된다.",
+    color: "#aeb9b6",
+    icon: 3,
+    tags: ["방어", "피해감소"],
+  },
+  {
+    id: "recovery",
+    name: "전투 회복",
+    description: "스택당 방 클리어 시 체력 5 회복.",
+    flavor: "조용해진 방에서 한 번 더 숨을 고른다.",
+    color: "#82c9a7",
+    icon: 13,
+    tags: ["회복", "정복"],
+  },
+  {
+    id: "learning",
+    name: "빠른 성장",
+    description: "스택당 경험치 획득량 +10%.",
+    flavor: "같은 상처에서도 더 많은 답을 읽어 낸다.",
+    color: "#c9aa6b",
+    icon: 16,
+    tags: ["경험치", "성장"],
+  },
+  {
+    id: "collection",
+    name: "수집 범위 증가",
+    description: "스택당 기억 조각과 장비 획득 범위 +15%.",
+    flavor: "흩어진 기억들이 먼저 주인을 알아보고 모여든다.",
+    color: "#69c7b5",
+    icon: 19,
+    tags: ["수집", "범위"],
+  },
 ];
 
 const SYNERGIES = [
@@ -655,6 +1130,8 @@ const ENEMY_NAMES = [
   "울음 둥지",
   "복사 마녀",
   "백지의 지도사",
+  "붉은 교정자",
+  "시간의 추적자",
 ];
 
 const spriteCrops = [
@@ -674,6 +1151,8 @@ const WALK_IMAGE_KEYS = [
   "walkNest",
   "walkWitch",
   "walkBoss",
+  "walkProofreader",
+  "walkTimeStalker",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -681,6 +1160,7 @@ const makeDirectionFrames = (
   flips: readonly boolean[] = [],
 ): readonly DirectionFrame[] =>
   rows.map((row, index) => ({ row, flipX: flips[index] ?? false }));
+const TIME_STALKER_DIRECTION_FRAMES = makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]);
 
 // Each generated enemy sheet has its own authored row order. Missing left-facing
 // poses are synthesized from the matching right-facing pose instead of showing
@@ -692,6 +1172,9 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   makeDirectionFrames([0, 7, 6, 5, 4, 3, 2, 1]),
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   makeDirectionFrames([0, 1, 2, 5, 3, 5, 4, 7], [false, false, false, true]),
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
+  // The Time Stalker sheet authors every facing; never synthesize one by mirroring.
+  TIME_STALKER_DIRECTION_FRAMES,
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
 // Harin v2 has an irregular authored row order: S, SE, E, NW, N, NE, W, SW.
@@ -708,8 +1191,7 @@ const keyOf = (x: number, y: number) => `${x},${y}`;
 const rankOf = (player: Player, id: string) => player.augments[id] ?? 0;
 const powerRankOf = (player: Player, id: string) =>
   effectiveAugmentRank(player.augments, player.profession, id);
-const xpThreshold = (level: number) =>
-  26 + level * 12 + Math.floor(Math.pow(level, 1.25) * 3);
+const xpThreshold = experienceRequiredForLevel;
 const distance = (ax: number, ay: number, bx: number, by: number) =>
   Math.hypot(ax - bx, ay - by);
 const distanceToSegment = (
@@ -754,6 +1236,26 @@ const formatSavedAt = (timestamp: number) => {
   }
 };
 
+const cloneGearItem = (item: GearItem): GearItem => ({
+  ...item,
+  affixes: item.affixes.map((affix) => ({ ...affix })),
+});
+
+const cloneEquipment = (equipment: EquipmentLoadout): EquipmentLoadout =>
+  Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => [
+      slot,
+      equipment[slot] ? cloneGearItem(equipment[slot]) : null,
+    ]),
+  ) as EquipmentLoadout;
+
+const gearRarityClass = (item: GearItem) => `gear-rarity-${item.rarity}`;
+
+const hasLegendaryPower = (player: Player, powerId: keyof typeof LEGENDARY_POWERS) =>
+  EQUIPMENT_SLOTS.some(
+    (slot) => player.equipment[slot]?.legendaryPowerId === powerId,
+  );
+
 function directionRow(dx: number, dy: number, fallback = 0) {
   if (Math.hypot(dx, dy) < 0.001) return fallback;
   const sector = positiveModulo(Math.round(Math.atan2(dy, dx) / (Math.PI / 4)), 8);
@@ -776,7 +1278,7 @@ function makePlayer(): Player {
     maxHp: 100,
     shield: 0,
     xp: 0,
-    nextXp: 26,
+    nextXp: xpThreshold(1),
     level: 1,
     rooms: 0,
     kills: 0,
@@ -793,6 +1295,13 @@ function makePlayer(): Player {
     facing: 6,
     walkCycle: 1,
     moving: false,
+    equipment: createEmptyEquipment(),
+    inventory: [],
+    autoSalvageMaxRarity: null,
+    memoryAsh: 0,
+    memoryPickupCounter: 0,
+    legendaryArmorReady: true,
+    riftTrailCooldown: 0,
   };
 }
 
@@ -809,6 +1318,7 @@ function makeWorld(seed: number): World {
     enemies: [],
     projectiles: [],
     orbs: [],
+    gearDrops: [],
     effects: [],
     effectCounts: { summon: 0, teleport: 0 },
     transition: 0,
@@ -847,21 +1357,44 @@ function AugmentIcon({ icon, size = 76 }: { icon: number; size?: number }) {
   );
 }
 
+function GearIcon({ item, size = 64 }: { item: GearItem; size?: number }) {
+  const { column, row } = gearIconCell(item.iconIndex);
+  return (
+    <span
+      className={`gear-icon ${gearRarityClass(item)}`}
+      style={{
+        width: size,
+        height: size,
+        backgroundSize: `${size * GEAR_ICON_COLUMNS}px ${size * GEAR_ICON_ROWS}px`,
+        backgroundPosition: `${-column * size}px ${-row * size}px`,
+        "--gear-color": GEAR_RARITY_META[item.rarity].color,
+      } as CSSProperties}
+      aria-hidden="true"
+    />
+  );
+}
+
 function MapGrid({
   world,
   radius = 3,
   large = false,
+  teleportUnlocked = false,
+  teleportDepartureSafe = false,
+  onTeleport,
 }: {
   world: CartographyWorld;
   radius?: number;
   large?: boolean;
+  teleportUnlocked?: boolean;
+  teleportDepartureSafe?: boolean;
+  onTeleport?: (x: number, y: number) => void;
 }) {
   const visited = new Set(world.visited);
   const currentKey = keyOf(world.roomX, world.roomY);
   const knownCoordinates = Object.keys(world.rooms)
     .map((key) => {
-      const [x, y] = key.split(",").map(Number);
-      return Number.isFinite(x) && Number.isFinite(y) ? { key, x, y } : null;
+      const coordinate = parseMapCoordinateKey(key);
+      return coordinate ? { key, ...coordinate } : null;
     })
     .filter((coordinate): coordinate is { key: string; x: number; y: number } =>
       Boolean(coordinate),
@@ -892,6 +1425,66 @@ function MapGrid({
     const wasVisited = visited.has(key);
     const current = x === world.roomX && y === world.roomY;
     const status = room?.cleared ? "정복 완료" : wasVisited ? "탐사 중" : "정찰됨";
+    const teleportStatus = getMapTeleportStatus({
+      hasEntitlement: teleportUnlocked,
+      departureSafe: teleportDepartureSafe,
+      current,
+      known: Boolean(room),
+      visited: wasVisited,
+      cleared: Boolean(room?.cleared),
+    });
+    const teleportLabel = MAP_TELEPORT_STATUS_LABELS[teleportStatus];
+    const className = [
+      "map-cell",
+      room ? "is-known" : "",
+      room ? `is-${room.kind}` : "",
+      wasVisited ? "is-visited" : "",
+      room?.cleared ? "is-cleared" : "",
+      current ? "is-current" : "",
+      large && teleportStatus === "available" ? "is-teleportable" : "",
+      large && teleportStatus !== "available" ? "is-teleport-locked" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    const cellStyle = large
+      ? {
+          gridColumn: x - minimumX + 1,
+          gridRow: y - minimumY + 1,
+        }
+      : undefined;
+    const baseTitle = room
+      ? `${ROOM_NAMES[room.kind]} · ${status} · ${key}`
+      : `미지의 좌표 · ${key}`;
+
+    if (large && onTeleport) {
+      return (
+        <button
+          type="button"
+          key={key}
+          data-coordinate={key}
+          data-room-kind={room?.kind ?? "unknown"}
+          data-cleared={Boolean(room?.cleared)}
+          data-visited={wasVisited}
+          data-current={current}
+          data-teleport-status={teleportStatus}
+          className={className}
+          style={cellStyle}
+          title={`${baseTitle} · ${teleportLabel}`}
+          aria-label={`${baseTitle} · ${teleportLabel}`}
+          disabled={teleportStatus !== "available"}
+          onClick={() => onTeleport(x, y)}
+        >
+          {room?.kind === "boss" ? (
+            <span
+              className="map-room-emblem map-room-emblem--boss"
+              aria-hidden="true"
+            />
+          ) : null}
+          {current ? <i /> : null}
+        </button>
+      );
+    }
+
     return (
       <span
         key={key}
@@ -900,26 +1493,16 @@ function MapGrid({
         data-cleared={Boolean(room?.cleared)}
         data-visited={wasVisited}
         data-current={current}
-        className={[
-          "map-cell",
-          room ? "is-known" : "",
-          room ? `is-${room.kind}` : "",
-          wasVisited ? "is-visited" : "",
-          room?.cleared ? "is-cleared" : "",
-          current ? "is-current" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
-        style={
-          large
-            ? {
-                gridColumn: x - minimumX + 1,
-                gridRow: y - minimumY + 1,
-              }
-            : undefined
-        }
-        title={room ? `${ROOM_NAMES[room.kind]} · ${status} · ${key}` : `미지의 좌표 · ${key}`}
+        className={className}
+        style={cellStyle}
+        title={baseTitle}
       >
+        {room?.kind === "boss" ? (
+          <span
+            className="map-room-emblem map-room-emblem--boss"
+            aria-hidden="true"
+          />
+        ) : null}
         {current ? <i /> : null}
       </span>
     );
@@ -947,7 +1530,7 @@ function MapGrid({
         "--map-columns": columns,
         "--map-rows": rows,
       } as CSSProperties}
-      role="img"
+      role={large && onTeleport ? "group" : "img"}
       aria-label={
         large
           ? `전체 지도. 현재 위치 ${currentKey}, 확인한 좌표 ${knownCoordinates.length}개`
@@ -983,7 +1566,11 @@ export default function GameCanvas() {
   const storyActionRef = useRef<() => void>(() => undefined);
   const lastHudUpdateRef = useRef(0);
   const roomEnterRef = useRef<
-    (x: number, y: number, entry?: "left" | "right" | "top" | "bottom") => void
+    (
+      x: number,
+      y: number,
+      entry?: "left" | "right" | "top" | "bottom" | "center",
+    ) => void
   >(() => undefined);
   const pendingStoryRef = useRef<{
     eyebrow: string;
@@ -992,6 +1579,15 @@ export default function GameCanvas() {
   } | null>(null);
   const pendingEndingRef = useRef(false);
   const professionResumeRef = useRef<() => void>(() => undefined);
+  const buildOpenRef = useRef(false);
+  const inventoryOpenRef = useRef(false);
+  const shopOpenRef = useRef(false);
+  const shopReturnInventoryRef = useRef(false);
+  const inventoryCapacityRef = useRef(BASE_INVENTORY_CAPACITY);
+  const gameConfirmationOpenRef = useRef(false);
+  const gameConfirmationActionRef = useRef<() => void>(() => undefined);
+  const inventoryFullToastRef = useRef(0);
+  const lootVfxShowcaseSpawnedRef = useRef(false);
 
   const [mode, setMode] = useState<GameMode>("menu");
   const [started, setStarted] = useState(false);
@@ -1008,6 +1604,24 @@ export default function GameCanvas() {
   });
   const [toast, setToast] = useState("WASD로 움직이세요. 공격은 자동입니다.");
   const [buildOpen, setBuildOpen] = useState(false);
+  const [buildTab, setBuildTab] = useState<"build" | "gear">("build");
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [shopEntitlements, setShopEntitlements] = useState<ShopEntitlements>(() =>
+    readShopEntitlements(null),
+  );
+  const [shopMode, setShopMode] = useState<ShopCheckoutMode>("unconfigured");
+  const [lastShopReceipt, setLastShopReceipt] = useState<ShopReceipt | null>(null);
+  const [shopNotice, setShopNotice] = useState<{
+    tone: "info" | "success" | "error";
+    message: string;
+  } | null>(null);
+  const [shopPreferredProductId, setShopPreferredProductId] =
+    useState<ShopProductId | null>(null);
+  const [selectedGearId, setSelectedGearId] = useState<string | null>(null);
+  const [menuStage, setMenuStage] = useState<"landing" | "archive">("landing");
+  const [lootNotice, setLootNotice] = useState<GearItem | null>(null);
+  const [gameConfirmation, setGameConfirmation] = useState<GameConfirmation | null>(null);
   const [hud, setHud] = useState(() => ({
     player: { ...makePlayer(), augments: {} as Record<string, number> },
     stableAugments: {} as Record<string, number>,
@@ -1030,6 +1644,9 @@ export default function GameCanvas() {
       combatEffects: 0,
       summonEffects: 0,
       teleportEffects: 0,
+      gearDrops: 0,
+      proofreaderEnemies: 0,
+      proofreaderWindups: 0,
     },
   }));
   const [mapSnapshot, setMapSnapshot] = useState<CartographyWorld>(() => ({
@@ -1038,11 +1655,85 @@ export default function GameCanvas() {
     rooms: {},
     visited: [],
   }));
+  const [mapTeleportDepartureSafe, setMapTeleportDepartureSafe] = useState(false);
+  const inventoryCapacity = useMemo(
+    () => inventoryCapacityFor(shopEntitlements),
+    [shopEntitlements],
+  );
+  const mapTeleportUnlocked = useMemo(
+    () => hasMapTeleportEntitlement(shopEntitlements),
+    [shopEntitlements],
+  );
 
   const setGameMode = useCallback((next: GameMode) => {
     modeRef.current = next;
     setMode(next);
   }, []);
+
+  const setBuildPanelOpen = useCallback((next: boolean) => {
+    buildOpenRef.current = next;
+    if (next) {
+      keysRef.current.clear();
+      inputRef.current.dashQueued = false;
+    }
+    setBuildOpen(next);
+  }, []);
+
+  const setInventoryScreenOpen = useCallback((next: boolean) => {
+    inventoryOpenRef.current = next;
+    if (next) {
+      keysRef.current.clear();
+      inputRef.current.dashQueued = false;
+      inputRef.current.hasMoveTarget = false;
+    }
+    setInventoryOpen(next);
+  }, []);
+
+  const setShopScreenOpen = useCallback((next: boolean) => {
+    shopOpenRef.current = next;
+    if (next) {
+      keysRef.current.clear();
+      inputRef.current.dashQueued = false;
+      inputRef.current.hasMoveTarget = false;
+    }
+    setShopOpen(next);
+  }, []);
+
+  const closeGameConfirmation = useCallback(() => {
+    gameConfirmationOpenRef.current = false;
+    gameConfirmationActionRef.current = () => undefined;
+    setGameConfirmation(null);
+  }, []);
+
+  const requestGameConfirmation = useCallback(
+    (confirmation: GameConfirmation, action: () => void) => {
+      keysRef.current.clear();
+      inputRef.current.dashQueued = false;
+      inputRef.current.hasMoveTarget = false;
+      gameConfirmationActionRef.current = action;
+      gameConfirmationOpenRef.current = true;
+      setGameConfirmation(confirmation);
+    },
+    [],
+  );
+
+  const acceptGameConfirmation = useCallback(() => {
+    const action = gameConfirmationActionRef.current;
+    gameConfirmationOpenRef.current = false;
+    gameConfirmationActionRef.current = () => undefined;
+    setGameConfirmation(null);
+    action();
+  }, []);
+
+  const isSimulationRunning = useCallback(
+    () =>
+      modeRef.current === "playing" &&
+      !buildOpenRef.current &&
+      !inventoryOpenRef.current &&
+      !shopOpenRef.current &&
+      !gameConfirmationOpenRef.current,
+    [],
+  );
 
   const activateSaveSlot = useCallback((slot: SaveSlotId) => {
     activeSaveSlotRef.current = slot;
@@ -1052,6 +1743,107 @@ export default function GameCanvas() {
   const refreshSaveSlots = useCallback(() => {
     setSaveSlots(readSaveSlotSummaries());
   }, []);
+
+  const applyShopEntitlements = useCallback((next: ShopEntitlements) => {
+    inventoryCapacityRef.current = inventoryCapacityFor(next);
+    setShopEntitlements(next);
+    setLastShopReceipt(next.receipts.at(-1) ?? null);
+  }, []);
+
+  const restoreShopPurchases = useCallback(() => {
+    const restored = readShopEntitlements();
+    applyShopEntitlements(restored);
+    setShopNotice({
+      tone: "info",
+      message:
+        restored.purchasedProductIds.length > 0
+          ? `이 기기의 영구 상품 ${restored.purchasedProductIds.length}개를 복구했습니다.`
+          : "이 기기에 저장된 구매 기록이 없습니다.",
+    });
+  }, [applyShopEntitlements]);
+
+  const purchaseShopProduct = useCallback(
+    (productId: ShopProductId) => {
+      if (shopMode !== "local-test") {
+        setShopNotice({
+          tone: "error",
+          message: "결제사와 서버 영수증 검증이 연결되지 않아 구매가 차단되어 있습니다.",
+        });
+        return;
+      }
+      const result = completeLocalShopPurchase(productId);
+      if (result.status === "purchased") {
+        applyShopEntitlements(result.entitlements);
+        if (result.product.kind === "map-teleport") {
+          setShopNotice({
+            tone: "success",
+            message: "무진도의 길잡이 계약 완료 · 탐사도 좌표 도약이 영구 해금되었습니다.",
+          });
+          setToast("무진도의 길잡이 해금 · M 탐사도에서 방문 좌표를 선택하세요.");
+        } else {
+          const nextCapacity = inventoryCapacityFor(result.entitlements);
+          setShopNotice({
+            tone: "success",
+            message: `${result.product.shortName} 해방 완료 · 가방이 ${nextCapacity}칸으로 확장되었습니다.`,
+          });
+          setToast(`가방 확장 완료 · ${nextCapacity}칸 사용 가능`);
+        }
+        return;
+      }
+      if (result.status === "already-owned") {
+        applyShopEntitlements(result.entitlements);
+        setShopNotice({ tone: "info", message: "이미 보유 중인 영구 상품입니다." });
+        return;
+      }
+      if (result.status === "locked") {
+        setShopNotice({
+          tone: "error",
+          message: "이전 봉인을 먼저 해방해야 다음 확장을 구매할 수 있습니다.",
+        });
+        return;
+      }
+      setShopNotice({
+        tone: "error",
+        message:
+          result.status === "write-failed"
+            ? "구매 기록을 안전하게 저장하지 못했습니다. 상품은 지급되지 않았습니다."
+            : "존재하지 않는 상품입니다.",
+      });
+    },
+    [applyShopEntitlements, shopMode],
+  );
+
+  const openShop = useCallback(() => {
+    shopReturnInventoryRef.current = false;
+    setShopPreferredProductId(null);
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
+    setShopScreenOpen(true);
+  }, [setBuildPanelOpen, setInventoryScreenOpen, setShopScreenOpen]);
+
+  const openShopFromInventory = useCallback(() => {
+    shopReturnInventoryRef.current = true;
+    setShopPreferredProductId(null);
+    setInventoryScreenOpen(false);
+    setShopScreenOpen(true);
+  }, [setInventoryScreenOpen, setShopScreenOpen]);
+
+  const openWayfinderShop = useCallback(() => {
+    shopReturnInventoryRef.current = false;
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
+    setShopPreferredProductId(MAP_TELEPORT_PRODUCT_ID);
+    setShopScreenOpen(true);
+  }, [setBuildPanelOpen, setInventoryScreenOpen, setShopScreenOpen]);
+
+  const closeShop = useCallback(() => {
+    const shouldReturnToInventory =
+      shopReturnInventoryRef.current && modeRef.current === "playing";
+    shopReturnInventoryRef.current = false;
+    setShopPreferredProductId(null);
+    setShopScreenOpen(false);
+    if (shouldReturnToInventory) setInventoryScreenOpen(true);
+  }, [setInventoryScreenOpen, setShopScreenOpen]);
 
   const syncHud = useCallback(() => {
     const player = playerRef.current;
@@ -1067,7 +1859,12 @@ export default function GameCanvas() {
     }
     const boss = world.enemies.find((enemy) => enemy.kind === 5);
     setHud({
-      player: { ...player, augments: { ...player.augments } },
+      player: {
+        ...player,
+        augments: { ...player.augments },
+        equipment: cloneEquipment(player.equipment),
+        inventory: player.inventory.map(cloneGearItem),
+      },
       stableAugments: { ...stableAugmentsRef.current },
       world: {
         roomX: world.roomX,
@@ -1086,10 +1883,18 @@ export default function GameCanvas() {
         playerProjectiles: world.projectiles.filter((projectile) => !projectile.hostile).length,
         hostileProjectiles: world.projectiles.filter((projectile) => projectile.hostile).length,
         combatEffects: world.effects.filter(
-          (effect) => effect.kind !== "summon" && effect.kind !== "teleport",
+          (effect) =>
+            effect.kind !== "summon" &&
+            effect.kind !== "teleport" &&
+            effect.kind !== "lootAwakening",
         ).length,
         summonEffects: world.effectCounts.summon,
         teleportEffects: world.effectCounts.teleport,
+        gearDrops: world.gearDrops.length,
+        proofreaderEnemies: world.enemies.filter((enemy) => enemy.kind === 6).length,
+        proofreaderWindups: world.enemies.filter(
+          (enemy) => enemy.kind === 6 && enemy.patternPhase === "windup",
+        ).length,
       },
     });
   }, []);
@@ -1104,8 +1909,17 @@ export default function GameCanvas() {
       ),
       visited: [...world.visited],
     });
+    setMapTeleportDepartureSafe(
+      isMapTeleportDepartureSafe({
+        roomCleared: world.roomCleared,
+        enemyCount: world.enemies.length,
+        transition: world.transition,
+      }),
+    );
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
     setGameMode("map");
-  }, [setGameMode]);
+  }, [setBuildPanelOpen, setGameMode, setInventoryScreenOpen]);
 
   const showStory = useCallback(
     (
@@ -1133,6 +1947,8 @@ export default function GameCanvas() {
       player: {
         ...player,
         augments: { ...player.augments },
+        equipment: cloneEquipment(player.equipment),
+        inventory: player.inventory.map(cloneGearItem),
         x: WIDTH / 2,
         y: HEIGHT / 2,
       },
@@ -1157,10 +1973,10 @@ export default function GameCanvas() {
 
   const makeEnemy = useCallback(
     (kind: EnemyKind, x: number, y: number, depth: number, elite = false): Enemy => {
-      const hpBases = [28, 24, 64, 80, 45, 950];
-      const speedBases = [76, 50, 43, 26, 62, 38];
-      const damageBases = [8, 10, 14, 7, 12, 16];
-      const radii = [21, 20, 28, 32, 22, 62];
+      const hpBases = [28, 24, 64, 80, 45, 950, 58, 92];
+      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66];
+      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13];
+      const radii = [21, 20, 28, 32, 22, 62, 24, 26];
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
       const eliteScale = elite ? 2.25 : 1;
       const hp = hpBases[kind] * scale * eliteScale;
@@ -1186,6 +2002,24 @@ export default function GameCanvas() {
         walkCycle: hash(worldRef.current.seed, x | 0, y | 0, kind + 31) * 4,
         moving: true,
         elite,
+        patternPhase: kind === 6 ? "stalk" : kind === 7 ? "orbit" : undefined,
+        patternTimer:
+          kind === 6
+            ? 1.15 + hash(worldRef.current.seed, x | 0, y | 0, 607) * 1.1
+            : kind === 7
+              ? 1.4 + hash(worldRef.current.seed, x | 0, y | 0, 707) * 1.2
+            : undefined,
+        patternX:
+          kind === 6
+            ? 0
+            : kind === 7
+              ? hash(worldRef.current.seed, x | 0, y | 0, 717) < 0.5
+                ? -1
+                : 1
+              : undefined,
+        patternY: kind === 6 ? 1 : undefined,
+        patternHit: false,
+        timeRifts: kind === 7 ? [] : undefined,
       };
     },
     [],
@@ -1225,10 +2059,21 @@ export default function GameCanvas() {
       for (let i = 0; i < count; i += 1) {
         const rx = hash(world.seed, world.roomX, world.roomY, seedSalt + i * 19);
         const ry = hash(world.seed, world.roomY, world.roomX, seedSalt + i * 31);
-        let enemyKind = Math.floor(
-          hash(world.seed, world.roomX + i, world.roomY - i, 911) *
-            Math.min(5, 2 + Math.floor(depth / 2)),
-        ) as EnemyKind;
+        const unlockedKinds: EnemyKind[] =
+          depth < 2
+            ? [0, 1]
+            : depth < 4
+              ? [0, 1, 2, 6]
+              : depth < 6
+                ? [0, 1, 2, 3, 4, 6]
+                : [0, 1, 2, 3, 4, 6, 7];
+        let enemyKind =
+          unlockedKinds[
+            Math.floor(
+              hash(world.seed, world.roomX + i, world.roomY - i, 911) *
+                unlockedKinds.length,
+            )
+          ];
         if (kind === "horde") enemyKind = 0;
         if (kind === "memory" && i % 2 === 0) enemyKind = 4;
         const elite = kind === "elite" && i === 0;
@@ -1298,13 +2143,15 @@ export default function GameCanvas() {
     (
       x: number,
       y: number,
-      entry: "left" | "right" | "top" | "bottom" = "left",
+      entry: "left" | "right" | "top" | "bottom" | "center" = "left",
     ) => {
       const world = worldRef.current;
       const player = playerRef.current;
       const key = keyOf(x, y);
       const kind = determineRoomKind(x, y);
       if (!world.rooms[key]) world.rooms[key] = { kind, cleared: kind === "shelter" };
+      const shelterActivated =
+        isFirstShelterRest(kind, world.visitedLookup[key] === true);
       for (const [offsetX, offsetY] of ROOM_DIRECTIONS) {
         const neighborX = x + offsetX;
         const neighborY = y + offsetY;
@@ -1328,30 +2175,47 @@ export default function GameCanvas() {
       world.clearHandled = world.roomCleared;
       world.projectiles = [];
       world.orbs = [];
+      world.gearDrops = [];
       world.effects = [];
       world.transition = 0.55;
       inputRef.current.hasMoveTarget = false;
       player.shotCounter = 0;
+      player.legendaryArmorReady = true;
       player.x =
-        entry === "left" ? 116 : entry === "right" ? WIDTH - 116 : WIDTH / 2;
+        entry === "center"
+          ? WIDTH / 2
+          : entry === "left"
+            ? 116
+            : entry === "right"
+              ? WIDTH - 116
+              : WIDTH / 2;
       player.y =
-        entry === "top" ? HEIGHT - 112 : entry === "bottom" ? 112 : HEIGHT / 2;
+        entry === "center"
+          ? HEIGHT / 2
+          : entry === "top"
+            ? HEIGHT - 112
+            : entry === "bottom"
+              ? 112
+              : HEIGHT / 2;
       player.shield = Math.max(
         player.shield,
         10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5,
       );
       if (world.roomCleared) world.enemies = [];
       else spawnRoom(kind);
-      setToast(
-        kind === "shelter"
-          ? "불빛이 기억을 붙잡습니다."
-          : kind === "boss"
+      if (kind === "shelter") {
+        if (shelterActivated) {
+          saveAtShelter();
+          setGameMode("shelter");
+        } else {
+          setToast(SPENT_SHELTER_MESSAGE);
+        }
+      } else {
+        setToast(
+          kind === "boss"
             ? "지도 자체가 당신의 빌드를 되그리기 시작합니다."
             : `${ROOM_NAMES[kind]} — 문이 봉쇄되었습니다.`,
-      );
-      if (kind === "shelter") {
-        saveAtShelter();
-        setGameMode("shelter");
+        );
       }
       syncHud();
     },
@@ -1361,6 +2225,86 @@ export default function GameCanvas() {
   useEffect(() => {
     roomEnterRef.current = enterRoom;
   }, [enterRoom]);
+
+  const teleportToVisitedRoom = useCallback(
+    (x: number, y: number) => {
+      if (!isSafeMapCoordinate(x, y)) return;
+      const targetKey = keyOf(x, y);
+      const world = worldRef.current;
+      const targetRoom = world.rooms[targetKey];
+      const status = getMapTeleportStatus({
+        hasEntitlement: mapTeleportUnlocked,
+        departureSafe: isMapTeleportDepartureSafe({
+          roomCleared: world.roomCleared,
+          enemyCount: world.enemies.length,
+          transition: world.transition,
+        }),
+        current: world.roomX === x && world.roomY === y,
+        known: Boolean(targetRoom),
+        visited: world.visitedLookup[targetKey] === true,
+        cleared: Boolean(targetRoom?.cleared),
+      });
+      if (status !== "available") {
+        setToast(MAP_TELEPORT_STATUS_LABELS[status]);
+        return;
+      }
+      if (!targetRoom) {
+        setToast(MAP_TELEPORT_STATUS_LABELS.unknown);
+        return;
+      }
+
+      requestGameConfirmation(
+        {
+          eyebrow: "MUJINDO WAYFINDER",
+          title: `${targetKey} 좌표로 도약할까요?`,
+          body: `${ROOM_NAMES[targetRoom.kind]}에 공간 문장을 새깁니다. 현재 방의 바닥 전리품은 회수되지 않습니다.`,
+          confirmLabel: "좌표 도약",
+          tone: "warning",
+        },
+        () => {
+          const liveWorld = worldRef.current;
+          const liveTarget = liveWorld.rooms[targetKey];
+          const liveStatus = getMapTeleportStatus({
+            hasEntitlement: hasMapTeleportEntitlement(readShopEntitlements()),
+            departureSafe: isMapTeleportDepartureSafe({
+              roomCleared: liveWorld.roomCleared,
+              enemyCount: liveWorld.enemies.length,
+              transition: liveWorld.transition,
+            }),
+            current: liveWorld.roomX === x && liveWorld.roomY === y,
+            known: Boolean(liveTarget),
+            visited: liveWorld.visitedLookup[targetKey] === true,
+            cleared: Boolean(liveTarget?.cleared),
+          });
+          if (liveStatus !== "available") {
+            setToast(MAP_TELEPORT_STATUS_LABELS[liveStatus]);
+            return;
+          }
+
+          keysRef.current.clear();
+          inputRef.current.dashQueued = false;
+          inputRef.current.hasMoveTarget = false;
+          enterRoom(x, y, "center");
+          const arrivalWorld = worldRef.current;
+          const arrivalPlayer = playerRef.current;
+          arrivalWorld.effects.push({
+            id: idRef.current++,
+            kind: "teleport",
+            x: arrivalPlayer.x,
+            y: arrivalPlayer.y + 8,
+            life: 0.82,
+            duration: 0.82,
+            size: 190,
+          });
+          arrivalWorld.effectCounts.teleport += 1;
+          setGameMode("playing");
+          setToast(`무진도의 길잡이 · ${targetKey} 좌표로 도약했습니다.`);
+          syncHud();
+        },
+      );
+    },
+    [enterRoom, mapTeleportUnlocked, requestGameConfirmation, setGameMode, syncHud],
+  );
 
   const openAugmentChoice = useCallback(() => {
     const player = playerRef.current;
@@ -1394,10 +2338,16 @@ export default function GameCanvas() {
     (amount: number) => {
       const player = playerRef.current;
       const scholarRank = powerRankOf(player, "scholar");
+      const learningRank = powerRankOf(player, "learning");
       const boosted =
         amount *
         (1 + powerRankOf(player, "magnet") * 0.08) *
-        Math.pow(1 + scholarRank * 0.09, 0.7);
+        Math.pow(1 + scholarRank * 0.09, 0.7) *
+        simpleAugmentMultiplier(
+          learningRank,
+          SIMPLE_AUGMENT_BONUSES.learningXpGainPerRank,
+        ) *
+        (1 + aggregateEquipmentStats(player.equipment).xpGainPercent / 100);
       player.xp += boosted;
       if (player.xp >= player.nextXp && modeRef.current === "playing") {
         player.xp -= player.nextXp;
@@ -1427,11 +2377,12 @@ export default function GameCanvas() {
   const openProfessionChoice = useCallback(
     (augment: Augment, resume: () => void = () => setGameMode("playing")) => {
       if (!isProfessionEligible(playerRef.current.augments, augment.id)) return;
+      setBuildPanelOpen(false);
       setProfessionCandidate(augment);
       professionResumeRef.current = resume;
       setGameMode("profession");
     },
-    [setGameMode],
+    [setBuildPanelOpen, setGameMode],
   );
 
   const closeProfessionChoice = useCallback(() => {
@@ -1459,7 +2410,7 @@ export default function GameCanvas() {
       const previous = rankOf(player, augment.id);
       player.augments[augment.id] = previous + 1;
       if (augment.id === "blood" && previous === 0) {
-        player.maxHp = 85;
+        player.maxHp = 85 + aggregateEquipmentStats(player.equipment).maxHpFlat;
         player.hp = Math.min(player.hp, player.maxHp);
       }
       if (augment.id === "glass") {
@@ -1485,6 +2436,9 @@ export default function GameCanvas() {
 
   const loadSave = useCallback(
     (slot: SaveSlotId = activeSaveSlotRef.current) => {
+      // Refresh the account-wide entitlement before hydrating a run. Inventory
+      // items are never truncated when capacity changes or a receipt is delayed.
+      applyShopEntitlements(readShopEntitlements());
       const candidate = readSaveSlot(slot);
       if (!candidate || !isHydratableSaveData(candidate)) {
         setToast(`${slot}번 슬롯의 저장 데이터를 읽을 수 없습니다.`);
@@ -1493,6 +2447,20 @@ export default function GameCanvas() {
       }
       const data = candidate;
       activateSaveSlot(slot);
+      const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
+      const normalizedEquipment = normalizeEquipment(data.player.equipment);
+      const normalizedInventory = Array.isArray(data.player.inventory)
+        ? data.player.inventory
+            .map((item) => normalizeGearItem(item))
+            .filter((item): item is GearItem => item !== null)
+        : [];
+      const savedMaxHp = Number.isFinite(data.player.maxHp)
+        ? Math.max(1, data.player.maxHp)
+        : 100;
+      const savedHp = Number.isFinite(data.player.hp)
+        ? clamp(data.player.hp, 0, savedMaxHp)
+        : savedMaxHp;
+      const savedHpRatio = savedHp / savedMaxHp;
       playerRef.current = {
         ...makePlayer(),
         ...data.player,
@@ -1501,7 +2469,31 @@ export default function GameCanvas() {
         x: WIDTH / 2,
         y: HEIGHT / 2,
         augments: { ...data.player.augments },
+        equipment: normalizedEquipment,
+        inventory: normalizedInventory,
+        autoSalvageMaxRarity:
+          storedAutoSalvagePreference === undefined
+            ? normalizeAutoSalvageThreshold(data.player.autoSalvageMaxRarity)
+            : storedAutoSalvagePreference,
+        memoryAsh: Number.isFinite(data.player.memoryAsh)
+          ? Math.max(0, Math.floor(data.player.memoryAsh))
+          : 0,
+        memoryPickupCounter: Number.isFinite(data.player.memoryPickupCounter)
+          ? Math.max(0, Math.floor(data.player.memoryPickupCounter))
+          : 0,
+        legendaryArmorReady: true,
       };
+      const hydratedPlayer = playerRef.current;
+      const baseMaxHp = rankOf(hydratedPlayer, "blood") > 0 ? 85 : 100;
+      hydratedPlayer.maxHp = Math.max(
+        1,
+        baseMaxHp + aggregateEquipmentStats(normalizedEquipment).maxHpFlat,
+      );
+      hydratedPlayer.hp = clamp(
+        hydratedPlayer.maxHp * savedHpRatio,
+        1,
+        hydratedPlayer.maxHp,
+      );
       playerRef.current.nextXp = Math.min(
         playerRef.current.nextXp,
         xpThreshold(playerRef.current.level),
@@ -1515,26 +2507,47 @@ export default function GameCanvas() {
       worldRef.current = world;
       stableAugmentsRef.current = { ...(data.stableAugments ?? {}) };
       checkpointRef.current = { x: data.world.roomX, y: data.world.roomY };
+      setBuildPanelOpen(false);
+      setInventoryScreenOpen(false);
       setStarted(true);
       enterRoom(data.world.roomX, data.world.roomY, "left");
-      setGameMode("shelter");
+      setGameMode("playing");
+      setToast(`${slot}번 슬롯 · 고정된 기억에서 원정을 재개했습니다.`);
       return true;
     },
-    [activateSaveSlot, enterRoom, refreshSaveSlots, setGameMode],
+    [
+      activateSaveSlot,
+      applyShopEntitlements,
+      enterRoom,
+      refreshSaveSlots,
+      setBuildPanelOpen,
+      setGameMode,
+      setInventoryScreenOpen,
+    ],
   );
 
   const startNewRun = useCallback((slot: SaveSlotId = activeSaveSlotRef.current) => {
     activateSaveSlot(slot);
+    const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
     removeSaveSlot(slot);
     refreshSaveSlots();
     keysRef.current.clear();
     pendingStoryRef.current = null;
     pendingEndingRef.current = false;
+    setLootNotice(null);
     const seed = (Date.now() ^ Math.floor(Math.random() * 0x7fffffff)) & 0x7fffffff;
-    playerRef.current = makePlayer();
+    playerRef.current = {
+      ...makePlayer(),
+      autoSalvageMaxRarity:
+        storedAutoSalvagePreference === undefined
+          ? null
+          : storedAutoSalvagePreference,
+    };
     worldRef.current = makeWorld(seed);
     stableAugmentsRef.current = {};
     checkpointRef.current = null;
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
     setStarted(true);
     enterRoom(0, 0, "left");
     showStory(
@@ -1543,7 +2556,15 @@ export default function GameCanvas() {
       "“누나, 지도 끝에서 기다릴게.” 하린은 그 목소리가 진짜인지 묻지 않았다. 무진도에서 질문은 늘 또 하나의 방이 되었으니까.",
       () => setGameMode("playing"),
     );
-  }, [activateSaveSlot, enterRoom, refreshSaveSlots, setGameMode, showStory]);
+  }, [
+    activateSaveSlot,
+    enterRoom,
+    refreshSaveSlots,
+    setBuildPanelOpen,
+    setGameMode,
+    setInventoryScreenOpen,
+    showStory,
+  ]);
 
   const retryFromShelter = useCallback(() => {
     if (!loadSave()) startNewRun();
@@ -1551,22 +2572,322 @@ export default function GameCanvas() {
 
   const deleteSaveSlot = useCallback(
     (slot: SaveSlotId) => {
-      if (!window.confirm(`${slot}번 슬롯의 고정된 기억을 삭제할까요?`)) return;
-      removeSaveSlot(slot);
-      refreshSaveSlots();
-      setToast(`${slot}번 슬롯을 비웠습니다.`);
+      requestGameConfirmation(
+        {
+          eyebrow: "RECORD ERASURE",
+          title: `${slot}번 기록을 지울까요?`,
+          body: "이 슬롯에 고정된 원정 기록은 되돌릴 수 없습니다.",
+          confirmLabel: "기록 삭제",
+          tone: "danger",
+        },
+        () => {
+          removeSaveSlot(slot);
+          refreshSaveSlots();
+          setToast(`${slot}번 슬롯을 비웠습니다.`);
+        },
+      );
     },
-    [refreshSaveSlots],
+    [refreshSaveSlots, requestGameConfirmation],
+  );
+
+  const equipInventoryItem = useCallback(
+    (itemId: string) => {
+      const player = playerRef.current;
+      const itemIndex = player.inventory.findIndex((item) => item.id === itemId);
+      if (itemIndex < 0) return;
+      const item = player.inventory[itemIndex];
+      const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      const replaced = player.equipment[item.slot];
+      player.equipment[item.slot] = item;
+      player.inventory.splice(itemIndex, 1);
+      if (replaced) player.inventory.push(replaced);
+      const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      const maxHpDelta = nextMaxHp - previousMaxHp;
+      player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
+      player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
+      setSelectedGearId(replaced?.id ?? null);
+      setToast(
+        `${GEAR_RARITY_META[item.rarity].label} ${EQUIPMENT_SLOT_LABELS[item.slot]} 장착 · 전투력 ${item.powerScore}`,
+      );
+      syncHud();
+    },
+    [syncHud],
+  );
+
+  const unequipInventoryItem = useCallback(
+    (slot: EquipmentSlot) => {
+      const player = playerRef.current;
+      const item = player.equipment[slot];
+      if (!item) return;
+      if (player.inventory.length >= inventoryCapacityRef.current) {
+        setToast(
+          `가방 ${inventoryCapacityRef.current}칸이 가득 차 장비를 해제할 수 없습니다.`,
+        );
+        return;
+      }
+
+      const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      player.equipment[slot] = null;
+      player.inventory.push(item);
+      const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      const maxHpDelta = nextMaxHp - previousMaxHp;
+      player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
+      player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
+      setSelectedGearId(item.id);
+      setToast(`${item.displayName} 장착 해제 · 가방으로 이동`);
+      syncHud();
+    },
+    [syncHud],
+  );
+
+  const salvageInventoryItem = useCallback(
+    (itemId: string) => {
+      const player = playerRef.current;
+      const index = player.inventory.findIndex((item) => item.id === itemId);
+      if (index < 0) return;
+      const item = player.inventory[index];
+      player.inventory.splice(index, 1);
+      const ashBreakdown = getGearSalvageAshBreakdown(item);
+      player.memoryAsh += ashBreakdown.total;
+      setSelectedGearId(null);
+      setToast(
+        `${item.displayName}을 분해해 기억의 재 ${ashBreakdown.total.toLocaleString("ko-KR")}개를 얻었습니다.${ashBreakdown.enhancementRefund > 0 ? ` · 강화 비용 ${ashBreakdown.enhancementRefund.toLocaleString("ko-KR")}개 전액 환급(100% 성공 기준)` : ""}`,
+      );
+      syncHud();
+    },
+    [syncHud],
+  );
+
+  const salvageInventoryItems = useCallback(
+    (itemIds: string[]) => {
+      const player = playerRef.current;
+      const requestedIds = new Set(itemIds);
+      const items = player.inventory.filter((item) => requestedIds.has(item.id));
+      if (items.length === 0) return;
+
+      const ashBreakdown = items.reduce(
+        (total, item) => {
+          const itemBreakdown = getGearSalvageAshBreakdown(item);
+          return {
+            total: total.total + itemBreakdown.total,
+            enhancementRefund:
+              total.enhancementRefund + itemBreakdown.enhancementRefund,
+          };
+        },
+        { total: 0, enhancementRefund: 0 },
+      );
+
+      player.inventory = player.inventory.filter(
+        (item) => !requestedIds.has(item.id),
+      );
+      player.memoryAsh += ashBreakdown.total;
+      if (selectedGearId && requestedIds.has(selectedGearId)) {
+        setSelectedGearId(null);
+      }
+      setToast(
+        `장비 ${items.length}개 일괄 분해 · 기억의 재 ${ashBreakdown.total.toLocaleString("ko-KR")}개 획득${ashBreakdown.enhancementRefund > 0 ? ` · 강화 비용 ${ashBreakdown.enhancementRefund.toLocaleString("ko-KR")}개 전액 환급(100% 성공 기준)` : ""}`,
+      );
+      syncHud();
+    },
+    [selectedGearId, syncHud],
+  );
+
+  const changeAutoSalvageMaxRarity = useCallback(
+    (threshold: AutoSalvageThreshold) => {
+      const normalized = normalizeAutoSalvageThreshold(threshold);
+      const player = playerRef.current;
+      player.autoSalvageMaxRarity = normalized;
+      const persisted = writeAutoSalvagePreference(
+        activeSaveSlotRef.current,
+        normalized,
+      );
+
+      if (normalized === null) {
+        setToast(
+          persisted
+            ? "장비 자동 분해를 해제했습니다."
+            : "장비 자동 분해를 해제했습니다 · 저장소 오류로 이번 플레이에만 적용됩니다.",
+        );
+      } else {
+        const rarityLabel = GEAR_RARITY_META[normalized].label;
+        setToast(
+          persisted
+            ? `${rarityLabel} 이하 자동 분해 활성화 · 새 장비만 변환 · 전설 이상 보호`
+            : `${rarityLabel} 이하 자동 분해 활성화 · 저장소 오류로 이번 플레이에만 적용 · 전설 이상 보호`,
+        );
+      }
+      syncHud();
+    },
+    [syncHud],
+  );
+
+  const grantLocalRarityShowcase = useCallback(() => {
+    const player = playerRef.current;
+    const showcaseItems = GEAR_RARITIES.map((rarity, index) => ({
+      ...rollGear(
+        `local-rarity-showcase:${activeSaveSlotRef.current}:${rarity}`,
+        {
+          level: Math.max(1, player.level),
+          rarity,
+          slot: LOCAL_RARITY_SHOWCASE_SLOTS[index],
+        },
+      ),
+      id: `local-rarity-showcase-${activeSaveSlotRef.current}-${rarity}`,
+    }));
+    const ownedIds = new Set([
+      ...player.inventory.map((item) => item.id),
+      ...EQUIPMENT_SLOTS.flatMap((slot) =>
+        player.equipment[slot] ? [player.equipment[slot].id] : [],
+      ),
+    ]);
+    const missingItems = showcaseItems.filter((item) => !ownedIds.has(item.id));
+    const requiredSlots = missingItems.length;
+    const openSlots = inventoryCapacityRef.current - player.inventory.length;
+    if (requiredSlots === 0) {
+      setSelectedGearId(showcaseItems[0].id);
+      setToast("8등급 견본이 이미 모두 지급되어 있습니다.");
+      return;
+    }
+    if (openSlots < requiredSlots) {
+      setToast(`남은 견본 지급에는 빈 가방 ${requiredSlots}칸이 필요합니다.`);
+      return;
+    }
+
+    player.inventory.unshift(...missingItems);
+    setSelectedGearId(missingItems[0].id);
+    setLootNotice(missingItems[missingItems.length - 1]);
+    setToast("로컬 검수용 일반·마법·고급·희귀·영웅·전설·신화·우주 견본을 지급했습니다.");
+    syncHud();
+  }, [syncHud]);
+
+  const performGearEnhancement = useCallback(
+    (itemId: string) => {
+      const player = playerRef.current;
+      const inventoryIndex = player.inventory.findIndex((item) => item.id === itemId);
+      const equippedSlot = EQUIPMENT_SLOTS.find(
+        (slot) => player.equipment[slot]?.id === itemId,
+      );
+      const item =
+        inventoryIndex >= 0
+          ? player.inventory[inventoryIndex]
+          : equippedSlot
+            ? player.equipment[equippedSlot]
+            : null;
+      if (!item) return;
+      const rule = getGearEnhancementRule(item);
+      if (!rule) {
+        setToast(`${item.displayName}은 이미 최대 +10 강화입니다.`);
+        return;
+      }
+      if (player.memoryAsh < rule.ashCost) {
+        setToast(`기억의 재가 ${rule.ashCost - player.memoryAsh}개 부족합니다.`);
+        return;
+      }
+
+      const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+      player.memoryAsh -= rule.ashCost;
+      const roll = Math.random() * 100;
+      if (roll < rule.successPercent) {
+        const enhancedItem: GearItem = {
+          ...item,
+          enhancement: rule.target,
+          powerScore: calculateGearPowerScore({ ...item, enhancement: rule.target }),
+        };
+        if (inventoryIndex >= 0) player.inventory[inventoryIndex] = enhancedItem;
+        else if (equippedSlot) player.equipment[equippedSlot] = enhancedItem;
+        setSelectedGearId(enhancedItem.id);
+        setToast(
+          `강화 성공 · ${enhancedItem.displayName} +${enhancedItem.enhancement} · 전투력 ${enhancedItem.powerScore}`,
+        );
+      } else if (roll < rule.successPercent + rule.destroyPercent) {
+        if (inventoryIndex >= 0) player.inventory.splice(inventoryIndex, 1);
+        else if (equippedSlot) player.equipment[equippedSlot] = null;
+        setSelectedGearId(null);
+        setToast(`강화 파괴 · ${item.displayName}이 기억의 재로 흩어졌습니다.`);
+      } else {
+        setToast(
+          `강화 실패 · ${item.displayName} +${item.enhancement} 유지 · 기억의 재 ${rule.ashCost} 소모`,
+        );
+      }
+
+      if (equippedSlot) {
+        const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+        const maxHpDelta = nextMaxHp - previousMaxHp;
+        player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
+        player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
+      }
+      syncHud();
+    },
+    [syncHud],
+  );
+
+  const enhanceGearItem = useCallback(
+    (itemId: string) => {
+      const player = playerRef.current;
+      const item =
+        player.inventory.find((candidate) => candidate.id === itemId) ??
+        EQUIPMENT_SLOTS.map((slot) => player.equipment[slot]).find(
+          (candidate) => candidate?.id === itemId,
+        ) ??
+        null;
+      if (!item) return;
+      const rule = getGearEnhancementRule(item);
+      if (!rule) {
+        setToast(`${item.displayName}은 이미 최대 +10 강화입니다.`);
+        return;
+      }
+      if (player.memoryAsh < rule.ashCost) {
+        setToast(`기억의 재가 ${rule.ashCost - player.memoryAsh}개 부족합니다.`);
+        return;
+      }
+      if (rule.destroyPercent <= 0) {
+        performGearEnhancement(itemId);
+        return;
+      }
+
+      requestGameConfirmation(
+        {
+          eyebrow: "FORGE WARNING",
+          title: `${item.displayName} +${item.enhancement} → +${rule.target}`,
+          body: `실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
+          confirmLabel: "강화 시도",
+          tone: "danger",
+        },
+        () => performGearEnhancement(itemId),
+      );
+    },
+    [performGearEnhancement, requestGameConfirmation],
   );
 
   const returnToMenu = useCallback(() => {
     keysRef.current.clear();
     inputRef.current.hasMoveTarget = false;
     setStarted(false);
+    setLootNotice(null);
     setGameMode("menu");
-    setBuildOpen(false);
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
+    shopReturnInventoryRef.current = false;
+    setShopPreferredProductId(null);
+    setShopScreenOpen(false);
+    setMenuStage("landing");
     refreshSaveSlots();
-  }, [refreshSaveSlots, setGameMode]);
+  }, [
+    refreshSaveSlots,
+    setBuildPanelOpen,
+    setGameMode,
+    setInventoryScreenOpen,
+    setShopScreenOpen,
+  ]);
+
+  useEffect(() => {
+    const restoreTimer = window.setTimeout(() => {
+      const restored = readShopEntitlements();
+      applyShopEntitlements(restored);
+      setShopMode(shopCheckoutMode());
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
+  }, [applyShopEntitlements]);
 
   useEffect(() => {
     migrateLegacySave();
@@ -1574,6 +2895,7 @@ export default function GameCanvas() {
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
       walkHarin: "/assets/walk/harin-walk-v2.png",
+      walkHarinEquipped: "/assets/walk/harin-equipped-v3.png",
       walkHarinLegacy: "/assets/walk/harin-walk.png",
       walkWithered: "/assets/walk/withered-walk-v2.png",
       walkThreader: "/assets/walk/threader-walk.png",
@@ -1581,9 +2903,15 @@ export default function GameCanvas() {
       walkNest: "/assets/walk/nest-walk.png",
       walkWitch: "/assets/walk/witch-walk.png",
       walkBoss: "/assets/walk/cartographer-boss-walk.png",
+      walkProofreader: "/assets/walk/proofreader-walk-v2.png",
+      walkTimeStalker: "/assets/walk/time-stalker-walk.png",
+      proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
+      timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
+      timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
+      equipmentIcons: "/assets/equipment/equipment-types-v3.png",
       roomBattle: "/assets/maps/room-battle.webp",
       roomHorde: "/assets/maps/room-horde.webp",
       roomElite: "/assets/maps/room-elite.webp",
@@ -1593,6 +2921,9 @@ export default function GameCanvas() {
       ui: "/assets/augment-ui-atlas.png",
       menu: "/assets/menu-title-background.png",
     };
+    for (const config of Object.values(EQUIPMENT_RARITY_VFX)) {
+      imagePaths[config.imageKey] = config.imagePath;
+    }
     for (const [name, source] of Object.entries(imagePaths)) {
       const image = new Image();
       image.src = source;
@@ -1602,30 +2933,80 @@ export default function GameCanvas() {
   }, [refreshSaveSlots]);
 
   useEffect(() => {
+    if (!lootNotice) return;
+    const timeout = window.setTimeout(() => setLootNotice(null), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [lootNotice]);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const key = event.key.toLowerCase();
+      const target = event.target as HTMLElement | null;
+      const isInteractive = Boolean(
+        target?.closest(
+          "button, a, input, select, textarea, [contenteditable='true'], [tabindex]:not([tabindex='-1'])",
+        ),
+      );
+      if (isInteractive && key !== "escape") return;
+      if (gameConfirmationOpenRef.current) {
+        if (key === "escape" && !event.repeat) closeGameConfirmation();
+        return;
+      }
+      if (shopOpenRef.current) {
+        if ((key === "escape" || key === "p") && !event.repeat) closeShop();
+        return;
+      }
+      if (!started) {
+        if (key === "p" && !event.repeat) {
+          openShop();
+          return;
+        }
+        if (key === "escape" && menuStage === "archive" && !event.repeat) {
+          setMenuStage("landing");
+        }
+        return;
+      }
       if (modeRef.current === "augment" && !event.repeat && ["1", "2", "3"].includes(key)) {
         const choice = choices[Number(key) - 1];
         if (choice) chooseAugment(choice);
         return;
       }
-      keysRef.current.add(key);
+      if (isSimulationRunning()) {
+        keysRef.current.add(key);
+      }
       if (["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
         inputRef.current.hasMoveTarget = false;
       }
       if ([" ", "arrowup", "arrowdown", "arrowleft", "arrowright"].includes(key)) {
         event.preventDefault();
       }
-      if (key === " " && modeRef.current === "playing") inputRef.current.dashQueued = true;
+      if (key === " " && isSimulationRunning()) {
+        inputRef.current.dashQueued = true;
+      }
       if (key === "b" && modeRef.current === "playing" && !event.repeat) {
-        setBuildOpen((open) => !open);
+        const shouldOpen = !(buildOpenRef.current && buildTab === "build");
+        setInventoryScreenOpen(false);
+        setBuildTab("build");
+        setBuildPanelOpen(shouldOpen);
+      }
+      if (key === "i" && modeRef.current === "playing" && !event.repeat) {
+        const shouldOpen = !inventoryOpenRef.current;
+        setBuildPanelOpen(false);
+        setInventoryScreenOpen(shouldOpen);
+      }
+      if (key === "p" && modeRef.current === "playing" && !event.repeat) {
+        openShop();
+        return;
       }
       if (key === "m" && started && !event.repeat) {
         if (modeRef.current === "playing") openMap();
         else if (modeRef.current === "map") setGameMode("playing");
       }
       if (key === "escape" && started && !event.repeat) {
-        if (modeRef.current === "playing") setGameMode("paused");
+        if (shopOpenRef.current) closeShop();
+        else if (inventoryOpenRef.current) setInventoryScreenOpen(false);
+        else if (buildOpenRef.current) setBuildPanelOpen(false);
+        else if (modeRef.current === "playing") setGameMode("paused");
         else if (modeRef.current === "paused" || modeRef.current === "map") {
           setGameMode("playing");
         }
@@ -1645,7 +3026,21 @@ export default function GameCanvas() {
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", clearInputs);
     };
-  }, [choices, chooseAugment, openMap, setGameMode, started]);
+  }, [
+    buildTab,
+    choices,
+    chooseAugment,
+    closeShop,
+    closeGameConfirmation,
+    menuStage,
+    openMap,
+    openShop,
+    isSimulationRunning,
+    setBuildPanelOpen,
+    setGameMode,
+    setInventoryScreenOpen,
+    started,
+  ]);
 
   useEffect(() => {
     if (mode !== "map") return;
@@ -1670,11 +3065,26 @@ export default function GameCanvas() {
     if (!canvas || !context) return;
     let frame = 0;
     let last = performance.now();
+    const lootVfxShowcaseMode = isLocalRarityShowcaseHost()
+      ? new URLSearchParams(window.location.search).get("lootVfxShowcase")
+      : null;
+    const requestedLootVfxRarity = EQUIPMENT_RARITIES.find(
+      (rarity) => rarity === lootVfxShowcaseMode,
+    );
+    const lootVfxShowcaseRarities =
+      lootVfxShowcaseMode === "all"
+        ? EQUIPMENT_RARITIES
+        : requestedLootVfxRarity
+          ? [requestedLootVfxRarity]
+          : [];
 
     const damagePlayer = (amount: number) => {
       const player = playerRef.current;
       if (player.invulnerable > 0 || player.dashTime > 0) return;
       let mitigated = Math.min(amount, player.maxHp * 0.4);
+      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      mitigated *= 1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
+      mitigated *= simpleDefenseDamageMultiplier(powerRankOf(player, "defense"));
       const armorRank = powerRankOf(player, "armor");
       mitigated /= Math.pow(1 + armorRank * 0.1, 0.62);
       if (player.hp / player.maxHp < 0.4) {
@@ -1692,6 +3102,18 @@ export default function GameCanvas() {
         amount = mitigated - absorbed;
       } else {
         amount = mitigated;
+      }
+      if (
+        player.hp - amount <= 0 &&
+        player.legendaryArmorReady &&
+        hasLegendaryPower(player, "lastMemory")
+      ) {
+        player.legendaryArmorReady = false;
+        player.hp = Math.max(1, player.maxHp * 0.4);
+        player.shield += player.maxHp * 0.12;
+        player.invulnerable = 1.1;
+        setToast("전설 · 마지막으로 남은 기억이 치명상을 되감았습니다.");
+        return;
       }
       player.hp -= amount;
       player.invulnerable = 0.6;
@@ -1756,6 +3178,90 @@ export default function GameCanvas() {
       world.effectCounts[kind] += 1;
     };
 
+    const spawnLootAwakening = (
+      x: number,
+      y: number,
+      rarity: GearItem["rarity"],
+    ) => {
+      const world = worldRef.current;
+      const activeLootEffects = world.effects.filter(
+        (effect) => effect.kind === "lootAwakening",
+      );
+      if (activeLootEffects.length >= 18) {
+        const incomingTier = EQUIPMENT_RARITY_TIER[rarity];
+        const lowestPriorityEffect = activeLootEffects.reduce((lowest, effect) => {
+          const lowestTier = EQUIPMENT_RARITY_TIER[lowest.rarity ?? "common"];
+          const effectTier = EQUIPMENT_RARITY_TIER[effect.rarity ?? "common"];
+          if (effectTier < lowestTier) return effect;
+          if (effectTier === lowestTier && effect.life < lowest.life) return effect;
+          return lowest;
+        });
+        const lowestTier = EQUIPMENT_RARITY_TIER[lowestPriorityEffect.rarity ?? "common"];
+        if (incomingTier <= lowestTier) return;
+        world.effects = world.effects.filter(
+          (effect) => effect.id !== lowestPriorityEffect.id,
+        );
+      }
+      const config = EQUIPMENT_RARITY_VFX[rarity];
+      const duration = config.awakeningDuration;
+      world.effects.push({
+        id: idRef.current++,
+        kind: "lootAwakening",
+        x,
+        y,
+        life: duration,
+        duration,
+        size: config.awakeningSize,
+        color: GEAR_RARITY_META[rarity].color,
+        rarity,
+      });
+    };
+
+    const spawnLocalLootVfxShowcase = () => {
+      if (
+        lootVfxShowcaseSpawnedRef.current ||
+        lootVfxShowcaseRarities.length === 0 ||
+        modeRef.current !== "playing"
+      ) {
+        return;
+      }
+      lootVfxShowcaseSpawnedRef.current = true;
+      const showcasePositions = [
+        { x: 220, y: 230 },
+        { x: 500, y: 230 },
+        { x: 780, y: 230 },
+        { x: 1060, y: 230 },
+        { x: 220, y: 500 },
+        { x: 500, y: 500 },
+        { x: 780, y: 500 },
+        { x: 1060, y: 500 },
+      ];
+      const world = worldRef.current;
+      world.enemies = [];
+      world.projectiles = [];
+      world.roomCleared = true;
+      world.clearHandled = true;
+      for (const [index, rarity] of lootVfxShowcaseRarities.entries()) {
+        const position =
+          lootVfxShowcaseRarities.length === 1
+            ? { x: WIDTH / 2, y: HEIGHT / 2 + 70 }
+            : showcasePositions[index];
+        const item = rollGear(`local-loot-vfx-${rarity}`, {
+          level: Math.max(1, playerRef.current.level),
+          rarity,
+        });
+        world.gearDrops.push({
+          id: idRef.current++,
+          x: position.x,
+          y: position.y,
+          item,
+          pickupDelay: 30,
+          appearanceAge: 0,
+        });
+        spawnLootAwakening(position.x, position.y, rarity);
+      }
+    };
+
     const spawnCombatEffect = (
       kind: CombatEffectKind,
       x: number,
@@ -1769,10 +3275,22 @@ export default function GameCanvas() {
     ) => {
       const world = worldRef.current;
       const combatEffectCount = world.effects.reduce(
-        (count, effect) => count + (effect.kind === "summon" || effect.kind === "teleport" ? 0 : 1),
+        (count, effect) =>
+          count +
+          (effect.kind === "summon" ||
+          effect.kind === "teleport" ||
+          effect.kind === "lootAwakening"
+            ? 0
+            : 1),
         0,
       );
-      if (combatEffectCount >= 120) return;
+      if (
+        combatEffectCount >= 120 &&
+        kind !== "timeRiftTelegraph" &&
+        kind !== "timeRiftBurst"
+      ) {
+        return;
+      }
       world.effects.push({
         id: idRef.current++,
         kind,
@@ -1791,11 +3309,85 @@ export default function GameCanvas() {
     const killEnemy = (enemy: Enemy) => {
       const player = playerRef.current;
       const world = worldRef.current;
+      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      const projectileSizeMultiplier =
+        (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
+        simpleAugmentMultiplier(
+          powerRankOf(player, "expansion"),
+          SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
+        );
       player.kills += 1;
       const baseValue = enemy.kind === 5 ? 80 : enemy.elite ? 20 : 7 + enemy.kind * 2;
       const scavengerRank = powerRankOf(player, "scavenger");
       const value = baseValue * Math.pow(1 + scavengerRank * 0.1, 0.75);
       world.orbs.push({ id: idRef.current++, x: enemy.x, y: enemy.y, value });
+      const lootRoll = hash(
+        world.seed,
+        world.roomX + enemy.id,
+        world.roomY - player.kills,
+        2401,
+      );
+      const gearFindPercent = Math.max(
+        0,
+        Math.min(200, equipmentStats.gearFindPercent),
+      );
+      const dropSource =
+        enemy.kind === 5 ? "boss" : enemy.elite ? "elite" : "normal";
+      const sourceChance =
+        dropSource === "normal"
+          ? Math.min(
+              GEAR_DROP_SCAVENGER_CHANCE_CAP,
+              GEAR_DROP_BASE_CHANCE.normal +
+                scavengerRank * GEAR_DROP_SCAVENGER_CHANCE_PER_RANK,
+            )
+          : GEAR_DROP_BASE_CHANCE[dropSource];
+      const gearDropChance =
+        dropSource === "boss"
+          ? 1
+          : Math.min(
+              GEAR_DROP_CHANCE_CAP[dropSource],
+              sourceChance * (1 + gearFindPercent / 100),
+            );
+      if (lootRoll < gearDropChance) {
+        const dropCount = enemy.kind === 5 ? 2 : 1;
+        for (let dropIndex = 0; dropIndex < dropCount; dropIndex += 1) {
+          const rarityRoll = hash(world.seed, enemy.id, dropIndex, player.rooms + 331);
+          const forcedRarity = rollGearDropRarity(
+            rarityRoll,
+            dropSource,
+            gearFindPercent,
+            player.level,
+          );
+          const dropSeed = `${world.seed}:${world.roomX}:${world.roomY}:${enemy.id}:${dropIndex}`;
+          const dropLevel = rollGearDropLevel(dropSeed, player.level);
+          const item = rollGear(dropSeed, {
+            level: dropLevel,
+            rarity: forcedRarity,
+          });
+          const dropX = enemy.x + (dropIndex - (dropCount - 1) / 2) * 52;
+          const dropY = enemy.y + 12;
+          world.gearDrops.push({
+            id: idRef.current++,
+            x: dropX,
+            y: dropY,
+            item,
+            pickupDelay: EQUIPMENT_RARITY_VFX[item.rarity].awakeningDuration + 0.18,
+            appearanceAge: 0,
+          });
+          spawnLootAwakening(dropX, dropY, item.rarity);
+          if (item.rarity === "cosmic") {
+            setToast(`${GEAR_RARITY_META[item.rarity].label} · ${item.displayName}`);
+          } else if (item.rarity === "mythic") {
+            setToast(`신화 장비 강림 · ${item.displayName}`);
+          } else if (item.rarity === "legendary") {
+            setToast(`전설 장비 발견 · ${item.displayName}`);
+          } else if (item.rarity === "epic") {
+            setToast(
+              `${GEAR_RARITY_META[item.rarity].label} 장비 발견 · ${item.displayName}`,
+            );
+          }
+        }
+      }
       const predator = powerRankOf(player, "predator");
       if (predator > 0 && player.kills % Math.max(5, 18 - predator) === 0) {
         const heal = 2 + predator * 1.2;
@@ -1835,8 +3427,19 @@ export default function GameCanvas() {
         const shardCount = 2 + Math.min(6, shrapnelRank);
         const focusRank = powerRankOf(player, "focus");
         const homingRank = powerRankOf(player, "homing");
-        const shardSpeed = 430 * Math.pow(1 + focusRank * 0.06, 0.55);
-        const shardLife = 0.62 + focusRank * 0.025;
+        const shardSpeed =
+          430 *
+          Math.pow(1 + focusRank * 0.06, 0.55) *
+          simpleAugmentMultiplier(
+            powerRankOf(player, "velocity"),
+            SIMPLE_AUGMENT_BONUSES.velocityProjectileSpeedPerRank,
+          );
+        const shardLife =
+          (0.62 + focusRank * 0.025) *
+          simpleAugmentMultiplier(
+            powerRankOf(player, "range"),
+            SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
+          );
         for (let i = 0; i < shardCount; i += 1) {
           const angle = (Math.PI * 2 * i) / shardCount + enemy.id * 0.73;
           world.projectiles.push({
@@ -1845,7 +3448,7 @@ export default function GameCanvas() {
             y: enemy.y,
             vx: Math.cos(angle) * shardSpeed,
             vy: Math.sin(angle) * shardSpeed,
-            radius: 3.5 + Math.min(3, shrapnelRank * 0.25),
+            radius: (3.5 + Math.min(3, shrapnelRank * 0.25)) * projectileSizeMultiplier,
             damage: 5 + shrapnelRank * 2.4,
             life: shardLife,
             pierce: Math.floor(shrapnelRank / 5),
@@ -1894,6 +3497,13 @@ export default function GameCanvas() {
       }
       if (!target) target = world.enemies[0];
       const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
+      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      const projectileSizeMultiplier =
+        (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
+        simpleAugmentMultiplier(
+          powerRankOf(player, "expansion"),
+          SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
+        );
       const splitRank = powerRankOf(player, "split");
       const theoreticalCount = 1 + splitRank;
       const visibleCount = Math.min(9, theoreticalCount);
@@ -1904,7 +3514,12 @@ export default function GameCanvas() {
       const theoreticalRate =
         1.4 *
         Math.pow(1 + 0.14 * hasteRank, 0.7) *
-        Math.pow(1 + frenzyRank * missingHealthRatio * 0.12, 0.65);
+        Math.pow(1 + frenzyRank * missingHealthRatio * 0.12, 0.65) *
+        simpleAugmentMultiplier(
+          powerRankOf(player, "rapidfire"),
+          SIMPLE_AUGMENT_BONUSES.rapidfireAttackSpeedPerRank,
+        ) *
+        (1 + equipmentStats.attackSpeedPercent / 100);
       const visibleRate = Math.min(12, theoreticalRate);
       const overflowRate = Math.max(1, theoreticalRate / visibleRate);
       const bloodRank = powerRankOf(player, "blood");
@@ -1919,6 +3534,8 @@ export default function GameCanvas() {
       const focusRank = powerRankOf(player, "focus");
       const caliberRank = powerRankOf(player, "caliber");
       const homingRank = powerRankOf(player, "homing");
+      const rangeRank = powerRankOf(player, "range");
+      const velocityRank = powerRankOf(player, "velocity");
       const overchargeRank = powerRankOf(player, "overcharge");
       const chargePeriod = Math.max(3, 8 - Math.min(5, overchargeRank));
       const overcharged =
@@ -1961,17 +3578,42 @@ export default function GameCanvas() {
         (1 + powerRankOf(player, "map") * 0.06) *
         (1 + focusRank * 0.025) *
         (1 + caliberRank * 0.045) *
+        simpleAugmentMultiplier(
+          powerRankOf(player, "strength"),
+          SIMPLE_AUGMENT_BONUSES.strengthDamagePerRank,
+        ) *
         (overcharged ? 1.35 + overchargeRank * 0.045 : 1) *
         (1 + synergyPower) *
+        (1 + equipmentStats.damagePercent / 100) *
         overflowCount *
         overflowRate;
       const eyeRank = powerRankOf(player, "eye");
-      const critChance = 0.05 + 0.45 * (1 - Math.exp(-0.18 * eyeRank));
-      if (Math.random() < critChance) damage *= 1.7 + eyeRank * 0.1;
+      const critChance = clamp(
+        0.05 +
+          0.45 * (1 - Math.exp(-0.18 * eyeRank)) +
+          equipmentStats.critChancePercent / 100,
+        0,
+        0.75,
+      );
+      if (Math.random() < critChance) {
+        damage *= 1.7 + eyeRank * 0.1 + equipmentStats.critDamagePercent / 100;
+      }
       const spread = Math.min(0.62, visibleCount * 0.07);
-      const projectileSpeed = 660 * Math.pow(1 + focusRank * 0.06, 0.55);
+      const projectileSpeed =
+        660 *
+        Math.pow(1 + focusRank * 0.06, 0.55) *
+        simpleAugmentMultiplier(
+          velocityRank,
+          SIMPLE_AUGMENT_BONUSES.velocityProjectileSpeedPerRank,
+        ) *
+        (1 + equipmentStats.projectileSpeedPercent / 100);
       const projectileLife =
-        (1.15 + returnRank * 0.14) * Math.pow(1 + focusRank * 0.035, 0.5);
+        (1.15 + returnRank * 0.14) *
+        Math.pow(1 + focusRank * 0.035, 0.5) *
+        simpleAugmentMultiplier(
+          rangeRank,
+          SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
+        );
       const chargedColor = overcharged ? "#ff7764" : projectileColor;
       spawnCombatEffect(
         "muzzle",
@@ -1993,9 +3635,10 @@ export default function GameCanvas() {
           vx: Math.cos(angle) * projectileSpeed,
           vy: Math.sin(angle) * projectileSpeed,
           radius:
-            5 +
-            Math.min(5, powerRankOf(player, "fang")) +
-            Math.min(5, caliberRank * 0.55),
+            (5 +
+              Math.min(5, powerRankOf(player, "fang")) +
+              Math.min(5, caliberRank * 0.55)) *
+            projectileSizeMultiplier,
           damage,
           life: projectileLife,
           pierce: powerRankOf(player, "pierce"),
@@ -2014,26 +3657,60 @@ export default function GameCanvas() {
             homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
         });
         if (echoShot) {
+          const echoProjectileLife =
+            1.05 *
+            simpleAugmentMultiplier(
+              rangeRank,
+              SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
+            );
           world.projectiles.push({
             id: idRef.current++,
             x: player.x,
             y: player.y - 8,
             vx: Math.cos(angle) * projectileSpeed * 0.92,
             vy: Math.sin(angle) * projectileSpeed * 0.92,
-            radius: 4 + Math.min(4, timeRank),
+            radius: (4 + Math.min(4, timeRank)) * projectileSizeMultiplier,
             damage: damage * (0.45 + timeRank * 0.07),
-            life: 1.05,
+            life: echoProjectileLife,
             pierce: powerRankOf(player, "pierce"),
             hostile: false,
             color: "#d0a9ee",
             affinity: "echo",
             age: 0,
-            maxLife: 1.05,
+            maxLife: echoProjectileLife,
             previousX: player.x,
             previousY: player.y - 8,
             hit: new Set<number>(),
             homing:
               homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
+          });
+        }
+      }
+      if (
+        hasLegendaryPower(player, "crescentEcho") &&
+        (player.shotCounter + 1) % 5 === 0
+      ) {
+        for (const offset of [-0.34, 0.34]) {
+          const angle = baseAngle + offset;
+          world.projectiles.push({
+            id: idRef.current++,
+            x: player.x,
+            y: player.y - 8,
+            vx: Math.cos(angle) * projectileSpeed * 0.94,
+            vy: Math.sin(angle) * projectileSpeed * 0.94,
+            radius: 6 * projectileSizeMultiplier,
+            damage: damage * 0.65,
+            life: projectileLife,
+            pierce: 1 + Math.floor(powerRankOf(player, "pierce") / 2),
+            hostile: false,
+            color: "#f0b86e",
+            affinity: "echo",
+            age: 0,
+            maxLife: projectileLife,
+            previousX: player.x,
+            previousY: player.y - 8,
+            hit: new Set<number>(),
+            homing: homingRank > 0 ? Math.min(8, 1.6 + homingRank * 0.45) : undefined,
           });
         }
       }
@@ -2054,7 +3731,11 @@ export default function GameCanvas() {
         (synergy) => synergy.name === "달빛 봉화",
       );
       const heal =
-        (4 + powerRankOf(player, "map") * 2 + conquestRank * 1.2) *
+        (4 +
+          powerRankOf(player, "map") * 2 +
+          conquestRank * 1.2 +
+          powerRankOf(player, "recovery") *
+            SIMPLE_AUGMENT_BONUSES.recoveryRoomHealPerRank) *
         (1 + (moonBeacon?.tier ?? 0) * 0.08);
       player.hp = Math.min(player.maxHp, player.hp + heal);
       if (conquestRank > 0) {
@@ -2108,16 +3789,26 @@ export default function GameCanvas() {
     };
 
     const update = (dt: number) => {
-      if (modeRef.current !== "playing") return;
+      if (!isSimulationRunning()) return;
       const player = playerRef.current;
       const world = worldRef.current;
+      const equipmentStats = aggregateEquipmentStats(player.equipment);
       world.transition = Math.max(0, world.transition - dt);
       for (const effect of world.effects) effect.life -= dt;
       world.effects = world.effects.filter((effect) => effect.life > 0);
+      for (const drop of world.gearDrops) {
+        drop.pickupDelay = Math.max(0, drop.pickupDelay - dt);
+        const revealDuration = EQUIPMENT_RARITY_VFX[drop.item.rarity].awakeningDuration;
+        drop.appearanceAge = Math.min(
+          revealDuration + 1,
+          (drop.appearanceAge ?? 0) + dt,
+        );
+      }
       player.fireCooldown -= dt;
       player.invulnerable = Math.max(0, player.invulnerable - dt);
       player.dashCooldown = Math.max(0, player.dashCooldown - dt);
       player.dashTime = Math.max(0, player.dashTime - dt);
+      player.riftTrailCooldown = Math.max(0, player.riftTrailCooldown - dt);
       const regenerationRank = powerRankOf(player, "regeneration");
       if (regenerationRank > 0 && player.hp > 0) {
         player.hp = Math.min(player.maxHp, player.hp + regenerationRank * 0.14 * dt);
@@ -2151,7 +3842,12 @@ export default function GameCanvas() {
       const moveSpeed =
         245 *
         Math.pow(1 + boots * 0.07, 0.55) *
-        Math.pow(1 + momentumRank * 0.065, 0.55);
+        Math.pow(1 + momentumRank * 0.065, 0.55) *
+        simpleAugmentMultiplier(
+          powerRankOf(player, "sprint"),
+          SIMPLE_AUGMENT_BONUSES.sprintMoveSpeedPerRank,
+        ) *
+        (1 + equipmentStats.moveSpeedPercent / 100);
 
       if (inputRef.current.dashQueued && player.dashCooldown <= 0) {
         inputRef.current.dashQueued = false;
@@ -2161,7 +3857,11 @@ export default function GameCanvas() {
         player.invulnerable = player.dashTime + 0.03;
         player.dashCooldown =
           1.35 /
-          (Math.pow(1 + boots * 0.08, 0.6) * Math.pow(1 + reflexRank * 0.11, 0.55));
+          (Math.pow(1 + boots * 0.08, 0.6) *
+            Math.pow(1 + reflexRank * 0.11, 0.55) *
+            (1 + equipmentStats.dashCooldownPercent / 100) *
+            (hasLegendaryPower(player, "riftStride") ? 1.3 : 1));
+        if (hasLegendaryPower(player, "riftStride")) player.riftTrailCooldown = 0;
         const voidRank = powerRankOf(player, "void");
         if (voidRank > 0) {
           const comet = activeSynergies(player).find(
@@ -2187,6 +3887,20 @@ export default function GameCanvas() {
       const dy = player.dashTime > 0 ? player.dashY : moveY;
       player.x += dx * speed * dt;
       player.y += dy * speed * dt;
+      if (
+        player.dashTime > 0 &&
+        player.riftTrailCooldown <= 0 &&
+        hasLegendaryPower(player, "riftStride")
+      ) {
+        player.riftTrailCooldown = 0.055;
+        const riftDamage = 12 * (1 + equipmentStats.damagePercent / 100) * 0.4;
+        spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
+        for (const enemy of world.enemies) {
+          if (distance(player.x, player.y, enemy.x, enemy.y) < 72) {
+            enemy.hp -= riftDamage;
+          }
+        }
+      }
       player.moving = player.dashTime > 0 || rawMoveLength > 0;
       if (player.moving) {
         player.facing = directionRow(dx, dy, player.facing);
@@ -2221,12 +3935,7 @@ export default function GameCanvas() {
           return;
         }
       }
-      const minX = doorOpen && inHorizontalDoor ? ROOM_GEOMETRY.openInsetX : ROOM_GEOMETRY.left;
-      const maxX = doorOpen && inHorizontalDoor ? WIDTH - ROOM_GEOMETRY.openInsetX : ROOM_GEOMETRY.right;
-      const minY = doorOpen && inVerticalDoor ? ROOM_GEOMETRY.openInsetY : ROOM_GEOMETRY.top;
-      const maxY = doorOpen && inVerticalDoor ? HEIGHT - ROOM_GEOMETRY.openInsetY : ROOM_GEOMETRY.bottom;
-      player.x = clamp(player.x, minX, maxX);
-      player.y = clamp(player.y, minY, maxY);
+      constrainPlayerToWalkableFloor(player, doorOpen);
 
       if (player.fireCooldown <= 0) firePlayerWeapon();
 
@@ -2235,25 +3944,191 @@ export default function GameCanvas() {
         enemy.slow = Math.max(0, enemy.slow - dt);
         enemy.orbitalCooldown = Math.max(0, enemy.orbitalCooldown - dt);
         enemy.shootCooldown -= dt;
+        if (enemy.patternTimer !== undefined) enemy.patternTimer -= dt;
         if (enemy.poisonTime > 0) {
           enemy.poisonTime -= dt;
           enemy.hp -= enemy.poisonDamage * dt;
         }
         const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         const d = distance(player.x, player.y, enemy.x, enemy.y);
-        let movement = 1;
-        if (enemy.kind === 1 && d < 280) movement = -0.32;
-        if (enemy.kind === 3) movement = 0.22;
-        if (enemy.slow > 0) movement *= 0.58;
-        const enemyMoveX = Math.cos(angle) * movement;
-        const enemyMoveY = Math.sin(angle) * movement;
-        enemy.x += enemyMoveX * enemy.speed * dt;
-        enemy.y += enemyMoveY * enemy.speed * dt;
-        enemy.moving = Math.abs(movement) > 0.01;
-        if (enemy.moving) {
+        if (enemy.kind === 6) {
+          const phase = enemy.patternPhase ?? "stalk";
+          if (phase === "stalk") {
+            const approach = d > 355 ? 0.72 : d < 235 ? -0.42 : 0.08;
+            const strafe = Math.sin(now / 620 + enemy.id) * 0.34;
+            let enemyMoveX = Math.cos(angle) * approach + Math.cos(angle + Math.PI / 2) * strafe;
+            let enemyMoveY = Math.sin(angle) * approach + Math.sin(angle + Math.PI / 2) * strafe;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5.8 + enemy.speed / 42) * slowMultiplier) % 4;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const prediction = player.dashTime > 0 ? 190 : rawMoveLength > 0 ? 125 : 24;
+              const predictedX = clamp(player.x + dx * prediction, 96, WIDTH - 96);
+              const predictedY = clamp(player.y + dy * prediction, 92, HEIGHT - 92);
+              const chargeAngle = Math.atan2(predictedY - enemy.y, predictedX - enemy.x);
+              enemy.patternX = Math.cos(chargeAngle);
+              enemy.patternY = Math.sin(chargeAngle);
+              enemy.patternPhase = "windup";
+              enemy.patternTimer = 0.82;
+              enemy.patternHit = false;
+              enemy.facing = directionRow(enemy.patternX, enemy.patternY, enemy.facing);
+            }
+          } else if (phase === "windup") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "charge";
+              enemy.patternTimer = 0.48;
+            }
+          } else if (phase === "charge") {
+            const previousEnemyX = enemy.x;
+            const previousEnemyY = enemy.y;
+            const chargeSpeed = enemy.elite ? 760 : 680;
+            enemy.x += (enemy.patternX ?? 0) * chargeSpeed * dt;
+            enemy.y += (enemy.patternY ?? 1) * chargeSpeed * dt;
+            enemy.moving = true;
+            enemy.walkCycle = (enemy.walkCycle + dt * 15) % 4;
+            enemy.facing = directionRow(
+              enemy.patternX ?? 0,
+              enemy.patternY ?? 1,
+              enemy.facing,
+            );
+            if (
+              !enemy.patternHit &&
+              distanceToSegment(
+                player.x,
+                player.y,
+                previousEnemyX,
+                previousEnemyY,
+                enemy.x,
+                enemy.y,
+              ) <
+                player.radius + enemy.radius * 0.75
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage * 1.45);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "recover";
+              enemy.patternTimer = 0.88;
+            }
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "stalk";
+              enemy.patternTimer = 1.35 + hash(world.seed, enemy.id, player.rooms, 6607) * 0.9;
+              enemy.patternHit = false;
+            }
+          }
+        } else if (enemy.kind === 7) {
+          const phase = enemy.patternPhase ?? "orbit";
+          const preferredDistance = 320;
+          const radialCorrection = clamp((d - preferredDistance) / 135, -0.62, 0.62);
+          const strafeDirection = enemy.patternX ?? 1;
+          const strafeStrength = phase === "riftWindup" ? 0.58 : 0.78;
+          let enemyMoveX =
+            Math.cos(angle) * radialCorrection +
+            Math.cos(angle + Math.PI / 2) * strafeDirection * strafeStrength;
+          let enemyMoveY =
+            Math.sin(angle) * radialCorrection +
+            Math.sin(angle + Math.PI / 2) * strafeDirection * strafeStrength;
+          const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+          enemyMoveX /= moveMagnitude;
+          enemyMoveY /= moveMagnitude;
+          const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+          enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+          enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+          enemy.moving = true;
           enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
           enemy.walkCycle =
-            (enemy.walkCycle + dt * (5.4 + enemy.speed / 38) * Math.abs(movement)) % 4;
+            (enemy.walkCycle + dt * (5.6 + enemy.speed / 40) * slowMultiplier) % 4;
+
+          if (phase === "orbit" && (enemy.patternTimer ?? 0) <= 0) {
+            enemy.timeRifts = Array.from({ length: 3 }, (_, index) => {
+              const delay = index * TIME_RIFT_SEQUENCE_GAP;
+              const predictionDistance =
+                rawMoveLength > 0 || player.dashTime > 0
+                  ? Math.min(225, speed * (0.42 + index * 0.2))
+                  : 0;
+              return {
+                x: clamp(player.x + dx * predictionDistance, 96, WIDTH - 96),
+                y: clamp(player.y + dy * predictionDistance, 92, HEIGHT - 92),
+                delay,
+                timer: TIME_RIFT_WARNING_SECONDS,
+                telegraphed: false,
+                triggered: false,
+              };
+            });
+            enemy.patternPhase = "riftWindup";
+            enemy.patternTimer =
+              TIME_RIFT_WARNING_SECONDS + TIME_RIFT_SEQUENCE_GAP * 2;
+          }
+
+          const timeRifts = enemy.timeRifts ?? [];
+          for (const rift of timeRifts) {
+            if (rift.triggered) continue;
+            rift.delay = Math.max(0, rift.delay - dt);
+            if (!rift.telegraphed && rift.delay <= 0) {
+              rift.telegraphed = true;
+              spawnCombatEffect(
+                "timeRiftTelegraph",
+                rift.x,
+                rift.y,
+                TIME_RIFT_WARNING_SECONDS,
+                TIME_RIFT_RADIUS * 2,
+                "#63f7ff",
+              );
+            } else if (rift.telegraphed) {
+              rift.timer -= dt;
+              if (rift.timer <= 0) {
+                rift.triggered = true;
+                spawnCombatEffect(
+                  "timeRiftBurst",
+                  rift.x,
+                  rift.y,
+                  0.52,
+                  TIME_RIFT_RADIUS * 2.7,
+                  "#f05bff",
+                );
+                if (
+                  distance(player.x, player.y, rift.x, rift.y) <
+                  TIME_RIFT_RADIUS + player.radius
+                ) {
+                  damagePlayer(enemy.damage * (enemy.elite ? 1.42 : 1.24));
+                }
+              }
+            }
+          }
+          if (timeRifts.length === 3 && timeRifts.every((rift) => rift.triggered)) {
+            enemy.timeRifts = [];
+            enemy.patternPhase = "orbit";
+            enemy.patternTimer =
+              2.25 + hash(world.seed, enemy.id, player.rooms, player.kills + 7707) * 1.35;
+            enemy.patternX = -(enemy.patternX ?? 1);
+          }
+        } else {
+          let movement = 1;
+          if (enemy.kind === 1 && d < 280) movement = -0.32;
+          if (enemy.kind === 3) movement = 0.22;
+          if (enemy.slow > 0) movement *= 0.58;
+          const enemyMoveX = Math.cos(angle) * movement;
+          const enemyMoveY = Math.sin(angle) * movement;
+          enemy.x += enemyMoveX * enemy.speed * dt;
+          enemy.y += enemyMoveY * enemy.speed * dt;
+          enemy.moving = Math.abs(movement) > 0.01;
+          if (enemy.moving) {
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5.4 + enemy.speed / 38) * Math.abs(movement)) % 4;
+          }
         }
         enemy.x = clamp(enemy.x, 82, WIDTH - 82);
         enemy.y = clamp(enemy.y, 78, HEIGHT - 78);
@@ -2296,7 +4171,9 @@ export default function GameCanvas() {
           }
           enemy.shootCooldown = 1.75 - (1 - phase) * 0.6;
         }
-        if (d < player.radius + enemy.radius * 0.72) damagePlayer(enemy.damage);
+        if (enemy.kind !== 6 && enemy.kind !== 7 && d < player.radius + enemy.radius * 0.72) {
+          damagePlayer(enemy.damage);
+        }
       }
 
       const orbitRank = powerRankOf(player, "orbit");
@@ -2444,6 +4321,8 @@ export default function GameCanvas() {
             const giantbaneRank = powerRankOf(player, "giantbane");
             if (enemy.elite || enemy.kind === 5) {
               hitDamage *= Math.pow(1 + giantbaneRank * 0.15, 0.65);
+              hitDamage *= 1 + equipmentStats.eliteDamagePercent / 100;
+              if (hasLegendaryPower(player, "hunterSigil")) hitDamage *= 1.18;
             }
             const executionRank = powerRankOf(player, "execution");
             const executionThreshold = Math.min(0.4, 0.12 + executionRank * 0.012);
@@ -2456,6 +4335,10 @@ export default function GameCanvas() {
                 (1 + (finalSentence?.tier ?? 0) * 0.12);
             }
             enemy.hp -= hitDamage;
+            if (equipmentStats.lifeOnHitFlat > 0 && player.hp < player.maxHp) {
+              const lifeOnHit = Math.min(1.5, equipmentStats.lifeOnHitFlat * 0.08);
+              player.hp = Math.min(player.maxHp, player.hp + lifeOnHit);
+            }
             spawnCombatEffect(
               "playerImpact",
               projectile.x,
@@ -2569,7 +4452,14 @@ export default function GameCanvas() {
       for (const enemy of dead) killEnemy(enemy);
       world.enemies = world.enemies.filter((enemy) => enemy.hp > 0);
 
-      const pickupRange = 38 + powerRankOf(player, "magnet") * 42;
+      const collectionRangeMultiplier = simpleAugmentMultiplier(
+        powerRankOf(player, "collection"),
+        SIMPLE_AUGMENT_BONUSES.collectionPickupRangePerRank,
+      );
+      const pickupRange =
+        (38 + powerRankOf(player, "magnet") * 42) *
+        (1 + equipmentStats.pickupRadiusPercent / 100) *
+        collectionRangeMultiplier;
       for (const orb of world.orbs) {
         const d = distance(orb.x, orb.y, player.x, player.y);
         if (d < pickupRange * 2.4) {
@@ -2581,9 +4471,119 @@ export default function GameCanvas() {
         if (d < player.radius + 15) {
           orb.value *= -1;
           gainXp(Math.abs(orb.value));
+          player.memoryPickupCounter += 1;
+          if (
+            hasLegendaryPower(player, "commaResonance") &&
+            player.memoryPickupCounter % 8 === 0
+          ) {
+            const resonanceDamage =
+              12 * (1 + equipmentStats.damagePercent / 100) * 0.75;
+            spawnCombatEffect("muzzle", player.x, player.y, 0.46, 78, "#f0b86e");
+            const resonanceSpeed =
+              520 *
+              simpleAugmentMultiplier(
+                powerRankOf(player, "velocity"),
+                SIMPLE_AUGMENT_BONUSES.velocityProjectileSpeedPerRank,
+              );
+            const resonanceLife =
+              1.05 *
+              simpleAugmentMultiplier(
+                powerRankOf(player, "range"),
+                SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
+              );
+            const resonanceSize =
+              6 *
+              (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
+              simpleAugmentMultiplier(
+                powerRankOf(player, "expansion"),
+                SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
+              );
+            for (let index = 0; index < 8; index += 1) {
+              const angle = (Math.PI * 2 * index) / 8;
+              world.projectiles.push({
+                id: idRef.current++,
+                x: player.x,
+                y: player.y,
+                vx: Math.cos(angle) * resonanceSpeed,
+                vy: Math.sin(angle) * resonanceSpeed,
+                radius: resonanceSize,
+                damage: resonanceDamage,
+                life: resonanceLife,
+                pierce: 1,
+                hostile: false,
+                color: "#f0b86e",
+                affinity: "echo",
+                age: 0,
+                maxLife: resonanceLife,
+                previousX: player.x,
+                previousY: player.y,
+                hit: new Set<number>(),
+              });
+            }
+          }
         }
       }
       world.orbs = world.orbs.filter((orb) => orb.value > 0);
+      const collectedGear = new Set<number>();
+      let autoSalvagedGearCount = 0;
+      let autoSalvagedGearAsh = 0;
+      let lastKeptGear: GearItem | null = null;
+      const gearPickupRange =
+        44 *
+        (1 + equipmentStats.pickupRadiusPercent / 100) *
+        collectionRangeMultiplier;
+      for (const drop of world.gearDrops) {
+        if (drop.pickupDelay > 0) continue;
+        if (distance(drop.x, drop.y, player.x, player.y) > gearPickupRange) continue;
+        if (
+          shouldAutoSalvageRarity(
+            drop.item.rarity,
+            player.autoSalvageMaxRarity,
+          )
+        ) {
+          const ashBreakdown = getGearSalvageAshBreakdown(drop.item);
+          player.memoryAsh += ashBreakdown.total;
+          autoSalvagedGearCount += 1;
+          autoSalvagedGearAsh += ashBreakdown.total;
+          collectedGear.add(drop.id);
+          continue;
+        }
+        if (player.inventory.length >= inventoryCapacityRef.current) {
+          if (performance.now() - inventoryFullToastRef.current > 2200) {
+            inventoryFullToastRef.current = performance.now();
+            setToast("가방이 가득 찼습니다 · I에서 장비를 장착하거나 분해하세요.");
+          }
+          continue;
+        }
+        player.inventory.push(cloneGearItem(drop.item));
+        collectedGear.add(drop.id);
+        if (drop.item.rarity === "mythic" || drop.item.rarity === "cosmic") {
+          getRealtimeClient().announceLoot({
+            acquisitionId: `${getRealtimeDeviceId()}:${Date.now()}:${drop.id}:${crypto.randomUUID()}`,
+            itemName: drop.item.displayName,
+            rarity: drop.item.rarity,
+            itemLevel: drop.item.level,
+            enhancement: drop.item.enhancement,
+          });
+        }
+        lastKeptGear = drop.item;
+        setSelectedGearId(drop.item.id);
+        setLootNotice(cloneGearItem(drop.item));
+        setToast(
+          `${GEAR_RARITY_META[drop.item.rarity].label} 획득 · ${drop.item.displayName} (I 장비)`,
+        );
+      }
+      if (collectedGear.size > 0) {
+        world.gearDrops = world.gearDrops.filter((drop) => !collectedGear.has(drop.id));
+      }
+      if (autoSalvagedGearCount > 0) {
+        const keptPrefix = lastKeptGear
+          ? `${GEAR_RARITY_META[lastKeptGear.rarity].label} 장비 획득 · `
+          : "";
+        setToast(
+          `${keptPrefix}자동 분해 ${autoSalvagedGearCount}개 → 기억의 재 ${autoSalvagedGearAsh.toLocaleString("ko-KR")}개`,
+        );
+      }
       if (!world.roomCleared && world.enemies.length === 0) completeRoom();
     };
 
@@ -2682,8 +4682,246 @@ export default function GameCanvas() {
       return true;
     };
 
+    const drawLootAwakening = (
+      image: HTMLImageElement | undefined,
+      effect: VisualEffect,
+      clock: number,
+    ) => {
+      if (
+        effect.kind !== "lootAwakening" ||
+        !image?.complete ||
+        !image.naturalWidth ||
+        !image.naturalHeight
+      ) {
+        return false;
+      }
+      const progress = clamp(1 - effect.life / effect.duration, 0, 0.999);
+      const frameIndex = clamp(Math.floor(progress * 8), 0, 7);
+      const sourceWidth = image.naturalWidth / 4;
+      const sourceHeight = image.naturalHeight / 2;
+      const column = frameIndex % 4;
+      const row = Math.floor(frameIndex / 4);
+      const color = effect.color ?? "#e7c65b";
+      const rarity = effect.rarity ?? "common";
+      const tier = EQUIPMENT_RARITY_TIER[rarity];
+      const config = EQUIPMENT_RARITY_VFX[rarity];
+      const fadeIn = clamp(progress / 0.1, 0, 1);
+      const fadeOut = clamp((1 - progress) / 0.28, 0, 1);
+      const alpha = fadeIn * fadeOut;
+      const shockwaveRadius = effect.size * (0.12 + progress * 0.52);
+
+      context.save();
+      context.globalCompositeOperation = "lighter";
+      context.translate(effect.x, effect.y + 5);
+      context.globalAlpha = alpha * (0.34 + tier * 0.08);
+      context.strokeStyle = color;
+      context.shadowColor = color;
+      context.shadowBlur = 16 + tier * 5;
+      context.lineWidth = Math.max(1.5, 4.2 - progress * 2.5 + tier * 0.45);
+      context.beginPath();
+      context.ellipse(0, 0, shockwaveRadius, shockwaveRadius * 0.36, 0, 0, Math.PI * 2);
+      context.stroke();
+
+      context.save();
+      context.globalAlpha = alpha * (0.2 + tier * 0.035);
+      context.rotate(
+        config.spinDirection * (progress * 0.82 + clock * 0.08) + effect.id * 0.07,
+      );
+      context.beginPath();
+      const spiralPattern =
+        config.arrivalPattern === "reverseVortex" ||
+        config.arrivalPattern === "nebulaCollapse";
+      const starPattern =
+        config.arrivalPattern === "compassBloom" ||
+        config.arrivalPattern === "solarCoronation" ||
+        config.arrivalPattern === "mythicCoronation" ||
+        config.arrivalPattern === "nebulaCollapse";
+      const accentPointCount = spiralPattern
+        ? config.accentSides * 2
+        : config.accentSides;
+      for (let point = 0; point < accentPointCount; point += 1) {
+        const pointProgress = point / Math.max(1, accentPointCount - 1);
+        const angle = (Math.PI * 2 * point) / config.accentSides - Math.PI / 2;
+        const radius = spiralPattern
+          ? shockwaveRadius * (0.28 + pointProgress * 0.72)
+          : shockwaveRadius * (starPattern && point % 2 ? 0.58 : 0.94);
+        const pointX = Math.cos(angle) * radius;
+        const pointY = Math.sin(angle) * radius * 0.36;
+        if (point === 0) context.moveTo(pointX, pointY);
+        else context.lineTo(pointX, pointY);
+      }
+      if (!spiralPattern) context.closePath();
+      context.stroke();
+      context.restore();
+
+      const rayCount = config.rayCount;
+      context.globalAlpha = alpha * 0.68;
+      context.fillStyle = colorWithAlpha("#fff8dc", 0.92);
+      for (let ray = 0; ray < rayCount; ray += 1) {
+        const angle =
+          (Math.PI * 2 * ray) / rayCount +
+          effect.id * 0.31 +
+          progress * config.spinDirection * 0.54;
+        const length = effect.size * (0.24 + progress * (0.3 + (ray % 3) * 0.035));
+        context.save();
+        context.rotate(angle);
+        context.beginPath();
+        context.moveTo(effect.size * 0.09, 0);
+        context.lineTo(length, 1.4 + tier * 0.3);
+        context.lineTo(length * 0.76, -1.4 - tier * 0.3);
+        context.closePath();
+        context.fill();
+        context.restore();
+      }
+
+      const moteCount = config.moteCount;
+      for (let mote = 0; mote < moteCount; mote += 1) {
+        const phase = positiveModulo(progress * (1.3 + (mote % 3) * 0.12) + mote * 0.173, 1);
+        const orbitOffset =
+          spiralPattern
+            ? Math.sin(phase * Math.PI * 2 + mote) *
+              effect.size *
+              0.13 *
+              config.spinDirection
+            : 0;
+        const spread =
+          (hash(effect.id, mote, tier, 771) - 0.5) * effect.size * 0.54 +
+          orbitOffset;
+        const rise = phase * effect.size * (0.55 + tier * 0.06);
+        const moteSize = 1.8 + (mote % 3) * 0.8 + tier * 0.25;
+        context.globalAlpha = (1 - phase) * alpha * 0.86;
+        context.save();
+        context.translate(spread, -rise);
+        context.rotate(clock * 1.8 + mote);
+        context.fillRect(-moteSize / 2, -moteSize / 2, moteSize, moteSize);
+        context.restore();
+      }
+      context.restore();
+
+      context.save();
+      context.globalAlpha = alpha;
+      context.globalCompositeOperation = "lighter";
+      context.imageSmoothingEnabled = true;
+      context.drawImage(
+        image,
+        column * sourceWidth,
+        row * sourceHeight,
+        sourceWidth,
+        sourceHeight,
+        effect.x - effect.size / 2,
+        effect.y - effect.size * 0.72,
+        effect.size,
+        effect.size,
+      );
+      context.restore();
+      return true;
+    };
+
+    const drawProofreaderTelegraph = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+      charge: number,
+    ) => {
+      if (!image?.complete || !image.naturalWidth || !image.naturalHeight) {
+        return false;
+      }
+      const directionX = enemy.patternX ?? 0;
+      const directionY = enemy.patternY ?? 1;
+      const frameIndex = clamp(Math.floor(clamp(charge, 0, 0.999) * 6), 0, 5);
+      const sourceWidth = image.naturalWidth / 3;
+      const sourceHeight = image.naturalHeight / 2;
+      const column = frameIndex % 3;
+      const row = Math.floor(frameIndex / 3);
+      context.save();
+      context.translate(enemy.x, enemy.y + 8);
+      context.rotate(Math.atan2(directionY, directionX));
+      context.globalCompositeOperation = "lighter";
+      context.globalAlpha = 0.52 + charge * 0.4;
+      context.shadowColor = "#e62633";
+      context.shadowBlur = 7 + charge * 12;
+      context.imageSmoothingEnabled = true;
+      context.drawImage(
+        image,
+        column * sourceWidth,
+        row * sourceHeight,
+        sourceWidth,
+        sourceHeight,
+        -112,
+        -72,
+        920,
+        144,
+      );
+      context.restore();
+      return true;
+    };
+
+    const drawTimeRiftSprite = (
+      image: HTMLImageElement | undefined,
+      effect: VisualEffect,
+      variant: "warning" | "burst",
+    ) => {
+      if (!image?.complete || !image.naturalWidth || !image.naturalHeight) {
+        return false;
+      }
+      const progress = clamp(1 - effect.life / effect.duration, 0, 0.999);
+      const frameIndex = clamp(Math.floor(progress * 4), 0, 3);
+      const sourceCellWidth = image.naturalWidth / TIME_RIFT_SPRITE_GRID;
+      const sourceCellHeight = image.naturalHeight / TIME_RIFT_SPRITE_GRID;
+      const column = frameIndex % TIME_RIFT_SPRITE_GRID;
+      const row = Math.floor(frameIndex / TIME_RIFT_SPRITE_GRID);
+      const sourceInset = Math.ceil(
+        Math.min(sourceCellWidth, sourceCellHeight) * TIME_RIFT_SOURCE_INSET_RATIO,
+      );
+
+      // The generated peak burst deliberately extends its vertical tear across the
+      // atlas seam. Pull that tip back into frame 3 while every other frame uses a
+      // guarded crop, so adjacent animation cells can never leak into one another.
+      const restoresPeakBurst = variant === "burst" && frameIndex === 2;
+      const sourceX = column * sourceCellWidth + sourceInset;
+      const sourceY =
+        row === 0
+          ? row * sourceCellHeight + sourceInset
+          : row * sourceCellHeight - sourceInset;
+      const sourceWidth = sourceCellWidth - sourceInset * 2;
+      const sourceHeight = restoresPeakBurst
+        ? sourceCellHeight
+        : sourceCellHeight - sourceInset * 2;
+      const drawSize =
+        variant === "warning" ? effect.size * 1.22 : effect.size * 1.16;
+      const fadeOut =
+        variant === "warning" ? 1 : clamp((1 - progress) / 0.18, 0, 1);
+
+      context.save();
+      context.globalCompositeOperation = variant === "warning" ? "source-over" : "screen";
+      context.globalAlpha =
+        (variant === "warning" ? 0.56 + progress * 0.42 : 0.96) * fadeOut;
+      context.shadowColor = variant === "warning" ? "#63f7ff" : "#f05bff";
+      context.shadowBlur =
+        variant === "warning" ? 7 + progress * 9 : 14 + (1 - progress) * 14;
+      context.imageSmoothingEnabled = true;
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        effect.x - drawSize / 2,
+        effect.y - drawSize / 2,
+        drawSize,
+        drawSize,
+      );
+      context.restore();
+      return true;
+    };
+
     const drawCombatEffect = (effect: VisualEffect, clock: number) => {
-      if (effect.kind === "summon" || effect.kind === "teleport") return false;
+      if (
+        effect.kind === "summon" ||
+        effect.kind === "teleport" ||
+        effect.kind === "lootAwakening"
+      ) {
+        return false;
+      }
       const progress = clamp(1 - effect.life / effect.duration, 0, 1);
       const fade = Math.sin(progress * Math.PI);
       const color = effect.color ?? "#ffffff";
@@ -2719,6 +4957,100 @@ export default function GameCanvas() {
         traceArc(effect.size * 0.75, colorWithAlpha(color, 0.72), 0.72);
         context.globalAlpha = fade;
         traceArc(Math.max(1.2, effect.size * 0.16), "rgba(245,242,255,.96)", 0.62);
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "timeRiftTelegraph") {
+        const warningRadius = effect.size / 2;
+        const urgency = clamp(progress, 0, 1);
+        const pulse = 1 + Math.sin(clock * 12 + effect.id) * (0.02 + urgency * 0.035);
+        const spriteDrawn = drawTimeRiftSprite(
+          imagesRef.current.timeRiftWarning,
+          effect,
+          "warning",
+        );
+        context.translate(effect.x, effect.y);
+        context.globalCompositeOperation = "source-over";
+        context.fillStyle = `rgba(16, 8, 38, ${spriteDrawn ? 0.08 + urgency * 0.06 : 0.2 + urgency * 0.14})`;
+        context.beginPath();
+        context.arc(0, 0, spriteDrawn ? warningRadius : warningRadius * pulse, 0, Math.PI * 2);
+        context.fill();
+        context.globalCompositeOperation = "lighter";
+        context.shadowColor = "#63f7ff";
+        context.shadowBlur = 8 + urgency * 12;
+        context.strokeStyle = `rgba(99, 247, 255, ${0.66 + urgency * 0.3})`;
+        context.lineWidth = spriteDrawn ? 1.6 + urgency * 1.4 : 2.2 + urgency * 1.8;
+        context.beginPath();
+        context.arc(0, 0, spriteDrawn ? warningRadius : warningRadius * pulse, 0, Math.PI * 2);
+        context.stroke();
+        if (spriteDrawn) {
+          context.restore();
+          return true;
+        }
+        context.strokeStyle = `rgba(240, 91, 255, ${0.5 + urgency * 0.42})`;
+        context.lineWidth = 1.4 + urgency;
+        context.beginPath();
+        context.arc(
+          0,
+          0,
+          warningRadius * (0.64 + urgency * 0.12),
+          clock * 0.9,
+          clock * 0.9 + Math.PI * 1.45,
+        );
+        context.stroke();
+        for (let rune = 0; rune < 8; rune += 1) {
+          const runeAngle = (Math.PI * 2 * rune) / 8 - clock * 0.34;
+          const runeDistance = warningRadius * 0.79;
+          const runeSize = 4 + urgency * 2.2;
+          context.save();
+          context.translate(
+            Math.cos(runeAngle) * runeDistance,
+            Math.sin(runeAngle) * runeDistance,
+          );
+          context.rotate(runeAngle + Math.PI / 4);
+          context.strokeRect(-runeSize / 2, -runeSize / 2, runeSize, runeSize);
+          context.restore();
+        }
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "timeRiftBurst") {
+        if (
+          drawTimeRiftSprite(imagesRef.current.timeRiftBurst, effect, "burst")
+        ) {
+          context.restore();
+          return true;
+        }
+        const burstAlpha = Math.pow(1 - progress, 1.25);
+        const burstRadius = effect.size * (0.18 + progress * 0.5);
+        context.translate(effect.x, effect.y);
+        context.globalCompositeOperation = "lighter";
+        const burst = context.createRadialGradient(0, 0, 0, 0, 0, burstRadius);
+        burst.addColorStop(0, `rgba(255, 255, 255, ${burstAlpha})`);
+        burst.addColorStop(0.22, `rgba(99, 247, 255, ${burstAlpha * 0.94})`);
+        burst.addColorStop(0.58, `rgba(240, 91, 255, ${burstAlpha * 0.68})`);
+        burst.addColorStop(1, "rgba(240, 91, 255, 0)");
+        context.fillStyle = burst;
+        context.beginPath();
+        context.arc(0, 0, burstRadius, 0, Math.PI * 2);
+        context.fill();
+        context.globalAlpha = burstAlpha;
+        context.shadowColor = "#f05bff";
+        context.shadowBlur = 24;
+        for (let ray = 0; ray < 12; ray += 1) {
+          const rayAngle = (Math.PI * 2 * ray) / 12 + effect.id * 0.41;
+          context.save();
+          context.rotate(rayAngle);
+          context.strokeStyle = ray % 2 === 0 ? "#63f7ff" : "#f05bff";
+          context.lineWidth = ray % 2 === 0 ? 3 : 2;
+          context.beginPath();
+          context.moveTo(burstRadius * 0.18, 0);
+          context.lineTo(burstRadius * (0.82 + (ray % 3) * 0.09), 0);
+          context.stroke();
+          context.restore();
+        }
         context.restore();
         return true;
       }
@@ -3162,12 +5494,245 @@ export default function GameCanvas() {
         context.fill();
       }
 
+      for (const effect of world.effects) {
+        if (effect.kind === "lootAwakening") {
+          const config = EQUIPMENT_RARITY_VFX[effect.rarity ?? "common"];
+          drawLootAwakening(
+            images[config.imageKey],
+            effect,
+            ambientTime,
+          );
+        }
+      }
+
+      for (const drop of world.gearDrops) {
+        const rarity = GEAR_RARITY_META[drop.item.rarity];
+        const rarityTier = EQUIPMENT_RARITY_TIER[drop.item.rarity];
+        const rarityVfx = EQUIPMENT_RARITY_VFX[drop.item.rarity];
+        const bob = Math.sin(ambientTime * 2.8 + drop.id * 0.61) * 3;
+        const appearanceProgress = clamp(
+          (drop.appearanceAge ?? rarityVfx.awakeningDuration) /
+            rarityVfx.awakeningDuration,
+          0,
+          1,
+        );
+        const beamRevealRaw = clamp(
+          (appearanceProgress - rarityVfx.beamRevealAt) /
+            Math.max(0.08, 1 - rarityVfx.beamRevealAt),
+          0,
+          1,
+        );
+        const itemRevealRaw = clamp(
+          (appearanceProgress - rarityVfx.itemRevealAt) / 0.2,
+          0,
+          1,
+        );
+        const beamReveal =
+          beamRevealRaw * beamRevealRaw * (3 - 2 * beamRevealRaw);
+        const itemReveal =
+          itemRevealRaw * itemRevealRaw * (3 - 2 * itemRevealRaw);
+        context.save();
+        if (beamReveal > 0.001) {
+          const { beamHeight, beamWidth } = rarityVfx;
+          const beam = context.createLinearGradient(
+            drop.x,
+            drop.y - beamHeight,
+            drop.x,
+            drop.y + 12,
+          );
+          beam.addColorStop(0, colorWithAlpha(rarity.color, 0));
+          beam.addColorStop(
+            0.5,
+            colorWithAlpha(rarity.color, 0.13 + rarityTier * 0.035),
+          );
+          beam.addColorStop(
+            0.82,
+            colorWithAlpha(rarity.color, 0.3 + rarityTier * 0.06),
+          );
+          beam.addColorStop(1, colorWithAlpha(rarity.color, 0.72));
+          context.globalAlpha = beamReveal;
+          context.globalCompositeOperation = "lighter";
+          context.fillStyle = beam;
+          context.beginPath();
+          context.moveTo(drop.x - beamWidth, drop.y + 10);
+          context.lineTo(drop.x - beamWidth * 0.18, drop.y - beamHeight);
+          context.lineTo(drop.x + beamWidth * 0.18, drop.y - beamHeight);
+          context.lineTo(drop.x + beamWidth, drop.y + 10);
+          context.closePath();
+          context.fill();
+
+          const core = context.createLinearGradient(
+            drop.x,
+            drop.y - beamHeight,
+            drop.x,
+            drop.y + 8,
+          );
+          core.addColorStop(0, "rgba(255,255,255,0)");
+          core.addColorStop(
+            0.72,
+            colorWithAlpha("#fffdf2", 0.12 + rarityTier * 0.045),
+          );
+          core.addColorStop(1, colorWithAlpha("#fffdf2", 0.64));
+          context.fillStyle = core;
+          context.fillRect(
+            drop.x - Math.max(1, beamWidth * 0.13),
+            drop.y - beamHeight,
+            Math.max(2, beamWidth * 0.26),
+            beamHeight + 8,
+          );
+
+          context.beginPath();
+          context.fillStyle = colorWithAlpha(rarity.color, 0.18);
+          context.ellipse(
+            drop.x,
+            drop.y + 8,
+            26 + rarityTier * 5,
+            11 + rarityTier * 2,
+            0,
+            0,
+            Math.PI * 2,
+          );
+          context.fill();
+
+          if (rarityTier >= 2) {
+            context.strokeStyle = colorWithAlpha(rarity.color, 0.58);
+            context.lineWidth = 1.2 + rarityTier * 0.35;
+            context.shadowColor = rarity.color;
+            context.shadowBlur = 10 + rarityTier * 3;
+            const runePulse =
+              1 + Math.sin(ambientTime * 2.4 + drop.id) * 0.08;
+            context.beginPath();
+            context.ellipse(
+              drop.x,
+              drop.y + 9,
+              (32 + rarityTier * 5) * runePulse,
+              (13 + rarityTier * 2) * runePulse,
+              0,
+              0,
+              Math.PI * 2,
+            );
+            context.stroke();
+            if (rarityTier >= 5) {
+              context.beginPath();
+              context.ellipse(
+                drop.x,
+                drop.y + 9,
+                (43 + Math.sin(ambientTime * 3.2 + drop.id) * 3) *
+                  runePulse,
+                18 * runePulse,
+                0,
+                0,
+                Math.PI * 2,
+              );
+              context.stroke();
+              if (rarityTier >= 6) {
+                context.save();
+                context.globalAlpha =
+                  beamReveal *
+                  (0.72 + Math.sin(ambientTime * 4 + drop.id) * 0.18);
+                context.translate(drop.x, drop.y + 9);
+                context.rotate(ambientTime * 0.45);
+                context.beginPath();
+                context.moveTo(0, -16);
+                context.lineTo(34, 0);
+                context.lineTo(0, 16);
+                context.lineTo(-34, 0);
+                context.closePath();
+                context.stroke();
+                if (rarityTier === EQUIPMENT_RARITY_TIER.cosmic) {
+                  context.rotate(-ambientTime * 1.08);
+                  context.beginPath();
+                  for (let point = 0; point < 16; point += 1) {
+                    const angle = (Math.PI * point) / 8 - Math.PI / 2;
+                    const radius = point % 2 === 0 ? 52 : 34;
+                    const pointX = Math.cos(angle) * radius;
+                    const pointY = Math.sin(angle) * radius * 0.42;
+                    if (point === 0) context.moveTo(pointX, pointY);
+                    else context.lineTo(pointX, pointY);
+                  }
+                  context.closePath();
+                  context.stroke();
+                }
+                context.restore();
+              }
+            }
+          }
+
+          context.fillStyle = colorWithAlpha("#fff8db", 0.88);
+          const beamMotes = 3 + rarityTier * 2;
+          for (let mote = 0; mote < beamMotes; mote += 1) {
+            const phase = positiveModulo(
+              ambientTime * (0.42 + (mote % 3) * 0.08) +
+                drop.id * 0.07 +
+                mote * 0.19,
+              1,
+            );
+            const moteX =
+              drop.x +
+              (hash(drop.id, mote, rarityTier, 981) - 0.5) *
+                (24 + rarityTier * 7);
+            const moteY = drop.y - phase * beamHeight * 0.88;
+            const moteSize = 1.4 + (mote % 3) * 0.7 + rarityTier * 0.2;
+            context.globalAlpha =
+              beamReveal *
+              (1 - phase) *
+              Math.min(0.96, 0.48 + rarityTier * 0.08);
+            context.save();
+            context.translate(moteX, moteY);
+            context.rotate(ambientTime * 1.2 + mote);
+            context.fillRect(
+              -moteSize / 2,
+              -moteSize / 2,
+              moteSize,
+              moteSize,
+            );
+            context.restore();
+          }
+        }
+        if (itemReveal > 0.001) {
+          context.globalAlpha = itemReveal;
+          const equipmentIcons = images.equipmentIcons;
+          if (equipmentIcons?.complete && equipmentIcons.naturalWidth) {
+            const { column, row } = gearIconCell(drop.item.iconIndex);
+            const sourceWidth = equipmentIcons.naturalWidth / GEAR_ICON_COLUMNS;
+            const sourceHeight = equipmentIcons.naturalHeight / GEAR_ICON_ROWS;
+            const baseDrawSize =
+              [46, 48, 50, 52, 55, 60, 66, 72][rarityTier];
+            const revealBounce =
+              Math.sin(itemReveal * Math.PI) * (0.07 + rarityTier * 0.006);
+            const drawSize =
+              baseDrawSize * (0.58 + itemReveal * 0.42 + revealBounce);
+            const riseOffset = rarityVfx.itemRisePx * (1 - itemReveal);
+            context.shadowColor = rarity.color;
+            context.shadowBlur =
+              [8, 10, 12, 15, 19, 28, 38, 52][rarityTier];
+            context.drawImage(
+              equipmentIcons,
+              column * sourceWidth,
+              row * sourceHeight,
+              sourceWidth,
+              sourceHeight,
+              drop.x - drawSize / 2,
+              drop.y - drawSize * 0.68 + bob + riseOffset,
+              drawSize,
+              drawSize,
+            );
+          }
+          context.globalAlpha = clamp((itemReveal - 0.35) / 0.65, 0, 1);
+          context.shadowBlur = 5;
+          context.font = "700 10px sans-serif";
+          context.textAlign = "center";
+          context.fillStyle = rarity.color;
+          const groundLabel =
+            drop.item.displayName.length > 19
+            ? `${drop.item.displayName.slice(0, 18)}…`
+            : drop.item.displayName;
+          context.fillText(groundLabel, drop.x, drop.y + 28);
+        }
+        context.restore();
+      }
+
       for (const orb of world.orbs) {
-        const pickupPulse = 0.82 + Math.sin(ambientTime * 4.2 + orb.id * 0.73) * 0.18;
-        context.beginPath();
-        context.fillStyle = `rgba(92,224,196,${0.1 + pickupPulse * 0.1})`;
-        context.arc(orb.x, orb.y + 3, 13 + pickupPulse * 5, 0, Math.PI * 2);
-        context.fill();
         const memoryFragments = images.memoryFragments;
         if (memoryFragments?.complete && memoryFragments.naturalWidth && memoryFragments.naturalHeight) {
           const rare = orb.value >= 45;
@@ -3194,11 +5759,6 @@ export default function GameCanvas() {
             drawSize,
           );
           context.restore();
-        } else {
-          context.beginPath();
-          context.fillStyle = "#78e3cd";
-          context.arc(orb.x, orb.y, 5, 0, Math.PI * 2);
-          context.fill();
         }
       }
 
@@ -3211,8 +5771,46 @@ export default function GameCanvas() {
         }
       }
 
+      // Predictive danger zones belong to the floor plane. Rendering them before
+      // enemies keeps silhouettes, health bars, and names readable at all times.
+      for (const effect of world.effects) {
+        if (effect.kind === "timeRiftTelegraph") {
+          drawCombatEffect(effect, ambientTime);
+        }
+      }
+
       for (const projectile of world.projectiles) {
         drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "trail");
+      }
+
+      for (const enemy of world.enemies) {
+        if (enemy.kind !== 6) continue;
+        const directionX = enemy.patternX ?? 0;
+        const directionY = enemy.patternY ?? 1;
+        if (enemy.patternPhase === "windup") {
+          const charge = 1 - clamp((enemy.patternTimer ?? 0) / 0.82, 0, 1);
+          drawProofreaderTelegraph(images.proofreaderTelegraph, enemy, charge);
+        } else if (enemy.patternPhase === "charge") {
+          const trail = context.createLinearGradient(
+            enemy.x - directionX * 130,
+            enemy.y - directionY * 130,
+            enemy.x,
+            enemy.y,
+          );
+          trail.addColorStop(0, "rgba(136,10,20,0)");
+          trail.addColorStop(1, "rgba(255,53,58,.75)");
+          context.save();
+          context.strokeStyle = trail;
+          context.lineWidth = 26;
+          context.lineCap = "round";
+          context.shadowColor = "#ff2637";
+          context.shadowBlur = 20;
+          context.beginPath();
+          context.moveTo(enemy.x - directionX * 130, enemy.y - directionY * 130);
+          context.lineTo(enemy.x, enemy.y);
+          context.stroke();
+          context.restore();
+        }
       }
 
       const sortedEnemies = [...world.enemies].sort((a, b) => a.y - b.y);
@@ -3221,10 +5819,13 @@ export default function GameCanvas() {
         context.fillStyle = "rgba(0,0,0,.52)";
         context.ellipse(enemy.x, enemy.y + enemy.radius * 0.7, enemy.radius, enemy.radius * 0.42, 0, 0, Math.PI * 2);
         context.fill();
-        const size = enemy.kind === 5 ? 185 : 72 + enemy.radius;
+        const size =
+          enemy.kind === 5 ? 185 : enemy.kind === 6 ? 112 : enemy.kind === 7 ? 118 : 72 + enemy.radius;
         const spriteAlpha = enemy.slow > 0 ? 0.78 : 1;
-        const walkWidth = enemy.kind === 5 ? 250 : size * 1.2;
-        const walkHeight = enemy.kind === 5 ? 225 : size * 1.25;
+        const walkWidth =
+          enemy.kind === 5 ? 250 : enemy.kind === 6 ? 192 : enemy.kind === 7 ? 132 : size * 1.2;
+        const walkHeight =
+          enemy.kind === 5 ? 225 : enemy.kind === 6 ? 144 : enemy.kind === 7 ? 152 : size * 1.25;
         const directionFrame =
           ENEMY_DIRECTION_FRAMES[enemy.kind][enemy.facing] ??
           ({ row: enemy.facing, flipX: false } satisfies DirectionFrame);
@@ -3238,34 +5839,46 @@ export default function GameCanvas() {
             walkWidth,
             walkHeight,
             spriteAlpha,
-            directionFrame.flipX,
+            enemy.kind === 7 ? false : directionFrame.flipX,
           ) ||
-          drawSprite(
-            images.sprites,
-            enemy.kind + 1,
-            enemy.x,
-            enemy.y + 12,
-            enemy.kind === 5 ? 205 : size,
-            enemy.kind === 5 ? 190 : size * 1.12,
-            spriteAlpha,
-          );
+          (enemy.kind <= 5
+            ? drawSprite(
+                images.sprites,
+                enemy.kind + 1,
+                enemy.x,
+                enemy.y + 12,
+                enemy.kind === 5 ? 205 : size,
+                enemy.kind === 5 ? 190 : size * 1.12,
+                spriteAlpha,
+              )
+            : false);
         if (!drawn) {
           context.beginPath();
-          context.fillStyle = enemy.kind === 5 ? "#812f36" : enemy.elite ? "#b55a3e" : "#746554";
+          context.fillStyle =
+            enemy.kind === 5
+              ? "#812f36"
+              : enemy.kind === 6
+                ? "#a72531"
+                : enemy.kind === 7
+                  ? "#394a72"
+                  : enemy.elite
+                    ? "#b55a3e"
+                    : "#746554";
           context.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
           context.fill();
         }
         const barWidth = enemy.kind === 5 ? 180 : enemy.radius * 2;
         context.fillStyle = "rgba(0,0,0,.75)";
         context.fillRect(enemy.x - barWidth / 2, enemy.y - enemy.radius - 38, barWidth, 6);
-        context.fillStyle = enemy.kind === 5 ? "#d14f55" : "#b96649";
+        context.fillStyle =
+          enemy.kind === 5 ? "#d14f55" : enemy.kind === 7 ? "#63dbe8" : "#b96649";
         context.fillRect(
           enemy.x - barWidth / 2,
           enemy.y - enemy.radius - 38,
           barWidth * clamp(enemy.hp / enemy.maxHp, 0, 1),
           6,
         );
-        if (enemy.elite || enemy.kind === 5) {
+        if (enemy.elite || enemy.kind === 5 || enemy.kind === 6 || enemy.kind === 7) {
           context.font = enemy.kind === 5 ? "700 15px serif" : "600 11px sans-serif";
           context.textAlign = "center";
           context.fillStyle = "#e8dfc8";
@@ -3277,7 +5890,9 @@ export default function GameCanvas() {
         drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "core");
       }
       for (const effect of world.effects) {
-        drawCombatEffect(effect, ambientTime);
+        if (effect.kind !== "timeRiftTelegraph") {
+          drawCombatEffect(effect, ambientTime);
+        }
       }
 
       const orbitPower = powerRankOf(player, "orbit");
@@ -3308,25 +5923,43 @@ export default function GameCanvas() {
       context.fill();
       const playerAlpha =
         player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 ? 0.35 : 1;
+      const playerWalkFrame = player.moving ? player.walkCycle : 1;
+      const playerSpriteY = player.y + 8;
+      const playerSpriteWidth = 118;
+      const playerSpriteHeight = 128;
+      const hasEquippedGear = EQUIPMENT_SLOTS.some((slot) => player.equipment[slot]);
+      const equippedHarinDrawn =
+        hasEquippedGear &&
+        drawWalkSprite(
+          images.walkHarinEquipped,
+          HARIN_V2_DIRECTION_ROWS[player.facing] ?? player.facing,
+          playerWalkFrame,
+          player.x,
+          playerSpriteY,
+          playerSpriteWidth,
+          playerSpriteHeight,
+          playerAlpha,
+        );
       const playerDrawn =
+        equippedHarinDrawn ||
         drawWalkSprite(
           images.walkHarin,
           HARIN_V2_DIRECTION_ROWS[player.facing] ?? player.facing,
-          player.moving ? player.walkCycle : 1,
+          playerWalkFrame,
           player.x,
-          player.y + 8,
-          118,
-          128,
+          playerSpriteY,
+          playerSpriteWidth,
+          playerSpriteHeight,
           playerAlpha,
         ) ||
         drawWalkSprite(
           images.walkHarinLegacy,
           player.facing,
-          player.moving ? player.walkCycle : 1,
+          playerWalkFrame,
           player.x,
-          player.y + 8,
-          118,
-          128,
+          playerSpriteY,
+          playerSpriteWidth,
+          playerSpriteHeight,
           playerAlpha,
         ) ||
         drawSprite(
@@ -3369,7 +6002,8 @@ export default function GameCanvas() {
     const loop = (now: number) => {
       const dt = Math.min(0.034, (now - last) / 1000);
       last = now;
-      update(dt);
+      spawnLocalLootVfxShowcase();
+      if (isSimulationRunning()) update(dt);
       draw();
       if (now - lastHudUpdateRef.current > 110) {
         lastHudUpdateRef.current = now;
@@ -3381,6 +6015,7 @@ export default function GameCanvas() {
     return () => cancelAnimationFrame(frame);
   }, [
     gainXp,
+    isSimulationRunning,
     makeEnemy,
     setGameMode,
     showStory,
@@ -3389,6 +6024,7 @@ export default function GameCanvas() {
   ]);
 
   const handleAim = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!isSimulationRunning()) return;
     const rect = event.currentTarget.getBoundingClientRect();
     inputRef.current.aimX = ((event.clientX - rect.left) / rect.width) * WIDTH;
     inputRef.current.aimY = ((event.clientY - rect.top) / rect.height) * HEIGHT;
@@ -3396,8 +6032,8 @@ export default function GameCanvas() {
   };
 
   const handleMoveTarget = (event: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!isSimulationRunning()) return;
     handleAim(event);
-    if (modeRef.current !== "playing") return;
     const rect = event.currentTarget.getBoundingClientRect();
     inputRef.current.moveTargetX = ((event.clientX - rect.left) / rect.width) * WIDTH;
     inputRef.current.moveTargetY = ((event.clientY - rect.top) / rect.height) * HEIGHT;
@@ -3405,7 +6041,7 @@ export default function GameCanvas() {
   };
 
   const pressControl = (key: string, active: boolean) => {
-    if (active) keysRef.current.add(key);
+    if (active && isSimulationRunning()) keysRef.current.add(key);
     else keysRef.current.delete(key);
   };
 
@@ -3422,6 +6058,28 @@ export default function GameCanvas() {
     () => AUGMENTS.find((augment) => augment.id === hud.player.profession) ?? null,
     [hud.player.profession],
   );
+  const gearStats = useMemo(
+    () => aggregateEquipmentStats(hud.player.equipment),
+    [hud.player.equipment],
+  );
+  const equippedPower = useMemo(
+    () =>
+      EQUIPMENT_SLOTS.reduce(
+        (sum, slot) => sum + (hud.player.equipment[slot]?.powerScore ?? 0),
+        0,
+      ),
+    [hud.player.equipment],
+  );
+  const selectedGear = useMemo(
+    () => hud.player.inventory.find((item) => item.id === selectedGearId) ?? null,
+    [hud.player.inventory, selectedGearId],
+  );
+  const selectedGearComparison = selectedGear
+    ? hud.player.equipment[selectedGear.slot]
+    : null;
+  const selectedPowerDelta = selectedGear
+    ? selectedGear.powerScore - (selectedGearComparison?.powerScore ?? 0)
+    : 0;
   const buildMetrics = useMemo(() => {
     const damageMultiplier =
       (1 + powerRankOf(hud.player, "fang") * 0.18) *
@@ -3429,7 +6087,8 @@ export default function GameCanvas() {
       (1 + powerRankOf(hud.player, "ember") * 0.08) *
       (1 + powerRankOf(hud.player, "focus") * 0.025) *
       (1 + powerRankOf(hud.player, "caliber") * 0.045) *
-      (1 + synergies.reduce((sum, synergy) => sum + synergy.tier * 0.06, 0));
+      (1 + synergies.reduce((sum, synergy) => sum + synergy.tier * 0.06, 0)) *
+      (1 + gearStats.damagePercent / 100);
     const missingHealthRatio = 1 - hud.player.hp / hud.player.maxHp;
     const fireRate =
       1.4 *
@@ -3437,20 +6096,35 @@ export default function GameCanvas() {
       Math.pow(
         1 + powerRankOf(hud.player, "frenzy") * missingHealthRatio * 0.12,
         0.65,
-      );
+      ) *
+      (1 + gearStats.attackSpeedPercent / 100);
+    const critChance = clamp(
+      0.05 +
+        0.45 * (1 - Math.exp(-0.18 * powerRankOf(hud.player, "eye"))) +
+        gearStats.critChancePercent / 100,
+      0,
+      0.75,
+    );
     return [
       { label: "피해 계수", value: `×${damageMultiplier.toFixed(2)}` },
       {
         label: "발사 속도",
         value: `${fireRate.toFixed(1)}/초`,
       },
-      { label: "투사체", value: `${1 + powerRankOf(hud.player, "split")}발` },
+      {
+        label: "투사체",
+        value: `${1 + powerRankOf(hud.player, "split")}발 · 크기 +${Math.round(gearStats.projectileSizePercent)}%`,
+      },
       {
         label: "치명타",
-        value: `${Math.round((0.05 + 0.45 * (1 - Math.exp(-0.18 * powerRankOf(hud.player, "eye")))) * 100)}%`,
+        value: `${Math.round(critChance * 100)}% · 피해 +${Math.round(gearStats.critDamagePercent)}%`,
       },
+      { label: "장비 전투력", value: equippedPower.toLocaleString("ko-KR") },
+      { label: "피해 감소", value: `${Math.round(gearStats.damageReductionPercent)}%` },
+      { label: "정예·보스 피해", value: `+${Math.round(gearStats.eliteDamagePercent)}%` },
+      { label: "장비 발견", value: `+${Math.round(gearStats.gearFindPercent)}%` },
     ];
-  }, [hud.player, synergies]);
+  }, [equippedPower, gearStats, hud.player, synergies]);
   const nearestLandmark = useMemo(() => {
     const landmarks = Object.entries(hud.world.rooms)
       .filter(([, room]) => room.kind === "shelter" || room.kind === "boss")
@@ -3489,92 +6163,181 @@ export default function GameCanvas() {
     }),
     [mapSnapshot],
   );
+  const gameConfirmationOverlay = gameConfirmation ? (
+    <div className="game-confirmation-backdrop">
+      <section
+        className={`game-confirmation-dialog is-${gameConfirmation.tone ?? "warning"}`}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby="game-confirmation-title"
+        aria-describedby="game-confirmation-body"
+      >
+        <span className="game-confirmation-sigil" aria-hidden="true">⌁</span>
+        <small>{gameConfirmation.eyebrow}</small>
+        <h2 id="game-confirmation-title">{gameConfirmation.title}</h2>
+        <p id="game-confirmation-body">{gameConfirmation.body}</p>
+        <div className="game-confirmation-actions">
+          <button type="button" onClick={closeGameConfirmation} autoFocus>
+            취소
+          </button>
+          <button type="button" className="is-confirm" onClick={acceptGameConfirmation}>
+            {gameConfirmation.confirmLabel}
+          </button>
+        </div>
+        <span className="game-confirmation-hint">ESC 취소</span>
+      </section>
+    </div>
+  ) : null;
 
   if (!started) {
+    const occupiedSaveCount = saveSlots.filter(Boolean).length;
     return (
-      <main className="menu-screen">
+      <main className="menu-screen" data-menu-stage={menuStage}>
         <div className="menu-backdrop" />
         <div className="menu-grain" />
-        <section className="menu-copy">
-          <p className="menu-kicker">ENDLESS AUGMENT ROGUELIKE</p>
-          <h1>
-            <span>무진도</span>
-            <small>마지막 쉼표</small>
-          </h1>
-          <p className="menu-lead">
-            죽었던 나의 기억을 증강으로 흡수하라.
-            <br />
-            지도는 끝이 없고, 빌드에는 상한이 없다.
-          </p>
-          <div className="save-slot-heading">
-            <strong>원정 기록</strong>
-            <small>쉼터에서 선택한 슬롯에 자동 저장됩니다.</small>
-          </div>
-          <div className="save-slot-grid" aria-label="저장 파일 슬롯">
-            {SAVE_SLOT_IDS.map((slot, index) => {
-              const summary = saveSlots[index];
-              const professionTitle = summary?.profession
-                ? PROFESSION_TITLES[summary.profession]
-                : null;
-              return (
-                <article
-                  key={slot}
-                  className={`save-slot-card ${summary ? "is-occupied" : "is-empty"}`}
-                  data-save-slot={slot}
-                  data-save-state={summary ? "occupied" : "empty"}
-                >
-                  <header>
-                    <small>SLOT 0{slot}</small>
-                    <span>{summary ? formatSavedAt(summary.savedAt) : "EMPTY"}</span>
-                  </header>
-                  {summary ? (
-                    <>
-                      <h3>LV.{summary.level} · {summary.roomsCleared}방</h3>
-                      <p>{professionTitle ?? "미전직 방랑자"}</p>
-                      <dl>
-                        <div><dt>증강</dt><dd>{summary.augmentStacks}</dd></div>
-                        <div><dt>직업</dt><dd>{professionTitle ? "전직" : "대기"}</dd></div>
-                      </dl>
-                      <div className="save-slot-actions">
-                        <button className="slot-continue" onClick={() => loadSave(slot)}>
-                          계속
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`${slot}번 슬롯을 새 원정으로 덮어쓸까요?`)) {
-                              startNewRun(slot);
+        {menuStage === "landing" ? (
+          <section className="menu-copy menu-stage-shell">
+            <span className="menu-stage-mark">THE LAST COMMA · 기록 00</span>
+            <p className="menu-kicker">끝이 없는 지도는 강해지는 자를 기억한다</p>
+            <h1>
+              <span>무진도</span>
+              <small>마지막 쉼표</small>
+            </h1>
+            <p className="menu-lead">
+              쓰러진 적의 기억과 장비를 거두고, 끝없이 겹쳐지는 증강을 하나의
+              문장으로 완성하라. 지도는 무한하지만 당신의 빌드는 그보다 오래 남는다.
+            </p>
+            <button
+              type="button"
+              className="menu-primary-action"
+              onClick={() => setMenuStage("archive")}
+            >
+              <span>
+                <strong>{occupiedSaveCount > 0 ? "기억을 잇는다" : "첫 문장을 쓴다"}</strong>
+                <small>{occupiedSaveCount > 0 ? `${occupiedSaveCount}개의 원정 기록 확인` : "비어 있는 기록에서 원정 시작"}</small>
+              </span>
+            </button>
+            <a className="menu-pvp-action" href="/pvp">
+              <span>
+                <strong>기억 결투</strong>
+                <small>온라인 1대1 · 서버 판정 균형전</small>
+              </span>
+              <b>LIVE</b>
+            </a>
+            <button type="button" className="menu-shop-action" onClick={openShop}>
+              <span>
+                <strong>기억 상단</strong>
+                <small>가방 확장 · 지도 순간이동 · 영구 상품</small>
+              </span>
+              <b>영구</b>
+            </button>
+            <div className="menu-meta-strip" aria-label="무진도 기록 규모">
+              <span><strong>{AUGMENTS.length}</strong> 무한 증강</span>
+              <span><strong>{SYNERGIES.length}</strong> 조합 시너지</span>
+              <span><strong>{ENEMY_NAMES.length}</strong> 적 계보</span>
+              <span><strong>{GEAR_ICON_COLUMNS * GEAR_ICON_ROWS}</strong> 장비 원형 · {EQUIPMENT_SLOTS.length}부위 · {Object.keys(GEAR_RARITY_META).length}등급</span>
+            </div>
+          </section>
+        ) : (
+          <section className="menu-copy menu-stage-shell">
+            <button type="button" className="archive-back" onClick={() => setMenuStage("landing")}>
+              ← 표지로 돌아가기 · ESC
+            </button>
+            <span className="menu-stage-mark">EXPEDITION ARCHIVE</span>
+            <div className="save-slot-heading">
+              <strong>고정된 기억</strong>
+              <small>새 쉼터에 처음 닿을 때만 장비와 빌드가 함께 저장됩니다.</small>
+            </div>
+            <div className="save-slot-grid" aria-label="저장 파일 슬롯">
+              {SAVE_SLOT_IDS.map((slot, index) => {
+                const summary = saveSlots[index];
+                const professionTitle = summary?.profession
+                  ? PROFESSION_TITLES[summary.profession]
+                  : null;
+                return (
+                  <article
+                    key={slot}
+                    className={`save-slot-card ${summary ? "is-occupied" : "is-empty"}`}
+                    data-save-slot={slot}
+                    data-save-state={summary ? "occupied" : "empty"}
+                  >
+                    <header>
+                      <small>RECORD 0{slot}</small>
+                      <span>{summary ? formatSavedAt(summary.savedAt) : "UNWRITTEN"}</span>
+                    </header>
+                    {summary ? (
+                      <>
+                        <h3>LV.{summary.level} · {summary.roomsCleared}방</h3>
+                        <p>{professionTitle ?? "미전직 방랑자"}</p>
+                        <dl>
+                          <div><dt>증강</dt><dd>{summary.augmentStacks}</dd></div>
+                          <div><dt>장비</dt><dd>{summary.equippedItems}착용 · {summary.inventoryItems}보관</dd></div>
+                        </dl>
+                        <div className="save-slot-actions">
+                          <button className="slot-continue" onClick={() => loadSave(slot)}>
+                            이어가기
+                          </button>
+                          <button
+                            onClick={() =>
+                              requestGameConfirmation(
+                                {
+                                  eyebrow: "NEW EXPEDITION",
+                                  title: `${slot}번 기록을 덮어쓸까요?`,
+                                  body: "기존 원정 기록을 지우고 새로운 지도를 시작합니다.",
+                                  confirmLabel: "새 원정 시작",
+                                  tone: "danger",
+                                },
+                                () => startNewRun(slot),
+                              )
                             }
-                          }}
-                        >
-                          새 원정
-                        </button>
-                        <button
-                          className="slot-delete"
-                          aria-label={`${slot}번 저장 삭제`}
-                          onClick={() => deleteSaveSlot(slot)}
-                        >
-                          ×
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <button className="empty-slot-button" onClick={() => startNewRun(slot)}>
-                      <span>새 원정</span>
-                      <small>이 슬롯에서 시작</small>
-                    </button>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        </section>
-        <aside className="menu-features" aria-label="게임 특징">
-          <span>∞ 무한 중첩 증강</span>
-          <span>⌘ 좌표 기반 무한 방</span>
-          <span>✦ 쉼터 자동 저장</span>
-          <span>☄ 조합 시너지 진화</span>
-        </aside>
-        <p className="menu-controls">WASD / 방향키 또는 바닥 클릭 이동 · 자동 공격 · SPACE 회피 · M 지도 · B 빌드</p>
+                          >
+                            새 원정
+                          </button>
+                          <button
+                            className="slot-delete"
+                            aria-label={`${slot}번 저장 삭제`}
+                            onClick={() => deleteSaveSlot(slot)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <button className="empty-slot-button" onClick={() => startNewRun(slot)}>
+                        <span>새 원정</span>
+                        <small>이 기록에 첫 쉼표 남기기</small>
+                      </button>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+        {menuStage === "landing" && (
+          <aside className="menu-features" aria-label="게임 특징">
+            <span>∞ 상한 없는 증강 중첩</span>
+            <span>⚔ 접사와 전설 장비</span>
+            <span>⌘ 좌표로 이어지는 무한 방</span>
+            <span>✦ 새 쉼터마다 1회 기록</span>
+          </aside>
+        )}
+        <p className="menu-controls">WASD / 바닥 클릭 이동 · 자동 공격 · SPACE 회피 · M 지도 · B 빌드 · I 장비 · P 상점</p>
+        <ShopOverlay
+          key={`menu-shop-${shopPreferredProductId ?? "default"}`}
+          open={shopOpen}
+          inventoryCount={hud.player.inventory.length}
+          inventoryCapacity={inventoryCapacity}
+          entitlements={shopEntitlements}
+          checkoutMode={shopMode}
+          lastReceipt={lastShopReceipt}
+          notice={shopNotice}
+          preferredProductId={shopPreferredProductId}
+          onClose={closeShop}
+          onPurchase={purchaseShopProduct}
+          onRestore={restoreShopPurchases}
+        />
+        {gameConfirmationOverlay}
       </main>
     );
   }
@@ -3605,6 +6368,17 @@ export default function GameCanvas() {
       data-combat-effects={hud.world.combatEffects}
       data-summon-effects={hud.world.summonEffects}
       data-teleport-effects={hud.world.teleportEffects}
+      data-ground-gear={hud.world.gearDrops}
+      data-inventory-count={hud.player.inventory.length}
+      data-inventory-capacity={inventoryCapacity}
+      data-inventory-open={inventoryOpen}
+      data-auto-salvage={hud.player.autoSalvageMaxRarity ?? "off"}
+      data-shop-open={shopOpen}
+      data-memory-ash={hud.player.memoryAsh}
+      data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
+      data-equipment-power={equippedPower}
+      data-proofreader-enemies={hud.world.proofreaderEnemies}
+      data-proofreader-windups={hud.world.proofreaderWindups}
     >
       <canvas
         ref={canvasRef}
@@ -3641,6 +6415,12 @@ export default function GameCanvas() {
               />
               <span>
                 기억 {Math.floor(hud.player.xp)} / {hud.player.nextXp}
+              </span>
+            </div>
+            <div className="vital-readouts">
+              <span>방벽 {Math.ceil(hud.player.shield)}</span>
+              <span className={hud.player.dashCooldown <= 0 ? "is-ready" : ""}>
+                회피 {hud.player.dashCooldown <= 0 ? "READY" : `${hud.player.dashCooldown.toFixed(1)}s`}
               </span>
             </div>
           </div>
@@ -3694,99 +6474,287 @@ export default function GameCanvas() {
       <aside className={`build-rail ${buildOpen ? "is-open" : ""}`}>
         <button
           className="build-toggle"
-          onClick={() => setBuildOpen((open) => !open)}
+          onClick={() => {
+            setBuildTab("build");
+            setBuildPanelOpen(!(buildOpen && buildTab === "build"));
+          }}
           aria-expanded={buildOpen}
         >
-          <span>빌드</span>
-          <strong>{ownedAugments.reduce((sum, item) => sum + rankOf(hud.player, item.id), 0)}</strong>
+          <span>{buildTab === "gear" ? "장비" : "빌드"}</span>
+          <strong>
+            {buildTab === "gear"
+              ? hud.player.inventory.length
+              : ownedAugments.reduce((sum, item) => sum + rankOf(hud.player, item.id), 0)}
+          </strong>
           <small>B</small>
         </button>
-        <div className="build-content">
+        {buildOpen && <div className="build-content" role="dialog" aria-modal="true" aria-label="빌드와 장비">
           <header>
             <div>
-              <small>현재 기억 조합</small>
-              <h3>하린의 무한 빌드</h3>
+              <small>{buildTab === "build" ? "현재 기억 조합" : "무진도 전리품 기록"}</small>
+              <h3>{buildTab === "build" ? "하린의 무한 빌드" : `장비고 · ${equippedPower.toLocaleString("ko-KR")}`}</h3>
             </div>
-            <button onClick={() => setBuildOpen(false)} aria-label="빌드 닫기">
+            <button onClick={() => setBuildPanelOpen(false)} aria-label="패널 닫기">
               ×
             </button>
           </header>
-          <section className={`profession-summary ${currentProfession ? "is-active" : ""}`}>
-            <div>
-              <small>{currentProfession ? "현재 전문 직업" : "전직 조건"}</small>
-              <strong>
-                {currentProfession
-                  ? PROFESSION_TITLES[currentProfession.id]
-                  : "하나의 증강을 20스택"}
-              </strong>
-            </div>
-            <span>
-              {currentProfession
-                ? `${currentProfession.name} 전투 효율 +${PROFESSION_BONUS_PERCENT}%`
-                : "조건을 달성하면 해당 증강의 전문가가 됩니다."}
-            </span>
-          </section>
-          <section className="build-metrics" aria-label="현재 전투 능력치">
-            {buildMetrics.map((metric) => (
-              <div key={metric.label}>
-                <small>{metric.label}</small>
-                <strong>{metric.value}</strong>
-              </div>
-            ))}
-          </section>
-          {synergies.length > 0 && (
-            <section className="synergy-list">
-              <small>발현된 시너지</small>
-              {synergies.map((synergy) => (
-                <span key={synergy.name} style={{ borderColor: synergy.color }}>
-                  {synergy.name} <b>Ⅱ{synergy.tier}</b>
+          <div className="build-tabs" role="tablist" aria-label="빌드 패널 보기">
+            <button
+              type="button"
+              role="tab"
+              className={`build-tab ${buildTab === "build" ? "is-active" : ""}`}
+              aria-selected={buildTab === "build"}
+              onClick={() => setBuildTab("build")}
+            >
+              증강 빌드 · B
+            </button>
+            <button
+              type="button"
+              className="build-tab"
+              onClick={() => {
+                setBuildPanelOpen(false);
+                setInventoryScreenOpen(true);
+              }}
+            >
+              중앙 장비고 {hud.player.inventory.length}/{inventoryCapacity} · I
+            </button>
+          </div>
+
+          {buildTab === "build" ? (
+            <>
+              <section className={`profession-summary ${currentProfession ? "is-active" : ""}`}>
+                <div>
+                  <small>{currentProfession ? "현재 전문 직업" : "전직 조건"}</small>
+                  <strong>
+                    {currentProfession
+                      ? PROFESSION_TITLES[currentProfession.id]
+                      : "하나의 증강을 20스택"}
+                  </strong>
+                </div>
+                <span>
+                  {currentProfession
+                    ? `${currentProfession.name} 전투 효율 +${PROFESSION_BONUS_PERCENT}%`
+                    : "조건을 달성하면 해당 증강의 전문가가 됩니다."}
                 </span>
-              ))}
+              </section>
+              <section className="build-metrics" aria-label="현재 전투 능력치">
+                {buildMetrics.map((metric) => (
+                  <div key={metric.label}>
+                    <small>{metric.label}</small>
+                    <strong>{metric.value}</strong>
+                  </div>
+                ))}
+              </section>
+              {synergies.length > 0 && (
+                <section className="synergy-list">
+                  <small>발현된 시너지</small>
+                  {synergies.map((synergy) => (
+                    <span key={synergy.name} style={{ borderColor: synergy.color }}>
+                      {synergy.name} <b>Ⅱ{synergy.tier}</b>
+                    </span>
+                  ))}
+                </section>
+              )}
+              <section className="augment-stack-list">
+                {ownedAugments.length === 0 ? (
+                  <p>첫 기억 조각을 모으면 증강이 여기에 쌓입니다.</p>
+                ) : (
+                  ownedAugments.map((augment) => {
+                    const level = rankOf(hud.player, augment.id);
+                    const stable = level <= (hud.stableAugments[augment.id] ?? 0);
+                    return (
+                      <article
+                        key={augment.id}
+                        style={{ "--augment-color": augment.color } as CSSProperties}
+                      >
+                        <AugmentIcon icon={augment.icon} size={52} />
+                        <div>
+                          <strong>{augment.name}</strong>
+                          <small>
+                            {hud.player.profession === augment.id
+                              ? `${PROFESSION_TITLES[augment.id]} · 유효 ×${powerRankOf(hud.player, augment.id)}`
+                              : stable
+                                ? "고정된 기억"
+                                : "불안정한 기억"}
+                          </small>
+                          <span className="mastery-track" aria-label={`전직 진행 ${Math.min(level, PROFESSION_THRESHOLD)} / ${PROFESSION_THRESHOLD}`}>
+                            <i style={{ width: `${Math.min(100, (level / PROFESSION_THRESHOLD) * 100)}%` }} />
+                          </span>
+                          {level >= PROFESSION_THRESHOLD && hud.player.profession !== augment.id && (
+                            <button
+                              className="profession-inline-button"
+                              onClick={() => openProfessionChoice(augment)}
+                            >
+                              {hud.player.profession ? "전향 가능" : "전직 가능"}
+                            </button>
+                          )}
+                        </div>
+                        <b>×{level}</b>
+                      </article>
+                    );
+                  })
+                )}
+              </section>
+            </>
+          ) : (
+            <section className="gear-panel" aria-label="장비 및 인벤토리">
+              <div className="equipment-slots">
+                {EQUIPMENT_SLOTS.map((slot) => {
+                  const item = hud.player.equipment[slot];
+                  return (
+                    <article
+                      key={slot}
+                      className={`equipment-slot-card ${item ? gearRarityClass(item) : ""}`}
+                    >
+                      {item ? <GearIcon item={item} size={43} /> : <span className="gear-empty-icon">＋</span>}
+                      <div>
+                        <small>{EQUIPMENT_SLOT_LABELS[slot]}</small>
+                        <strong>{item?.displayName ?? "비어 있음"}</strong>
+                        <span>
+                          {item
+                            ? `전투력 ${item.powerScore} · 옵션 품질 ${item.qualityScore}%`
+                            : "전리품을 장착하세요"}
+                        </span>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              <div className="inventory-toolbar">
+                <span>가방 <strong>{hud.player.inventory.length}</strong> / {inventoryCapacity}</span>
+                <span>장착 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b></span>
+              </div>
+              <div className="inventory-grid">
+                {hud.player.inventory.length === 0 ? (
+                  <p className="inventory-empty">적이 남긴 장비를 가까이에서 회수하면 이곳에 기록됩니다.</p>
+                ) : (
+                  hud.player.inventory.map((item) => (
+                    <button
+                      type="button"
+                      key={item.id}
+                      className={`gear-item-card ${gearRarityClass(item)} ${selectedGearId === item.id ? "is-selected" : ""}`}
+                      aria-pressed={selectedGearId === item.id}
+                      onClick={() => setSelectedGearId(item.id)}
+                      onDoubleClick={() => equipInventoryItem(item.id)}
+                    >
+                      <GearIcon item={item} size={42} />
+                      <div>
+                        <strong>{item.displayName}</strong>
+                        <small>LV.{item.level} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
+                        <span>전투력 {item.powerScore} · 품질 {item.qualityScore}%</span>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+              {selectedGear && (
+                <section className={`gear-comparison ${gearRarityClass(selectedGear)}`}>
+                  <div className="gear-comparison-heading">
+                    <div>
+                      <small>{GEAR_RARITY_META[selectedGear.rarity].label} · {EQUIPMENT_SLOT_LABELS[selectedGear.slot]}</small>
+                      <h4>{selectedGear.displayName}</h4>
+                    </div>
+                    <span
+                      className={`gear-power-delta ${selectedPowerDelta < 0 ? "is-negative" : ""}`}
+                      data-negative={selectedPowerDelta < 0}
+                    >
+                      {selectedPowerDelta >= 0 ? "+" : ""}{selectedPowerDelta} 전투력
+                    </span>
+                  </div>
+                  <p>
+                    현재 장착: {selectedGearComparison?.displayName ?? "없음"}
+                  </p>
+                  <div className="gear-quality-line" aria-label={`옵션 품질 ${selectedGear.qualityScore}%`}>
+                    <span>옵션 품질</span>
+                    <span className="gear-quality-meter" aria-hidden="true">
+                      <i
+                        className="gear-quality-fill"
+                        style={{ "--gear-quality": `${selectedGear.qualityScore}%` } as CSSProperties}
+                      />
+                    </span>
+                    <b className="gear-quality-value">{selectedGear.qualityScore}%</b>
+                  </div>
+                  <div className="gear-item-affixes">
+                    {selectedGear.affixes.map((affix) => (
+                      <span key={affix.stat}>
+                        {formatEnhancedGearAffix(selectedGear, affix)}
+                        <em>{affix.rollPercent}%</em>
+                      </span>
+                    ))}
+                    {selectedGear.legendaryPowerId && (
+                      <strong>{LEGENDARY_POWERS[selectedGear.legendaryPowerId].name} · {LEGENDARY_POWERS[selectedGear.legendaryPowerId].description}</strong>
+                    )}
+                  </div>
+                  <div className="gear-actions">
+                    <button className="primary-button compact" onClick={() => equipInventoryItem(selectedGear.id)}>
+                      장착하고 비교 교체
+                    </button>
+                    <button
+                      className="text-button"
+                      onClick={() => {
+                        setBuildPanelOpen(false);
+                        setInventoryScreenOpen(true);
+                      }}
+                    >
+                      장비고에서 분해
+                    </button>
+                  </div>
+                </section>
+              )}
             </section>
           )}
-          <section className="augment-stack-list">
-            {ownedAugments.length === 0 ? (
-              <p>첫 기억 조각을 모으면 증강이 여기에 쌓입니다.</p>
-            ) : (
-              ownedAugments.map((augment) => {
-                const level = rankOf(hud.player, augment.id);
-                const stable = level <= (hud.stableAugments[augment.id] ?? 0);
-                return (
-                  <article key={augment.id}>
-                    <AugmentIcon icon={augment.icon} size={52} />
-                    <div>
-                      <strong>{augment.name}</strong>
-                      <small>
-                        {hud.player.profession === augment.id
-                          ? `${PROFESSION_TITLES[augment.id]} · 유효 ×${powerRankOf(hud.player, augment.id)}`
-                          : stable
-                            ? "고정된 기억"
-                            : "불안정한 기억"}
-                      </small>
-                      {level >= PROFESSION_THRESHOLD && hud.player.profession !== augment.id && (
-                        <button
-                          className="profession-inline-button"
-                          onClick={() => openProfessionChoice(augment)}
-                        >
-                          {hud.player.profession ? "전향 가능" : "전직 가능"}
-                        </button>
-                      )}
-                    </div>
-                    <b>×{level}</b>
-                  </article>
-                );
-              })
-            )}
-          </section>
-        </div>
+        </div>}
       </aside>
 
+      <InventoryOverlay
+        open={inventoryOpen && started && mode === "playing"}
+        memoryAsh={hud.player.memoryAsh}
+        onEnhance={enhanceGearItem}
+        onClose={() => setInventoryScreenOpen(false)}
+        equipment={hud.player.equipment}
+        inventory={hud.player.inventory}
+        inventoryCapacity={inventoryCapacity}
+        onOpenShop={openShopFromInventory}
+        selectedGearId={selectedGearId}
+        onSelect={setSelectedGearId}
+        onEquip={equipInventoryItem}
+        onUnequip={unequipInventoryItem}
+        onSalvage={salvageInventoryItem}
+        onSalvageMany={salvageInventoryItems}
+        autoSalvageMaxRarity={hud.player.autoSalvageMaxRarity}
+        onAutoSalvageMaxRarityChange={changeAutoSalvageMaxRarity}
+        onGrantRarityShowcase={isLocalRarityShowcaseHost() ? grantLocalRarityShowcase : undefined}
+        equippedPower={equippedPower}
+      />
+
+      <ShopOverlay
+        key={`game-shop-${shopPreferredProductId ?? "default"}`}
+        open={shopOpen && started && mode === "playing"}
+        inventoryCount={hud.player.inventory.length}
+        inventoryCapacity={inventoryCapacity}
+        entitlements={shopEntitlements}
+        checkoutMode={shopMode}
+        lastReceipt={lastShopReceipt}
+        notice={shopNotice}
+        preferredProductId={shopPreferredProductId}
+        onClose={closeShop}
+        onPurchase={purchaseShopProduct}
+        onRestore={restoreShopPurchases}
+      />
+
       <nav className="control-dock" aria-label="빠른 조작">
-        <span><kbd>WASD</kbd> 이동</span>
-        <span><kbd>CLICK</kbd> 경로 지정</span>
-        <span><kbd>SPACE</kbd> 회피</span>
+        {hud.player.rooms === 0 && <span><kbd>WASD</kbd> 이동</span>}
+        {hud.player.rooms === 0 && <span><kbd>SPACE</kbd> 회피</span>}
         <button type="button" onClick={openMap}><kbd>M</kbd> 지도</button>
-        <button type="button" onClick={() => setBuildOpen((open) => !open)}><kbd>B</kbd> 빌드</button>
+        <button type="button" onClick={() => {
+          setBuildTab("build");
+          setBuildPanelOpen(!(buildOpen && buildTab === "build"));
+        }}><kbd>B</kbd> 빌드</button>
+        <button type="button" onClick={() => {
+          setBuildPanelOpen(false);
+          setInventoryScreenOpen(!inventoryOpen);
+        }}><kbd>I</kbd> 장비 {hud.player.inventory.length}/{inventoryCapacity}</button>
+        <button type="button" onClick={openShop}><kbd>P</kbd> 상점</button>
         {nearestLandmark && (
           <em>
             {nearestLandmark.room.kind === "shelter" ? "✦ 쉼터" : "◆ 보스"} {nearestLandmark.key}
@@ -3799,6 +6767,26 @@ export default function GameCanvas() {
         <i />
         {toast}
       </div>
+
+      {lootNotice && (
+        <div
+          className={`loot-toast ${gearRarityClass(lootNotice)}`}
+          role="status"
+          style={{ "--gear-color": GEAR_RARITY_META[lootNotice.rarity].color } as CSSProperties}
+        >
+          <span className="loot-toast-icon-stage" aria-hidden="true">
+            <span
+              className={`inventory-screen-rarity-spectacle inventory-screen-rarity-spectacle--${lootNotice.rarity} loot-toast-rarity-spectacle`}
+            />
+            <GearIcon item={lootNotice} size={42} />
+          </span>
+          <div>
+            <small>{GEAR_RARITY_META[lootNotice.rarity].label} 장비 획득</small>
+            <strong>{lootNotice.displayName}</strong>
+            <span>전투력 {lootNotice.powerScore} · 품질 {lootNotice.qualityScore}% · I에서 비교</span>
+          </div>
+        </div>
+      )}
 
       <div className="touch-controls" aria-label="터치 조작">
         <div className="dpad">
@@ -3841,22 +6829,23 @@ export default function GameCanvas() {
         </div>
         <button
           className="dash-button"
+          data-ready={hud.player.dashCooldown <= 0}
           onPointerDown={() => {
-            inputRef.current.dashQueued = true;
+            if (isSimulationRunning()) inputRef.current.dashQueued = true;
           }}
           onPointerCancel={() => {
             inputRef.current.dashQueued = false;
           }}
         >
-          회피
+          {hud.player.dashCooldown <= 0 ? "회피" : hud.player.dashCooldown.toFixed(1)}
         </button>
       </div>
 
       {mode === "augment" && (
         <div className="modal-layer augment-layer">
-          <section className="augment-modal">
+          <section className="augment-modal" role="dialog" aria-modal="true" aria-labelledby="augment-title">
             <p className="modal-kicker">LEVEL {hud.player.level} · 기억 동기화</p>
-            <h2>어떤 실패를 힘으로 바꿀까?</h2>
+            <h2 id="augment-title">어떤 실패를 힘으로 바꿀까?</h2>
             <p>같은 증강은 무한히 다시 나타나며, 모든 랭크가 현재 빌드에 누적됩니다.</p>
             <div className="augment-choices">
               {choices.map((augment, index) => {
@@ -3871,7 +6860,7 @@ export default function GameCanvas() {
                 return (
                   <button
                     key={augment.id}
-                    className="augment-card"
+                    className={`augment-card ${nextRank === 1 ? "is-new" : ""} ${unlockedSynergy ? "is-synergy-ready" : ""} ${nextRank >= PROFESSION_THRESHOLD ? "is-mastery-ready" : ""}`}
                     onClick={() => chooseAugment(augment)}
                     style={{ "--augment-color": augment.color } as CSSProperties}
                   >
@@ -3900,6 +6889,9 @@ export default function GameCanvas() {
         <div className="modal-layer profession-layer">
           <section
             className="profession-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profession-title"
             style={{ "--profession-color": professionCandidate.color } as CSSProperties}
           >
             <p className="modal-kicker">AUGMENT MASTERY · 20 STACKS</p>
@@ -3907,7 +6899,7 @@ export default function GameCanvas() {
               <AugmentIcon icon={professionCandidate.icon} size={118} />
             </div>
             <small>{professionCandidate.name} 전문 직업</small>
-            <h2>{PROFESSION_TITLES[professionCandidate.id]}</h2>
+            <h2 id="profession-title">{PROFESSION_TITLES[professionCandidate.id]}</h2>
             <p>
               {professionCandidate.name}의 실제 {rankOf(hud.player, professionCandidate.id)}스택을
               전투 계산에서 <b>{rankOf(hud.player, professionCandidate.id) + Math.floor(rankOf(hud.player, professionCandidate.id) / 2)}스택</b>으로
@@ -3937,9 +6929,9 @@ export default function GameCanvas() {
 
       {mode === "story" && (
         <div className="modal-layer story-layer">
-          <section className="story-modal">
+          <section className="story-modal" role="dialog" aria-modal="true" aria-labelledby="story-title">
             <p className="modal-kicker">{story.eyebrow}</p>
-            <h2>{story.title}</h2>
+            <h2 id="story-title">{story.title}</h2>
             <p>{story.body}</p>
             <button
               className="primary-button compact"
@@ -3953,12 +6945,13 @@ export default function GameCanvas() {
 
       {mode === "shelter" && (
         <div className="modal-layer shelter-layer">
-          <section className="shelter-modal">
-            <p className="modal-kicker">SHELTER · AUTO SAVED</p>
-            <h2>마지막 쉼표</h2>
+          <section className="shelter-modal" role="dialog" aria-modal="true" aria-labelledby="shelter-title">
+            <p className="modal-kicker">SHELTER · FIRST REST SAVED</p>
+            <h2 id="shelter-title">마지막 쉼표</h2>
             <p>
               모닥불이 지금까지의 증강을 <b>고정된 기억</b>으로 바꿨습니다.
-              여기서 쓰러져도 이 빌드로 돌아옵니다.
+              여기서 쓰러져도 이 빌드로 돌아옵니다. 이 쉼터의 불꽃은 이제
+              소진되어 다시 방문해도 회복하거나 기억을 고정하지 않습니다.
             </p>
             <dl>
               <div>
@@ -3988,29 +6981,68 @@ export default function GameCanvas() {
 
       {mode === "map" && (
         <div className="modal-layer map-layer">
-          <section className="map-modal">
+          <section className="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-title">
             <header>
               <div>
                 <p className="modal-kicker">INFINITE CARTOGRAPHY · M</p>
-                <h2>무진도 탐사도</h2>
+                <h2 id="map-title">무진도 탐사도</h2>
                 <span>
                   현재 좌표 {mapSnapshot.roomX >= 0 ? "+" : ""}{mapSnapshot.roomX} : {mapSnapshot.roomY >= 0 ? "+" : ""}{mapSnapshot.roomY}
                 </span>
               </div>
-              <button type="button" onClick={() => setGameMode("playing")} aria-label="지도 닫기">
-                ×
-              </button>
+              <div className="map-header-actions">
+                <div
+                  className={`map-teleport-license ${mapTeleportUnlocked ? "is-unlocked" : "is-locked"}`}
+                  role="status"
+                >
+                  <small>무진도의 길잡이</small>
+                  <strong>
+                    {!mapTeleportUnlocked
+                      ? "상점 해금 필요"
+                      : mapTeleportDepartureSafe
+                        ? "방문·정복 좌표 도약 가능"
+                        : "현재 방 정복 후 사용 가능"}
+                  </strong>
+                </div>
+                {!mapTeleportUnlocked && (
+                  <button
+                    type="button"
+                    className="map-teleport-shop"
+                    onClick={() => {
+                      setGameMode("playing");
+                      openWayfinderShop();
+                    }}
+                  >
+                    상점에서 해금
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="map-close"
+                  onClick={() => setGameMode("playing")}
+                  aria-label="지도 닫기"
+                >
+                  ×
+                </button>
+              </div>
             </header>
             <div className="map-board" ref={mapBoardRef}>
               <span className="compass north">N</span>
               <span className="compass east">E</span>
               <span className="compass south">S</span>
               <span className="compass west">W</span>
-              <MapGrid world={mapSnapshot} large />
+              <MapGrid
+                world={mapSnapshot}
+                large
+                teleportUnlocked={mapTeleportUnlocked}
+                teleportDepartureSafe={mapTeleportDepartureSafe}
+                onTeleport={teleportToVisitedRoom}
+              />
             </div>
             <footer>
               <div className="map-legend" aria-label="지도 범례">
                 <span><i className="legend-current" />현재 위치</span>
+                <span><i className="legend-teleport" />도약 가능</span>
                 <span><i className="legend-cleared" />정복 완료</span>
                 <span><i className="legend-visited" />진입함</span>
                 <span><i className="legend-battle" />회랑</span>
@@ -4041,9 +7073,9 @@ export default function GameCanvas() {
 
       {mode === "paused" && (
         <div className="modal-layer pause-layer">
-          <section className="pause-modal">
+          <section className="pause-modal" role="dialog" aria-modal="true" aria-labelledby="pause-title">
             <p className="modal-kicker">PAUSED</p>
-            <h2>지도를 접었습니다</h2>
+            <h2 id="pause-title">지도를 접었습니다</h2>
             <div className="pause-dashboard">
               <div>
                 <small>현재 원정</small>
@@ -4061,7 +7093,21 @@ export default function GameCanvas() {
               <button className="primary-button compact" onClick={() => setGameMode("playing")}>
                 계속 탐험
               </button>
-              <button className="text-button" onClick={returnToMenu}>
+              <button
+                className="text-button"
+                onClick={() =>
+                  requestGameConfirmation(
+                    {
+                      eyebrow: "ABANDON EXPEDITION",
+                      title: "타이틀로 돌아갈까요?",
+                      body: "마지막 쉼터 이후에 얻은 증강과 장비는 사라집니다.",
+                      confirmLabel: "원정 포기",
+                      tone: "danger",
+                    },
+                    returnToMenu,
+                  )
+                }
+              >
                 타이틀로
               </button>
             </div>
@@ -4071,9 +7117,9 @@ export default function GameCanvas() {
 
       {mode === "dead" && (
         <div className="modal-layer death-layer">
-          <section className="death-modal">
+          <section className="death-modal" role="dialog" aria-modal="true" aria-labelledby="death-title">
             <p className="modal-kicker">MEMORY LOST</p>
-            <h2>하린의 문장이 끊겼다</h2>
+            <h2 id="death-title">하린의 문장이 끊겼다</h2>
             <p>
               마지막 쉼터 이후 얻은 불안정한 기억은 흩어집니다.
               <br />
@@ -4104,9 +7150,9 @@ export default function GameCanvas() {
 
       {mode === "ending" && (
         <div className="modal-layer ending-layer">
-          <section className="ending-modal">
+          <section className="ending-modal" role="dialog" aria-modal="true" aria-labelledby="ending-title">
             <p className="modal-kicker">3막 · 끝이 된 자</p>
-            <h2>백지 위의 목소리</h2>
+            <h2 id="ending-title">백지 위의 목소리</h2>
             <p>
               백지의 지도사는 최초로 이곳에 들어왔던 하린이었다. 라온의 목소리는
               지도가 하린을 계속 걷게 하려고 만든 미끼였다. 그러나 힘은, 기억은,
@@ -4137,6 +7183,7 @@ export default function GameCanvas() {
           </section>
         </div>
       )}
+      {gameConfirmationOverlay}
     </main>
   );
 }

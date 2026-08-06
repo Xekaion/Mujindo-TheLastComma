@@ -42,6 +42,16 @@ export const PROFESSION_TITLES: Readonly<Record<string, string>> = {
   scavenger: "기억 채굴자",
   conquest: "승리 봉화지기",
   frenzy: "혈박 투사",
+  strength: "강철 투사",
+  rapidfire: "속사 명사수",
+  range: "장거리 사수",
+  velocity: "유성 사수",
+  expansion: "거탄 포격수",
+  sprint: "질풍 보행자",
+  defense: "철갑 수호자",
+  recovery: "전장 치유사",
+  learning: "성장 기록관",
+  collection: "기억 수집가",
 };
 
 export function isProfessionEligible(

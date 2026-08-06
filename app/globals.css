@@ -37,6 +37,191 @@ button {
   background: rgba(103, 198, 179, 0.35);
 }
 
+.world-announcement {
+  --world-accent: #ff526e;
+  --world-accent-soft: rgba(255, 82, 110, 0.28);
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top));
+  left: 50%;
+  z-index: 315;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  width: min(860px, calc(100vw - 28px));
+  min-height: 58px;
+  padding: 9px 18px 9px 11px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--world-accent) 78%, #f4e3bb 22%);
+  border-radius: 4px;
+  color: #f7edd8;
+  background:
+    linear-gradient(90deg, var(--world-accent-soft), rgba(8, 7, 12, 0.96) 24%, rgba(7, 8, 12, 0.96) 76%, var(--world-accent-soft)),
+    #09090d;
+  box-shadow:
+    0 10px 42px rgba(0, 0, 0, 0.72),
+    0 0 30px var(--world-accent-soft),
+    inset 0 0 22px rgba(255, 255, 255, 0.025);
+  pointer-events: none;
+  transform-origin: 50% 0;
+  animation: world-announcement-enter 540ms cubic-bezier(0.2, 0.9, 0.22, 1.12) both;
+}
+
+.world-announcement::before,
+.world-announcement::after {
+  position: absolute;
+  top: 50%;
+  width: 94px;
+  height: 1px;
+  content: "";
+  background: linear-gradient(90deg, transparent, var(--world-accent));
+  filter: drop-shadow(0 0 5px var(--world-accent));
+}
+
+.world-announcement::before {
+  left: 0;
+}
+
+.world-announcement::after {
+  right: 0;
+  transform: rotate(180deg);
+}
+
+.world-announcement.is-cosmic {
+  --world-accent: #65f4ff;
+  --world-accent-soft: rgba(101, 244, 255, 0.26);
+  border-color: rgba(181, 252, 255, 0.9);
+  background:
+    radial-gradient(circle at 14% 50%, rgba(183, 82, 255, 0.22), transparent 25%),
+    radial-gradient(circle at 86% 50%, rgba(50, 210, 255, 0.22), transparent 28%),
+    linear-gradient(90deg, rgba(18, 35, 54, 0.98), rgba(7, 8, 18, 0.97) 25% 75%, rgba(27, 24, 60, 0.98));
+}
+
+.world-announcement-flare {
+  position: relative;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
+  border: 1px solid var(--world-accent);
+  transform: rotate(45deg);
+  background: radial-gradient(circle, #fff 0 5%, var(--world-accent) 7% 14%, transparent 16%);
+  box-shadow: 0 0 18px var(--world-accent-soft), inset 0 0 10px var(--world-accent-soft);
+  animation: world-announcement-sigil 2.2s linear infinite;
+}
+
+.world-announcement-flare::after {
+  position: absolute;
+  inset: 6px;
+  border: 1px solid color-mix(in srgb, var(--world-accent) 75%, white 25%);
+  content: "";
+}
+
+.world-announcement-rarity {
+  position: absolute;
+  top: 4px;
+  left: 68px;
+  color: var(--world-accent);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+}
+
+.world-announcement p {
+  position: relative;
+  z-index: 1;
+  margin: 9px 0 0;
+  overflow: hidden;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(13px, 1.25vw, 17px);
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.world-announcement p strong,
+.world-announcement p b {
+  color: var(--world-accent);
+  font-weight: 800;
+  text-shadow: 0 0 12px var(--world-accent-soft);
+}
+
+.world-announcement p b {
+  margin: 0 6px;
+  color: #fff5d4;
+}
+
+.world-announcement small {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 74px;
+  color: rgba(238, 225, 198, 0.78);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.world-announcement small i {
+  margin-top: 2px;
+  color: var(--world-accent);
+  font-size: 7px;
+  font-style: normal;
+  letter-spacing: 0.3em;
+}
+
+@keyframes world-announcement-enter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -26px) scaleX(0.72);
+    filter: brightness(2);
+  }
+  65% {
+    opacity: 1;
+    transform: translate(-50%, 3px) scaleX(1.015);
+  }
+  100% {
+    transform: translate(-50%, 0) scaleX(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes world-announcement-sigil {
+  to {
+    transform: rotate(405deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .world-announcement {
+    grid-template-columns: 30px minmax(0, 1fr) auto;
+    gap: 9px;
+    min-height: 50px;
+    padding: 7px 10px;
+  }
+
+  .world-announcement-flare {
+    width: 28px;
+    height: 28px;
+  }
+
+  .world-announcement-rarity {
+    left: 50px;
+  }
+
+  .world-announcement p {
+    font-size: 11px;
+  }
+
+  .world-announcement small {
+    min-width: 52px;
+    font-size: 8px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
