@@ -1473,6 +1473,17 @@
   font-size: 13px;
 }
 
+.boss-hud em {
+  margin-top: 2px;
+  overflow: hidden;
+  color: rgba(238, 180, 132, 0.78);
+  font-size: 7px;
+  font-style: normal;
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .boss-hud > span {
   position: relative;
   display: block;

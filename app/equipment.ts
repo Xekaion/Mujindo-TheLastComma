@@ -65,6 +65,10 @@ export const GEAR_RARITY_LEVEL_EQUIVALENT: Readonly<Record<GearRarity, number>> 
 /** Fresh drops roll uniformly inside the player's level ± this radius. */
 export const GEAR_DROP_LEVEL_RADIUS = 5;
 
+/** Boss loot is always five to ten levels above the player at the kill. */
+export const GEAR_BOSS_DROP_LEVEL_MIN_BONUS = 5;
+export const GEAR_BOSS_DROP_LEVEL_MAX_BONUS = 10;
+
 export const GEAR_RARITY_META: Readonly<Record<GearRarity, GearRarityMeta>> = {
   common: {
     label: "일반",
@@ -999,15 +1003,32 @@ const randomIndex = (rng: () => number, length: number) =>
   Math.min(length - 1, Math.floor(rng() * length));
 
 /**
- * Deterministically rolls a fresh drop level around the character, independent
- * of room count. Near levels 1 and 999 the range contracts instead of piling
- * multiple out-of-range results onto the boundary.
+ * Deterministically rolls a fresh drop level from character level, independent
+ * of room count. Normal and elite loot retain the symmetric ±5 band. Boss loot
+ * rolls an inclusive +5 through +10 bonus, then respects the level-999 ceiling.
  */
-export function rollGearDropLevel(seed: GearSeed, playerLevel: number): number {
+export function rollGearDropLevel(
+  seed: GearSeed,
+  playerLevel: number,
+  source: GearDropSource = "normal",
+): number {
   const centerLevel = normalizedLevel(playerLevel);
+  const rng = createSeededRng(`${String(seed)}|drop-level|${centerLevel}`);
+
+  if (source === "boss") {
+    const bonus =
+      GEAR_BOSS_DROP_LEVEL_MIN_BONUS +
+      randomIndex(
+        rng,
+        GEAR_BOSS_DROP_LEVEL_MAX_BONUS -
+          GEAR_BOSS_DROP_LEVEL_MIN_BONUS +
+          1,
+      );
+    return Math.min(999, centerLevel + bonus);
+  }
+
   const minimumLevel = Math.max(1, centerLevel - GEAR_DROP_LEVEL_RADIUS);
   const maximumLevel = Math.min(999, centerLevel + GEAR_DROP_LEVEL_RADIUS);
-  const rng = createSeededRng(`${String(seed)}|drop-level|${centerLevel}`);
   return minimumLevel + randomIndex(rng, maximumLevel - minimumLevel + 1);
 }
 

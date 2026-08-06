@@ -58,6 +58,16 @@ import {
   shouldRevealFirstBossEnding,
 } from "./ending";
 import {
+  BLANK_CARTOGRAPHER_BASE_HP,
+  BLANK_CARTOGRAPHER_PATTERN_LABELS,
+  BLANK_CARTOGRAPHER_RECOVERY_SECONDS,
+  BLANK_CARTOGRAPHER_RIFT_COUNT,
+  BLANK_CARTOGRAPHER_SUMMON_COUNT,
+  BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS,
+  blankCartographerPatternAt,
+  type BlankCartographerPattern,
+} from "./boss-balance";
+import {
   normalizeAutoSalvageThreshold,
   readAutoSalvagePreference,
   shouldAutoSalvageRarity,
@@ -213,6 +223,12 @@ type Enemy = {
   patternX?: number;
   patternY?: number;
   patternHit?: boolean;
+  bossPattern?: BlankCartographerPattern;
+  bossPatternIndex?: number;
+  bossPhase?: "pursuit" | "telegraph" | "charge" | "timeRifts" | "recovery";
+  patternTargetX?: number;
+  patternTargetY?: number;
+  bossSummonTargets?: Array<{ x: number; y: number }>;
   timeRifts?: Array<{
     x: number;
     y: number;
@@ -221,6 +237,16 @@ type Enemy = {
     telegraphed: boolean;
     triggered: boolean;
   }>;
+};
+
+const BOSS_PHASE_LABELS: Readonly<
+  Record<NonNullable<Enemy["bossPhase"]>, string>
+> = {
+  pursuit: "다음 문장을 고르는 중",
+  telegraph: "위험 예고",
+  charge: "돌진",
+  timeRifts: "좌표 고정",
+  recovery: "문장 재구성",
 };
 
 type Projectile = {
@@ -1654,6 +1680,8 @@ export default function GameCanvas() {
       enemies: 0,
       bossHp: 0,
       bossMaxHp: 0,
+      bossPattern: null as BlankCartographerPattern | null,
+      bossPhase: null as Enemy["bossPhase"] | null,
       activeEffects: 0,
       playerProjectiles: 0,
       hostileProjectiles: 0,
@@ -1897,6 +1925,8 @@ export default function GameCanvas() {
         enemies: world.enemies.length,
         bossHp: boss?.hp ?? 0,
         bossMaxHp: boss?.maxHp ?? 0,
+        bossPattern: boss?.bossPattern ?? null,
+        bossPhase: boss?.bossPhase ?? null,
         activeEffects: world.effects.length,
         playerProjectiles: world.projectiles.filter((projectile) => !projectile.hostile).length,
         hostileProjectiles: world.projectiles.filter((projectile) => projectile.hostile).length,
@@ -2005,7 +2035,16 @@ export default function GameCanvas() {
 
   const makeEnemy = useCallback(
     (kind: EnemyKind, x: number, y: number, depth: number, elite = false): Enemy => {
-      const hpBases = [28, 24, 64, 80, 45, 950, 58, 92];
+      const hpBases = [
+        28,
+        24,
+        64,
+        80,
+        45,
+        BLANK_CARTOGRAPHER_BASE_HP,
+        58,
+        92,
+      ];
       const speedBases = [76, 50, 43, 26, 62, 38, 72, 66];
       const damageBases = [8, 10, 14, 7, 12, 16, 15, 13];
       const radii = [21, 20, 28, 32, 22, 62, 24, 26];
@@ -2036,7 +2075,9 @@ export default function GameCanvas() {
         elite,
         patternPhase: kind === 6 ? "stalk" : kind === 7 ? "orbit" : undefined,
         patternTimer:
-          kind === 6
+          kind === BLANK_CARTOGRAPHER_KIND
+            ? 1.15
+            : kind === 6
             ? 1.15 + hash(worldRef.current.seed, x | 0, y | 0, 607) * 1.1
             : kind === 7
               ? 1.4 + hash(worldRef.current.seed, x | 0, y | 0, 707) * 1.2
@@ -2051,7 +2092,14 @@ export default function GameCanvas() {
               : undefined,
         patternY: kind === 6 ? 1 : undefined,
         patternHit: false,
-        timeRifts: kind === 7 ? [] : undefined,
+        bossPattern: undefined,
+        bossPatternIndex: kind === BLANK_CARTOGRAPHER_KIND ? 0 : undefined,
+        bossPhase:
+          kind === BLANK_CARTOGRAPHER_KIND ? "pursuit" : undefined,
+        bossSummonTargets:
+          kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
+        timeRifts:
+          kind === 7 || kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
       };
     },
     [],
@@ -2075,17 +2123,6 @@ export default function GameCanvas() {
         enemies.push(
           makeEnemy(BLANK_CARTOGRAPHER_KIND, WIDTH / 2, 210, depth, true),
         );
-        for (let i = 0; i < Math.min(5, 2 + Math.floor(depth / 4)); i += 1) {
-          const angle = (Math.PI * 2 * i) / 5;
-          enemies.push(
-            makeEnemy(
-              (i % 3) as EnemyKind,
-              WIDTH / 2 + Math.cos(angle) * 260,
-              HEIGHT / 2 + Math.sin(angle) * 185,
-              depth,
-            ),
-          );
-        }
         world.enemies = enemies;
         return;
       }
@@ -3442,7 +3479,11 @@ export default function GameCanvas() {
             player.level,
           );
           const dropSeed = `${world.seed}:${world.roomX}:${world.roomY}:${enemy.id}:${dropIndex}`;
-          const dropLevel = rollGearDropLevel(dropSeed, player.level);
+          const dropLevel = rollGearDropLevel(
+            dropSeed,
+            player.level,
+            dropSource,
+          );
           const item = rollGear(dropSeed, {
             level: dropLevel,
             rarity: forcedRarity,
@@ -4036,7 +4077,426 @@ export default function GameCanvas() {
         }
         const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         const d = distance(player.x, player.y, enemy.x, enemy.y);
-        if (enemy.kind === 6) {
+        if (enemy.kind === BLANK_CARTOGRAPHER_KIND) {
+          // The boss serializes every inherited attack through one FSM. No
+          // projectile, teleport, summon, rift burst, or charge hit is emitted
+          // until its authored telegraph phase has completed.
+          const bossPhase = enemy.bossPhase ?? "pursuit";
+          const healthRatio = clamp(enemy.hp / enemy.maxHp, 0, 1);
+          const recoveryMultiplier =
+            healthRatio > 0.66 ? 1 : healthRatio > 0.33 ? 0.9 : 0.8;
+          const beginRecovery = (duration = BLANK_CARTOGRAPHER_RECOVERY_SECONDS) => {
+            enemy.bossPhase = "recovery";
+            enemy.patternTimer = duration * recoveryMultiplier;
+            enemy.patternHit = false;
+            enemy.timeRifts = [];
+            enemy.bossSummonTargets = [];
+          };
+          const moveBoss = (speedMultiplier: number) => {
+            const preferredDistance = 305;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 165,
+              -0.48,
+              0.68,
+            );
+            const strafeDirection =
+              (enemy.bossPatternIndex ?? 0) % 2 === 0 ? 1 : -1;
+            const strafeStrength = 0.38 * strafeDirection;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeStrength;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeStrength;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x +=
+              enemyMoveX * enemy.speed * speedMultiplier * slowMultiplier * dt;
+            enemy.y +=
+              enemyMoveY * enemy.speed * speedMultiplier * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle +
+                dt * (5.2 + enemy.speed / 44) * speedMultiplier * slowMultiplier) %
+              4;
+          };
+
+          if (bossPhase === "pursuit") {
+            moveBoss(0.9);
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const patternIndex = enemy.bossPatternIndex ?? 0;
+              const nextPattern = blankCartographerPatternAt(patternIndex);
+              const telegraphSeconds =
+                BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS[nextPattern];
+              enemy.bossPattern = nextPattern;
+              enemy.bossPatternIndex = patternIndex + 1;
+              enemy.patternHit = false;
+              enemy.moving = false;
+
+              if (nextPattern === "timeRifts") {
+                enemy.timeRifts = Array.from(
+                  { length: BLANK_CARTOGRAPHER_RIFT_COUNT },
+                  (_, index) => {
+                    const delay = index * TIME_RIFT_SEQUENCE_GAP * 0.82;
+                    const predictionDistance =
+                      rawMoveLength > 0 || player.dashTime > 0
+                        ? Math.min(245, speed * (0.38 + index * 0.17))
+                        : index === 0
+                          ? 0
+                          : 58 + index * 24;
+                    const spreadAngle = angle + (index - 1.5) * 0.24;
+                    return {
+                      x: clamp(
+                        player.x + Math.cos(spreadAngle) * predictionDistance,
+                        96,
+                        WIDTH - 96,
+                      ),
+                      y: clamp(
+                        player.y + Math.sin(spreadAngle) * predictionDistance,
+                        92,
+                        HEIGHT - 92,
+                      ),
+                      delay,
+                      timer: telegraphSeconds,
+                      telegraphed: false,
+                      triggered: false,
+                    };
+                  },
+                );
+                enemy.bossPhase = "timeRifts";
+                enemy.patternTimer =
+                  telegraphSeconds +
+                  TIME_RIFT_SEQUENCE_GAP * 0.82 *
+                    (BLANK_CARTOGRAPHER_RIFT_COUNT - 1);
+              } else {
+                enemy.bossPhase = "telegraph";
+                enemy.patternTimer = telegraphSeconds;
+
+                if (nextPattern === "teleport") {
+                  let bestTargetX = enemy.x;
+                  let bestTargetY = enemy.y;
+                  let bestTargetDistance = 0;
+                  for (let targetIndex = 0; targetIndex < 8; targetIndex += 1) {
+                    const targetAngle =
+                      hash(
+                        world.seed,
+                        enemy.id,
+                        patternIndex * 17 + targetIndex,
+                        player.rooms + 5401,
+                      ) *
+                      Math.PI *
+                      2;
+                    const targetRadius =
+                      250 +
+                      hash(
+                        world.seed,
+                        targetIndex,
+                        enemy.id,
+                        patternIndex + 5419,
+                      ) *
+                        105;
+                    const candidateX = clamp(
+                      player.x + Math.cos(targetAngle) * targetRadius,
+                      108,
+                      WIDTH - 108,
+                    );
+                    const candidateY = clamp(
+                      player.y + Math.sin(targetAngle) * targetRadius,
+                      104,
+                      HEIGHT - 104,
+                    );
+                    const candidateDistance = distance(
+                      player.x,
+                      player.y,
+                      candidateX,
+                      candidateY,
+                    );
+                    if (candidateDistance > bestTargetDistance) {
+                      bestTargetDistance = candidateDistance;
+                      bestTargetX = candidateX;
+                      bestTargetY = candidateY;
+                    }
+                  }
+                  enemy.patternTargetX = bestTargetX;
+                  enemy.patternTargetY = bestTargetY;
+                  spawnVisualEffect(
+                    "teleport",
+                    enemy.x,
+                    enemy.y + 8,
+                    telegraphSeconds,
+                    188,
+                  );
+                  spawnVisualEffect(
+                    "teleport",
+                    bestTargetX,
+                    bestTargetY + 8,
+                    telegraphSeconds,
+                    202,
+                  );
+                } else if (nextPattern === "summon") {
+                  const activeAdds = world.enemies.filter(
+                    (candidate) =>
+                      candidate.kind !== BLANK_CARTOGRAPHER_KIND &&
+                      candidate.hp > 0,
+                  ).length;
+                  const summonCount = Math.max(
+                    0,
+                    Math.min(
+                      BLANK_CARTOGRAPHER_SUMMON_COUNT,
+                      4 - activeAdds,
+                    ),
+                  );
+                  enemy.bossSummonTargets = Array.from(
+                    { length: summonCount },
+                    (_, index) => {
+                      const summonAngle =
+                        angle + Math.PI / 2 + index * Math.PI;
+                      const target = {
+                        x: clamp(
+                          enemy.x + Math.cos(summonAngle) * 132,
+                          104,
+                          WIDTH - 104,
+                        ),
+                        y: clamp(
+                          enemy.y + Math.sin(summonAngle) * 106,
+                          100,
+                          HEIGHT - 100,
+                        ),
+                      };
+                      spawnVisualEffect(
+                        "summon",
+                        target.x,
+                        target.y + 8,
+                        telegraphSeconds,
+                        168,
+                      );
+                      return target;
+                    },
+                  );
+                } else if (nextPattern === "charge") {
+                  const prediction =
+                    player.dashTime > 0 ? 210 : rawMoveLength > 0 ? 145 : 36;
+                  const predictedX = clamp(
+                    player.x + dx * prediction,
+                    96,
+                    WIDTH - 96,
+                  );
+                  const predictedY = clamp(
+                    player.y + dy * prediction,
+                    92,
+                    HEIGHT - 92,
+                  );
+                  const chargeAngle = Math.atan2(
+                    predictedY - enemy.y,
+                    predictedX - enemy.x,
+                  );
+                  enemy.patternX = Math.cos(chargeAngle);
+                  enemy.patternY = Math.sin(chargeAngle);
+                  enemy.facing = directionRow(
+                    enemy.patternX,
+                    enemy.patternY,
+                    enemy.facing,
+                  );
+                } else {
+                  spawnCombatEffect(
+                    "timeRiftTelegraph",
+                    enemy.x,
+                    enemy.y + 14,
+                    telegraphSeconds,
+                    nextPattern === "radialVolley" ? 226 : 176,
+                    nextPattern === "radialVolley" ? "#ff5961" : "#e6bc75",
+                  );
+                }
+              }
+            }
+          } else if (bossPhase === "telegraph") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const pattern = enemy.bossPattern;
+              if (pattern === "aimedVolley") {
+                const aimedAngle = Math.atan2(
+                  player.y - enemy.y,
+                  player.x - enemy.x,
+                );
+                for (let shotIndex = -1; shotIndex <= 1; shotIndex += 1) {
+                  spawnHostileProjectile(
+                    enemy.x,
+                    enemy.y,
+                    aimedAngle + shotIndex * 0.13,
+                    315,
+                    enemy.damage * 0.9,
+                    8,
+                    "boss",
+                  );
+                }
+                beginRecovery(0.95);
+              } else if (pattern === "teleport") {
+                enemy.x = enemy.patternTargetX ?? enemy.x;
+                enemy.y = enemy.patternTargetY ?? enemy.y;
+                spawnVisualEffect("teleport", enemy.x, enemy.y + 8, 0.72, 214);
+                const teleportAngle = Math.atan2(
+                  player.y - enemy.y,
+                  player.x - enemy.x,
+                );
+                for (let shotIndex = -1; shotIndex <= 1; shotIndex += 1) {
+                  spawnHostileProjectile(
+                    enemy.x,
+                    enemy.y,
+                    teleportAngle + shotIndex * 0.12,
+                    365,
+                    enemy.damage * 0.82,
+                    9,
+                    "boss",
+                  );
+                }
+                beginRecovery(1.05);
+              } else if (pattern === "summon") {
+                const activeAdds = world.enemies.filter(
+                  (candidate) =>
+                    candidate.kind !== BLANK_CARTOGRAPHER_KIND &&
+                    candidate.hp > 0,
+                ).length;
+                const allowedSummons = Math.max(
+                  0,
+                  Math.min(
+                    BLANK_CARTOGRAPHER_SUMMON_COUNT,
+                    4 - activeAdds,
+                  ),
+                );
+                for (const [summonIndex, target] of (
+                  enemy.bossSummonTargets ?? []
+                )
+                  .slice(0, allowedSummons)
+                  .entries()) {
+                  world.enemies.push(
+                    makeEnemy(
+                      summonIndex % 2 === 0 ? 0 : 1,
+                      target.x,
+                      target.y,
+                      player.rooms,
+                    ),
+                  );
+                }
+                beginRecovery(1.12);
+              } else if (pattern === "radialVolley") {
+                const projectileCount =
+                  healthRatio > 0.66 ? 8 : healthRatio > 0.33 ? 12 : 16;
+                for (let shotIndex = 0; shotIndex < projectileCount; shotIndex += 1) {
+                  spawnHostileProjectile(
+                    enemy.x,
+                    enemy.y,
+                    (Math.PI * 2 * shotIndex) / projectileCount + now / 1800,
+                    215 + (1 - healthRatio) * 82,
+                    enemy.damage * 0.78,
+                    7,
+                    "boss",
+                  );
+                }
+                beginRecovery(1.42);
+              } else if (pattern === "charge") {
+                enemy.bossPhase = "charge";
+                enemy.patternTimer = 0.48;
+                enemy.patternHit = false;
+              } else {
+                beginRecovery();
+              }
+            }
+          } else if (bossPhase === "charge") {
+            const previousEnemyX = enemy.x;
+            const previousEnemyY = enemy.y;
+            const chargeSpeed = 650;
+            enemy.x += (enemy.patternX ?? 0) * chargeSpeed * dt;
+            enemy.y += (enemy.patternY ?? 1) * chargeSpeed * dt;
+            enemy.moving = true;
+            enemy.walkCycle = (enemy.walkCycle + dt * 14) % 4;
+            enemy.facing = directionRow(
+              enemy.patternX ?? 0,
+              enemy.patternY ?? 1,
+              enemy.facing,
+            );
+            if (
+              !enemy.patternHit &&
+              distanceToSegment(
+                player.x,
+                player.y,
+                previousEnemyX,
+                previousEnemyY,
+                enemy.x,
+                enemy.y,
+              ) <
+                player.radius + enemy.radius * 0.68
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage * 1.35);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) beginRecovery(0.92);
+          } else if (bossPhase === "timeRifts") {
+            moveBoss(0.38);
+            const timeRifts = enemy.timeRifts ?? [];
+            for (const rift of timeRifts) {
+              if (rift.triggered) continue;
+              rift.delay = Math.max(0, rift.delay - dt);
+              if (!rift.telegraphed && rift.delay <= 0) {
+                rift.telegraphed = true;
+                spawnCombatEffect(
+                  "timeRiftTelegraph",
+                  rift.x,
+                  rift.y,
+                  BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS.timeRifts,
+                  TIME_RIFT_RADIUS * 2.18,
+                  "#ff6b87",
+                );
+              } else if (rift.telegraphed) {
+                rift.timer -= dt;
+                if (rift.timer <= 0) {
+                  rift.triggered = true;
+                  spawnCombatEffect(
+                    "timeRiftBurst",
+                    rift.x,
+                    rift.y,
+                    0.56,
+                    TIME_RIFT_RADIUS * 2.9,
+                    "#ff3e69",
+                  );
+                  if (
+                    distance(player.x, player.y, rift.x, rift.y) <
+                    TIME_RIFT_RADIUS + player.radius
+                  ) {
+                    damagePlayer(enemy.damage * 1.14);
+                  }
+                  for (let missileIndex = 0; missileIndex < 6; missileIndex += 1) {
+                    spawnHostileProjectile(
+                      rift.x,
+                      rift.y,
+                      (Math.PI * 2 * missileIndex) / 6 + now / 2100,
+                      238,
+                      enemy.damage * 0.48,
+                      6,
+                      "boss",
+                    );
+                  }
+                }
+              }
+            }
+            if (
+              timeRifts.length === BLANK_CARTOGRAPHER_RIFT_COUNT &&
+              timeRifts.every((rift) => rift.triggered)
+            ) {
+              beginRecovery(1.08);
+            }
+          } else {
+            moveBoss(0.48);
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.bossPhase = "pursuit";
+              enemy.bossPattern = undefined;
+              enemy.patternTimer = 0.92 * recoveryMultiplier;
+            }
+          }
+        } else if (enemy.kind === 6) {
           const phase = enemy.patternPhase ?? "stalk";
           if (phase === "stalk") {
             const approach = d > 355 ? 0.72 : d < 235 ? -0.42 : 0.08;
@@ -4240,26 +4700,16 @@ export default function GameCanvas() {
           spawnHostileProjectile(enemy.x, enemy.y, teleportAngle, 350, enemy.damage, 9, "witch");
           enemy.shootCooldown = 3.4;
         }
+        const bossCanDealContactDamage =
+          enemy.kind !== BLANK_CARTOGRAPHER_KIND ||
+          enemy.bossPhase === "pursuit";
         if (
-          enemy.kind === BLANK_CARTOGRAPHER_KIND &&
-          enemy.shootCooldown <= 0
+          enemy.kind !== 6 &&
+          enemy.kind !== 7 &&
+          bossCanDealContactDamage &&
+          distance(player.x, player.y, enemy.x, enemy.y) <
+            player.radius + enemy.radius * 0.72
         ) {
-          const phase = enemy.hp / enemy.maxHp;
-          const count = phase > 0.66 ? 8 : phase > 0.33 ? 12 : 16;
-          for (let i = 0; i < count; i += 1) {
-            spawnHostileProjectile(
-              enemy.x,
-              enemy.y,
-              (Math.PI * 2 * i) / count + now / 1800,
-              210 + (1 - phase) * 85,
-              enemy.damage,
-              7,
-              "boss",
-            );
-          }
-          enemy.shootCooldown = 1.75 - (1 - phase) * 0.6;
-        }
-        if (enemy.kind !== 6 && enemy.kind !== 7 && d < player.radius + enemy.radius * 0.72) {
           damagePlayer(enemy.damage);
         }
       }
@@ -4920,6 +5370,8 @@ export default function GameCanvas() {
       const sourceHeight = image.naturalHeight / 2;
       const column = frameIndex % 3;
       const row = Math.floor(frameIndex / 3);
+      const telegraphScale =
+        enemy.kind === BLANK_CARTOGRAPHER_KIND ? 1.26 : 1;
       context.save();
       context.translate(enemy.x, enemy.y + 8);
       context.rotate(Math.atan2(directionY, directionX));
@@ -4934,10 +5386,10 @@ export default function GameCanvas() {
         row * sourceHeight,
         sourceWidth,
         sourceHeight,
-        -112,
-        -72,
-        920,
-        144,
+        -112 * telegraphScale,
+        -72 * telegraphScale,
+        920 * telegraphScale,
+        144 * telegraphScale,
       );
       context.restore();
       return true;
@@ -5872,13 +6324,36 @@ export default function GameCanvas() {
       }
 
       for (const enemy of world.enemies) {
-        if (enemy.kind !== 6) continue;
+        const proofreaderWindup =
+          enemy.kind === 6 && enemy.patternPhase === "windup";
+        const proofreaderCharge =
+          enemy.kind === 6 && enemy.patternPhase === "charge";
+        const bossWindup =
+          enemy.kind === BLANK_CARTOGRAPHER_KIND &&
+          enemy.bossPattern === "charge" &&
+          enemy.bossPhase === "telegraph";
+        const bossCharge =
+          enemy.kind === BLANK_CARTOGRAPHER_KIND &&
+          enemy.bossPattern === "charge" &&
+          enemy.bossPhase === "charge";
+        if (
+          !proofreaderWindup &&
+          !proofreaderCharge &&
+          !bossWindup &&
+          !bossCharge
+        ) {
+          continue;
+        }
         const directionX = enemy.patternX ?? 0;
         const directionY = enemy.patternY ?? 1;
-        if (enemy.patternPhase === "windup") {
-          const charge = 1 - clamp((enemy.patternTimer ?? 0) / 0.82, 0, 1);
+        if (proofreaderWindup || bossWindup) {
+          const telegraphSeconds = bossWindup
+            ? BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS.charge
+            : 0.82;
+          const charge =
+            1 - clamp((enemy.patternTimer ?? 0) / telegraphSeconds, 0, 1);
           drawProofreaderTelegraph(images.proofreaderTelegraph, enemy, charge);
-        } else if (enemy.patternPhase === "charge") {
+        } else {
           const trail = context.createLinearGradient(
             enemy.x - directionX * 130,
             enemy.y - directionY * 130,
@@ -6498,6 +6973,8 @@ export default function GameCanvas() {
       data-memory-ash={hud.player.memoryAsh}
       data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
       data-equipment-power={equippedPower}
+      data-boss-pattern={hud.world.bossPattern ?? "none"}
+      data-boss-phase={hud.world.bossPhase ?? "none"}
       data-proofreader-enemies={hud.world.proofreaderEnemies}
       data-proofreader-windups={hud.world.proofreaderWindups}
     >
@@ -6580,6 +7057,13 @@ export default function GameCanvas() {
           <div>
             <small>백지의 권역</small>
             <strong>{ENEMY_NAMES[BLANK_CARTOGRAPHER_KIND]}</strong>
+            {hud.world.bossPattern && hud.world.bossPhase && (
+              <em>
+                {BLANK_CARTOGRAPHER_PATTERN_LABELS[hud.world.bossPattern]}
+                {" · "}
+                {BOSS_PHASE_LABELS[hud.world.bossPhase]}
+              </em>
+            )}
           </div>
           <span>
             <i

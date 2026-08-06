@@ -722,6 +722,152 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   );
 });
 
+test("the blank cartographer deterministically cycles every inherited attack behind a telegraph", async () => {
+  const [balance, source] = await Promise.all([
+    importTypeScriptModule("app/boss-balance.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  const expectedPatterns = [
+    "aimedVolley",
+    "teleport",
+    "charge",
+    "timeRifts",
+    "summon",
+    "radialVolley",
+  ];
+  assert.equal(balance.BLANK_CARTOGRAPHER_BASE_HP, 650);
+  assert.ok(
+    balance.BLANK_CARTOGRAPHER_BASE_HP < 950,
+    "the pattern-heavy boss must have less base health than its former 950 HP budget",
+  );
+  assert.ok(
+    balance.BLANK_CARTOGRAPHER_BASE_HP > 92,
+    "the reduced boss health must still exceed every ordinary enemy base-health budget",
+  );
+  assert.deepEqual(balance.BLANK_CARTOGRAPHER_PATTERN_SEQUENCE, expectedPatterns);
+  assert.deepEqual(Object.keys(balance.BLANK_CARTOGRAPHER_PATTERN_LABELS), expectedPatterns);
+  assert.deepEqual(Object.keys(balance.BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS), expectedPatterns);
+  assert.equal(balance.BLANK_CARTOGRAPHER_RIFT_COUNT, 4);
+  assert.equal(balance.BLANK_CARTOGRAPHER_SUMMON_COUNT, 2);
+  assert.ok(balance.BLANK_CARTOGRAPHER_RECOVERY_SECONDS > 0);
+
+  for (const pattern of expectedPatterns) {
+    assert.match(balance.BLANK_CARTOGRAPHER_PATTERN_LABELS[pattern], /\S/);
+    assert.ok(
+      balance.BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS[pattern] > 0,
+      `${pattern} must expose a non-zero warning window`,
+    );
+  }
+  for (let index = 0; index < expectedPatterns.length * 3; index += 1) {
+    assert.equal(
+      balance.blankCartographerPatternAt(index),
+      expectedPatterns[index % expectedPatterns.length],
+      "the authored cycle must make every pattern reachable without random starvation",
+    );
+  }
+  assert.equal(balance.blankCartographerPatternAt(-1), expectedPatterns[0]);
+  assert.equal(balance.blankCartographerPatternAt(Number.NaN), expectedPatterns[0]);
+  assert.equal(balance.blankCartographerPatternAt(Number.POSITIVE_INFINITY), expectedPatterns[0]);
+
+  const bossRoom = source.match(
+    /if \(kind === "boss"\) \{([\s\S]*?)\n\s*\}\n\n\s*for \(let i = 0; i < count;/,
+  );
+  assert.ok(bossRoom, "the boss-room spawn branch must remain isolated");
+  assert.match(bossRoom[1], /makeEnemy\(BLANK_CARTOGRAPHER_KIND,/);
+  assert.equal(
+    [...bossRoom[1].matchAll(/\bmakeEnemy\(/g)].length,
+    1,
+    "the first boss must begin alone instead of retaining the former escort pack",
+  );
+
+  const bossController = source.match(
+    /if \(enemy\.kind === BLANK_CARTOGRAPHER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === 6\) \{/,
+  );
+  assert.ok(bossController, "the blank cartographer needs a dedicated controller");
+  const bossBody = bossController[1];
+  assert.match(
+    bossBody,
+    /const nextPattern = blankCartographerPatternAt\(patternIndex\);[\s\S]{0,260}?BLANK_CARTOGRAPHER_TELEGRAPH_SECONDS\[nextPattern\][\s\S]{0,220}?enemy\.bossPatternIndex = patternIndex \+ 1;/,
+    "the live controller must consume the complete deterministic pattern cycle",
+  );
+
+  const executionPhaseMarker = '} else if (bossPhase === "telegraph") {';
+  const executionPhaseIndex = bossBody.indexOf(executionPhaseMarker);
+  assert.ok(executionPhaseIndex > 0, "the controller must separate warnings from execution");
+  const warningPhase = bossBody.slice(0, executionPhaseIndex);
+  const executionAndRecovery = bossBody.slice(executionPhaseIndex);
+  assert.doesNotMatch(
+    warningPhase,
+    /damagePlayer\(|spawnHostileProjectile\(|world\.enemies\.push\(/,
+    "warning setup must not deal damage, launch missiles, or materialize summons",
+  );
+  assert.match(
+    executionAndRecovery,
+    /enemy\.moving = false;[\s\S]{0,100}?if \(\(enemy\.patternTimer \?\? 0\) <= 0\) \{[\s\S]{0,120}?const pattern = enemy\.bossPattern;/,
+    "ordinary patterns may execute only after their warning timer expires",
+  );
+
+  assert.match(
+    warningPhase,
+    /if \(nextPattern === "teleport"\) \{[\s\S]*?spawnVisualEffect\(\s*"teleport",[\s\S]*?spawnVisualEffect\(\s*"teleport",/,
+    "teleport must mark both departure and arrival before moving the boss",
+  );
+  assert.match(
+    warningPhase,
+    /else if \(nextPattern === "summon"\) \{[\s\S]*?4 - activeAdds[\s\S]*?spawnVisualEffect\(\s*"summon",/,
+    "summons must reserve visible portals and respect the four-add encounter cap",
+  );
+  assert.match(
+    warningPhase,
+    /else if \(nextPattern === "charge"\) \{[\s\S]*?enemy\.patternX = Math\.cos\(chargeAngle\);[\s\S]*?enemy\.patternY = Math\.sin\(chargeAngle\);/,
+    "the charge warning must lock a predicted direction before execution",
+  );
+  assert.match(
+    warningPhase,
+    /else \{\s*spawnCombatEffect\(\s*"timeRiftTelegraph",[\s\S]*?nextPattern === "radialVolley"/,
+    "aimed and radial volleys must share an authored pre-fire warning",
+  );
+
+  assert.match(
+    executionAndRecovery,
+    /if \(pattern === "aimedVolley"\) \{[\s\S]*?for \(let shotIndex = -1; shotIndex <= 1; shotIndex \+= 1\) \{[\s\S]*?spawnHostileProjectile\(/,
+    "the inherited aimed attack must fire its three-projectile spread",
+  );
+  assert.match(
+    executionAndRecovery,
+    /else if \(pattern === "teleport"\) \{[\s\S]*?enemy\.x = enemy\.patternTargetX \?\? enemy\.x;[\s\S]*?for \(let shotIndex = -1; shotIndex <= 1; shotIndex \+= 1\) \{[\s\S]*?spawnHostileProjectile\(/,
+    "the inherited teleport must resolve only after warning and finish with missiles",
+  );
+  assert.match(
+    executionAndRecovery,
+    /else if \(pattern === "summon"\) \{[\s\S]*?4 - activeAdds[\s\S]*?world\.enemies\.push\(\s*makeEnemy\(/,
+    "the inherited summoner pattern must materialize its pre-announced targets",
+  );
+  assert.match(
+    executionAndRecovery,
+    /else if \(pattern === "radialVolley"\) \{[\s\S]*?healthRatio > 0\.66 \? 8 : healthRatio > 0\.33 \? 12 : 16[\s\S]*?spawnHostileProjectile\(/,
+    "the boss's original radial barrage must remain and scale across health phases",
+  );
+  assert.match(
+    executionAndRecovery,
+    /else if \(pattern === "charge"\) \{\s*enemy\.bossPhase = "charge";[\s\S]*?else if \(bossPhase === "charge"\) \{[\s\S]*?damagePlayer\(enemy\.damage \* 1\.35\);/,
+    "charge collision damage must live only in the post-warning charge phase",
+  );
+  assert.match(
+    executionAndRecovery,
+    /else if \(bossPhase === "timeRifts"\) \{[\s\S]*?if \(!rift\.telegraphed && rift\.delay <= 0\) \{[\s\S]*?"timeRiftTelegraph"[\s\S]*?else if \(rift\.telegraphed\) \{[\s\S]*?rift\.timer -= dt;[\s\S]*?if \(rift\.timer <= 0\) \{[\s\S]*?"timeRiftBurst"[\s\S]*?damagePlayer\(enemy\.damage \* 1\.14\);[\s\S]*?for \(let missileIndex = 0; missileIndex < 6; missileIndex \+= 1\) \{[\s\S]*?spawnHostileProjectile\(/,
+    "each targeted circle must warn, detonate once, then release its six missiles",
+  );
+  assert.match(
+    source,
+    /const bossWindup =[\s\S]{0,180}?enemy\.bossPattern === "charge"[\s\S]{0,100}?enemy\.bossPhase === "telegraph";[\s\S]{0,1000}?drawProofreaderTelegraph\(/,
+    "the boss charge warning must use the authored charge telegraph asset",
+  );
+  assert.match(source, /data-boss-pattern=\{hud\.world\.bossPattern \?\? "none"\}/);
+  assert.match(source, /BLANK_CARTOGRAPHER_PATTERN_LABELS\[hud\.world\.bossPattern\]/);
+});
+
 test("each shelter heals and saves only on its first coordinate visit", async () => {
   const [shelterMemory, source] = await Promise.all([
     importTypeScriptModule("app/shelter-memory.ts"),
@@ -1014,7 +1160,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /const hpBases = \[28, 24, 64, 80, 45, 950, 58, 92\];[\s\S]{0,180}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66\];/,
+    /const hpBases = \[[\s\S]{0,220}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,40}?\];[\s\S]{0,180}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66\];/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
@@ -1537,7 +1683,7 @@ test("GameCanvas applies the exact restored source, scavenger, and gear-find dro
   );
 });
 
-test("fresh equipment drops stay within a deterministic player-level five-band", async () => {
+test("normal and elite equipment drops retain the deterministic player-level five-band", async () => {
   const [equipment, source] = await Promise.all([
     importTypeScriptModule("app/equipment.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
@@ -1552,7 +1698,9 @@ test("fresh equipment drops stay within a deterministic player-level five-band",
       const dropSeed = `drop-level-${playerLevel}-${seed}`;
       const first = equipment.rollGearDropLevel(dropSeed, playerLevel);
       const second = equipment.rollGearDropLevel(dropSeed, playerLevel);
+      const elite = equipment.rollGearDropLevel(dropSeed, playerLevel, "elite");
       assert.equal(first, second, "the same drop seed and player level must be deterministic");
+      assert.equal(elite, first, "elite drops must preserve the existing non-boss level band");
       assert.ok(Number.isSafeInteger(first));
       assert.ok(
         first >= minimumLevel && first <= maximumLevel,
@@ -1570,8 +1718,8 @@ test("fresh equipment drops stay within a deterministic player-level five-band",
   assert.ok(killEnemy, "the enemy drop flow must remain present");
   assert.match(
     killEnemy[1],
-    /const dropLevel = rollGearDropLevel\(dropSeed, player\.level\);[\s\S]{0,160}?level: dropLevel,/,
-    "runtime drops must derive item level from the character rather than room count",
+    /const dropLevel = rollGearDropLevel\(\s*dropSeed,\s*player\.level,\s*dropSource,?\s*\);[\s\S]{0,160}?level: dropLevel,/,
+    "runtime drops must derive item level from the character and defeated-enemy source",
   );
   assert.doesNotMatch(
     killEnemy[1],
@@ -1591,6 +1739,57 @@ test("fresh equipment drops stay within a deterministic player-level five-band",
   assert.equal(normalizedLegacyItem.level, 90, "the new drop band must not rewrite saved item levels");
   assert.equal(normalizedLegacyItem.id, legacyHighLevelItem.id);
   assert.deepEqual(normalizedLegacyItem.affixes, legacyHighLevelItem.affixes);
+});
+
+test("boss equipment drops deterministically roll five to ten levels above the player", async () => {
+  const [equipment, source] = await Promise.all([
+    importTypeScriptModule("app/equipment.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  assert.equal(equipment.GEAR_BOSS_DROP_LEVEL_MIN_BONUS, 5);
+  assert.equal(equipment.GEAR_BOSS_DROP_LEVEL_MAX_BONUS, 10);
+
+  for (const playerLevel of [1, 45, 989, 990, 994, 999]) {
+    const minimumLevel = Math.min(
+      999,
+      playerLevel + equipment.GEAR_BOSS_DROP_LEVEL_MIN_BONUS,
+    );
+    const maximumLevel = Math.min(
+      999,
+      playerLevel + equipment.GEAR_BOSS_DROP_LEVEL_MAX_BONUS,
+    );
+    const observedLevels = new Set();
+    for (let seed = 0; seed < 512; seed += 1) {
+      const dropSeed = `boss-drop-level-${playerLevel}-${seed}`;
+      const first = equipment.rollGearDropLevel(dropSeed, playerLevel, "boss");
+      const second = equipment.rollGearDropLevel(dropSeed, playerLevel, "boss");
+      assert.equal(first, second, "boss level rolls must be deterministic");
+      assert.ok(Number.isSafeInteger(first));
+      assert.ok(
+        first >= minimumLevel && first <= maximumLevel,
+        `level ${playerLevel} boss produced out-of-band item level ${first}`,
+      );
+      observedLevels.add(first);
+    }
+    assert.ok(
+      observedLevels.has(minimumLevel),
+      `level ${playerLevel} boss loot must reach its clamped lower bound`,
+    );
+    assert.ok(
+      observedLevels.has(maximumLevel),
+      `level ${playerLevel} boss loot must reach its clamped upper bound`,
+    );
+  }
+
+  const killEnemy = source.match(
+    /const killEnemy = \(enemy: Enemy\) => \{([\s\S]*?)\n\s*const firePlayerWeapon = \(\) => \{/,
+  );
+  assert.ok(killEnemy, "the enemy drop flow must remain present");
+  assert.match(
+    killEnemy[1],
+    /const dropCount = enemy\.kind === BLANK_CARTOGRAPHER_KIND \? 2 : 1;[\s\S]{0,700}?for \(let dropIndex = 0; dropIndex < dropCount; dropIndex \+= 1\)[\s\S]{0,700}?rollGearDropLevel\(\s*dropSeed,\s*player\.level,\s*dropSource,?\s*\)/,
+    "both guaranteed boss items must receive the boss-only level source",
+  );
 });
 
 test("rarity tier rating preserves the level-100 equivalence ladder without faking combat power", async () => {
@@ -2711,7 +2910,8 @@ test("the Crimson Proofreader keeps its unique eight-direction charge pattern wi
   );
   assert.match(
     source,
-    /patternPhase\s*===\s*["']windup["'][\s\S]{0,240}?drawProofreaderTelegraph\(images\.proofreaderTelegraph/,
+    /const proofreaderWindup =[\s\S]{0,100}?enemy\.kind === 6 && enemy\.patternPhase === "windup";[\s\S]{0,1400}?if \(proofreaderWindup \|\| bossWindup\)[\s\S]{0,350}?drawProofreaderTelegraph\(images\.proofreaderTelegraph/,
+    "the shared charge renderer must still route the Proofreader windup through its authored atlas",
   );
   assert.doesNotMatch(
     source,
