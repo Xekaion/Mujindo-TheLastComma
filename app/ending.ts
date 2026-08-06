@@ -1,4 +1,5 @@
 export const BLANK_CARTOGRAPHER_KIND = 5 as const;
+export const FIRST_BOSS_ENDING_VERSION = 2;
 export const ENDING_CONTINUE_LABEL = "모험을 계속한다";
 
 export type EndingChapter = {
@@ -101,7 +102,21 @@ export const FIRST_BOSS_ENDING_CHAPTERS: readonly EndingChapter[] = [
 
 export function shouldRevealFirstBossEnding(
   roomKind: string,
-  endingSeen: boolean,
+  endingVersion: number,
 ): boolean {
-  return roomKind === "boss" && !endingSeen;
+  return roomKind === "boss" && endingVersion < FIRST_BOSS_ENDING_VERSION;
+}
+
+export function normalizeEndingVersion(
+  savedVersion: unknown,
+  legacyEndingSeen: unknown,
+): number {
+  if (
+    typeof savedVersion === "number" &&
+    Number.isSafeInteger(savedVersion) &&
+    savedVersion >= 0
+  ) {
+    return savedVersion;
+  }
+  return legacyEndingSeen === true ? 1 : 0;
 }

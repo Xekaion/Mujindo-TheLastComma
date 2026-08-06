@@ -53,6 +53,8 @@ import {
   BLANK_CARTOGRAPHER_KIND,
   ENDING_CONTINUE_LABEL,
   FIRST_BOSS_ENDING_CHAPTERS,
+  FIRST_BOSS_ENDING_VERSION,
+  normalizeEndingVersion,
   shouldRevealFirstBossEnding,
 } from "./ending";
 import {
@@ -489,6 +491,7 @@ type Player = {
   dashY: number;
   shotCounter: number;
   endingSeen: boolean;
+  endingVersion: number;
   profession: string | null;
   facing: number;
   walkCycle: number;
@@ -1298,6 +1301,7 @@ function makePlayer(): Player {
     dashY: 0,
     shotCounter: 0,
     endingSeen: false,
+    endingVersion: 0,
     profession: null,
     facing: 6,
     walkCycle: 1,
@@ -1912,7 +1916,11 @@ export default function GameCanvas() {
   const continueAfterEnding = useCallback(() => {
     pendingEndingRef.current = false;
     playerRef.current.endingSeen = true;
-    markSaveSlotEndingSeen(activeSaveSlotRef.current);
+    playerRef.current.endingVersion = FIRST_BOSS_ENDING_VERSION;
+    markSaveSlotEndingSeen(
+      activeSaveSlotRef.current,
+      FIRST_BOSS_ENDING_VERSION,
+    );
     setEndingChapterIndex(0);
     setToast("끝은 사라졌습니다. 최초의 문장을 지우기 위한 무한 원정이 시작됩니다.");
     setGameMode("playing");
@@ -2487,12 +2495,17 @@ export default function GameCanvas() {
         ? clamp(data.player.hp, 0, savedMaxHp)
         : savedMaxHp;
       const savedHpRatio = savedHp / savedMaxHp;
+      const savedEndingVersion = normalizeEndingVersion(
+        data.player.endingVersion,
+        data.player.endingSeen,
+      );
       playerRef.current = {
         ...makePlayer(),
         ...data.player,
         profession:
           typeof data.player.profession === "string" ? data.player.profession : null,
-        endingSeen: data.player.endingSeen === true,
+        endingSeen: savedEndingVersion >= FIRST_BOSS_ENDING_VERSION,
+        endingVersion: savedEndingVersion,
         x: WIDTH / 2,
         y: HEIGHT / 2,
         augments: { ...data.player.augments },
@@ -3791,7 +3804,7 @@ export default function GameCanvas() {
       setToast(`방 정복 · 기억 ${Math.round(14 + player.rooms * 1.5)} · 문이 열렸습니다.`);
 
       if (world.roomKind === "boss") {
-        if (shouldRevealFirstBossEnding(world.roomKind, player.endingSeen)) {
+        if (shouldRevealFirstBossEnding(world.roomKind, player.endingVersion)) {
           setEndingChapterIndex(0);
           pendingEndingRef.current = true;
           if (modeRef.current === "playing") {

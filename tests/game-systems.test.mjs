@@ -606,17 +606,24 @@ test("corrupt saves are rejected without overwriting occupied slot 1", async () 
 });
 
 test("the ending receipt patches only the one-time story flag at the saved shelter", async () => {
-  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const [saves, ending] = await Promise.all([
+    importTypeScriptModule("app/save-slots.ts"),
+    importTypeScriptModule("app/ending.ts"),
+  ]);
   const storage = new MemoryStorage();
   const checkpoint = structuredClone(sampleSave);
   const originalWorld = structuredClone(checkpoint.world);
   const originalAugments = structuredClone(checkpoint.player.augments);
 
   assert.equal(saves.writeSaveSlot(2, checkpoint, storage), true);
-  assert.equal(saves.markSaveSlotEndingSeen(2, storage), true);
+  assert.equal(
+    saves.markSaveSlotEndingSeen(2, ending.FIRST_BOSS_ENDING_VERSION, storage),
+    true,
+  );
   const patched = saves.readSaveSlot(2, storage);
 
   assert.equal(patched.player.endingSeen, true);
+  assert.equal(patched.player.endingVersion, ending.FIRST_BOSS_ENDING_VERSION);
   assert.equal(patched.savedAt, checkpoint.savedAt, "the shelter timestamp must not move");
   assert.deepEqual(patched.world, originalWorld, "the shelter checkpoint must not move");
   assert.deepEqual(
@@ -624,10 +631,16 @@ test("the ending receipt patches only the one-time story flag at the saved shelt
     originalAugments,
     "unstable run progress must not be written by an ending receipt",
   );
-  assert.equal(saves.markSaveSlotEndingSeen(1, storage), false);
+  assert.equal(
+    saves.markSaveSlotEndingSeen(1, ending.FIRST_BOSS_ENDING_VERSION, storage),
+    false,
+  );
 
   const malformed = structuredClone(sampleSave);
   malformed.player.endingSeen = "yes";
+  assert.equal(saves.writeSaveSlot(3, malformed, storage), false);
+  malformed.player.endingSeen = false;
+  malformed.player.endingVersion = "two";
   assert.equal(saves.writeSaveSlot(3, malformed, storage), false);
   assert.equal(
     saves.writeSaveSlot(3, structuredClone(sampleSave), storage),
@@ -644,10 +657,19 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   ]);
 
   assert.equal(ending.BLANK_CARTOGRAPHER_KIND, 5);
+  assert.equal(ending.FIRST_BOSS_ENDING_VERSION, 2);
   assert.equal(ending.ENDING_CONTINUE_LABEL, "모험을 계속한다");
-  assert.equal(ending.shouldRevealFirstBossEnding("boss", false), true);
-  assert.equal(ending.shouldRevealFirstBossEnding("boss", true), false);
-  assert.equal(ending.shouldRevealFirstBossEnding("elite", false), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", 0), true);
+  assert.equal(
+    ending.shouldRevealFirstBossEnding("boss", 1),
+    true,
+    "a save that saw the former short ending must receive the expanded reveal once",
+  );
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", 2), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("elite", 0), false);
+  assert.equal(ending.normalizeEndingVersion(undefined, false), 0);
+  assert.equal(ending.normalizeEndingVersion(undefined, true), 1);
+  assert.equal(ending.normalizeEndingVersion(2, false), 2);
   assert.ok(ending.FIRST_BOSS_ENDING_CHAPTERS.length >= 8);
 
   const paragraphs = ending.FIRST_BOSS_ENDING_CHAPTERS.flatMap(
@@ -672,15 +694,18 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   );
   assert.match(
     source,
-    /if \(world\.roomKind === "boss"\) \{[\s\S]{0,180}?shouldRevealFirstBossEnding\(world\.roomKind, player\.endingSeen\)[\s\S]{0,280}?return;/,
+    /if \(world\.roomKind === "boss"\) \{[\s\S]{0,180}?shouldRevealFirstBossEnding\(world\.roomKind, player\.endingVersion\)[\s\S]{0,280}?return;/,
     "later boss clears must return without scheduling another ending",
   );
   assert.match(
     source,
-    /const continueAfterEnding[\s\S]{0,260}?playerRef\.current\.endingSeen = true;[\s\S]{0,100}?markSaveSlotEndingSeen\(activeSaveSlotRef\.current\)/,
+    /const continueAfterEnding[\s\S]{0,400}?playerRef\.current\.endingVersion = FIRST_BOSS_ENDING_VERSION;[\s\S]{0,180}?markSaveSlotEndingSeen\([\s\S]{0,100}?FIRST_BOSS_ENDING_VERSION/,
     "only the final continuation action may seal the ending receipt",
   );
-  assert.match(source, /endingSeen: data\.player\.endingSeen === true/);
+  assert.match(
+    source,
+    /const savedEndingVersion = normalizeEndingVersion\([\s\S]{0,360}?endingSeen: savedEndingVersion >= FIRST_BOSS_ENDING_VERSION,[\s\S]{0,80}?endingVersion: savedEndingVersion/,
+  );
   assert.match(
     source,
     /endingIsFinal \? ENDING_CONTINUE_LABEL : "다음 기억을 읽는다"/,
