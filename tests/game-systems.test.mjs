@@ -3610,7 +3610,31 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     "slot caps must not resolve differently between the size container and its children",
   );
   assert.match(finalCss, /\.inventory-screen-equipment-card\s*\{[\s\S]{0,420}?overflow:\s*visible;/);
-  assert.match(finalCss, /\.inventory-screen-slot-clip\s*\{[\s\S]{0,300}?overflow:\s*hidden;/);
+  assert.match(
+    finalCss,
+    /\.inventory-screen-equipment-card\s*\{[\s\S]{0,120}?isolation:\s*isolate;/,
+    "each equipped card must keep its visual layers in one local stacking context",
+  );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-grid-item\s*\{[\s\S]{0,100}?isolation:\s*isolate;/,
+    "each backpack card must keep its visual layers in one local stacking context",
+  );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-slot-clip\s*\{[\s\S]{0,240}?z-index:\s*auto;[\s\S]{0,220}?overflow:\s*hidden;/,
+    "the dark slot plate must not form a z2 rectangle over the rarity spectacle",
+  );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-slot-clip > \.inventory-screen-gear-icon\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*2;/,
+    "the clipped item icon must remain above the z1 spectacle",
+  );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,300}?z-index:\s*3;/,
+    "the exact rarity border must remain above the icon",
+  );
   assert.match(finalCss, /Full names belong in the workbench[\s\S]{0,260}?\.inventory-screen-grid-name\s*\{\s*display:\s*none;/);
   assert.match(finalCss, /rarity-frames\.png:[\s\S]{0,520}?inset:\s*-2\.632%;[\s\S]{0,180}?background-size:\s*800%\s+100%;/);
   assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
