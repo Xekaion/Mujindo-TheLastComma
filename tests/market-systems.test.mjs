@@ -36,6 +36,17 @@ function database() {
   return db;
 }
 
+async function migrate(db) {
+  db.exec(await source("drizzle/0001_secure_market.sql"));
+  db.exec(await source("drizzle/0002_loud_major_mapleleaf.sql"));
+  const triggers = (await source("worker/economy-triggers.sql"))
+    .split("--> statement-breakpoint")
+    .map((statement) => statement.trim())
+    .filter(Boolean);
+  assert.equal(triggers.length, 26);
+  for (const trigger of triggers) db.exec(trigger);
+}
+
 function seed(db) {
   const now = 1_800_000_000_000;
   for (const [index, id] of [UUID.a, UUID.b, UUID.c].entries()) {
@@ -159,7 +170,7 @@ test("economy protocol rejects mass assignment, floats, overflow, and hash repla
 
 test("secure market migration applies with normalized tables and immutable ledgers", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const count = db.prepare(`SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name LIKE 'economy_%'`).get().count;
   assert.ok(count >= 20);
   seed(db);
@@ -168,9 +179,23 @@ test("secure market migration applies with normalized tables and immutable ledge
   assert.throws(() => db.prepare(`DELETE FROM economy_ledger WHERE id='l1'`).run(), /immutable_ledger/);
 });
 
+test("Sites migrations stay parser-safe while runtime installs every authoritative trigger", async () => {
+  const [migration1, migration2, triggerSql, installer] = await Promise.all([
+    source("drizzle/0001_secure_market.sql"),
+    source("drizzle/0002_loud_major_mapleleaf.sql"),
+    source("worker/economy-triggers.sql"),
+    source("worker/economy-trigger-installer.ts"),
+  ]);
+  assert.doesNotMatch(`${migration1}\n${migration2}`, /CREATE\s+TRIGGER/i);
+  assert.equal((triggerSql.match(/CREATE\s+TRIGGER\s+IF\s+NOT\s+EXISTS/gi) ?? []).length, 26);
+  assert.match(installer, /db\.batch\(/);
+  assert.match(installer, /secure-market-triggers-v2/);
+  assert.match(installer, /economy_trigger_install_incomplete/);
+});
+
 test("one listing can sell once; idempotency, BOLA, seller sanctions, and rollback hold", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   const originalProvenance = db.prepare(`SELECT provenance FROM economy_items WHERE id=?`).get(UUID.item1).provenance;
   command(db, { id: "40000000-0000-4000-8000-000000000001", actor: UUID.a, action: "list_item", key: "list:00000000-0000-4000-8000-000000000001", result: UUID.listing1, item: UUID.item1, price: 400, version: 0, expires: now + 60_000, now });
@@ -194,7 +219,7 @@ test("one listing can sell once; idempotency, BOLA, seller sanctions, and rollba
 
 test("expired auction listings atomically return escrowed items and remain auditable", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   command(db, { id: uuidLike(8), actor: UUID.a, action: "list_item", key: "list:expiry00000000000000001", result: UUID.listing1, item: UUID.item1, price: 400, version: 0, expires: now + 10, now });
   db.prepare(`INSERT OR IGNORE INTO economy_listing_expiry_commands(id,listing_id,created_at)
@@ -218,7 +243,7 @@ function uuidLike(value) {
 
 test("exchange uses escrow, partial fill, provenance lots, and exact cancel release", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   command(db, { id: uuidLike(11), actor: UUID.a, action: "place_exchange", key: "place:00000000-0000-4000-8000-000000000001", result: UUID.order1, side: "sell_gold", price: 10, gold: 50, now });
   let walletA = db.prepare(`SELECT * FROM economy_wallets WHERE account_id=?`).get(UUID.a);
@@ -254,7 +279,7 @@ test("exchange uses escrow, partial fill, provenance lots, and exact cancel rele
 
 test("sandbox gold is database-validated and cannot enter exchange before the 72h lot hold", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   command(db, { id: uuidLike(21), actor: UUID.b, action: "sandbox_topup", key: "topup:00000000-0000-4000-8000-000000000001", result: uuidLike(121), currency: "gold", amount: 40, now });
   let wallet = db.prepare(`SELECT * FROM economy_wallets WHERE account_id=?`).get(UUID.b);
@@ -273,7 +298,7 @@ test("sandbox gold is database-validated and cannot enter exchange before the 72
 
 test("payment finalization mints once, records provenance, and holds gold for 72 hours", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   const paymentId = "a0000000-0000-4000-8000-000000000001";
   const approvalUrl = `https://store.steampowered.com/checkout?returnurl=${encodeURIComponent(`https://game.example/market?payment_return=${paymentId}`)}`;
@@ -301,7 +326,7 @@ test("payment finalization mints once, records provenance, and holds gold for 72
 
 test("payment mint rechecks active sanctions inside the same database boundary", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   const paymentId = "a0000000-0000-4000-8000-000000000099";
   db.prepare(`INSERT INTO economy_payment_orders(id,account_id,provider,provider_order_id,product_sku,amount_minor,currency,gold_amount,status,idempotency_key,request_hash,created_at,authorized_at) VALUES(?,?,'steam','provider-sanction-1','gold-10',110000,'KRW',10,'authorized','payment-init:sanction001',?,?,?)`)
@@ -319,7 +344,7 @@ test("a provider Succeeded replay recovers the DB mint without calling FinalizeT
   assert.equal(protocol.steamTransactionDisposition("Succeeded"), "recover");
 
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   const paymentId = "a0000000-0000-4000-8000-000000000002";
   db.prepare(`INSERT INTO economy_payment_orders(id,account_id,provider,provider_order_id,product_sku,amount_minor,currency,gold_amount,status,approval_url,idempotency_key,request_hash,created_at,authorized_at) VALUES(?,?,'steam','provider-recovery-1','gold-10',110000,'KRW',10,'authorized','https://store.steampowered.com/checkout','payment-init:recovery0001',?,?,?)`)
@@ -337,7 +362,7 @@ test("a provider Succeeded replay recovers the DB mint without calling FinalizeT
 
 test("admin audit idempotency is immutable and rejects duplicate operator requests", async () => {
   const db = database();
-  db.exec(await source("drizzle/0001_secure_market.sql"));
+  await migrate(db);
   const now = seed(db);
   const insert = db.prepare(`INSERT INTO economy_audit_events(id,target_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at) VALUES(?,?,'freeze_wallet','account',?,?,?,?,'{}',?)`);
   insert.run(uuidLike(41), UUID.a, UUID.a, uuidLike(141), "admin:0000000000000001", "e".repeat(64), now);

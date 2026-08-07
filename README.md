@@ -114,6 +114,9 @@ Production runtime values belong in encrypted Worker/Sites configuration:
 Remote economy identity is Steam-session-only; hosting name/email headers are
 never accepted as account authority or exposed as seller names. Apply the D1
 migrations in order (`0001_secure_market.sql`, then `0002_loud_major_mapleleaf.sql`).
+The first economy request installs the 26 versioned D1 triggers from
+`worker/economy-triggers.sql` as individual prepared statements and records a
+schema marker; the request fails closed if that atomic installation fails.
 Before any real-money launch, complete every gate in `docs/economy-security.md`,
 including server-authoritative PvE issuance and Korean legal/rating review.
 

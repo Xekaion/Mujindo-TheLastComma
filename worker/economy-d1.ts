@@ -14,6 +14,7 @@ import {
   type ItemMarketQuery,
   type SteamTransactionItem,
 } from "../app/economy-protocol";
+import { ensureEconomyTriggers } from "./economy-trigger-installer";
 
 export type EconomyD1Env = {
   DB?: D1Database;
@@ -1214,6 +1215,7 @@ export async function handleEconomyRequest(request: Request, env: EconomyD1Env):
   try {
     if (!env.DB) throw new EconomyProblem(503, "ECONOMY_UNAVAILABLE", "경제 D1 binding이 없습니다.", true);
     const db = env.DB;
+    await ensureEconomyTriggers(db);
     const url = new URL(request.url);
     const route = url.pathname.replace(/\/+$/, "");
     if (route === "/api/economy/health") return request.method === "GET" ? await health(db, env) : methodNotAllowed("GET");
