@@ -7650,6 +7650,13 @@ export default function GameCanvas() {
               </span>
               <b>LIVE</b>
             </a>
+            <a className="menu-market-action" href="/market">
+              <span>
+                <strong>기억 거래소</strong>
+                <small>장비 경매 · 금괴 교환 · 서버 보안 원장</small>
+              </span>
+              <b>MARKET</b>
+            </a>
             <button type="button" className="menu-shop-action" onClick={openShop}>
               <span>
                 <strong>기억 상단</strong>

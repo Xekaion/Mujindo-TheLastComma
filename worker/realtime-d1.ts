@@ -35,6 +35,7 @@ export type RealtimeD1Env = {
 type StoredSession = {
   token: string;
   playerId: string;
+  accountId?: string;
   displayName: string;
   createdAt: number;
   expiresAt: number;
@@ -240,6 +241,13 @@ function sameOriginOrAbsent(request: Request): boolean {
 function trustedDisplayName(request: Request, requestedName: unknown): string {
   const trustedName = request.headers.get("x-mujindo-player-name");
   return sanitizeDisplayName(trustedName ?? requestedName);
+}
+
+function trustedAccountId(request: Request): string | null {
+  const value = request.headers.get("x-mujindo-account-id");
+  return value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value.toLowerCase()
+    : null;
 }
 
 function bearerToken(request: Request): string | null {
@@ -1068,6 +1076,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
     throw new RequestProblem(400, "invalid_session_body", "Session body must be an object.");
   }
   const displayName = trustedDisplayName(request, rawBody.displayName);
+  const accountId = trustedAccountId(request);
   const token = `${crypto.randomUUID().replaceAll("-", "")}${crypto
     .randomUUID()
     .replaceAll("-", "")}`;
@@ -1086,6 +1095,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
     const session: StoredSession = {
       token,
       playerId,
+      ...(accountId ? { accountId } : {}),
       displayName,
       createdAt: now,
       expiresAt: now + SESSION_TTL_MS,
@@ -1116,11 +1126,15 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
     throw new RequestProblem(401, "invalid_session", "A valid bearer session is required.");
   }
   const body = parseSyncBody(await readJson(request));
+  const accountId = trustedAccountId(request);
 
   const messages = await casMutate(db, (state, now) => {
     const session = state.sessions[token];
     if (!session || session.expiresAt <= now) {
       throw new RequestProblem(401, "invalid_session", "The realtime session has expired.");
+    }
+    if (accountId && session.accountId !== accountId) {
+      throw new RequestProblem(403, "account_session_mismatch", "Realtime session does not belong to this account.");
     }
     session.lastSeenAt = now;
     if (session.matchId) {
@@ -1213,9 +1227,9 @@ export async function handleRealtimeRequest(
 
     const url = new URL(request.url);
     const route = url.pathname.replace(/\/+$/, "");
-    const isSession = route.endsWith("/session");
-    const isSync = route.endsWith("/sync");
-    const isHealth = route.endsWith("/health");
+    const isSession = route === "/api/realtime/session";
+    const isSync = route === "/api/realtime/sync";
+    const isHealth = route === "/api/realtime/health";
     if (!isSession && !isSync && !isHealth) {
       return json({ error: "not_found" }, 404);
     }

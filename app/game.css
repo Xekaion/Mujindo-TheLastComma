@@ -4275,6 +4275,7 @@ button.equipment-slot-card:hover {
 /* -------------------------------------------------------------------------- */
 
 .menu-pvp-action,
+.menu-market-action,
 .menu-shop-action {
   display: flex;
   width: min(360px, 100%);
@@ -4305,13 +4306,25 @@ button.equipment-slot-card:hover {
   box-shadow: inset 0 1px rgba(255, 193, 204, 0.08), 0 10px 30px rgba(0, 0, 0, 0.3);
 }
 
+.menu-market-action {
+  border-color: rgba(214, 170, 84, 0.46);
+  color: #efe4ca;
+  background:
+    radial-gradient(circle at 88% 50%, rgba(213, 162, 65, 0.14), transparent 31%),
+    linear-gradient(90deg, rgba(70, 48, 17, 0.94), rgba(18, 16, 13, 0.94));
+  box-shadow: inset 0 1px rgba(255, 229, 169, 0.07), 0 10px 30px rgba(0, 0, 0, 0.3);
+  text-decoration: none;
+}
+
 .menu-pvp-action > span,
+.menu-market-action > span,
 .menu-shop-action > span {
   display: grid;
   gap: 2px;
 }
 
 .menu-pvp-action strong,
+.menu-market-action strong,
 .menu-shop-action strong {
   color: #e9e2c8;
   font-family: Georgia, "Nanum Myeongjo", serif;
@@ -4320,6 +4333,7 @@ button.equipment-slot-card:hover {
 }
 
 .menu-pvp-action small,
+.menu-market-action small,
 .menu-shop-action small {
   color: rgba(185, 217, 204, 0.58);
   font-size: 9px;
@@ -4331,6 +4345,7 @@ button.equipment-slot-card:hover {
 }
 
 .menu-pvp-action > b,
+.menu-market-action > b,
 .menu-shop-action > b {
   padding: 5px 9px;
   border: 1px solid rgba(109, 206, 190, 0.24);
@@ -4350,14 +4365,31 @@ button.equipment-slot-card:hover {
   letter-spacing: 0.16em;
 }
 
+.menu-market-action > b {
+  border-color: rgba(226, 182, 93, 0.35);
+  color: #e8c874;
+  background: rgba(43, 28, 7, 0.82);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+}
+
 .menu-pvp-action:hover,
 .menu-pvp-action:focus-visible,
+.menu-market-action:hover,
+.menu-market-action:focus-visible,
 .menu-shop-action:hover,
 .menu-shop-action:focus-visible {
   border-color: rgba(132, 231, 212, 0.72);
   outline: none;
   box-shadow: inset 0 1px rgba(190, 255, 235, 0.1), 0 14px 34px rgba(0, 0, 0, 0.4), 0 0 24px rgba(65, 174, 154, 0.11);
   transform: translateY(-1px);
+}
+
+.menu-market-action:hover,
+.menu-market-action:focus-visible {
+  border-color: rgba(241, 201, 116, 0.88);
+  box-shadow: inset 0 1px rgba(255, 235, 191, 0.12), 0 14px 36px rgba(0, 0, 0, 0.42), 0 0 28px rgba(204, 151, 49, 0.15);
 }
 
 .menu-pvp-action:hover,
@@ -4797,6 +4829,57 @@ button.equipment-slot-card:hover {
 .shop-category > button:first-child small {
   color: rgba(173, 207, 197, 0.48);
   font-size: 8px;
+}
+
+.shop-market-entry {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 54px;
+  margin-top: 7px;
+  padding: 7px 9px;
+  border: 1px solid rgba(205, 161, 74, 0.34);
+  color: #dfd1ae;
+  background: linear-gradient(90deg, rgba(82, 53, 15, 0.48), rgba(12, 15, 15, 0.84));
+  text-decoration: none;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+
+.shop-market-entry > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: 1px solid rgba(221, 181, 96, 0.4);
+  color: #e7c774;
+  transform: rotate(45deg);
+}
+
+.shop-market-entry > div { display: grid; gap: 2px; min-width: 0; }
+.shop-market-entry strong { font-size: 10px; }
+.shop-market-entry small { color: rgba(208, 188, 145, 0.5); font-size: 7px; }
+.shop-market-entry b { color: #b89551; font-size: 7px; }
+.shop-market-entry:hover,
+.shop-market-entry:focus-visible {
+  border-color: rgba(240, 200, 116, 0.76);
+  color: #f3e2bd;
+  background: linear-gradient(90deg, rgba(106, 70, 19, 0.58), rgba(16, 19, 18, 0.9));
+  outline: 2px solid rgba(232, 190, 101, 0.18);
+  outline-offset: 2px;
+}
+
+.shop-header-market {
+  display: none;
+  min-height: 31px;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(211, 170, 85, 0.35);
+  color: #d8ba76;
+  background: rgba(52, 34, 10, 0.64);
+  font-size: 8px;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .shop-account-note {
@@ -5405,6 +5488,8 @@ button.equipment-slot-card:hover {
   .shop-category {
     display: none;
   }
+
+  .shop-header-market { display: flex; }
 }
 
 @media (max-width: 720px) {
@@ -5414,7 +5499,7 @@ button.equipment-slot-card:hover {
   }
 
   .shop-header {
-    grid-template-columns: 1fr 38px;
+    grid-template-columns: 1fr auto 38px;
     padding-left: 17px;
   }
 

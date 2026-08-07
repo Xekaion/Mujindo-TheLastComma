@@ -92,6 +92,31 @@ actions tied to the current ChatGPT user. Leave public content anonymous.
 - `npm test`: build the starter and verify its rendered loading skeleton
 - `npm run db:generate`: generate Drizzle migrations after schema changes
 
+## Secure player economy
+
+The `/market` route contains the server-backed equipment auction house, the
+gold-bar/Memory Ash order book, the Steam top-up surface, and the account
+security center. On localhost, open `/market?demo=A` and switch between demo
+users A/B to exercise real D1 escrow and settlement without using a payment
+provider. Local save-slot items and balances are deliberately never accepted
+by the market API.
+
+Production runtime values belong in encrypted Worker/Sites configuration:
+
+- `ECONOMY_ACCOUNT_PEPPER`: high-entropy secret used to pseudonymize platform subjects and network rate-limit keys.
+- `ECONOMY_ADMIN_KEY`: localhost-only emergency-admin test key. The worker hard-locks this API on remote hosts until operator MFA, RBAC, named audit identities, and two-person approval are implemented.
+- `STEAM_APP_ID` and `STEAM_PUBLISHER_KEY`: server-only Steam ownership and MicroTxn credentials.
+- `STEAM_MICROTXN_SANDBOX=true`: use Steam's sandbox while testing payments.
+- `ECONOMY_LIVE_ENABLED=true`: separately unlocks production market writes after Steam ownership and server-issued asset flows are ready.
+- `ECONOMY_PAYMENTS_ENABLED=true`: unlocks only Steam MicroTxn sandbox testing while `STEAM_MICROTXN_SANDBOX=true`. Production payment remains hard-blocked in code until GetReport reconciliation, refunds, chargebacks, debt recovery, and incident drills are implemented.
+- `PVP_ACCOUNT_AUTH_ENABLED=true`: requires the same verified Steam/internal account on every PVP session and sync request, making login/PVP sanctions immediately enforceable.
+
+Remote economy identity is Steam-session-only; hosting name/email headers are
+never accepted as account authority or exposed as seller names. Apply the D1
+migrations in order (`0001_secure_market.sql`, then `0002_loud_major_mapleleaf.sql`).
+Before any real-money launch, complete every gate in `docs/economy-security.md`,
+including server-authoritative PvE issuance and Korean legal/rating review.
+
 ## Learn More
 
 - [vinext Documentation](https://github.com/cloudflare/vinext)

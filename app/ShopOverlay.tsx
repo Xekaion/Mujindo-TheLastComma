@@ -112,6 +112,9 @@ export default function ShopOverlay({
             <span>현재 가방</span>
             <strong>{inventoryCount} <i>/</i> {inventoryCapacity}</strong>
           </div>
+          <a className="shop-header-market" href="/market?tab=gold">
+            거래소
+          </a>
           <button
             type="button"
             className="shop-close"
@@ -152,6 +155,14 @@ export default function ShopOverlay({
                 <small>가방 · 좌표 이동</small>
               </div>
             </button>
+            <a className="shop-market-entry" href="/market?tab=gold">
+              <span aria-hidden="true">◇</span>
+              <div>
+                <strong>기억 거래소</strong>
+                <small>금괴 교환 · 장비 경매</small>
+              </div>
+              <b>이동</b>
+            </a>
             <div className="shop-account-note">
               <small>적용 범위</small>
               <strong>이 기기의 3개 기록 슬롯</strong>

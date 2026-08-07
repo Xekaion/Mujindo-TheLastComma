@@ -405,3 +405,22 @@ test("world announcement fires only after the item is actually stored", async ()
     /drop\.item\.rarity === "mythic"[\s\S]*drop\.item\.rarity === "cosmic"/,
   );
 });
+
+test("production PVP can bind every realtime session to the verified economy account", async () => {
+  const [entry, economy, realtime] = await Promise.all([
+    readSource("worker/index.ts"),
+    readSource("worker/economy-d1.ts"),
+    readSource("worker/realtime-d1.ts"),
+  ]);
+
+  assert.match(entry, /headers\.delete\("x-mujindo-account-id"\)/);
+  assert.match(entry, /await authorizeRealtimeEconomyRequest\(sanitizedRequest, env\)/);
+  assert.match(entry, /headers\.set\("x-mujindo-account-id", realtimeIdentity\.accountId\)/);
+  assert.match(economy, /PVP_ACCOUNT_AUTH_ENABLED\?: string/);
+  assert.match(economy, /if \(env\.PVP_ACCOUNT_AUTH_ENABLED !== "true"\) return null/);
+  assert.match(economy, /assertNoActiveSanction\(env\.DB, auth\.account\.id, \["login", "pvp"\]\)/);
+  assert.match(realtime, /accountId\?: string/);
+  assert.match(realtime, /\.\.\.\(accountId \? \{ accountId \} : \{\}\)/);
+  assert.match(realtime, /session\.accountId !== accountId/);
+  assert.match(realtime, /"account_session_mismatch"/);
+});
