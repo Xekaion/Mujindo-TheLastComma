@@ -112,7 +112,7 @@ function GearIcon({ item, size = 64 }: { item: GearItem; size?: number }) {
   const style = {
     width: size,
     height: size,
-    backgroundImage: "url('/assets/equipment/equipment-types-v3.png')",
+    backgroundImage: "url('/assets/equipment/equipment-types-v4.png')",
     backgroundRepeat: "no-repeat",
     backgroundSize: `${GEAR_ICON_COLUMNS * 100}% ${GEAR_ICON_ROWS * 100}%`,
     backgroundPosition: `${backgroundX}% ${backgroundY}%`,

@@ -545,7 +545,7 @@ test("twenty new augments are unique, profession-ready, and wired into combat", 
   assert.match(source, /player\.hp \+ regenerationRank \* 0\.14 \* dt/);
   assert.match(
     source,
-    /const baseValue =[\s\S]{0,90}?enemy\.kind === BLANK_CARTOGRAPHER_KIND/,
+    /const baseValue =[\s\S]{0,90}?isBossKind\(enemy\.kind\)/,
   );
 });
 
@@ -844,8 +844,9 @@ test("the ending receipt patches only the one-time story flag at the saved shelt
 });
 
 test("the blank cartographer owns the first boss and its long ending can trigger only once", async () => {
-  const [ending, source, css] = await Promise.all([
+  const [ending, roster, source, css] = await Promise.all([
     importTypeScriptModule("app/ending.ts"),
+    importTypeScriptModule("app/boss-roster.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
   ]);
@@ -853,14 +854,20 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   assert.equal(ending.BLANK_CARTOGRAPHER_KIND, 5);
   assert.equal(ending.FIRST_BOSS_ENDING_VERSION, 2);
   assert.equal(ending.ENDING_CONTINUE_LABEL, "모험을 계속한다");
-  assert.equal(ending.shouldRevealFirstBossEnding("boss", 0), true);
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", 5, 0), true);
   assert.equal(
-    ending.shouldRevealFirstBossEnding("boss", 1),
+    ending.shouldRevealFirstBossEnding("boss", 5, 1),
     true,
     "a save that saw the former short ending must receive the expanded reveal once",
   );
-  assert.equal(ending.shouldRevealFirstBossEnding("boss", 2), false);
-  assert.equal(ending.shouldRevealFirstBossEnding("elite", 0), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", 5, 2), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("boss", 9, 0), false);
+  assert.equal(ending.shouldRevealFirstBossEnding("elite", 5, 0), false);
+  assert.equal(roster.bossKindForProgress(0, 0), 5);
+  assert.equal(roster.bossKindForProgress(1, 1), 5);
+  assert.equal(roster.bossKindForProgress(2, 1), 9);
+  assert.equal(roster.bossKindForProgress(2, 2), 5);
+  assert.equal(roster.bossKindForProgress(2, 3), 9);
   assert.equal(ending.normalizeEndingVersion(undefined, false), 0);
   assert.equal(ending.normalizeEndingVersion(undefined, true), 1);
   assert.equal(ending.normalizeEndingVersion(2, false), 2);
@@ -883,12 +890,12 @@ test("the blank cartographer owns the first boss and its long ending can trigger
 
   assert.match(
     source,
-    /if \(kind === "boss"\) \{[\s\S]{0,160}?makeEnemy\(BLANK_CARTOGRAPHER_KIND,/,
-    "every first boss spawn must explicitly select the blank cartographer",
+    /if \(kind === "boss"\) \{[\s\S]{0,420}?bossKindForProgress\([\s\S]{0,120}?player\.endingVersion,[\s\S]{0,120}?clearedBossRooms[\s\S]{0,160}?makeEnemy\(bossKind,/,
+    "boss spawning must preserve the first boss while selecting the post-ending roster",
   );
   assert.match(
     source,
-    /if \(world\.roomKind === "boss"\) \{[\s\S]{0,180}?shouldRevealFirstBossEnding\(world\.roomKind, player\.endingVersion\)[\s\S]{0,280}?return;/,
+    /if \(world\.roomKind === "boss"\) \{[\s\S]{0,260}?shouldRevealFirstBossEnding\([\s\S]{0,100}?world\.roomKind,[\s\S]{0,100}?world\.activeBossKind,[\s\S]{0,100}?player\.endingVersion,[\s\S]{0,320}?return;/,
     "later boss clears must return without scheduling another ending",
   );
   assert.match(
@@ -968,7 +975,8 @@ test("the blank cartographer deterministically cycles every inherited attack beh
     /if \(kind === "boss"\) \{([\s\S]*?)\n\s*\}\n\n\s*for \(let i = 0; i < count;/,
   );
   assert.ok(bossRoom, "the boss-room spawn branch must remain isolated");
-  assert.match(bossRoom[1], /makeEnemy\(BLANK_CARTOGRAPHER_KIND,/);
+  assert.match(bossRoom[1], /const bossKind = bossKindForProgress\(/);
+  assert.match(bossRoom[1], /makeEnemy\(bossKind,/);
   assert.equal(
     [...bossRoom[1].matchAll(/\bmakeEnemy\(/g)].length,
     1,
@@ -976,7 +984,7 @@ test("the blank cartographer deterministically cycles every inherited attack beh
   );
 
   const bossController = source.match(
-    /if \(enemy\.kind === BLANK_CARTOGRAPHER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === 6\) \{/,
+    /if \(enemy\.kind === BLANK_CARTOGRAPHER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === FINAL_BINDER_KIND\) \{/,
   );
   assert.ok(bossController, "the blank cartographer needs a dedicated controller");
   const bossBody = bossController[1];
@@ -1058,8 +1066,173 @@ test("the blank cartographer deterministically cycles every inherited attack beh
     /const bossWindup =[\s\S]{0,180}?enemy\.bossPattern === "charge"[\s\S]{0,100}?enemy\.bossPhase === "telegraph";[\s\S]{0,1000}?drawProofreaderTelegraph\(/,
     "the boss charge warning must use the authored charge telegraph asset",
   );
-  assert.match(source, /data-boss-pattern=\{hud\.world\.bossPattern \?\? "none"\}/);
+  assert.match(source, /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? "none"\}/);
   assert.match(source, /BLANK_CARTOGRAPHER_PATTERN_LABELS\[hud\.world\.bossPattern\]/);
+});
+
+test("the Final Binder is a post-ending boss with three telegraphed arena patterns and clean assets", async () => {
+  const walkPath = "public/assets/walk/final-binder-walk-v1.png";
+  const effectPath = "public/assets/effects/final-binder-patterns-v1.png";
+  const [balance, roster, source, walk, effects] = await Promise.all([
+    importTypeScriptModule("app/final-binder-balance.ts"),
+    importTypeScriptModule("app/boss-roster.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
+    readFile(path.join(root, effectPath)).then((png) => decodeRgbaPng(png, effectPath)),
+  ]);
+
+  assert.equal(balance.FINAL_BINDER_KIND, 9);
+  assert.equal(balance.FINAL_BINDER_BASE_HP, 575);
+  assert.equal(balance.FINAL_BINDER_BASE_SPEED, 35);
+  assert.equal(balance.FINAL_BINDER_BASE_DAMAGE, 14);
+  assert.equal(balance.FINAL_BINDER_RADIUS, 58);
+  assert.deepEqual(balance.FINAL_BINDER_PATTERN_SEQUENCE, [
+    "pageWall",
+    "threadSweep",
+    "chapterTurn",
+  ]);
+  assert.deepEqual(
+    Object.keys(balance.FINAL_BINDER_PATTERN_LABELS),
+    balance.FINAL_BINDER_PATTERN_SEQUENCE,
+  );
+  assert.equal(balance.FINAL_BINDER_CHAPTER_PULSES, 3);
+  assert.ok(balance.FINAL_BINDER_TELEGRAPH_SECONDS.pageWall >= 0.9);
+  assert.ok(balance.FINAL_BINDER_TELEGRAPH_SECONDS.threadSweep >= 1);
+  assert.ok(balance.FINAL_BINDER_TELEGRAPH_SECONDS.chapterTurn >= 0.75);
+  for (let index = 0; index < 12; index += 1) {
+    assert.equal(
+      balance.finalBinderPatternAt(index),
+      balance.FINAL_BINDER_PATTERN_SEQUENCE[index % 3],
+    );
+  }
+
+  const pageWall = balance.finalBinderPageWallSegments(
+    "horizontal",
+    1,
+    0.5,
+    640,
+  );
+  assert.equal(pageWall.length, 2);
+  assert.equal(
+    pageWall[1].startX - pageWall[0].endX,
+    balance.FINAL_BINDER_PAGE_WALL_HORIZONTAL_GAP,
+  );
+  assert.equal(pageWall[0].startY, pageWall[1].startY);
+  const forwardEnd = balance.finalBinderPageWallSegments("vertical", 1, 1, 360);
+  const reverseStart = balance.finalBinderPageWallSegments("vertical", -1, 0, 360);
+  assert.deepEqual(forwardEnd, reverseStart, "opposite casts must share exact wall geometry");
+
+  const sweep = balance.finalBinderThreadSweepSegment(640, 360, 0, 1, 0);
+  assert.equal(sweep.startX, 640 + balance.FINAL_BINDER_THREAD_INNER_RADIUS);
+  assert.equal(sweep.startY, 360);
+  assert.equal(
+    Math.hypot(sweep.endX - sweep.startX, sweep.endY - sweep.startY),
+    balance.FINAL_BINDER_THREAD_OUTER_RADIUS -
+      balance.FINAL_BINDER_THREAD_INNER_RADIUS,
+  );
+  assert.equal(balance.finalBinderChapterSafeSector(0, 1, 0), 0);
+  assert.equal(balance.finalBinderChapterSafeSector(0, 1, 1), 1);
+  assert.equal(balance.finalBinderChapterSafeSector(0, -1, 1), 3);
+  assert.equal(
+    balance.finalBinderChapterHits(840, 360, 640, 360, 0),
+    false,
+    "the marked east sector must remain safe",
+  );
+  assert.equal(
+    balance.finalBinderChapterHits(440, 360, 640, 360, 0),
+    true,
+    "the opposite annulus must remain dangerous",
+  );
+
+  assert.equal(roster.isBossKind(5), true);
+  assert.equal(roster.isBossKind(9), true);
+  assert.equal(roster.isBossKind(8), false);
+  assert.equal(roster.bossKindForProgress(1, 10), 5);
+  assert.equal(roster.bossKindForProgress(2, 1), 9);
+
+  assert.deepEqual([walk.width, walk.height], [1024, 1536]);
+  for (let row = 0; row < 8; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      const label = "final binder row " + row + " column " + column;
+      const metrics = alphaCellMetrics(walk, column, row, 4, 8, label);
+      assert.ok(metrics.opaquePixels >= 7_000, label + " lacks a readable boss silhouette");
+      assert.ok(metrics.left >= 12 && metrics.right >= 12, label + " clips horizontally");
+      assert.ok(metrics.top >= 12 && metrics.bottom >= 12, label + " clips vertically");
+    }
+  }
+  for (let frame = 0; frame < 4; frame += 1) {
+    for (let y = 0; y < 192; y += 1) {
+      for (let x = 0; x < 256; x += 1) {
+        const southwest = ((1 * 192 + y) * walk.width + frame * 256 + x) * 4;
+        const southeast = ((7 * 192 + y) * walk.width + frame * 256 + (255 - x)) * 4;
+        for (let channel = 0; channel < 4; channel += 1) {
+          assert.equal(
+            walk.pixels[southwest + channel],
+            walk.pixels[southeast + channel],
+            "SE must be the exact horizontal counterpart of SW",
+          );
+        }
+      }
+    }
+  }
+  assert.equal(countGreenChromaPixels(walk), 0, walkPath + " retains green spill");
+
+  assert.deepEqual([effects.width, effects.height], [1254, 1254]);
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 2; column += 1) {
+      const label = "final binder effect row " + row + " column " + column;
+      const metrics = alphaCellMetrics(effects, column, row, 2, 2, label);
+      assert.ok(metrics.opaquePixels >= 5_000, label + " is missing");
+      assert.ok(metrics.left >= 18 && metrics.right >= 18, label + " clips horizontally");
+      assert.ok(metrics.top >= 40 && metrics.bottom >= 40, label + " clips vertically");
+    }
+  }
+  assert.equal(countGreenChromaPixels(effects), 0, effectPath + " retains green spill");
+
+  assert.match(source, /type EnemyKind\s*=\s*0\s*\|\s*1\s*\|\s*2\s*\|\s*3\s*\|\s*4\s*\|\s*5\s*\|\s*6\s*\|\s*7\s*\|\s*8\s*\|\s*9/);
+  assert.match(source, /["']종언의 제본사["']/);
+  assert.match(source, /walkFinalBinder:\s*["']\/assets\/walk\/final-binder-walk-v1\.png["']/);
+  assert.match(source, /finalBinderPatterns:\s*["']\/assets\/effects\/final-binder-patterns-v1\.png["']/);
+  assert.match(source, /const boss = world\.enemies\.find\(\(enemy\) => isBossKind\(enemy\.kind\)\);/);
+  assert.match(source, /const dropCount = isBossKind\(enemy\.kind\) \? 2 : 1;/);
+
+  const controller = source.match(
+    /else if \(enemy\.kind === FINAL_BINDER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === 6\) \{/,
+  );
+  assert.ok(controller, "kind 9 needs an isolated controller");
+  const warningMarker = '} else if (binderPhase === "telegraph") {';
+  const warningEnd = controller[1].indexOf(warningMarker);
+  assert.ok(warningEnd > 0);
+  assert.doesNotMatch(
+    controller[1].slice(0, warningEnd),
+    /damagePlayer\(/,
+    "pursuit and warning setup must not deal damage",
+  );
+  assert.match(
+    controller[1],
+    /binderPhase === "pageWall"[\s\S]*?finalBinderPageWallSegments\([\s\S]*?FINAL_BINDER_PAGE_WALL_HALF_WIDTH[\s\S]*?damagePlayer\(enemy\.damage\);/,
+  );
+  assert.match(
+    controller[1],
+    /binderPhase === "threadSweep"[\s\S]*?finalBinderThreadSweepSegment\([\s\S]*?FINAL_BINDER_THREAD_HALF_WIDTH[\s\S]*?damagePlayer\(enemy\.damage \* 1\.12\);/,
+  );
+  assert.match(
+    controller[1],
+    /binderPhase === "chapterBurst"[\s\S]*?finalBinderChapterHits\([\s\S]*?damagePlayer\(enemy\.damage \* 0\.55\);/,
+  );
+  const finalBinderFloorIndex = source.indexOf(
+    "drawFinalBinderPattern(images.finalBinderPatterns, enemy)",
+  );
+  const actorIndex = source.indexOf(
+    "const sortedEnemies = [...world.enemies]",
+    finalBinderFloorIndex,
+  );
+  assert.ok(
+    finalBinderFloorIndex >= 0 && actorIndex > finalBinderFloorIndex,
+    "all boss danger geometry must render below the actor layer",
+  );
+  assert.match(source, /FINAL_BINDER_PATTERN_LABELS\[hud\.world\.binderPattern\]/);
+  assert.match(source, /FINAL_BINDER_PHASE_LABELS\[hud\.world\.binderPhase\]/);
 });
 
 test("each shelter heals and saves only on its first coordinate visit", async () => {
@@ -1234,6 +1407,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/proofreader-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/time-stalker-walk.png", [1024, 1536]],
     ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-equipped-v3.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
     ["public/assets/effects/teleport-rift.png", [1024, 1024]],
@@ -1241,7 +1415,8 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/time-stalker-rift-warning-v1.png", [1254, 1254]],
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
     ["public/assets/effects/margin-sever-line-v1.png", [1254, 1254]],
-    ["public/assets/equipment/equipment-types-v3.png", [2800, 2240]],
+    ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
+    ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
     ["public/assets/effects/loot-cosmic-awakening.png", [1536, 768]],
@@ -1296,7 +1471,7 @@ test("the Proofreader walk atlas fills all canonical direction cells without edg
   }
 
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
-  assert.match(source, /"walkProofreader"[\s\S]{0,160}?] as const/);
+  assert.match(source, /"walkProofreader"[\s\S]{0,260}?] as const/);
   assert.match(
     source,
     /makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\)[\s\S]{0,900}?const DIRECTION_NAMES/,
@@ -1306,7 +1481,7 @@ test("the Proofreader walk atlas fills all canonical direction cells without edg
   assert.match(source, /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\]/);
   assert.match(
     source,
-    /enemy\.kind === 6\s*\?\s*192[\s\S]{0,280}?enemy\.kind === 6\s*\?\s*144/,
+    /enemy\.kind === 6\s*\?\s*192[\s\S]{0,520}?enemy\.kind === 6\s*\?\s*144/,
   );
 });
 
@@ -1346,7 +1521,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,400}?MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,40}?\];/,
+    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,400}?MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
     "the canonical Time Stalker direction map must occupy kind 7's frame slot",
   );
   assert.match(
@@ -1356,7 +1531,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,220}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,40}?\];[\s\S]{0,180}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58\];/,
+    /const hpBases = \[[\s\S]{0,260}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,260}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED\];/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
@@ -1561,10 +1736,10 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const speedBases = readBalanceArray("speedBases");
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
-  assert.equal(hpBases.length, 9, "every enemy kind needs an aligned health entry");
-  assert.equal(speedBases.length, 9, "every enemy kind needs an aligned speed entry");
-  assert.equal(damageBases.length, 9, "every enemy kind needs an aligned damage entry");
-  assert.equal(radii.length, 9, "every enemy kind needs an aligned radius entry");
+  assert.equal(hpBases.length, 10, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 10, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 10, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 10, "every enemy kind needs an aligned radius entry");
   assert.deepEqual(
     [hpBases[8], speedBases[8], damageBases[8], radii[8]],
     ["68", "58", "11", "23"],
@@ -1726,7 +1901,7 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
   );
   assert.match(
     source,
-    /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,40}?\];/,
+    /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
     "kind 8 must own the ninth enemy direction-table slot",
   );
   assert.match(
@@ -1792,16 +1967,16 @@ test("the memory-stitched armor icon occupies its ten-column atlas cell with tra
   assert.equal(equipment.GEAR_BASE_NAMES.armor[3], baseName);
   assert.equal(equipment.gearIconIndex("armor", baseName), 3 * 10 + 4);
 
-  const relativePath = "public/assets/equipment/equipment-types-v3.png";
+  const relativePath = "public/assets/equipment/equipment-types-v4.png";
   const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
-  assert.deepEqual([image.width, image.height], [2800, 2240]);
-  assertAlphaCellGutter(image, 4, 3, 10, 8, "memory-stitched armor");
+  assert.deepEqual([image.width, image.height], [2800, 2800]);
+  assertAlphaCellGutter(image, 4, 3, 10, 10, "memory-stitched armor");
 });
 
-test("the v3 equipment atlas centers every cell and removes cross-row source fragments", async () => {
-  const relativePath = "public/assets/equipment/equipment-types-v3.png";
+test("the v4 equipment atlas centers every cell and removes cross-row source fragments", async () => {
+  const relativePath = "public/assets/equipment/equipment-types-v4.png";
   const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
-  assert.deepEqual([image.width, image.height], [2800, 2240]);
+  assert.deepEqual([image.width, image.height], [2800, 2800]);
 
   const maximumComponentsByColumn = new Map([
     [1, 1], // offhand
@@ -1811,10 +1986,10 @@ test("the v3 equipment atlas centers every cell and removes cross-row source fra
     [7, 2], // paired legs
   ]);
 
-  for (let row = 0; row < 8; row += 1) {
+  for (let row = 0; row < 10; row += 1) {
     for (let column = 0; column < 10; column += 1) {
       const label = `equipment row ${row} column ${column}`;
-      const metrics = alphaCellMetrics(image, column, row, 10, 8, label);
+      const metrics = alphaCellMetrics(image, column, row, 10, 10, label);
       const expectedCenter = (metrics.cellWidth - 1) / 2;
       assert.ok(metrics.left >= 28 && metrics.right >= 28, `${label} needs horizontal crop safety`);
       assert.ok(metrics.top >= 28 && metrics.bottom >= 28, `${label} needs vertical crop safety`);
@@ -1847,7 +2022,7 @@ test("the v3 equipment atlas centers every cell and removes cross-row source fra
 
       const maximumComponents = maximumComponentsByColumn.get(column);
       if (maximumComponents === undefined) continue;
-      const components = alphaCellComponents(image, column, row, 10, 8);
+      const components = alphaCellComponents(image, column, row, 10, 10);
       const significant = components.filter((count) => count >= components[0] * 0.075);
       assert.ok(
         significant.length <= maximumComponents,
@@ -1861,9 +2036,10 @@ test("the v3 equipment atlas centers every cell and removes cross-row source fra
       }
     }
   }
+  assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green spill`);
 });
 
-test("equipment exposes eighty base-name icons in a ten-column by eight-row atlas", async () => {
+test("equipment exposes one hundred base-name icons in a ten-column by ten-row atlas", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
 
   assert.deepEqual(equipment.EQUIPMENT_SLOTS, [
@@ -1901,16 +2077,16 @@ test("equipment exposes eighty base-name icons in a ten-column by eight-row atla
     "cosmic",
   ]);
   assert.equal(equipment.GEAR_ICON_COLUMNS, 10);
-  assert.equal(equipment.GEAR_ICON_ROWS, 8);
+  assert.equal(equipment.GEAR_ICON_ROWS, 10);
 
   const bases = Object.values(equipment.GEAR_BASE_NAMES).flat();
-  assert.equal(bases.length, 80, "ten slots need eight visual bases apiece");
-  assert.equal(new Set(bases).size, 80, "every base name must identify one visual base");
+  assert.equal(bases.length, 100, "ten slots need ten visual bases apiece");
+  assert.equal(new Set(bases).size, 100, "every base name must identify one visual base");
 
   const mappedIndices = [];
   for (const [column, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
     const slotBases = equipment.GEAR_BASE_NAMES[slot];
-    assert.equal(slotBases.length, 8, `${slot} needs eight base names`);
+    assert.equal(slotBases.length, 10, `${slot} needs ten base names`);
     for (const [row, baseName] of slotBases.entries()) {
       const iconIndex = equipment.gearIconIndex(slot, baseName);
       assert.equal(iconIndex, row * 10 + column, `${slot}/${baseName} maps to the wrong atlas cell`);
@@ -1921,8 +2097,24 @@ test("equipment exposes eighty base-name icons in a ten-column by eight-row atla
 
   assert.deepEqual(
     mappedIndices.sort((a, b) => a - b),
-    Array.from({ length: 80 }, (_, index) => index),
-    "the ten-slot by eight-base atlas must map every cell exactly once",
+    Array.from({ length: 100 }, (_, index) => index),
+    "the ten-slot by ten-base atlas must map every cell exactly once",
+  );
+
+  assert.deepEqual(
+    equipment.EQUIPMENT_SLOTS.map((slot) => equipment.GEAR_BASE_NAMES[slot].slice(8)),
+    [
+      ["종언의 제본침", "성운 절단검"],
+      ["봉인된 최종장", "별무덤 천구의"],
+      ["무문장의 가면", "무진성 관측면갑"],
+      ["교정쇄 견갑", "혜성흔 견갑"],
+      ["종언 편집자의 법의", "성운 방랑갑"],
+      ["문장 봉합장갑", "유성 파지장갑"],
+      ["제본사의 사슬띠", "항성고리 요대"],
+      ["마지막 장의 각반", "은하 답파각"],
+      ["여백 순례화", "별틈 도약화"],
+      ["종언의 쉼표", "궤도 밖의 쉼표"],
+    ],
   );
 
   assert.equal(equipment.LEGENDARY_POWER_IDS.length, 10);
@@ -2272,7 +2464,7 @@ test("boss equipment drops deterministically roll five to ten levels above the p
   assert.ok(killEnemy, "the enemy drop flow must remain present");
   assert.match(
     killEnemy[1],
-    /const dropCount = enemy\.kind === BLANK_CARTOGRAPHER_KIND \? 2 : 1;[\s\S]{0,700}?for \(let dropIndex = 0; dropIndex < dropCount; dropIndex \+= 1\)[\s\S]{0,700}?rollGearDropLevel\(\s*dropSeed,\s*player\.level,\s*dropSource,?\s*\)/,
+    /const dropCount = isBossKind\(enemy\.kind\) \? 2 : 1;[\s\S]{0,700}?for \(let dropIndex = 0; dropIndex < dropCount; dropIndex \+= 1\)[\s\S]{0,700}?rollGearDropLevel\(\s*dropSeed,\s*player\.level,\s*dropSource,?\s*\)/,
     "both guaranteed boss items must receive the boss-only level source",
   );
 });
@@ -3416,8 +3608,8 @@ test("enemy loot, inventory, equipment comparison, and save restoration remain i
   );
   assert.match(
     source,
-    /equipmentIcons\s*:\s*["']\/assets\/equipment\/equipment-types-v3\.png["']/,
-    "the forty-type equipment atlas must be loaded by the canvas",
+    /equipmentIcons\s*:\s*["']\/assets\/equipment\/equipment-types-v4\.png["']/,
+    "the hundred-type equipment atlas must be loaded by the canvas",
   );
   assert.match(source, /\binventory\s*:/, "player state needs a persisted equipment inventory");
   assert.match(source, /\bequipment\s*:/, "player state needs a five-slot equipment loadout");
@@ -3773,8 +3965,8 @@ test("equipped gear selects a frame-matched composite walk sheet instead of icon
   );
 
   // Ground loot and inventory thumbnails still use the separate icon atlas.
-  assert.match(css, /equipment-types-v3\.png/);
-  assert.match(overlay, /backgroundImage:\s*["']url\(["']\/assets\/equipment\/equipment-types-v3\.png["']\)["']/);
+  assert.match(css, /equipment-types-v4\.png/);
+  assert.match(overlay, /backgroundImage:\s*["']url\(["']\/assets\/equipment\/equipment-types-v4\.png["']\)["']/);
   assert.match(overlay, /backgroundSize:\s*`\$\{GEAR_ICON_COLUMNS \* 100\}% \$\{GEAR_ICON_ROWS \* 100\}%`/);
   assert.doesNotMatch(
     css,
@@ -3793,7 +3985,7 @@ test("equipped gear selects a frame-matched composite walk sheet instead of icon
   assert.match(
     source,
     /sourceWidth\s*=\s*equipmentIcons\.naturalWidth\s*\/\s*GEAR_ICON_COLUMNS;[\s\S]{0,120}?sourceHeight\s*=\s*equipmentIcons\.naturalHeight\s*\/\s*GEAR_ICON_ROWS;/,
-    "ground loot must crop the same ten-column by eight-row atlas as the UI",
+    "ground loot must crop the same ten-column by ten-row atlas as the UI",
   );
 });
 

@@ -85,6 +85,40 @@ import {
   type BlankCartographerPattern,
 } from "./boss-balance";
 import {
+  FINAL_BINDER_BASE_DAMAGE,
+  FINAL_BINDER_BASE_HP,
+  FINAL_BINDER_BASE_SPEED,
+  FINAL_BINDER_CHAPTER_BURST_SECONDS,
+  FINAL_BINDER_CHAPTER_INNER_RADIUS,
+  FINAL_BINDER_CHAPTER_OUTER_RADIUS,
+  FINAL_BINDER_CHAPTER_PULSES,
+  FINAL_BINDER_CHAPTER_SAFE_HALF_ANGLE,
+  FINAL_BINDER_KIND,
+  FINAL_BINDER_PAGE_WALL_HALF_WIDTH,
+  FINAL_BINDER_PAGE_WALL_SECONDS,
+  FINAL_BINDER_PATTERN_LABELS,
+  FINAL_BINDER_PHASE_LABELS,
+  FINAL_BINDER_RADIUS,
+  FINAL_BINDER_RECOVERY_SECONDS,
+  FINAL_BINDER_TELEGRAPH_SECONDS,
+  FINAL_BINDER_THREAD_HALF_WIDTH,
+  FINAL_BINDER_THREAD_SWEEP_ARC,
+  FINAL_BINDER_THREAD_SWEEP_SECONDS,
+  finalBinderChapterHits,
+  finalBinderChapterSafeSector,
+  finalBinderPageWallSegments,
+  finalBinderPatternAt,
+  finalBinderThreadSweepSegment,
+  type FinalBinderAxis,
+  type FinalBinderPattern,
+  type FinalBinderPhase,
+} from "./final-binder-balance";
+import {
+  bossKindForProgress,
+  isBossKind,
+  type BossKind,
+} from "./boss-roster";
+import {
   normalizeAutoSalvageThreshold,
   readAutoSalvagePreference,
   shouldAutoSalvageRarity,
@@ -186,7 +220,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 type ProjectileAffinity =
   | "arcane"
   | "ember"
@@ -255,6 +289,15 @@ type Enemy = {
   patternTargetX?: number;
   patternTargetY?: number;
   bossSummonTargets?: Array<{ x: number; y: number }>;
+  binderPattern?: FinalBinderPattern;
+  binderPatternIndex?: number;
+  binderPhase?: FinalBinderPhase;
+  binderAxis?: FinalBinderAxis;
+  binderDirection?: 1 | -1;
+  binderSafeCenter?: number;
+  binderStartAngle?: number;
+  binderPulseIndex?: number;
+  binderInitialSafeSector?: number;
   timeRifts?: Array<{
     x: number;
     y: number;
@@ -647,6 +690,7 @@ type World = {
   effectCounts: Record<BehaviorEffectKind, number>;
   transition: number;
   clearHandled: boolean;
+  activeBossKind: BossKind | null;
 };
 
 type CartographyWorld = Pick<World, "roomX" | "roomY" | "rooms" | "visited">;
@@ -1165,7 +1209,7 @@ const ROOM_NAMES: Record<RoomKind, string> = {
   elite: "붉은 봉인의 방",
   memory: "흐릿한 기억",
   shelter: "마지막 쉼표",
-  boss: "백지의 중심",
+  boss: "지도의 심장",
 };
 
 const ROOM_ART_KEYS: Record<RoomKind, string> = {
@@ -1199,6 +1243,7 @@ const ENEMY_NAMES = [
   "붉은 교정자",
   "시간의 추적자",
   "여백 절단사",
+  "종언의 제본사",
 ];
 
 const spriteCrops = [
@@ -1221,6 +1266,7 @@ const WALK_IMAGE_KEYS = [
   "walkProofreader",
   "walkTimeStalker",
   "walkMarginSeverer",
+  "walkFinalBinder",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1250,6 +1296,9 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   // The generated sheet supplies S through E; SE is the exact horizontal
   // counterpart of its authored SW pose, so only that final diagonal is mirrored.
   MARGIN_SEVERER_DIRECTION_FRAMES,
+  // The generated boss sheet authors all eight rows after synthesizing SE from
+  // the exact horizontal mirror of SW while preserving animation-frame order.
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
 // Harin v2 has an irregular authored row order: S, SE, E, NW, N, NE, W, SW.
@@ -1400,6 +1449,7 @@ function makeWorld(seed: number): World {
     effectCounts: { summon: 0, teleport: 0 },
     transition: 0,
     clearHandled: false,
+    activeBossKind: null,
   };
 }
 
@@ -1716,8 +1766,11 @@ export default function GameCanvas() {
       enemies: 0,
       bossHp: 0,
       bossMaxHp: 0,
+      bossKind: null as BossKind | null,
       bossPattern: null as BlankCartographerPattern | null,
       bossPhase: null as Enemy["bossPhase"] | null,
+      binderPattern: null as FinalBinderPattern | null,
+      binderPhase: null as FinalBinderPhase | null,
       activeEffects: 0,
       playerProjectiles: 0,
       hostileProjectiles: 0,
@@ -1938,9 +1991,7 @@ export default function GameCanvas() {
         if (world.visitedLookup[key]) nearbyVisited.push(key);
       }
     }
-    const boss = world.enemies.find(
-      (enemy) => enemy.kind === BLANK_CARTOGRAPHER_KIND,
-    );
+    const boss = world.enemies.find((enemy) => isBossKind(enemy.kind));
     setHud({
       player: {
         ...player,
@@ -1962,8 +2013,11 @@ export default function GameCanvas() {
         enemies: world.enemies.length,
         bossHp: boss?.hp ?? 0,
         bossMaxHp: boss?.maxHp ?? 0,
+        bossKind: boss && isBossKind(boss.kind) ? boss.kind : null,
         bossPattern: boss?.bossPattern ?? null,
         bossPhase: boss?.bossPhase ?? null,
+        binderPattern: boss?.binderPattern ?? null,
+        binderPhase: boss?.binderPhase ?? null,
         activeEffects: world.effects.length,
         playerProjectiles: world.projectiles.filter((projectile) => !projectile.hostile).length,
         hostileProjectiles: world.projectiles.filter((projectile) => projectile.hostile).length,
@@ -2082,10 +2136,11 @@ export default function GameCanvas() {
         58,
         92,
         68,
+        FINAL_BINDER_BASE_HP,
       ];
-      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58];
-      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11];
-      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23];
+      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED];
+      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11, FINAL_BINDER_BASE_DAMAGE];
+      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS];
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
       const eliteScale = elite ? 2.25 : 1;
       const hp = hpBases[kind] * scale * eliteScale;
@@ -2120,6 +2175,8 @@ export default function GameCanvas() {
         patternTimer:
           kind === BLANK_CARTOGRAPHER_KIND
             ? 1.15
+            : kind === FINAL_BINDER_KIND
+              ? 1.05
             : kind === 6
             ? 1.15 + hash(worldRef.current.seed, x | 0, y | 0, 607) * 1.1
             : kind === 7
@@ -2149,6 +2206,17 @@ export default function GameCanvas() {
           kind === BLANK_CARTOGRAPHER_KIND ? "pursuit" : undefined,
         bossSummonTargets:
           kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
+        binderPattern: undefined,
+        binderPatternIndex: kind === FINAL_BINDER_KIND ? 0 : undefined,
+        binderPhase: kind === FINAL_BINDER_KIND ? "pursuit" : undefined,
+        binderAxis: kind === FINAL_BINDER_KIND ? "horizontal" : undefined,
+        binderDirection:
+          kind === FINAL_BINDER_KIND
+            ? hash(worldRef.current.seed, x | 0, y | 0, 9917) < 0.5
+              ? -1
+              : 1
+            : undefined,
+        binderPulseIndex: kind === FINAL_BINDER_KIND ? 0 : undefined,
         timeRifts:
           kind === 7 || kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
       };
@@ -2167,14 +2235,22 @@ export default function GameCanvas() {
       const seedSalt = world.roomX * 41 + world.roomY * 73 + depth * 97;
       let marginSevererCount = 0;
 
+      if (kind !== "boss") world.activeBossKind = null;
+
       if (kind === "shelter") {
         world.enemies = [];
         return;
       }
       if (kind === "boss") {
-        enemies.push(
-          makeEnemy(BLANK_CARTOGRAPHER_KIND, WIDTH / 2, 210, depth, true),
+        const clearedBossRooms = Object.values(world.rooms).filter(
+          (room) => room.kind === "boss" && room.cleared,
+        ).length;
+        const bossKind = bossKindForProgress(
+          player.endingVersion,
+          clearedBossRooms,
         );
+        world.activeBossKind = bossKind;
+        enemies.push(makeEnemy(bossKind, WIDTH / 2, 210, depth, true));
         world.enemies = enemies;
         return;
       }
@@ -2332,6 +2408,7 @@ export default function GameCanvas() {
         player.shield,
         10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5,
       );
+      world.activeBossKind = null;
       if (world.roomCleared) world.enemies = [];
       else spawnRoom(kind);
       if (kind === "shelter") {
@@ -2344,7 +2421,9 @@ export default function GameCanvas() {
       } else {
         setToast(
           kind === "boss"
-            ? "지도 자체가 당신의 빌드를 되그리기 시작합니다."
+            ? world.activeBossKind === FINAL_BINDER_KIND
+              ? "찢긴 장들이 닫히며 종언의 제본사가 정본을 만들기 시작합니다."
+              : "지도 자체가 당신의 빌드를 되그리기 시작합니다."
             : `${ROOM_NAMES[kind]} — 문이 봉쇄되었습니다.`,
         );
       }
@@ -3093,14 +3172,16 @@ export default function GameCanvas() {
       walkProofreader: "/assets/walk/proofreader-walk-v2.png",
       walkTimeStalker: "/assets/walk/time-stalker-walk.png",
       walkMarginSeverer: "/assets/walk/margin-severer-walk-v1.png",
+      walkFinalBinder: "/assets/walk/final-binder-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
       marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
+      finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
-      equipmentIcons: "/assets/equipment/equipment-types-v3.png",
+      equipmentIcons: "/assets/equipment/equipment-types-v4.png",
       roomBattle: "/assets/maps/room-battle.webp",
       roomHorde: "/assets/maps/room-horde.webp",
       roomElite: "/assets/maps/room-elite.webp",
@@ -3507,7 +3588,7 @@ export default function GameCanvas() {
         );
       player.kills += 1;
       const baseValue =
-        enemy.kind === BLANK_CARTOGRAPHER_KIND
+        isBossKind(enemy.kind)
           ? 80
           : enemy.elite
             ? 20
@@ -3526,7 +3607,7 @@ export default function GameCanvas() {
         Math.min(200, equipmentStats.gearFindPercent),
       );
       const dropSource =
-        enemy.kind === BLANK_CARTOGRAPHER_KIND
+        isBossKind(enemy.kind)
           ? "boss"
           : enemy.elite
             ? "elite"
@@ -3547,7 +3628,7 @@ export default function GameCanvas() {
               sourceChance * (1 + gearFindPercent / 100),
             );
       if (lootRoll < gearDropChance) {
-        const dropCount = enemy.kind === BLANK_CARTOGRAPHER_KIND ? 2 : 1;
+        const dropCount = isBossKind(enemy.kind) ? 2 : 1;
         for (let dropIndex = 0; dropIndex < dropCount; dropIndex += 1) {
           const rarityRoll = hash(world.seed, enemy.id, dropIndex, player.rooms + 331);
           const forcedRarity = rollGearDropRarity(
@@ -3956,7 +4037,13 @@ export default function GameCanvas() {
       setToast(`방 정복 · 기억 ${Math.round(14 + player.rooms * 1.5)} · 문이 열렸습니다.`);
 
       if (world.roomKind === "boss") {
-        if (shouldRevealFirstBossEnding(world.roomKind, player.endingVersion)) {
+        if (
+          shouldRevealFirstBossEnding(
+            world.roomKind,
+            world.activeBossKind,
+            player.endingVersion,
+          )
+        ) {
           setEndingChapterIndex(0);
           pendingEndingRef.current = true;
           if (modeRef.current === "playing") {
@@ -4320,7 +4407,7 @@ export default function GameCanvas() {
                 } else if (nextPattern === "summon") {
                   const activeAdds = world.enemies.filter(
                     (candidate) =>
-                      candidate.kind !== BLANK_CARTOGRAPHER_KIND &&
+                      !isBossKind(candidate.kind) &&
                       candidate.hp > 0,
                   ).length;
                   const summonCount = Math.max(
@@ -4438,7 +4525,7 @@ export default function GameCanvas() {
               } else if (pattern === "summon") {
                 const activeAdds = world.enemies.filter(
                   (candidate) =>
-                    candidate.kind !== BLANK_CARTOGRAPHER_KIND &&
+                    !isBossKind(candidate.kind) &&
                     candidate.hp > 0,
                 ).length;
                 const allowedSummons = Math.max(
@@ -4575,6 +4662,204 @@ export default function GameCanvas() {
               enemy.bossPhase = "pursuit";
               enemy.bossPattern = undefined;
               enemy.patternTimer = 0.92 * recoveryMultiplier;
+            }
+          }
+        } else if (enemy.kind === FINAL_BINDER_KIND) {
+          // The post-ending boss attacks the arena itself. Every damaging
+          // geometry is derived from the same pure helper used by the floor VFX.
+          const binderPhase = enemy.binderPhase ?? "pursuit";
+          const healthRatio = clamp(enemy.hp / enemy.maxHp, 0, 1);
+          const tempoMultiplier = healthRatio > 0.4 ? 1 : 0.82;
+          const moveBinder = (speedMultiplier: number) => {
+            const preferredDistance = 318;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 170,
+              -0.46,
+              0.62,
+            );
+            const strafeDirection = enemy.binderDirection ?? 1;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeDirection * 0.34;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeDirection * 0.34;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x +=
+              enemyMoveX * enemy.speed * speedMultiplier * slowMultiplier * dt;
+            enemy.y +=
+              enemyMoveY * enemy.speed * speedMultiplier * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle +
+                dt * (5 + enemy.speed / 46) * speedMultiplier * slowMultiplier) %
+              4;
+          };
+          const beginBinderRecovery = () => {
+            enemy.binderPhase = "recovery";
+            enemy.patternTimer = FINAL_BINDER_RECOVERY_SECONDS * tempoMultiplier;
+            enemy.patternHit = false;
+          };
+
+          if (binderPhase === "pursuit") {
+            moveBinder(0.92);
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const patternIndex = enemy.binderPatternIndex ?? 0;
+              const nextPattern = finalBinderPatternAt(patternIndex);
+              const direction = enemy.binderDirection ?? 1;
+              enemy.binderPattern = nextPattern;
+              enemy.binderPatternIndex = patternIndex + 1;
+              enemy.binderPhase = "telegraph";
+              enemy.patternTimer = FINAL_BINDER_TELEGRAPH_SECONDS[nextPattern];
+              enemy.patternHit = false;
+              enemy.moving = false;
+
+              if (nextPattern === "pageWall") {
+                const wallCastIndex = Math.floor(patternIndex / 3);
+                const axis: FinalBinderAxis =
+                  wallCastIndex % 2 === 0 ? "horizontal" : "vertical";
+                enemy.binderAxis = axis;
+                enemy.binderSafeCenter =
+                  axis === "horizontal"
+                    ? clamp(player.x + (WIDTH / 2 - player.x) * 0.42, 196, WIDTH - 196)
+                    : clamp(player.y + (HEIGHT / 2 - player.y) * 0.42, 166, HEIGHT - 166);
+              } else if (nextPattern === "threadSweep") {
+                enemy.binderStartAngle =
+                  angle - direction * FINAL_BINDER_THREAD_SWEEP_ARC * 0.52;
+              } else {
+                enemy.binderPulseIndex = 0;
+                enemy.binderInitialSafeSector = positiveModulo(
+                  Math.round(angle / (Math.PI / 2)),
+                  4,
+                );
+              }
+            }
+          } else if (binderPhase === "telegraph") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              if (enemy.binderPattern === "pageWall") {
+                enemy.binderPhase = "pageWall";
+                enemy.patternTimer = FINAL_BINDER_PAGE_WALL_SECONDS;
+              } else if (enemy.binderPattern === "threadSweep") {
+                enemy.binderPhase = "threadSweep";
+                enemy.patternTimer = FINAL_BINDER_THREAD_SWEEP_SECONDS;
+              } else {
+                enemy.binderPhase = "chapterBurst";
+                enemy.patternTimer = FINAL_BINDER_CHAPTER_BURST_SECONDS;
+              }
+              enemy.patternHit = false;
+            }
+          } else if (binderPhase === "pageWall") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            const wallProgress = clamp(
+              1 - (enemy.patternTimer ?? 0) / FINAL_BINDER_PAGE_WALL_SECONDS,
+              0,
+              1,
+            );
+            const wallSegments = finalBinderPageWallSegments(
+              enemy.binderAxis ?? "horizontal",
+              enemy.binderDirection ?? 1,
+              wallProgress,
+              enemy.binderSafeCenter ?? (enemy.binderAxis === "vertical" ? player.y : player.x),
+              WIDTH,
+              HEIGHT,
+            );
+            if (
+              !enemy.patternHit &&
+              wallSegments.some(
+                (segment) =>
+                  distanceToSegment(
+                    player.x,
+                    player.y,
+                    segment.startX,
+                    segment.startY,
+                    segment.endX,
+                    segment.endY,
+                  ) <
+                  player.radius + FINAL_BINDER_PAGE_WALL_HALF_WIDTH,
+              )
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) beginBinderRecovery();
+          } else if (binderPhase === "threadSweep") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            const sweepProgress = clamp(
+              1 - (enemy.patternTimer ?? 0) / FINAL_BINDER_THREAD_SWEEP_SECONDS,
+              0,
+              1,
+            );
+            const sweep = finalBinderThreadSweepSegment(
+              enemy.x,
+              enemy.y,
+              enemy.binderStartAngle ?? angle,
+              enemy.binderDirection ?? 1,
+              sweepProgress,
+            );
+            if (
+              !enemy.patternHit &&
+              distanceToSegment(
+                player.x,
+                player.y,
+                sweep.startX,
+                sweep.startY,
+                sweep.endX,
+                sweep.endY,
+              ) <
+                player.radius + FINAL_BINDER_THREAD_HALF_WIDTH
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage * 1.12);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) beginBinderRecovery();
+          } else if (binderPhase === "chapterBurst") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            const pulseIndex = enemy.binderPulseIndex ?? 0;
+            const safeSector = finalBinderChapterSafeSector(
+              enemy.binderInitialSafeSector ?? 0,
+              enemy.binderDirection ?? 1,
+              pulseIndex,
+            );
+            if (
+              !enemy.patternHit &&
+              finalBinderChapterHits(
+                player.x,
+                player.y,
+                enemy.x,
+                enemy.y,
+                safeSector,
+              )
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage * 0.55);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              const nextPulse = pulseIndex + 1;
+              if (nextPulse < FINAL_BINDER_CHAPTER_PULSES) {
+                enemy.binderPulseIndex = nextPulse;
+                enemy.binderPhase = "telegraph";
+                enemy.patternTimer = FINAL_BINDER_TELEGRAPH_SECONDS.chapterTurn;
+                enemy.patternHit = false;
+              } else {
+                beginBinderRecovery();
+              }
+            }
+          } else {
+            moveBinder(0.42);
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.binderPhase = "pursuit";
+              enemy.binderPattern = undefined;
+              enemy.patternTimer = 0.94 * tempoMultiplier;
+              enemy.binderDirection = enemy.binderDirection === -1 ? 1 : -1;
             }
           }
         } else if (enemy.kind === 6) {
@@ -4889,8 +5174,11 @@ export default function GameCanvas() {
           enemy.shootCooldown = 3.4;
         }
         const bossCanDealContactDamage =
-          enemy.kind !== BLANK_CARTOGRAPHER_KIND ||
-          enemy.bossPhase === "pursuit";
+          enemy.kind === BLANK_CARTOGRAPHER_KIND
+            ? enemy.bossPhase === "pursuit"
+            : enemy.kind === FINAL_BINDER_KIND
+              ? enemy.binderPhase === "pursuit"
+              : true;
         if (
           enemy.kind !== 6 &&
           enemy.kind !== 7 &&
@@ -5046,7 +5334,7 @@ export default function GameCanvas() {
             projectile.hit.add(enemy.id);
             let hitDamage = projectile.damage;
             const giantbaneRank = powerRankOf(player, "giantbane");
-            if (enemy.elite || enemy.kind === BLANK_CARTOGRAPHER_KIND) {
+            if (enemy.elite || isBossKind(enemy.kind)) {
               hitDamage *= Math.pow(1 + giantbaneRank * 0.15, 0.65);
               hitDamage *= 1 + equipmentStats.eliteDamagePercent / 100;
               if (hasLegendaryPower(player, "hunterSigil")) hitDamage *= 1.18;
@@ -5676,6 +5964,228 @@ export default function GameCanvas() {
         context.lineTo(lineLength / 2, 0);
         context.stroke();
       }
+      context.restore();
+      return true;
+    };
+
+    const drawFinalBinderPattern = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const pattern = enemy.binderPattern;
+      const phase = enemy.binderPhase;
+      if (!pattern || !phase || phase === "pursuit" || phase === "recovery") {
+        return false;
+      }
+
+      const sourceWidth = (image?.naturalWidth ?? 0) / 2;
+      const sourceHeight = (image?.naturalHeight ?? 0) / 2;
+      const canDrawImage = Boolean(
+        image?.complete && image.naturalWidth && image.naturalHeight,
+      );
+      const drawBindingLine = (
+        segment: { startX: number; startY: number; endX: number; endY: number },
+        active: boolean,
+        alpha: number,
+      ) => {
+        const lineLength = distance(
+          segment.startX,
+          segment.startY,
+          segment.endX,
+          segment.endY,
+        );
+        if (lineLength < 4) return;
+        const centerX = (segment.startX + segment.endX) / 2;
+        const centerY = (segment.startY + segment.endY) / 2;
+        const lineAngle = Math.atan2(
+          segment.endY - segment.startY,
+          segment.endX - segment.startX,
+        );
+        context.save();
+        context.translate(centerX, centerY);
+        context.rotate(lineAngle);
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = active ? "lighter" : "source-over";
+        context.shadowColor = active ? "#ff4e38" : "#c59643";
+        context.shadowBlur = active ? 20 : 9;
+        context.imageSmoothingEnabled = true;
+        if (canDrawImage && image) {
+          context.drawImage(
+            image,
+            active ? sourceWidth : 0,
+            0,
+            sourceWidth,
+            sourceHeight,
+            -(lineLength / 0.9) / 2,
+            active ? -47 : -40,
+            lineLength / 0.9,
+            active ? 94 : 80,
+          );
+        } else {
+          context.strokeStyle = active ? "#fff0b0" : "#b98a45";
+          context.lineWidth = active ? 6 : 3;
+          context.beginPath();
+          context.moveTo(-lineLength / 2, 0);
+          context.lineTo(lineLength / 2, 0);
+          context.stroke();
+        }
+        context.restore();
+      };
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+
+      if (pattern === "pageWall") {
+        const isActive = phase === "pageWall";
+        const duration = isActive
+          ? FINAL_BINDER_PAGE_WALL_SECONDS
+          : FINAL_BINDER_TELEGRAPH_SECONDS.pageWall;
+        const progress = clamp(1 - (enemy.patternTimer ?? 0) / duration, 0, 1);
+        const segments = finalBinderPageWallSegments(
+          enemy.binderAxis ?? "horizontal",
+          enemy.binderDirection ?? 1,
+          isActive ? progress : 0,
+          enemy.binderSafeCenter ?? (enemy.binderAxis === "vertical" ? enemy.y : enemy.x),
+          WIDTH,
+          HEIGHT,
+        );
+        for (const segment of segments) {
+          drawBindingLine(
+            segment,
+            isActive,
+            isActive ? 0.96 : 0.42 + progress * 0.42,
+          );
+        }
+      } else if (pattern === "threadSweep") {
+        const isActive = phase === "threadSweep";
+        const duration = isActive
+          ? FINAL_BINDER_THREAD_SWEEP_SECONDS
+          : FINAL_BINDER_TELEGRAPH_SECONDS.threadSweep;
+        const progress = clamp(1 - (enemy.patternTimer ?? 0) / duration, 0, 1);
+        const sweep = finalBinderThreadSweepSegment(
+          enemy.x,
+          enemy.y,
+          enemy.binderStartAngle ?? 0,
+          enemy.binderDirection ?? 1,
+          isActive ? progress : 0,
+        );
+        if (!isActive) {
+          context.save();
+          context.strokeStyle = colorWithAlpha("#d4a85f", 0.18 + progress * 0.28);
+          context.lineWidth = 10;
+          context.lineCap = "round";
+          context.beginPath();
+          context.arc(
+            enemy.x,
+            enemy.y,
+            278,
+            enemy.binderStartAngle ?? 0,
+            (enemy.binderStartAngle ?? 0) +
+              (enemy.binderDirection ?? 1) * FINAL_BINDER_THREAD_SWEEP_ARC,
+            (enemy.binderDirection ?? 1) < 0,
+          );
+          context.stroke();
+          context.restore();
+        }
+        drawBindingLine(sweep, isActive, isActive ? 1 : 0.5 + progress * 0.4);
+      } else {
+        const pulseIndex = enemy.binderPulseIndex ?? 0;
+        const safeSector = finalBinderChapterSafeSector(
+          enemy.binderInitialSafeSector ?? 0,
+          enemy.binderDirection ?? 1,
+          pulseIndex,
+        );
+        const safeAngle = safeSector * (Math.PI / 2);
+        const isBurst = phase === "chapterBurst";
+        const duration = isBurst
+          ? FINAL_BINDER_CHAPTER_BURST_SECONDS
+          : FINAL_BINDER_TELEGRAPH_SECONDS.chapterTurn;
+        const progress = clamp(1 - (enemy.patternTimer ?? 0) / duration, 0, 1);
+        const dangerStart = safeAngle + FINAL_BINDER_CHAPTER_SAFE_HALF_ANGLE;
+        const dangerEnd = safeAngle + Math.PI * 2 - FINAL_BINDER_CHAPTER_SAFE_HALF_ANGLE;
+
+        context.save();
+        context.translate(enemy.x, enemy.y);
+        context.globalCompositeOperation = isBurst ? "lighter" : "source-over";
+        context.fillStyle = colorWithAlpha(
+          isBurst ? "#ff3f35" : "#8d2631",
+          isBurst ? 0.42 : 0.1 + progress * 0.18,
+        );
+        context.beginPath();
+        context.arc(0, 0, FINAL_BINDER_CHAPTER_OUTER_RADIUS, dangerStart, dangerEnd);
+        context.arc(
+          0,
+          0,
+          FINAL_BINDER_CHAPTER_INNER_RADIUS,
+          dangerEnd,
+          dangerStart,
+          true,
+        );
+        context.closePath();
+        context.fill();
+
+        if (canDrawImage && image) {
+          context.save();
+          context.beginPath();
+          context.arc(0, 0, FINAL_BINDER_CHAPTER_OUTER_RADIUS, dangerStart, dangerEnd);
+          context.arc(
+            0,
+            0,
+            FINAL_BINDER_CHAPTER_INNER_RADIUS,
+            dangerEnd,
+            dangerStart,
+            true,
+          );
+          context.closePath();
+          context.clip();
+          const sealSize = FINAL_BINDER_CHAPTER_OUTER_RADIUS * 2.08;
+          context.globalAlpha = isBurst ? 0.88 : 0.28 + progress * 0.34;
+          context.shadowColor = isBurst ? "#ff5b43" : "#c79b52";
+          context.shadowBlur = isBurst ? 26 : 12;
+          context.drawImage(
+            image,
+            sourceWidth,
+            sourceHeight,
+            sourceWidth,
+            sourceHeight,
+            -sealSize / 2,
+            -sealSize / 2,
+            sealSize,
+            sealSize,
+          );
+          context.restore();
+        }
+
+        context.globalCompositeOperation = "lighter";
+        context.strokeStyle = colorWithAlpha("#8ff5d6", isBurst ? 0.92 : 0.62);
+        context.lineWidth = isBurst ? 5 : 3;
+        context.shadowColor = "#71e8c9";
+        context.shadowBlur = 14;
+        for (const boundary of [
+          safeAngle - FINAL_BINDER_CHAPTER_SAFE_HALF_ANGLE,
+          safeAngle + FINAL_BINDER_CHAPTER_SAFE_HALF_ANGLE,
+        ]) {
+          context.beginPath();
+          context.moveTo(
+            Math.cos(boundary) * FINAL_BINDER_CHAPTER_INNER_RADIUS,
+            Math.sin(boundary) * FINAL_BINDER_CHAPTER_INNER_RADIUS,
+          );
+          context.lineTo(
+            Math.cos(boundary) * FINAL_BINDER_CHAPTER_OUTER_RADIUS,
+            Math.sin(boundary) * FINAL_BINDER_CHAPTER_OUTER_RADIUS,
+          );
+          context.stroke();
+        }
+        context.restore();
+      }
+
       context.restore();
       return true;
     };
@@ -6610,6 +7120,8 @@ export default function GameCanvas() {
       for (const enemy of world.enemies) {
         if (enemy.kind === MARGIN_SEVERER_KIND) {
           drawMarginSeverLine(images.marginSeverLine, enemy);
+        } else if (enemy.kind === FINAL_BINDER_KIND) {
+          drawFinalBinderPattern(images.finalBinderPatterns, enemy);
         }
       }
 
@@ -6679,6 +7191,8 @@ export default function GameCanvas() {
         const size =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
             ? 185
+            : enemy.kind === FINAL_BINDER_KIND
+              ? 190
             : enemy.kind === 6
               ? 112
               : enemy.kind === 7
@@ -6690,6 +7204,8 @@ export default function GameCanvas() {
         const walkWidth =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
             ? 250
+            : enemy.kind === FINAL_BINDER_KIND
+              ? 270
             : enemy.kind === 6
               ? 192
               : enemy.kind === 7
@@ -6700,6 +7216,8 @@ export default function GameCanvas() {
         const walkHeight =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
             ? 225
+            : enemy.kind === FINAL_BINDER_KIND
+              ? 240
             : enemy.kind === 6
               ? 144
               : enemy.kind === 7
@@ -6741,6 +7259,8 @@ export default function GameCanvas() {
           context.fillStyle =
             enemy.kind === BLANK_CARTOGRAPHER_KIND
               ? "#812f36"
+              : enemy.kind === FINAL_BINDER_KIND
+                ? "#9d7438"
               : enemy.kind === 6
                 ? "#a72531"
                 : enemy.kind === 7
@@ -6754,12 +7274,14 @@ export default function GameCanvas() {
           context.fill();
         }
         const barWidth =
-          enemy.kind === BLANK_CARTOGRAPHER_KIND ? 180 : enemy.radius * 2;
+          isBossKind(enemy.kind) ? 180 : enemy.radius * 2;
         context.fillStyle = "rgba(0,0,0,.75)";
         context.fillRect(enemy.x - barWidth / 2, enemy.y - enemy.radius - 38, barWidth, 6);
         context.fillStyle =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
             ? "#d14f55"
+            : enemy.kind === FINAL_BINDER_KIND
+              ? "#e1b45b"
             : enemy.kind === 7
               ? "#63dbe8"
               : enemy.kind === MARGIN_SEVERER_KIND
@@ -6773,13 +7295,13 @@ export default function GameCanvas() {
         );
         if (
           enemy.elite ||
-          enemy.kind === BLANK_CARTOGRAPHER_KIND ||
+          isBossKind(enemy.kind) ||
           enemy.kind === 6 ||
           enemy.kind === 7 ||
           enemy.kind === MARGIN_SEVERER_KIND
         ) {
           context.font =
-            enemy.kind === BLANK_CARTOGRAPHER_KIND
+            isBossKind(enemy.kind)
               ? "700 15px serif"
               : "600 11px sans-serif";
           context.textAlign = "center";
@@ -7281,8 +7803,9 @@ export default function GameCanvas() {
       data-memory-ash={hud.player.memoryAsh}
       data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
       data-equipment-power={equippedPower}
-      data-boss-pattern={hud.world.bossPattern ?? "none"}
-      data-boss-phase={hud.world.bossPhase ?? "none"}
+      data-boss-kind={hud.world.bossKind ?? "none"}
+      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? "none"}
+      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? "none"}
       data-proofreader-enemies={hud.world.proofreaderEnemies}
       data-proofreader-windups={hud.world.proofreaderWindups}
     >
@@ -7363,15 +7886,34 @@ export default function GameCanvas() {
       {hud.world.bossMaxHp > 0 && (
         <section className="boss-hud" aria-label="보스 체력">
           <div>
-            <small>백지의 권역</small>
-            <strong>{ENEMY_NAMES[BLANK_CARTOGRAPHER_KIND]}</strong>
-            {hud.world.bossPattern && hud.world.bossPhase && (
+            <small>
+              {hud.world.bossKind === FINAL_BINDER_KIND
+                ? "종언의 정본"
+                : "백지의 권역"}
+            </small>
+            <strong>
+              {hud.world.bossKind !== null
+                ? ENEMY_NAMES[hud.world.bossKind]
+                : "이름 없는 보스"}
+            </strong>
+            {hud.world.bossKind === BLANK_CARTOGRAPHER_KIND &&
+              hud.world.bossPattern &&
+              hud.world.bossPhase && (
               <em>
                 {BLANK_CARTOGRAPHER_PATTERN_LABELS[hud.world.bossPattern]}
                 {" · "}
                 {BOSS_PHASE_LABELS[hud.world.bossPhase]}
               </em>
             )}
+            {hud.world.bossKind === FINAL_BINDER_KIND &&
+              hud.world.binderPattern &&
+              hud.world.binderPhase && (
+                <em>
+                  {FINAL_BINDER_PATTERN_LABELS[hud.world.binderPattern]}
+                  {" · "}
+                  {FINAL_BINDER_PHASE_LABELS[hud.world.binderPhase]}
+                </em>
+              )}
           </div>
           <span>
             <i

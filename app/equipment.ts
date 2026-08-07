@@ -219,7 +219,7 @@ export const EQUIPMENT_SLOT_LABELS: Readonly<Record<EquipmentSlot, string>> = {
 };
 
 /**
- * Eight visual bases per slot (80 total). The shared array index is also the
+ * Ten visual bases per slot (100 total). The shared array index is also the
  * equipment-atlas row, so every base can have its own silhouette independent
  * of rarity. Selection is deterministic for a given roll seed.
  */
@@ -233,6 +233,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 절단창",
     "백골 대낫",
     "공허 송곳검",
+    "종언의 제본침",
+    "성운 절단검",
   ],
   offhand: [
     "순례자의 원형 방패",
@@ -243,6 +245,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 수정구",
     "백골 해골방패",
     "공허 거울방패",
+    "봉인된 최종장",
+    "별무덤 천구의",
   ],
   helm: [
     "봉인 투구",
@@ -253,6 +257,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 관측자의 두건",
     "백골 왕관",
     "공허의 무면투구",
+    "무문장의 가면",
+    "무진성 관측면갑",
   ],
   shoulders: [
     "방랑자의 견갑",
@@ -263,6 +269,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 운철어깨",
     "백골 군주견갑",
     "공허 포식자의 어깨",
+    "교정쇄 견갑",
+    "혜성흔 견갑",
   ],
   armor: [
     "방랑자의 흉갑",
@@ -273,6 +281,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 수놓은 예복",
     "백골 성채갑",
     "공허 포식자의 외투",
+    "종언 편집자의 법의",
+    "성운 방랑갑",
   ],
   gloves: [
     "순례자의 손싸개",
@@ -283,6 +293,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 별실장갑",
     "백골 갈퀴손",
     "공허 장악장갑",
+    "문장 봉합장갑",
+    "유성 파지장갑",
   ],
   belt: [
     "방랑자의 허리끈",
@@ -293,6 +305,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 천구허리띠",
     "백골 척추띠",
     "공허 포식자의 요대",
+    "제본사의 사슬띠",
+    "항성고리 요대",
   ],
   legs: [
     "순례자의 다리싸개",
@@ -303,6 +317,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 유성바지",
     "백골 보행각",
     "공허 유랑자의 하의",
+    "마지막 장의 각반",
+    "은하 답파각",
   ],
   boots: [
     "먼지길 장화",
@@ -313,6 +329,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 유성각반",
     "백골 행군화",
     "공허 도약장화",
+    "여백 순례화",
+    "별틈 도약화",
   ],
   relic: [
     "금 간 쉼표",
@@ -323,6 +341,8 @@ export const GEAR_BASE_NAMES: Readonly<Record<EquipmentSlot, readonly string[]>>
     "성좌 별읽기 성반",
     "백골 성배",
     "공허의 검은 쉼표",
+    "종언의 쉼표",
+    "궤도 밖의 쉼표",
   ],
 };
 
@@ -683,7 +703,7 @@ export type GearItem = {
   level: number;
   baseName: string;
   displayName: string;
-  /** Atlas cell index: base-item row × 10 slots + slot column (0–79). */
+  /** Atlas cell index: base-item row × 10 slots + slot column (0–99). */
   iconIndex: number;
   affixes: GearAffix[];
   legendaryPowerId: LegendaryPowerId | null;
@@ -710,7 +730,7 @@ export type RollGearOptions = {
 };
 
 export const GEAR_ICON_COLUMNS = 10;
-export const GEAR_ICON_ROWS = 8;
+export const GEAR_ICON_ROWS = 10;
 
 export const MAX_GEAR_ENHANCEMENT = 10;
 

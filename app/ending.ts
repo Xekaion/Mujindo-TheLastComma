@@ -102,9 +102,14 @@ export const FIRST_BOSS_ENDING_CHAPTERS: readonly EndingChapter[] = [
 
 export function shouldRevealFirstBossEnding(
   roomKind: string,
+  defeatedBossKind: number | null,
   endingVersion: number,
 ): boolean {
-  return roomKind === "boss" && endingVersion < FIRST_BOSS_ENDING_VERSION;
+  return (
+    roomKind === "boss" &&
+    defeatedBossKind === BLANK_CARTOGRAPHER_KIND &&
+    endingVersion < FIRST_BOSS_ENDING_VERSION
+  );
 }
 
 export function normalizeEndingVersion(

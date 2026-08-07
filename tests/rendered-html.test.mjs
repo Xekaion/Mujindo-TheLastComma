@@ -42,7 +42,7 @@ test("server-renders the professional two-stage game title", async () => {
   );
   assert.match(
     html,
-    /80<\/strong> 장비 원형 · (?:<!-- -->)?10(?:<!-- -->)?부위 · (?:<!-- -->)?8(?:<!-- -->)?등급/,
+    /100<\/strong> 장비 원형 · (?:<!-- -->)?10(?:<!-- -->)?부위 · (?:<!-- -->)?8(?:<!-- -->)?등급/,
   );
   assert.match(html, /I 장비/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
