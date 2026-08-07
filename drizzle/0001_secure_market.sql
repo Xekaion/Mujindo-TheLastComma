@@ -1,4 +1,5 @@
 PRAGMA foreign_keys = ON;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_accounts (
   id TEXT PRIMARY KEY NOT NULL,
@@ -12,6 +13,7 @@ CREATE TABLE IF NOT EXISTS economy_accounts (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_identities (
   id TEXT PRIMARY KEY NOT NULL,
@@ -24,9 +26,11 @@ CREATE TABLE IF NOT EXISTS economy_identities (
   created_at INTEGER NOT NULL,
   UNIQUE(provider, provider_subject)
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS economy_identity_one_steam_per_account
 ON economy_identities(account_id) WHERE provider = 'steam';
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_sessions (
   id TEXT PRIMARY KEY NOT NULL,
@@ -38,6 +42,7 @@ CREATE TABLE IF NOT EXISTS economy_sessions (
   created_at INTEGER NOT NULL,
   last_seen_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_auth_states (
   state_hash TEXT PRIMARY KEY NOT NULL CHECK(length(state_hash) = 64),
@@ -47,9 +52,11 @@ CREATE TABLE IF NOT EXISTS economy_auth_states (
   consumed_at INTEGER,
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS economy_auth_state_expiry
 ON economy_auth_states(expires_at);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_wallets (
   account_id TEXT PRIMARY KEY NOT NULL REFERENCES economy_accounts(id) ON DELETE CASCADE,
@@ -63,6 +70,7 @@ CREATE TABLE IF NOT EXISTS economy_wallets (
   CHECK(ash_available + ash_reserved <= 9000000000000),
   CHECK(gold_available + gold_reserved + gold_locked <= 1000000000)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_ledger (
   id TEXT PRIMARY KEY NOT NULL,
@@ -78,16 +86,19 @@ CREATE TABLE IF NOT EXISTS economy_ledger (
   created_at INTEGER NOT NULL,
   UNIQUE(operation_id, account_id, currency, reason)
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_ledger_no_update
 BEFORE UPDATE ON economy_ledger BEGIN
   SELECT RAISE(ABORT, 'immutable_ledger');
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_ledger_no_delete
 BEFORE DELETE ON economy_ledger BEGIN
   SELECT RAISE(ABORT, 'immutable_ledger');
 END;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_items (
   id TEXT PRIMARY KEY NOT NULL,
@@ -106,6 +117,7 @@ CREATE TABLE IF NOT EXISTS economy_items (
   updated_at INTEGER NOT NULL,
   UNIQUE(provenance, origin_id)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_listings (
   id TEXT PRIMARY KEY NOT NULL,
@@ -120,13 +132,17 @@ CREATE TABLE IF NOT EXISTS economy_listings (
   closed_at INTEGER,
   CHECK(expires_at > created_at)
 );
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS economy_one_open_listing_per_item
 ON economy_listings(item_id) WHERE status = 'open';
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS economy_open_listing_price
 ON economy_listings(status, price_ash, created_at);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS economy_listing_seller
 ON economy_listings(seller_account_id, status, created_at);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_auction_trades (
   id TEXT PRIMARY KEY NOT NULL,
@@ -138,6 +154,7 @@ CREATE TABLE IF NOT EXISTS economy_auction_trades (
   created_at INTEGER NOT NULL,
   CHECK(seller_account_id <> buyer_account_id)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_exchange_orders (
   id TEXT PRIMARY KEY NOT NULL,
@@ -161,11 +178,14 @@ CREATE TABLE IF NOT EXISTS economy_exchange_orders (
     OR (status IN ('filled','cancelled','expired') AND ash_reserved_remaining = 0 AND gold_reserved_remaining = 0)
   )
 );
+--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS economy_exchange_match
 ON economy_exchange_orders(side, status, price_ash_per_gold, created_at);
+--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS economy_exchange_owner
 ON economy_exchange_orders(account_id, status, created_at);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_exchange_fills (
   id TEXT PRIMARY KEY NOT NULL,
@@ -182,6 +202,7 @@ CREATE TABLE IF NOT EXISTS economy_exchange_fills (
   CHECK(buyer_account_id <> seller_account_id),
   CHECK(ash_amount = gold_amount * price_ash_per_gold)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_payment_orders (
   id TEXT PRIMARY KEY NOT NULL,
@@ -201,6 +222,7 @@ CREATE TABLE IF NOT EXISTS economy_payment_orders (
   finalized_at INTEGER,
   UNIQUE(account_id, idempotency_key)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_payment_events (
   id TEXT PRIMARY KEY NOT NULL,
@@ -210,6 +232,7 @@ CREATE TABLE IF NOT EXISTS economy_payment_events (
   payload_hash TEXT NOT NULL CHECK(length(payload_hash) = 64),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_gold_lots (
   id TEXT PRIMARY KEY NOT NULL,
@@ -224,9 +247,11 @@ CREATE TABLE IF NOT EXISTS economy_gold_lots (
   created_at INTEGER NOT NULL,
   UNIQUE(source, source_id)
 );
+--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS economy_gold_lot_release
 ON economy_gold_lots(account_id, state, tradeable_at);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_exchange_order_gold_lots (
   order_id TEXT NOT NULL REFERENCES economy_exchange_orders(id) ON DELETE CASCADE,
@@ -235,6 +260,7 @@ CREATE TABLE IF NOT EXISTS economy_exchange_order_gold_lots (
   amount_remaining INTEGER NOT NULL CHECK(amount_remaining BETWEEN 0 AND amount_reserved),
   PRIMARY KEY(order_id, lot_id)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_gold_lot_transfers (
   id TEXT PRIMARY KEY NOT NULL,
@@ -244,6 +270,7 @@ CREATE TABLE IF NOT EXISTS economy_gold_lot_transfers (
   amount INTEGER NOT NULL CHECK(amount > 0),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_payment_finalize_commands (
   id TEXT PRIMARY KEY NOT NULL,
@@ -254,6 +281,7 @@ CREATE TABLE IF NOT EXISTS economy_payment_finalize_commands (
   created_at INTEGER NOT NULL,
   UNIQUE(account_id,idempotency_key)
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_payment_finalize_before
 BEFORE INSERT ON economy_payment_finalize_commands
@@ -262,6 +290,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.account_id AND a.status='active' AND a.wallet_frozen=0 AND a.steam_ownership_verified=1) THEN RAISE(ABORT,'payment_account_blocked') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','payment','wallet')) THEN RAISE(ABORT,'payment_account_sanctioned') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_payment_finalize_after
 AFTER INSERT ON economy_payment_finalize_commands
@@ -275,6 +304,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     VALUES(NEW.id||':audit',NEW.account_id,'steam_payment_finalize','payment_order',NEW.payment_order_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{"hold_hours":72}',NEW.created_at);
 END;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_sanctions (
   id TEXT PRIMARY KEY NOT NULL,
@@ -289,9 +319,11 @@ CREATE TABLE IF NOT EXISTS economy_sanctions (
   created_at INTEGER NOT NULL,
   CHECK(expires_at IS NULL OR expires_at > starts_at)
 );
+--> statement-breakpoint
 
 CREATE INDEX IF NOT EXISTS economy_active_sanctions
 ON economy_sanctions(account_id, scope, starts_at, expires_at, revoked_at);
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_risk_events (
   id TEXT PRIMARY KEY NOT NULL,
@@ -302,6 +334,7 @@ CREATE TABLE IF NOT EXISTS economy_risk_events (
   metadata_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(metadata_json)),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_audit_events (
   id TEXT PRIMARY KEY NOT NULL,
@@ -316,20 +349,24 @@ CREATE TABLE IF NOT EXISTS economy_audit_events (
   metadata_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(metadata_json)),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_audit_no_update
 BEFORE UPDATE ON economy_audit_events BEGIN
   SELECT RAISE(ABORT, 'immutable_audit');
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_audit_no_delete
 BEFORE DELETE ON economy_audit_events BEGIN
   SELECT RAISE(ABORT, 'immutable_audit');
 END;
+--> statement-breakpoint
 
 CREATE UNIQUE INDEX IF NOT EXISTS economy_admin_request_idempotency
 ON economy_audit_events(idempotency_key)
 WHERE actor_account_id IS NULL AND idempotency_key IS NOT NULL;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_rate_limits (
   subject_key TEXT NOT NULL,
@@ -339,6 +376,7 @@ CREATE TABLE IF NOT EXISTS economy_rate_limits (
   blocked_until INTEGER,
   PRIMARY KEY(subject_key, bucket)
 );
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_commands (
   id TEXT PRIMARY KEY NOT NULL,
@@ -360,32 +398,38 @@ CREATE TABLE IF NOT EXISTS economy_commands (
   created_at INTEGER NOT NULL,
   UNIQUE(actor_account_id, idempotency_key)
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_command_no_update
 BEFORE UPDATE ON economy_commands BEGIN
   SELECT RAISE(ABORT, 'immutable_command');
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_command_no_delete
 BEFORE DELETE ON economy_commands BEGIN
   SELECT RAISE(ABORT, 'immutable_command');
 END;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_listing_expiry_commands (
   id TEXT PRIMARY KEY NOT NULL,
   listing_id TEXT NOT NULL UNIQUE REFERENCES economy_listings(id),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_listing_expiry_no_update
 BEFORE UPDATE ON economy_listing_expiry_commands BEGIN
   SELECT RAISE(ABORT, 'immutable_listing_expiry_command');
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_listing_expiry_no_delete
 BEFORE DELETE ON economy_listing_expiry_commands BEGIN
   SELECT RAISE(ABORT, 'immutable_listing_expiry_command');
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_listing_expiry_after
 AFTER INSERT ON economy_listing_expiry_commands
@@ -402,12 +446,14 @@ BEGIN
     SELECT NEW.id||':audit',seller_account_id,'expire_listing','listing',id,NEW.id,'{}',NEW.created_at
       FROM economy_listings WHERE id=NEW.listing_id;
 END;
+--> statement-breakpoint
 
 CREATE TABLE IF NOT EXISTS economy_gold_release_commands (
   id TEXT PRIMARY KEY NOT NULL,
   account_id TEXT NOT NULL REFERENCES economy_accounts(id),
   created_at INTEGER NOT NULL
 );
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_gold_release_after
 AFTER INSERT ON economy_gold_release_commands
@@ -426,6 +472,7 @@ BEGIN
   UPDATE economy_gold_lots SET state='available', released_at=NEW.created_at
    WHERE account_id=NEW.account_id AND state='locked' AND tradeable_at<=NEW.created_at;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_list_item_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'list_item'
@@ -436,6 +483,7 @@ BEGIN
   SELECT CASE WHEN (SELECT COUNT(*) FROM economy_listings WHERE seller_account_id=NEW.actor_account_id AND status='open')>=200 THEN RAISE(ABORT,'open_listing_limit') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_items i WHERE i.id=NEW.item_id AND i.owner_account_id=NEW.actor_account_id AND i.state='inventory' AND i.tradeable=1 AND i.version=NEW.expected_version) THEN RAISE(ABORT,'item_not_owned_or_version') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_list_item_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'list_item'
@@ -446,6 +494,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     VALUES(NEW.id||':audit',NEW.actor_account_id,'list_item','listing',NEW.result_ref_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at);
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_buy_listing_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'buy_listing'
@@ -457,6 +506,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_accounts a ON a.id=l.seller_account_id JOIN economy_wallets w ON w.account_id=a.id WHERE l.id=NEW.listing_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0 AND w.ash_available+l.price_ash<=9000000000000) THEN RAISE(ABORT,'seller_ineligible_or_overflow') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_listings l JOIN economy_sanctions s ON s.account_id=l.seller_account_id WHERE l.id=NEW.listing_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'seller_sanctioned') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_buy_listing_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'buy_listing'
@@ -474,6 +524,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,target_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     SELECT NEW.id||':audit',NEW.actor_account_id,seller_account_id,'buy_listing','listing',NEW.listing_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at FROM economy_listings WHERE id=NEW.listing_id;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_cancel_listing_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'cancel_listing'
@@ -481,6 +532,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings WHERE id=NEW.listing_id AND seller_account_id=NEW.actor_account_id AND status='open' AND version=NEW.expected_version) THEN RAISE(ABORT,'listing_not_owned_or_version') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_cancel_listing_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'cancel_listing'
@@ -490,6 +542,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     VALUES(NEW.id||':audit',NEW.actor_account_id,'cancel_listing','listing',NEW.listing_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at);
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_place_exchange_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'place_exchange'
@@ -502,6 +555,7 @@ BEGIN
   SELECT CASE WHEN NEW.side='sell_gold' AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND gold_available>=NEW.gold_amount) THEN RAISE(ABORT,'insufficient_mature_gold') END;
   SELECT CASE WHEN NEW.side='sell_gold' AND (SELECT COALESCE(SUM(remaining),0) FROM economy_gold_lots WHERE account_id=NEW.actor_account_id AND state='available' AND tradeable_at<=NEW.created_at)<NEW.gold_amount THEN RAISE(ABORT,'insufficient_mature_gold_lots') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_place_exchange_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'place_exchange'
@@ -527,6 +581,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     VALUES(NEW.id||':audit',NEW.actor_account_id,'place_exchange','exchange_order',NEW.result_ref_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at);
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_fill_exchange_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'fill_exchange'
@@ -539,6 +594,7 @@ BEGIN
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o WHERE o.id=NEW.order_id AND o.side='buy_gold') AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND gold_available>=NEW.gold_amount) THEN RAISE(ABORT,'insufficient_mature_gold') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o WHERE o.id=NEW.order_id AND o.side='buy_gold') AND (SELECT COALESCE(SUM(remaining),0) FROM economy_gold_lots WHERE account_id=NEW.actor_account_id AND state='available' AND tradeable_at<=NEW.created_at)<NEW.gold_amount THEN RAISE(ABORT,'insufficient_mature_gold_lots') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_fill_exchange_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'fill_exchange'
@@ -587,6 +643,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,target_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     SELECT NEW.id||':audit',NEW.actor_account_id,o.account_id,'fill_exchange','exchange_fill',NEW.result_ref_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at FROM economy_exchange_orders o WHERE o.id=NEW.order_id;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_cancel_exchange_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'cancel_exchange'
@@ -594,6 +651,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_exchange_orders WHERE id=NEW.order_id AND account_id=NEW.actor_account_id AND status IN ('open','partially_filled') AND version=NEW.expected_version) THEN RAISE(ABORT,'exchange_order_not_owned_or_version') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_cancel_exchange_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'cancel_exchange'
@@ -607,6 +665,7 @@ BEGIN
   INSERT INTO economy_audit_events(id,actor_account_id,action,object_type,object_id,request_id,idempotency_key,request_hash,metadata_json,created_at)
     VALUES(NEW.id||':audit',NEW.actor_account_id,'cancel_exchange','exchange_order',NEW.order_id,NEW.id,NEW.idempotency_key,NEW.request_hash,'{}',NEW.created_at);
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_sandbox_topup_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'sandbox_topup'
@@ -616,6 +675,7 @@ BEGIN
   SELECT CASE WHEN NEW.currency IS NULL OR NEW.currency NOT IN ('ash','gold') THEN RAISE(ABORT,'invalid_sandbox_currency') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_identities WHERE account_id=NEW.actor_account_id AND provider='development') THEN RAISE(ABORT,'sandbox_development_only') END;
 END;
+--> statement-breakpoint
 
 CREATE TRIGGER IF NOT EXISTS economy_sandbox_topup_after
 AFTER INSERT ON economy_commands WHEN NEW.action = 'sandbox_topup'
@@ -626,3 +686,4 @@ BEGIN
   INSERT INTO economy_ledger(id,operation_id,account_id,currency,available_delta,reserved_delta,locked_delta,reason,reference_type,reference_id,created_at)
     VALUES(NEW.id||':mint',NEW.id,NEW.actor_account_id,NEW.currency,IIF(NEW.currency='ash',NEW.amount,0),0,IIF(NEW.currency='gold',NEW.amount,0),'sandbox_mint','command',NEW.id,NEW.created_at);
 END;
+--> statement-breakpoint
