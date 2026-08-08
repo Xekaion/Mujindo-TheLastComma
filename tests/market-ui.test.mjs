@@ -124,8 +124,8 @@ test("title and shop both link into the market", async () => {
   ]);
 
   assert.match(game, /className="menu-market-action" href="\/market"/);
-  assert.match(shop, /className="shop-market-entry" href="\/market\?tab=gold"/);
-  assert.match(shop, /className="shop-header-market" href="\/market\?tab=gold"/);
+  assert.match(shop, /className="shop-market-entry"[\s\S]{0,80}?href="\/market\?tab=gold"/);
+  assert.match(shop, /className="shop-header-market"[\s\S]{0,80}?href="\/market\?tab=gold"/);
   assert.match(css, /\.menu-market-action/);
   assert.match(css, /\.shop-market-entry/);
   assert.match(css, /\.shop-header-market/);

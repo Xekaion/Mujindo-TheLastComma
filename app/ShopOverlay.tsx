@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BASE_INVENTORY_CAPACITY,
   MAX_INVENTORY_CAPACITY,
@@ -24,6 +24,7 @@ export type ShopOverlayProps = {
   onClose: () => void;
   onPurchase: (productId: ShopProductId) => void;
   onRestore: () => void;
+  onMarketNavigate?: () => void;
 };
 
 export default function ShopOverlay({
@@ -38,6 +39,7 @@ export default function ShopOverlay({
   onClose,
   onPurchase,
   onRestore,
+  onMarketNavigate,
 }: ShopOverlayProps) {
   const firstUnowned = SHOP_PRODUCTS.find(
     (product) => !entitlements.purchasedProductIds.includes(product.id),
@@ -48,17 +50,53 @@ export default function ShopOverlay({
       : firstUnowned?.id ?? SHOP_PRODUCTS[SHOP_PRODUCTS.length - 1].id,
   );
   const [confirming, setConfirming] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const focusFrame = window.requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLElement>(".shop-close")?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return undefined;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (confirming) setConfirming(false);
-      else {
-        setConfirming(false);
-        onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (confirming) setConfirming(false);
+        else {
+          setConfirming(false);
+          onClose();
+        }
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const panel = panelRef.current;
+      if (!panel) return;
+      const scope = confirming
+        ? panel.querySelector<HTMLElement>(".shop-confirm") ?? panel
+        : panel;
+      const focusable = Array.from(
+        scope.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => !element.hasAttribute("hidden"));
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
     window.addEventListener("keydown", onKeyDown, true);
@@ -94,6 +132,7 @@ export default function ShopOverlay({
   return (
     <div className="shop-screen" role="presentation">
       <section
+        ref={panelRef}
         className="shop-panel"
         role="dialog"
         aria-modal="true"
@@ -112,7 +151,15 @@ export default function ShopOverlay({
             <span>현재 가방</span>
             <strong>{inventoryCount} <i>/</i> {inventoryCapacity}</strong>
           </div>
-          <a className="shop-header-market" href="/market?tab=gold">
+          <a
+            className="shop-header-market"
+            href="/market?tab=gold"
+            onClick={(event) => {
+              if (!onMarketNavigate) return;
+              event.preventDefault();
+              onMarketNavigate();
+            }}
+          >
             거래소
           </a>
           <button
@@ -155,7 +202,15 @@ export default function ShopOverlay({
                 <small>가방 · 좌표 이동</small>
               </div>
             </button>
-            <a className="shop-market-entry" href="/market?tab=gold">
+            <a
+              className="shop-market-entry"
+              href="/market?tab=gold"
+              onClick={(event) => {
+                if (!onMarketNavigate) return;
+                event.preventDefault();
+                onMarketNavigate();
+              }}
+            >
               <span aria-hidden="true">◇</span>
               <div>
                 <strong>기억 거래소</strong>

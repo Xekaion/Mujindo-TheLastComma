@@ -1,8 +1,11 @@
 import { sql } from "drizzle-orm";
 import {
+  check,
   index,
   integer,
+  foreignKey,
   primaryKey,
+  real,
   sqliteTable,
   text,
   uniqueIndex,
@@ -37,6 +40,79 @@ export const economyAccounts = sqliteTable("economy_accounts", {
   createdAt: integer("created_at").notNull(),
   updatedAt: integer("updated_at").notNull(),
 });
+
+/**
+ * Account-bound characters and ephemeral, server-authoritative plaza presence.
+ * Raw account ids never appear in public snapshots; sessions expose only their
+ * random id and a stable per-slot public character id.
+ */
+export const hubCharacterSlots = sqliteTable(
+  "hub_character_slots",
+  {
+    accountId: text("account_id").notNull(),
+    slot: integer("slot").notNull(),
+    publicCharacterId: text("public_character_id").notNull().unique(),
+    level: integer("level").notNull(),
+    appearanceJson: text("appearance_json").notNull(),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.accountId, table.slot] }),
+    check("hub_character_slot_range", sql`${table.slot} BETWEEN 1 AND 3`),
+    check("hub_character_level_range", sql`${table.level} BETWEEN 1 AND 999`),
+  ],
+);
+
+export const hubSessions = sqliteTable(
+  "hub_sessions",
+  {
+    id: text("id").primaryKey(),
+    tokenHash: text("token_hash").notNull().unique(),
+    accountId: text("account_id").notNull().unique(),
+    characterSlot: integer("character_slot").notNull(),
+    publicCharacterId: text("public_character_id").notNull(),
+    displayName: text("display_name").notNull(),
+    level: integer("level").notNull(),
+    appearanceJson: text("appearance_json").notNull(),
+    zone: text("zone").notNull().default("memory-plaza-v1"),
+    x: real("x").notNull(),
+    y: real("y").notNull(),
+    facing: integer("facing").notNull(),
+    moving: integer("moving").notNull().default(0),
+    lastSequence: integer("last_sequence").notNull().default(0),
+    lastMoveAt: integer("last_move_at").notNull(),
+    lastSeenAt: integer("last_seen_at").notNull(),
+    expiresAt: integer("expires_at").notNull(),
+    version: integer("version").notNull().default(0),
+    createdAt: integer("created_at").notNull(),
+    updatedAt: integer("updated_at").notNull(),
+  },
+  (table) => [
+    index("hub_sessions_presence").on(table.zone, table.lastSeenAt, table.x, table.y),
+    foreignKey({
+      name: "hub_sessions_selected_character",
+      columns: [table.accountId, table.characterSlot],
+      foreignColumns: [hubCharacterSlots.accountId, hubCharacterSlots.slot],
+    }).onDelete("cascade"),
+    check("hub_session_slot_range", sql`${table.characterSlot} BETWEEN 1 AND 3`),
+    check("hub_session_level_range", sql`${table.level} BETWEEN 1 AND 999`),
+    check("hub_session_facing_range", sql`${table.facing} BETWEEN 0 AND 7`),
+    check("hub_session_moving_boolean", sql`${table.moving} IN (0, 1)`),
+  ],
+);
+
+export const hubRateLimits = sqliteTable(
+  "hub_rate_limits",
+  {
+    accountId: text("account_id").notNull(),
+    bucket: text("bucket").notNull(),
+    windowStartedAt: integer("window_started_at").notNull(),
+    requestCount: integer("request_count").notNull(),
+    blockedUntil: integer("blocked_until"),
+  },
+  (table) => [primaryKey({ columns: [table.accountId, table.bucket] })],
+);
 
 export const economyIdentities = sqliteTable(
   "economy_identities",

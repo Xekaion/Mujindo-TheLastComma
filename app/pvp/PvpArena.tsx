@@ -494,7 +494,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     <main className={`pvp-screen is-${connection}`}>
       <div className="pvp-backdrop" aria-hidden="true" />
       <header className="pvp-navigation">
-        <Link href="/" className="pvp-back-link">← 무진도 원정</Link>
+        <Link href="/?town=1" className="pvp-back-link">← 기억 광장으로</Link>
         <div className="pvp-title-lockup">
           <small>MUJINDO ONLINE</small>
           <strong>기억 결투</strong>
@@ -636,7 +636,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
               </p>
               <div>
                 <button type="button" onClick={enterQueue}>다시 상대 찾기</button>
-                <Link href="/">원정으로 돌아가기</Link>
+                <Link href="/?town=1">기억 광장으로 돌아가기</Link>
               </div>
             </div>
           )}

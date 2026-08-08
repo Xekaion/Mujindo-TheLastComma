@@ -4,10 +4,12 @@
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
 import handler from "vinext/server/app-router-entry";
 import {
+  authorizeHubEconomyRequest,
   authorizeRealtimeEconomyRequest,
   handleEconomyRequest,
   type EconomyD1Env,
 } from "./economy-d1";
+import { handleHubRequest } from "./hub-d1";
 import { handleRealtimeRequest } from "./realtime-d1";
 
 interface Env extends EconomyD1Env {
@@ -47,6 +49,7 @@ const worker = {
     headers.delete("x-mujindo-internal-dev-user");
     headers.delete("x-mujindo-platform-player-name");
     headers.delete("x-mujindo-account-id");
+    headers.delete("x-mujindo-hub-auth-mode");
 
     const localHost =
       url.hostname === "localhost" ||
@@ -88,6 +91,24 @@ const worker = {
       }
       const realtimeRequest = new Request(sanitizedRequest, { headers });
       return handleRealtimeRequest(realtimeRequest, env);
+    }
+
+    if (url.pathname.startsWith("/api/hub/")) {
+      const isHubHealth = url.pathname.replace(/\/+$/, "") === "/api/hub/health";
+      if (isHubHealth) return handleHubRequest(sanitizedRequest, env);
+      const hubIdentity = await authorizeHubEconomyRequest(sanitizedRequest, env);
+      if (hubIdentity instanceof Response) return hubIdentity;
+      if (hubIdentity) {
+        headers.set("x-mujindo-account-id", hubIdentity.accountId);
+        headers.set("x-mujindo-player-name", hubIdentity.displayName);
+        headers.set("x-mujindo-hub-auth-mode", "account");
+      } else {
+        // Closed-beta/local worlds still receive a server-issued opaque guest
+        // identity. The client never gets to nominate an account id.
+        headers.set("x-mujindo-hub-auth-mode", "guest");
+      }
+      const hubRequest = new Request(sanitizedRequest, { headers });
+      return handleHubRequest(hubRequest, env);
     }
 
     if (url.pathname === "/_vinext/image") {

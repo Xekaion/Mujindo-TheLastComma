@@ -1669,7 +1669,15 @@ function MapGrid({
   );
 }
 
-export default function GameCanvas() {
+type GameCanvasProps = {
+  initialSaveSlot?: SaveSlotId;
+  onReturnToPlaza?: () => void;
+};
+
+export default function GameCanvas({
+  initialSaveSlot,
+  onReturnToPlaza,
+}: GameCanvasProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<Player>(makePlayer());
@@ -1715,6 +1723,7 @@ export default function GameCanvas() {
   const gameConfirmationActionRef = useRef<() => void>(() => undefined);
   const inventoryFullToastRef = useRef(0);
   const lootVfxShowcaseSpawnedRef = useRef(false);
+  const initialSaveSlotHandledRef = useRef(false);
 
   const [mode, setMode] = useState<GameMode>("menu");
   const [started, setStarted] = useState(false);
@@ -2803,6 +2812,12 @@ export default function GameCanvas() {
     showStory,
   ]);
 
+  useEffect(() => {
+    if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;
+    initialSaveSlotHandledRef.current = true;
+    if (!loadSave(initialSaveSlot)) startNewRun(initialSaveSlot);
+  }, [initialSaveSlot, loadSave, startNewRun]);
+
   const retryFromShelter = useCallback(() => {
     if (!loadSave()) startNewRun();
   }, [loadSave, startNewRun]);
@@ -3138,7 +3153,9 @@ export default function GameCanvas() {
     setShopScreenOpen(false);
     setMenuStage("landing");
     refreshSaveSlots();
+    onReturnToPlaza?.();
   }, [
+    onReturnToPlaza,
     refreshSaveSlots,
     setBuildPanelOpen,
     setGameMode,
@@ -8446,7 +8463,7 @@ export default function GameCanvas() {
                 다시 길 위로
               </button>
               <button className="text-button" onClick={returnToMenu}>
-                타이틀로 돌아가기
+                {onReturnToPlaza ? "마을 광장으로 돌아가기" : "타이틀로 돌아가기"}
               </button>
             </div>
           </section>
@@ -8573,7 +8590,9 @@ export default function GameCanvas() {
                   requestGameConfirmation(
                     {
                       eyebrow: "ABANDON EXPEDITION",
-                      title: "타이틀로 돌아갈까요?",
+                      title: onReturnToPlaza
+                        ? "마을 광장으로 돌아갈까요?"
+                        : "타이틀로 돌아갈까요?",
                       body: "마지막 쉼터 이후에 얻은 증강과 장비는 사라집니다.",
                       confirmLabel: "원정 포기",
                       tone: "danger",
@@ -8582,7 +8601,7 @@ export default function GameCanvas() {
                   )
                 }
               >
-                타이틀로
+                {onReturnToPlaza ? "마을 광장으로" : "타이틀로"}
               </button>
             </div>
           </section>

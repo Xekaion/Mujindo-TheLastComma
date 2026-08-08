@@ -536,7 +536,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     <main className="market-screen">
       <div className="market-backdrop" aria-hidden="true" />
       <header className="market-topbar">
-        <Link href="/" className="market-back-link">← 무진도 원정</Link>
+        <Link href="/?town=1" className="market-back-link">← 기억 광장으로</Link>
         <div className="market-brand">
           <span className="market-brand-seal" aria-hidden="true">記</span>
           <div>
@@ -740,7 +740,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           )}
         </>
       ) : (
-        <section className="market-fatal" role="alert"><strong>거래 서버에 접속할 수 없습니다</strong><p>잠시 후 다시 시도하거나 무진도 원정으로 돌아가 주세요.</p><button type="button" onClick={() => void refresh(false)}>다시 연결</button></section>
+        <section className="market-fatal" role="alert"><strong>거래 서버에 접속할 수 없습니다</strong><p>잠시 후 다시 시도하거나 기억 광장으로 돌아가 주세요.</p><button type="button" onClick={() => void refresh(false)}>다시 연결</button></section>
       )}
 
       {confirmation && confirmationCopy && (

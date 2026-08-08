@@ -23,7 +23,7 @@ async function render() {
   );
 }
 
-test("server-renders the professional two-stage game title", async () => {
+test("server-renders character selection before any playable mode", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
@@ -31,32 +31,30 @@ test("server-renders the professional two-stage game title", async () => {
   const html = await response.text();
   assert.match(html, /<html lang="ko">/i);
   assert.match(html, /<title>무진도: 마지막 쉼표<\/title>/i);
-  assert.match(html, /class="menu-screen"/);
-  assert.match(html, /data-menu-stage="landing"/);
-  assert.match(html, /class="menu-primary-action"/);
-  assert.match(html, /aria-label="무진도 기록 규모"/);
-  assert.match(
-    html,
-    /50<\/strong> 증강 · 각 (?:<!-- -->)?20(?:<!-- -->)?단계/,
-    "the title screen must advertise all fifty augments with the universal twenty-stage cap",
-  );
-  assert.match(
-    html,
-    /100<\/strong> 장비 원형 · (?:<!-- -->)?10(?:<!-- -->)?부위 · (?:<!-- -->)?8(?:<!-- -->)?등급/,
-  );
-  assert.match(html, /I 장비/);
+  assert.match(html, /class="character-entry"/);
+  assert.match(html, /data-character-entry-state="loading"/);
+  assert.match(html, /aria-label="캐릭터 저장 슬롯"/);
+  assert.equal((html.match(/data-character-slot="[123]"/g) ?? []).length, 3);
+  assert.match(html, /class="character-entry-confirm"/);
+  assert.doesNotMatch(html, /class="game-screen"/);
   assert.doesNotMatch(html, /Your site is taking shape|react-loading-skeleton/);
 });
 
-test("keeps the game shell, save system, profession system, and assets wired", async () => {
-  const [game, css, page, layout] = await Promise.all([
+test("keeps the gated game shell, save system, profession system, and assets wired", async () => {
+  const [game, css, page, flow, gate, layout] = await Promise.all([
     readFile(new URL("../app/GameCanvas.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/game.css", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/GameEntryFlow.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/CharacterEntryGate.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(page, /<GameCanvas \/>/);
+  assert.match(page, /<GameEntryFlow[\s\S]{0,160}?accountName=/);
+  assert.match(flow, /<CharacterEntryGate accountName=/);
+  assert.match(flow, /<GameCanvas[\s\S]{0,160}?initialSaveSlot=\{selection\.slot\}/);
+  assert.match(gate, /SAVE_SLOT_IDS\.map/);
+  assert.match(gate, /migrateLegacySave\(\)/);
   assert.match(layout, /const title = "무진도: 마지막 쉼표"/);
   assert.match(layout, /icon: "\/favicon\.png"/);
   assert.match(game, /from "\.\/save-slots"/);

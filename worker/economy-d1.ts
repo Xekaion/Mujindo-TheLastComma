@@ -1276,6 +1276,63 @@ export async function authorizeRealtimeEconomyRequest(
   }
 }
 
+/**
+ * The shared plaza is an account-owned world, so unlike optional offline PVP
+ * it never accepts an anonymous identity. Local A/B accounts still pass
+ * through authenticate() only when worker/index.ts reconstructed the internal
+ * development header from a same-origin localhost request.
+ */
+export async function authorizeHubEconomyRequest(
+  request: Request,
+  env: EconomyD1Env,
+): Promise<{ accountId: string; displayName: string } | Response | null> {
+  if (!env.DB) {
+    return json(
+      { error: "hub_identity_unavailable", message: "The account store is unavailable." },
+      503,
+    );
+  }
+  const accountAuthRequired = env.PVP_ACCOUNT_AUTH_ENABLED === "true";
+  try {
+    const auth = await authenticate(request, env.DB);
+    const accountIsEligible =
+      auth.account.status === "active" &&
+      auth.account.steam_ownership_verified === 1 &&
+      auth.account.trade_eligible === 1;
+    const steamIsFresh =
+      auth.development ||
+      Boolean(
+        auth.steamId &&
+        auth.account.steam_verified_at &&
+        auth.account.steam_verified_at >= Date.now() - STEAM_OWNERSHIP_TTL_MS,
+      );
+    if (accountAuthRequired && (!accountIsEligible || !steamIsFresh)) {
+      throw new EconomyProblem(
+        403,
+        "HUB_IDENTITY_REQUIRED",
+        "Enter the shared plaza with a verified game account.",
+      );
+    }
+    await assertNoActiveSanction(env.DB, auth.account.id, ["login", "multiplayer", "pvp"]);
+    return {
+      accountId: auth.account.id,
+      displayName: auth.account.display_name,
+    };
+  } catch (error) {
+    if (error instanceof EconomyProblem) {
+      if (!accountAuthRequired && error.status === 401) return null;
+      return json(
+        { error: error.code.toLowerCase(), message: error.message },
+        error.status,
+      );
+    }
+    return json(
+      { error: "hub_identity_error", message: "Could not verify the plaza account." },
+      503,
+    );
+  }
+}
+
 export const ECONOMY_SECURITY_RULES = {
   goldHoldMs: GOLD_HOLD_MS,
   productionWritesRequireLaunchGate: true,
