@@ -19,19 +19,22 @@ const difficulty = await import(
   `data:text/javascript;base64,${Buffer.from(javascript).toString("base64")}`
 );
 
-const roomDifficulty = (roomsCleared, combatPower, extra = {}) =>
+const roomDifficulty = (roomsCleared, combatPower, playerLevel = 80, extra = {}) =>
   difficulty.calculateExpeditionDifficulty({
     roomsCleared,
+    playerLevel,
     combatPower,
     ...extra,
   });
 
-test("the authored early expedition and first story boss remain unchanged", () => {
+test("adaptive power scaling stays off through level 70 and for the first story boss", () => {
   assert.equal(difficulty.expectedExpeditionCombatPower(0), 1_000);
   assert.equal(difficulty.expectedExpeditionCombatPower(8), 1_405);
+  assert.equal(difficulty.EXPEDITION_POWER_SCALING_START_LEVEL, 70);
+  assert.equal(difficulty.EXPEDITION_POWER_SCALING_FULL_LEVEL, 80);
 
-  for (const roomsCleared of [0, 1, 8]) {
-    const result = roomDifficulty(roomsCleared, 1_000_000_000);
+  for (const playerLevel of [1, 69, 70]) {
+    const result = roomDifficulty(100, 1_000_000_000, playerLevel);
     assert.equal(result.lateGameRamp, 0);
     assert.equal(result.normalHpMultiplier, 1);
     assert.equal(result.eliteHpMultiplier, 1);
@@ -39,13 +42,30 @@ test("the authored early expedition and first story boss remain unchanged", () =
     assert.equal(result.enemyCountBonus, 0);
   }
 
-  const firstBoss = roomDifficulty(100, 1_000_000_000, {
+  const firstBoss = roomDifficulty(100, 1_000_000_000, 100, {
     suppressPowerScaling: true,
   });
   assert.equal(firstBoss.normalHpMultiplier, 1);
   assert.equal(firstBoss.eliteHpMultiplier, 1);
   assert.equal(firstBoss.bossHpMultiplier, 1);
   assert.equal(firstBoss.enemyCountBonus, 0);
+});
+
+test("adaptive difficulty rises rapidly from level 71 and is fully active at 80", () => {
+  const expected = difficulty.expectedExpeditionCombatPower(40);
+  const level70 = roomDifficulty(40, expected * 4, 70);
+  const level71 = roomDifficulty(40, expected * 4, 71);
+  const level75 = roomDifficulty(40, expected * 4, 75);
+  const level80 = roomDifficulty(40, expected * 4, 80);
+
+  assert.equal(level70.lateGameRamp, 0);
+  assert.ok(Math.abs(level71.lateGameRamp - 0.028) < 1e-12);
+  assert.equal(level75.lateGameRamp, 0.5);
+  assert.equal(level80.lateGameRamp, 1);
+  assert.ok(level71.normalHpMultiplier > level70.normalHpMultiplier);
+  assert.ok(level75.normalHpMultiplier > level71.normalHpMultiplier);
+  assert.ok(level80.normalHpMultiplier > level75.normalHpMultiplier);
+  assert.ok(level80.enemyCountBonus >= level75.enemyCountBonus);
 });
 
 test("late difficulty scales monotonically above expected combat power", () => {
@@ -185,6 +205,10 @@ test("GameCanvas snapshots comprehensive power once and every summon inherits it
   assert.match(
     source,
     /player\.expeditionPowerRating = updateExpeditionPowerRating\([\s\S]{0,220}?world\.expeditionDifficulty = calculateExpeditionDifficulty\(/,
+  );
+  assert.match(
+    source,
+    /calculateExpeditionDifficulty\(\{[\s\S]{0,120}?playerLevel: player\.level,/,
   );
   assert.match(
     source,

@@ -2573,6 +2573,7 @@ export default function GameCanvas({
       });
       world.expeditionDifficulty = calculateExpeditionDifficulty({
         roomsCleared: depth,
+        playerLevel: player.level,
         combatPower: player.expeditionPowerRating,
         suppressPowerScaling:
           bossKind === BLANK_CARTOGRAPHER_KIND &&

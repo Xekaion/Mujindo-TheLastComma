@@ -1,6 +1,6 @@
 export const EXPEDITION_BASELINE_COMBAT_POWER = 1_000;
-export const EXPEDITION_POWER_SCALING_START_ROOM = 8;
-export const EXPEDITION_POWER_SCALING_FULL_ROOM = 40;
+export const EXPEDITION_POWER_SCALING_START_LEVEL = 70;
+export const EXPEDITION_POWER_SCALING_FULL_LEVEL = 80;
 export const EXPEDITION_MAX_POWER_RATIO = 32;
 export const EXPEDITION_MAX_NORMAL_HP_MULTIPLIER = 6;
 export const EXPEDITION_MAX_ELITE_HP_MULTIPLIER = 7;
@@ -87,21 +87,28 @@ export function expectedExpeditionCombatPower(roomsCleared: number): number {
 }
 
 /**
- * Captures one room's power-linked difficulty. The first boss and early rooms
- * retain their authored balance; later rooms gradually converge on the power
- * target. HP deliberately scales slower than raw damage throughput so an
- * upgrade still feels like an upgrade instead of being cancelled immediately.
+ * Captures one room's power-linked difficulty. Through character level 70 and
+ * for the first story boss, only the expedition's authored depth balance is
+ * used. Levels 71-80 rapidly unlock the adaptive power target. HP deliberately
+ * scales slower than raw damage throughput so an upgrade still feels like an
+ * upgrade instead of being cancelled immediately.
  */
 export function calculateExpeditionDifficulty({
   roomsCleared,
+  playerLevel,
   combatPower,
   suppressPowerScaling = false,
 }: {
   roomsCleared: number;
+  playerLevel: number;
   combatPower: number;
   suppressPowerScaling?: boolean;
 }): ExpeditionDifficulty {
   const safeRooms = Math.floor(finiteNonNegative(roomsCleared));
+  const safePlayerLevel = Math.max(
+    1,
+    Math.floor(finiteNonNegative(playerLevel)),
+  );
   const safeCombatPower = Math.max(
     EXPEDITION_BASELINE_COMBAT_POWER,
     Math.floor(finiteNonNegative(combatPower)),
@@ -110,9 +117,9 @@ export function calculateExpeditionDifficulty({
   const rampProgress = suppressPowerScaling
     ? 0
     : clamp(
-        (safeRooms - EXPEDITION_POWER_SCALING_START_ROOM) /
-          (EXPEDITION_POWER_SCALING_FULL_ROOM -
-            EXPEDITION_POWER_SCALING_START_ROOM),
+        (safePlayerLevel - EXPEDITION_POWER_SCALING_START_LEVEL) /
+          (EXPEDITION_POWER_SCALING_FULL_LEVEL -
+            EXPEDITION_POWER_SCALING_START_LEVEL),
         0,
         1,
       );
