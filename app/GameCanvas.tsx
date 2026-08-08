@@ -20,6 +20,7 @@ import {
   SIMPLE_AUGMENT_BONUSES,
   clampAugmentStack,
   normalizeAugmentStacks,
+  selectAugmentChoices,
   simpleAugmentMultiplier,
   simpleDefenseDamageMultiplier,
 } from "./augment-balance";
@@ -2814,28 +2815,11 @@ export default function GameCanvas({
       syncHud();
       return;
     }
-    const owned = available.filter((augment) => rankOf(player, augment.id) > 0);
-    const unowned = available.filter((augment) => rankOf(player, augment.id) === 0);
-    const pool = [...owned, ...owned, ...unowned]
-      .map((augment) => ({
-        augment,
-        roll: Math.random() + (rankOf(player, augment.id) > 0 ? 0.15 : 0),
-      }))
-      .sort((a, b) => b.roll - a.roll);
-    const picked: Augment[] = [];
-    if (owned.length > 0) {
-      picked.push(
-        owned
-          .map((augment) => ({ augment, roll: Math.random() }))
-          .sort((a, b) => b.roll - a.roll)[0].augment,
-      );
-    }
-    for (const item of pool) {
-      if (!picked.some((augment) => augment.id === item.augment.id)) {
-        picked.push(item.augment);
-      }
-      if (picked.length === 3) break;
-    }
+    const picked = selectAugmentChoices({
+      available,
+      playerLevel: player.level,
+      getRank: (augment) => rankOf(player, augment.id),
+    });
     setChoices(picked);
     setGameMode("augment");
   }, [setGameMode, syncHud]);

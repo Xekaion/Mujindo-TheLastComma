@@ -774,8 +774,8 @@ test("the universal twenty-stack ceiling normalizes runtime choices and every sa
   );
   assert.match(
     source,
-    /const owned = available\.filter[\s\S]{0,160}?const unowned = available\.filter[\s\S]{0,160}?const pool = \[\.\.\.owned, \.\.\.owned, \.\.\.unowned\]/,
-    "owned and unowned choice pools must both derive only from uncapped augments",
+    /const picked = selectAugmentChoices\(\{[\s\S]{0,180}?available,[\s\S]{0,180}?playerLevel: player\.level,[\s\S]{0,180}?getRank:/,
+    "the live choice controller must delegate the filtered pool and current level to the audited selector",
   );
 
   const openChoice = source.match(
@@ -808,6 +808,60 @@ test("the universal twenty-stack ceiling normalizes runtime choices and every sa
     /augments: normalizeAugmentStacks\(data\.player\.augments\)[\s\S]{0,1600}?stableAugmentsRef\.current = normalizeAugmentStacks\(/,
     "loading must normalize both volatile and shelter-stable augment ledgers",
   );
+});
+
+test("split appears on one exact fifty-percent roll through level ten", async () => {
+  const balance = await importTypeScriptModule("app/augment-balance.ts");
+  const candidates = ["split", "fang", "haste", "pierce", "eye"].map((id) => ({ id }));
+  const ranks = { fang: 2, split: 1 };
+  const rankOf = (augment) => ranks[augment.id] ?? 0;
+  const randomSequence = (...values) => {
+    let cursor = 0;
+    return () => values[cursor++] ?? 0.37;
+  };
+
+  assert.equal(balance.EARLY_SPLIT_APPEARANCE_CHANCE, 0.5);
+  assert.equal(balance.EARLY_SPLIT_MAX_LEVEL, 10);
+  assert.equal(balance.usesEarlySplitAppearanceRule(1), true);
+  assert.equal(balance.usesEarlySplitAppearanceRule(10), true);
+  assert.equal(balance.usesEarlySplitAppearanceRule(11), false);
+
+  const featured = balance.selectAugmentChoices({
+    available: candidates,
+    playerLevel: 10,
+    getRank: rankOf,
+    random: randomSequence(0.499999),
+  });
+  assert.equal(featured.length, 3);
+  assert.equal(featured[0].id, "split");
+  assert.equal(new Set(featured.map(({ id }) => id)).size, featured.length);
+  assert.ok(featured.some(({ id }) => id === "fang"), "the owned-choice guarantee must remain active");
+
+  const missed = balance.selectAugmentChoices({
+    available: candidates,
+    playerLevel: 10,
+    getRank: rankOf,
+    random: randomSequence(0.5),
+  });
+  assert.equal(missed.length, 3);
+  assert.ok(!missed.some(({ id }) => id === "split"));
+  assert.equal(new Set(missed.map(({ id }) => id)).size, missed.length);
+
+  const maxedSplitPool = balance.selectAugmentChoices({
+    available: candidates.filter(({ id }) => id !== "split"),
+    playerLevel: 5,
+    getRank: rankOf,
+    random: randomSequence(0),
+  });
+  assert.ok(!maxedSplitPool.some(({ id }) => id === "split"));
+
+  const onlySplitFallback = balance.selectAugmentChoices({
+    available: [{ id: "split" }],
+    playerLevel: 4,
+    getRank: () => 19,
+    random: randomSequence(0.5),
+  });
+  assert.deepEqual(onlySplitFallback, [{ id: "split" }]);
 });
 
 test("three save slots isolate data and preserve the legacy backup on migration", async () => {
