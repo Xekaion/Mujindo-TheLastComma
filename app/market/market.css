@@ -515,3 +515,142 @@
 @media (prefers-reduced-motion: reduce) {
   .market-screen *, .market-screen *::before, .market-screen *::after { animation: none !important; transition: none !important; }
 }
+
+/* Readability audit: preserve the dense ledger layout without sub-10px copy. */
+.market-screen small,
+.market-screen dt,
+.market-screen label > span,
+.market-screen header > span {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.market-screen button,
+.market-screen input,
+.market-screen select,
+.market-screen a {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.market-panel-heading p,
+.market-launch-gate p,
+.market-charge-hero p,
+.market-charge-policy p,
+.market-sandbox-tools p,
+.market-sanction p,
+.market-verification li p,
+.market-legal-review p,
+.market-order-entry > p,
+.market-confirm > p,
+.market-loading span,
+.market-fatal p {
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.market-brand small,
+.market-account-identity small,
+.market-account-identity > b,
+.market-balance small,
+.market-demo-switch small,
+.market-launch-gate small,
+.market-launch-gate > b,
+.market-tabs button small,
+.market-panel-heading small,
+.market-panel header small,
+.market-filters label > span,
+.market-sell-form label > span,
+.market-order-entry label > span,
+.market-listings > header,
+.market-listing small,
+.market-listing-item span,
+.market-listing-seller span,
+.market-listing-time span,
+.market-listing-price span,
+.market-vault-list small,
+.market-vault-list em,
+.market-ticker small,
+.market-ticker span,
+.market-orderbook header > span,
+.market-orderbook-head,
+.market-book-side > small,
+.market-book-side b,
+.market-book-mid span,
+.market-order-entry dt,
+.market-instant-orders > small,
+.market-my-orders small,
+.market-charge-hero > div small,
+.market-sandbox-tools small,
+.market-sanction small,
+.market-security-status dt,
+.market-audit article > span,
+.market-audit article small,
+.market-audit code,
+.market-confirm > small,
+.market-confirm dt {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.market-notice {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.market-notice > span,
+.market-local-warning > span,
+.market-verification li > span,
+.market-item-icon.is-compact .market-item-enhancement {
+  font-size: 10px;
+}
+
+.market-sync-state,
+.market-balance dd,
+.market-listing-seller strong,
+.market-listing-time strong,
+.market-local-warning p,
+.market-local-warning strong,
+.market-vault-list strong,
+.market-empty-state p,
+.market-book-side > p,
+.market-book-side > div,
+.market-order-entry dd,
+.market-instant-orders > button,
+.market-instant-orders > button strong,
+.market-my-orders button,
+.market-trade-tape > div,
+.market-security-status dd,
+.market-security-rules span,
+.market-audit article strong,
+.market-legal-review strong,
+.market-confirm > div button {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.market-verification li a {
+  font-size: 11px;
+}
+
+.market-tabs button strong,
+.market-listing-item strong,
+.market-verification li strong,
+.market-security-rules strong {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.market-listing,
+.market-vault-list > button,
+.market-my-orders > article,
+.market-trade-tape > div,
+.market-verification li,
+.market-audit article {
+  height: auto;
+}
+
+.market-confirm-footnote {
+  font-size: 10px !important;
+  line-height: 1.5;
+}

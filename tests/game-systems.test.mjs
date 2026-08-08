@@ -4140,8 +4140,13 @@ test("I opens the centered inventory overlay and equipped-slot clicks drive its 
   );
   assert.match(
     overlay,
-    /const selectedItem = selectedInventoryItem \?\? selectedEquippedItem;[\s\S]{0,13000}?className={`inventory-screen-details/,
+    /const selectedItem = selectedInventoryItem \?\? selectedEquippedItem;/,
     "equipped and backpack items must feed the same detail view",
+  );
+  assert.match(
+    overlay,
+    /className=\{`inventory-screen-details \$\{selectedItem \? rarityClass\(selectedItem\) : "inventory-screen-details--empty"\}`\}/,
+    "the shared detail panel must render from the normalized selected item",
   );
 });
 
@@ -4607,8 +4612,28 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   );
   assert.match(
     css,
-    /\.inventory-screen-tooltip\s*\{[\s\S]{0,500}?position:\s*fixed;[\s\S]{0,1800}?pointer-events:\s*none;/,
+    /\.inventory-screen-tooltip\s*\{[\s\S]{0,500}?position:\s*fixed;/,
     "the item tooltip must float above the inventory without affecting its layout",
+  );
+  assert.match(
+    overlay,
+    /className="inventory-screen-tooltip-scroll"/,
+    "a viewport-constrained tooltip must expose a dedicated option scroller",
+  );
+  assert.ok(
+    [...overlay.matchAll(/onWheel=\{handleTooltipWheel\}/g)].length >= 2 &&
+      [...overlay.matchAll(/onKeyDown=\{handleTooltipKeyDown\}/g)].length >= 2,
+    "equipped and backpack cards must scroll long tooltips without making the overlay intercept clicks",
+  );
+  assert.match(
+    overlay,
+    /onMeasure\(rect\.width, rect\.height\)[\s\S]{0,160}?new ResizeObserver\(reportSize\)/,
+    "tooltip placement must use its rendered dimensions instead of a fixed guessed height",
+  );
+  assert.match(
+    css.slice(css.indexOf("Tooltip and confirmation readability contract V7")),
+    /\.inventory-screen-tooltip\s*\{[^}]*pointer-events:\s*none;/,
+    "scrollable tooltip content must not intercept clicks intended for inventory controls",
   );
 });
 
@@ -4883,8 +4908,11 @@ test("the cash shop pauses combat and expands every backpack boundary without tr
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.shop-product\.is-selected::after[\s\S]*?animation:\s*none;/);
 });
 
-test("the enhancement workbench keeps its rates and equipment actions in separate rows", async () => {
-  const css = await readFile(path.join(root, "app/game.css"), "utf8");
+test("the enhancement workbench keeps readable scroll regions and reachable equipment actions", async () => {
+  const [overlay, css] = await Promise.all([
+    readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
 
   assert.match(
     css,
@@ -4896,10 +4924,36 @@ test("the enhancement workbench keeps its rates and equipment actions in separat
     /\.inventory-screen-detail-content\s*\{[^}]*height:\s*calc\(100%\s*-\s*42px\)/,
     "the legacy double height subtraction recreates the workbench overlap",
   );
+  const workbenchContract = css.slice(css.indexOf("Inventory workbench readability contract V5"));
   assert.match(
-    css,
-    /\.inventory-screen-detail-actions-column\s*\{[^}]*grid-template-rows:\s*minmax\(min-content,\s*1fr\)\s+auto;[^}]*align-content:\s*start;/,
-    "enhancement content and equip controls must retain two content-safe grid tracks",
+    workbenchContract,
+    /\.inventory-screen-detail-actions-column\s*\{[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto;[^}]*overflow:\s*hidden;/,
+    "the scrollable enhancement track must shrink before pushing the action row out of view",
+  );
+  assert.match(
+    workbenchContract,
+    /\.inventory-screen-detail-stats\s*\{[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;[^}]*scrollbar-gutter:\s*stable;/,
+    "long option lists must remain independently scrollable",
+  );
+  assert.match(
+    workbenchContract,
+    /\.inventory-screen-enhancement\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/,
+    "enhancement rules must scroll without covering the equip controls",
+  );
+  assert.match(
+    workbenchContract,
+    /\.inventory-screen-enhancement-heading small,[\s\S]{0,700}?font-size:\s*10px;/,
+    "secondary enhancement copy must retain a ten-pixel readability floor",
+  );
+  assert.match(
+    overlay,
+    /className="inventory-screen-detail-stats"[\s\S]{0,180}?role="region"[\s\S]{0,180}?aria-label="장비 옵션 스크롤 영역"[\s\S]{0,100}?tabIndex=\{0\}/,
+    "the option scroller must be keyboard reachable and announced",
+  );
+  assert.match(
+    overlay,
+    /className="inventory-screen-enhancement"[\s\S]{0,180}?aria-labelledby="inventory-screen-enhancement-title"[\s\S]{0,100}?tabIndex=\{0\}/,
+    "the enhancement scroller must be keyboard reachable",
   );
   assert.match(
     css,
@@ -4922,6 +4976,112 @@ test("the enhancement workbench keeps its rates and equipment actions in separat
     geometryContract,
     /@media\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*minmax\(320px,\s*1\.1fr\)\s+minmax\(210px,\s*0\.9fr\)/,
     "low desktop layouts must reserve the larger share for five safe paperdoll rows",
+  );
+});
+
+test("dense game surfaces keep readable text floors and viewport-owned scrolling", async () => {
+  const [gameCss, shopOverlay, plazaCss, statsCss, audioCss, characterCss, pvpCss, marketCss] =
+    await Promise.all([
+      readFile(path.join(root, "app/game.css"), "utf8"),
+      readFile(path.join(root, "app/ShopOverlay.tsx"), "utf8"),
+      readFile(path.join(root, "app/plaza.css"), "utf8"),
+      readFile(path.join(root, "app/stats-overlay.css"), "utf8"),
+      readFile(path.join(root, "app/audio-controls.css"), "utf8"),
+      readFile(path.join(root, "app/character-entry.css"), "utf8"),
+      readFile(path.join(root, "app/pvp/pvp.css"), "utf8"),
+      readFile(path.join(root, "app/market/market.css"), "utf8"),
+    ]);
+
+  assert.match(
+    gameCss,
+    /\.menu-screen,\s*\n\.game-screen\s*\{[^}]*height:\s*100dvh;[^}]*min-height:\s*min\(620px,\s*100dvh\);/,
+    "the game shell must never keep a 620px canvas when the visible viewport is shorter",
+  );
+  assert.match(
+    gameCss.slice(gameCss.indexOf("Final inventory text floor V6")),
+    /\.inventory-screen \.inventory-screen-equipment-enhancement,[\s\S]{0,900}?font-size:\s*10px;/,
+    "equipped enhancement badges must retain the same ten-pixel floor as other slot labels",
+  );
+
+  const shopContract = gameCss.slice(gameCss.indexOf("Shop and residual game UI readability contract V1"));
+  assert.match(
+    shopContract,
+    /\.shop-panel\s*\{[^}]*min-height:\s*0;[^}]*max-height:\s*calc\(100dvh\s*-\s*24px\);[^}]*grid-template-rows:\s*78px\s+40px\s+minmax\(0,\s*1fr\)\s+32px;/,
+    "the desktop shop must fit inside the viewport instead of enforcing a clipped minimum height",
+  );
+  assert.match(
+    shopContract,
+    /\.shop-category,[\s\S]{0,180}?\.shop-product-grid,[\s\S]{0,180}?\.shop-checkout\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/,
+    "the shop columns must own their overflow",
+  );
+  assert.match(
+    shopContract,
+    /\.shop-product-grid\s*\{[^}]*grid-template-rows:\s*none;[^}]*grid-auto-rows:\s*minmax\(86px,\s*auto\);/,
+    "larger product copy must reflow instead of being clipped by fixed rows",
+  );
+  assert.match(shopContract, /\.shop-legal-note,[\s\S]{0,180}?font-size:\s*10px;/);
+  assert.match(shopContract, /\.shop-buy,[\s\S]{0,180}?font-size:\s*12px;/);
+  assert.match(
+    gameCss,
+    /@media\s*\(max-width:\s*760px\)\s*\{[\s\S]{0,900}?\.shop-layout\s*\{[^}]*display:\s*block;[^}]*overflow-y:\s*auto;/,
+    "the shop must leave its two-column minimum-width layout before the 721px clipping band",
+  );
+  assert.match(
+    gameCss,
+    /@media\s*\(max-width:\s*978px\)\s*\{\s*\.shop-layout\s*\{[^}]*minmax\(390px,\s*1fr\)\s+270px;/,
+    "the shop must leave its three-column layout before the 961-978px clipping band",
+  );
+  assert.match(
+    shopOverlay,
+    /className="shop-product-grid"[\s\S]{0,180}?aria-label="상점 상품 목록 스크롤 영역"[\s\S]{0,80}?tabIndex=\{0\}/,
+  );
+  assert.match(
+    shopOverlay,
+    /className="shop-checkout"[\s\S]{0,120}?aria-labelledby="shop-checkout-title"[\s\S]{0,80}?tabIndex=\{0\}/,
+  );
+
+  assert.match(
+    plazaCss,
+    /@media\s*\(max-height:\s*620px\)\s*and\s*\(min-width:\s*821px\)[\s\S]*?\.plaza-portal-directory\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*112px\);[^}]*overflow-y:\s*auto;/,
+  );
+  assert.match(statsCss, /Readability audit:[\s\S]*?\.stats-row dt > span,[\s\S]*?font-size:\s*12px;/);
+  assert.match(audioCss, /\.audio-dock__panel\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*104px\);[^}]*overflow-y:\s*auto;/);
+  assert.match(characterCss, /\.character-entry\s*\{[^}]*overflow-y:\s*auto;/);
+  assert.match(pvpCss, /\.pvp-screen\s*\{[^}]*overflow-y:\s*auto;/);
+  assert.match(marketCss, /Readability audit:[\s\S]*?\.market-screen small,[\s\S]*?font-size:\s*10px;/);
+
+  const portalledContract = gameCss.slice(gameCss.indexOf("Tooltip and confirmation readability contract V7"));
+  assert.match(
+    portalledContract,
+    /\.inventory-screen-tooltip \.inventory-screen-tooltip-heading small,[\s\S]{0,900}?\.game-confirmation-hint\s*\{[^}]*font-size:\s*10px;/,
+    "tooltip and confirmation metadata must not fall below ten pixels",
+  );
+  assert.match(
+    portalledContract,
+    /\.inventory-screen-confirm-dialog,[\s\S]{0,80}?\.game-confirmation-dialog\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*36px\);[^}]*overflow-y:\s*auto;/,
+    "confirmation dialogs must own overflow on short viewports",
+  );
+  assert.match(
+    portalledContract,
+    /\.inventory-screen-tooltip-scroll\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*60px\);[^}]*overflow-y:\s*auto;/,
+    "long hover details must own a viewport-bounded scroll region",
+  );
+
+  const compactInventoryContract = gameCss.slice(gameCss.indexOf("Compact inventory access contract V8"));
+  assert.match(
+    compactInventoryContract,
+    /@media\s*\(max-width:\s*900px\)[\s\S]{0,1100}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
+    "narrow touch layouts must retain the explicit equipment workbench",
+  );
+  assert.match(
+    compactInventoryContract,
+    /@media\s*\(max-width:\s*900px\)[\s\S]{0,1800}?\.inventory-screen-detail-stats\s*\{[^}]*display:\s*block;/,
+    "narrow touch layouts must keep the full option list visible and scrollable",
+  );
+  assert.match(
+    compactInventoryContract,
+    /@media\s*\(max-height:\s*680px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,1000}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
+    "short desktop layouts must scroll to the workbench instead of deleting it",
   );
 });
 

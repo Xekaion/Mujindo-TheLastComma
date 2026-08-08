@@ -232,3 +232,24 @@ button {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Global announcement readability floor. */
+.world-announcement-rarity {
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+.world-announcement p {
+  font-size: clamp(12px, 1.25vw, 17px);
+}
+
+.world-announcement small {
+  min-width: 64px;
+  font-size: 11px;
+  line-height: 1.25;
+}
+
+.world-announcement small i {
+  font-size: 10px;
+  line-height: 1.2;
+}

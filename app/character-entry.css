@@ -500,3 +500,47 @@
     animation: none;
   }
 }
+
+/* Readability and short-viewport safety audit. */
+.character-entry {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.character-entry small,
+.character-entry time {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.character-entry button {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.character-entry-header p,
+.character-entry-dialog p {
+  font-size: 12px;
+}
+
+.character-entry-account > span,
+.character-entry-card-copy small,
+.character-entry-card-copy time,
+.character-entry-confirm small,
+.character-entry-hint,
+.character-entry-delete {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+@media (max-height: 560px) and (min-width: 701px) {
+  .character-entry {
+    place-items: start center;
+  }
+
+  .character-entry-panel {
+    margin-top: 100px;
+    margin-bottom: 24px;
+  }
+}

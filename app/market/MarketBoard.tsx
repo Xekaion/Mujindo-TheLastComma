@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
   type CSSProperties,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import Link from "next/link";
 import { formatGearDisplayName, normalizeGearEnhancement } from "../equipment";
@@ -62,6 +63,15 @@ const TABS: ReadonlyArray<{ id: MarketTab; label: string; eyebrow: string }> = [
   { id: "charge", label: "금괴 충전", eyebrow: "STEAM WALLET" },
   { id: "security", label: "보안센터", eyebrow: "ACCOUNT GUARD" },
 ];
+
+const MODAL_FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  '[tabindex]:not([tabindex="-1"])',
+].join(", ");
 
 const RARITY_LABELS: Readonly<Record<MarketRarity, string>> = {
   common: "일반",
@@ -284,6 +294,10 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const pollingRef = useRef<AbortController | null>(null);
   const firstLoadRef = useRef(true);
   const paymentReturnRef = useRef<string | null>(null);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const confirmationDialogRef = useRef<HTMLElement>(null);
+  const confirmationOpenerRef = useRef<HTMLElement | null>(null);
+  const pendingFocusRestoreRef = useRef<HTMLElement | null>(null);
 
   const query = useMemo<MarketSearch>(() => ({ search, rarity, slot, sort }), [rarity, search, slot, sort]);
 
@@ -390,15 +404,77 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   }, [demoUser]);
 
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && confirmation) {
+    if (!confirmation) return;
+
+    const dialog = confirmationDialogRef.current;
+    if (!dialog) return;
+
+    const openingFocusFrame = window.requestAnimationFrame(() => {
+      if (dialog.contains(document.activeElement)) return;
+      const firstFocusable = dialog.querySelector<HTMLElement>(MODAL_FOCUSABLE_SELECTOR);
+      (firstFocusable ?? dialog).focus({ preventScroll: true });
+    });
+
+    const handleDialogKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
         event.preventDefault();
         setConfirmation(null);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(MODAL_FOCUSABLE_SELECTOR),
+      ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus({ preventScroll: true });
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
       }
     };
-    window.addEventListener("keydown", handleKey);
-    return () => window.removeEventListener("keydown", handleKey);
+
+    window.addEventListener("keydown", handleDialogKey, true);
+    return () => {
+      window.cancelAnimationFrame(openingFocusFrame);
+      window.removeEventListener("keydown", handleDialogKey, true);
+      pendingFocusRestoreRef.current = confirmationOpenerRef.current;
+      confirmationOpenerRef.current = null;
+    };
   }, [confirmation]);
+
+  useEffect(() => {
+    if (confirmation || working || !pendingFocusRestoreRef.current) return;
+    const restoreFrame = window.requestAnimationFrame(() => {
+      const opener = pendingFocusRestoreRef.current;
+      pendingFocusRestoreRef.current = null;
+      const openerDisabled = opener instanceof HTMLButtonElement && opener.disabled;
+      if (opener?.isConnected && !openerDisabled) {
+        opener.focus({ preventScroll: true });
+        return;
+      }
+      const activeTabIndex = TABS.findIndex((entry) => entry.id === tab);
+      tabRefs.current[activeTabIndex]?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(restoreFrame);
+  }, [confirmation, tab, working]);
+
+  const openConfirmation = useCallback((next: Confirmation) => {
+    confirmationOpenerRef.current = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    setConfirmation(next);
+  }, []);
 
   const changeTab = (next: MarketTab) => {
     setTab(next);
@@ -407,6 +483,23 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     params.set("tab", next);
     if (local) params.set("demo", demoUser);
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+  };
+
+  const handleTabKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % TABS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + TABS.length) % TABS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = TABS.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    const nextTab = TABS[nextIndex];
+    changeTab(nextTab.id);
+    window.requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus({ preventScroll: true }));
   };
 
   const switchDemoUser = (next: DemoUser) => {
@@ -456,7 +549,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const openOrderConfirmation = (event: FormEvent) => {
     event.preventDefault();
     if (!goldEnabled || orderPriceNumber <= 0 || orderAmountNumber <= 0) return;
-    setConfirmation({
+    openConfirmation({
       kind: "order",
       side: orderSide,
       priceAshPerGold: orderPriceNumber,
@@ -601,9 +694,10 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           )}
 
           <nav className="market-tabs" role="tablist" aria-label="기억 거래소 메뉴">
-            {TABS.map((entry) => (
+            {TABS.map((entry, index) => (
               <button
                 key={entry.id}
+                ref={(element) => { tabRefs.current[index] = element; }}
                 type="button"
                 role="tab"
                 id={`market-tab-${entry.id}`}
@@ -612,6 +706,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                 tabIndex={tab === entry.id ? 0 : -1}
                 className={tab === entry.id ? "is-active" : ""}
                 onClick={() => changeTab(entry.id)}
+                onKeyDown={(event) => handleTabKeyDown(event, index)}
               >
                 <small>{entry.eyebrow}</small>
                 <strong>{entry.label}</strong>
@@ -640,7 +735,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                       <div className="market-listing-seller"><small>판매자</small><strong>{listing.sellerName}</strong><span>{listing.mine ? "내 매물" : "서버 인증"}</span></div>
                       <div className="market-listing-time"><small>만료까지</small><strong>{remainingLabel(listing.expiresAt)}</strong><span>{formatDate(listing.listedAt)} 등록</span></div>
                       <div className="market-listing-price"><small>기억의 재</small><strong><i>✦</i>{formatEconomyAmount(listing.priceAsh)}</strong><span>고정가</span></div>
-                      <button type="button" className={listing.mine ? "is-cancel" : "is-buy"} disabled={!tradeEnabled || working} onClick={() => setConfirmation(listing.mine ? { kind: "cancel-listing", listing } : { kind: "buy", listing })}>{listing.mine ? "등록 취소" : "즉시 구매"}</button>
+                      <button type="button" className={listing.mine ? "is-cancel" : "is-buy"} disabled={!tradeEnabled || working} onClick={() => openConfirmation(listing.mine ? { kind: "cancel-listing", listing } : { kind: "buy", listing })}>{listing.mine ? "등록 취소" : "즉시 구매"}</button>
                     </article>
                   ))}
                 </section>
@@ -652,7 +747,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                       <button key={item.vaultItemId} type="button" className={selectedVaultItemId === item.vaultItemId ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[item.rarity] } as CSSProperties} aria-pressed={selectedVaultItemId === item.vaultItemId} onClick={() => setSelectedVaultItemId(item.vaultItemId)}><ItemIcon item={item} compact /><span><small>LV.{item.level} · {RARITY_LABELS[item.rarity]}</small><strong>{formatMarketGearName(item)}</strong><em>전투력 {formatEconomyAmount(item.powerScore)}</em></span><i aria-hidden="true">›</i></button>
                     ))}
                   </div>
-                  <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedVaultItem && price > 0 && tradeEnabled) setConfirmation({ kind: "sell", item: selectedVaultItem, priceAsh: price }); }}>
+                  <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedVaultItem && price > 0 && tradeEnabled) openConfirmation({ kind: "sell", item: selectedVaultItem, priceAsh: price }); }}>
                     <label><span>판매 희망가 · 기억의 재</span><input type="number" min="1" step="1" inputMode="numeric" value={sellPrice} onChange={(event) => setSellPrice(event.target.value)} placeholder="가격 입력" /></label>
                     <button type="submit" disabled={!tradeEnabled || !selectedVaultItem || Number(sellPrice) <= 0 || working}>선택 장비 판매 등록</button>
                   </form>
@@ -698,7 +793,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                           type="button"
                           key={order.orderId}
                           disabled={!goldEnabled || working}
-                          onClick={() => setConfirmation({ kind: "fill-order", order, goldAmount: Math.min(order.remainingGold, Math.max(1, orderAmountNumber || order.remainingGold)) })}
+                          onClick={() => openConfirmation({ kind: "fill-order", order, goldAmount: Math.min(order.remainingGold, Math.max(1, orderAmountNumber || order.remainingGold)) })}
                         >
                           <span>{order.side === "sell" ? "금괴 매수" : "금괴 매도"}</span>
                           <strong>✦ {formatEconomyAmount(order.priceAshPerGold)} · ▰ {formatEconomyAmount(order.remainingGold)}</strong>
@@ -711,7 +806,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
                 <section className="market-my-orders" aria-labelledby="my-orders-title">
                   <header><div><small>OPEN ORDERS</small><h2 id="my-orders-title">내 미체결 주문</h2></div><b>{snapshot.goldExchange.myOrders.filter((order) => order.status === "open" || order.status === "partial").length}</b></header>
-                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {order.status}</small><strong>▰ {formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => setConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
+                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {order.status}</small><strong>▰ {formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => openConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
                 </section>
 
                 <section className="market-trade-tape" aria-labelledby="trade-tape-title">
@@ -726,9 +821,9 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             <section className="market-panel market-charge" id="market-panel-charge" role="tabpanel" aria-labelledby="market-tab-charge">
               <div className="market-panel-heading"><div><small>STEAM MICROTRANSACTION</small><h1>금괴 충전</h1></div><p>금괴는 Steam 결제 승인과 서버 영수증 검증이 모두 끝난 뒤에만 지급됩니다.</p></div>
               <section className="market-charge-hero"><span className="market-gold-stack" aria-hidden="true"><i /><i /><i /></span><div><small>PREMIUM EXCHANGE TOKEN</small><h2>금괴</h2><p>편의 상품과 유저 간 기억의 재 교환에 사용하는 서버 재화입니다. 게임 장비를 직접 판매하지 않습니다.</p></div><dl><div><dt>사용 가능</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.available)}</dd></div><div><dt>72시간 잠금</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.locked72h)}</dd></div></dl></section>
-              <div className="market-pack-grid">{GOLD_PACKS.map((pack) => <article key={pack.id}><span aria-hidden="true">▰</span><small>{pack.label}</small><strong>{pack.gold}<i> 금괴</i></strong><b>{pack.priceKrw.toLocaleString("ko-KR")}원</b><button type="button" disabled={!chargeEnabled || working} onClick={() => setConfirmation({ kind: "charge", packId: pack.id, goldAmount: pack.gold, priceKrw: pack.priceKrw })}>{chargeEnabled ? "Steam으로 충전" : "결제 잠김"}</button></article>)}</div>
+              <div className="market-pack-grid">{GOLD_PACKS.map((pack) => <article key={pack.id}><span aria-hidden="true">▰</span><small>{pack.label}</small><strong>{pack.gold}<i> 금괴</i></strong><b>{pack.priceKrw.toLocaleString("ko-KR")}원</b><button type="button" disabled={!chargeEnabled || working} onClick={() => openConfirmation({ kind: "charge", packId: pack.id, goldAmount: pack.gold, priceKrw: pack.priceKrw })}>{chargeEnabled ? "Steam으로 충전" : "결제 잠김"}</button></article>)}</div>
               <section className="market-charge-policy"><div><strong>72시간 교환 잠금</strong><p>새로 충전한 금괴는 결제 취소·도난 결제 위험을 검증하는 동안 교환소에서 사용할 수 없습니다. 잠금 해제 시각은 서버 원장이 결정합니다.</p></div><div><strong>서버 영수증 검증</strong><p>클라이언트의 성공 화면만으로 지급하지 않습니다. Steam 서버 콜백과 주문 금액이 일치할 때만 금괴 원장에 반영됩니다.</p></div><div><strong>환불·청약 정보</strong><p>구매 전 Steam 결제창에서 최종 금액과 환불 조건을 확인하세요. 사용 또는 교환된 금괴는 별도 정책이 적용될 수 있습니다.</p></div></section>
-              {localSandbox && <section className="market-sandbox-tools"><div><small>LOCALHOST ONLY</small><h2>경제 샌드박스</h2><p>이 도구는 로컬 개발 환경에서만 보이며 실제 결제나 운영 원장과 연결되지 않습니다.</p></div><button type="button" onClick={() => setConfirmation({ kind: "sandbox", currency: "memoryAsh", amount: 100_000 })}>기억의 재 100,000 지급</button><button type="button" onClick={() => setConfirmation({ kind: "sandbox", currency: "goldBars", amount: 100 })}>금괴 100 지급</button></section>}
+              {localSandbox && <section className="market-sandbox-tools"><div><small>LOCALHOST ONLY</small><h2>경제 샌드박스</h2><p>이 도구는 로컬 개발 환경에서만 보이며 실제 결제나 운영 원장과 연결되지 않습니다.</p></div><button type="button" onClick={() => openConfirmation({ kind: "sandbox", currency: "memoryAsh", amount: 100_000 })}>기억의 재 100,000 지급</button><button type="button" onClick={() => openConfirmation({ kind: "sandbox", currency: "goldBars", amount: 100 })}>금괴 100 지급</button></section>}
             </section>
           )}
 
@@ -752,7 +847,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
       {confirmation && confirmationCopy && (
         <div className="market-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) setConfirmation(null); }}>
-          <section className="market-confirm" role="alertdialog" aria-modal="true" aria-labelledby="market-confirm-title" aria-describedby="market-confirm-body">
+          <section ref={confirmationDialogRef} className="market-confirm" role="alertdialog" aria-modal="true" aria-labelledby="market-confirm-title" aria-describedby="market-confirm-body" tabIndex={-1}>
             <span className="market-confirm-sigil" aria-hidden="true">◇</span><small>AUTHORITATIVE LEDGER COMMAND</small><h2 id="market-confirm-title">{confirmationCopy.title}</h2><p id="market-confirm-body">{confirmationCopy.body}</p><dl>{confirmationCopy.rows.map((row) => <div key={row[0]}><dt>{row[0]}</dt><dd>{row[1]}</dd></div>)}</dl><div><button type="button" autoFocus disabled={working} onClick={() => setConfirmation(null)}>취소</button><button type="button" className="is-confirm" disabled={working} onClick={() => void confirmAction()}>{working ? "서버 원장 확인 중…" : confirmationCopy.confirmLabel}</button></div><small className="market-confirm-footnote">최종 가격·소유권·잔액은 서버가 다시 검증합니다. 조건이 달라졌다면 명령은 자동 거절됩니다.</small>
           </section>
         </div>

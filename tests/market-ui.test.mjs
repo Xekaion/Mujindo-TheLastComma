@@ -27,6 +27,32 @@ test("memory market exposes all four server-backed economy surfaces", async () =
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
+test("market tabs and trade confirmations are fully keyboard contained", async () => {
+  const board = await readSource("app/market/MarketBoard.tsx");
+
+  assert.match(board, /tabIndex=\{tab === entry\.id \? 0 : -1\}/);
+  assert.match(board, /onKeyDown=\{\(event\) => handleTabKeyDown\(event, index\)\}/);
+  assert.match(board, /event\.key === "ArrowRight"[\s\S]{0,120}?currentIndex \+ 1/);
+  assert.match(board, /event\.key === "ArrowLeft"[\s\S]{0,140}?currentIndex - 1 \+ TABS\.length/);
+  assert.match(board, /event\.key === "Home"[\s\S]{0,80}?nextIndex = 0/);
+  assert.match(board, /event\.key === "End"[\s\S]{0,100}?nextIndex = TABS\.length - 1/);
+  assert.match(board, /changeTab\(nextTab\.id\)/);
+  assert.match(board, /tabRefs\.current\[nextIndex\]\?\.focus\(\{ preventScroll: true \}\)/);
+
+  assert.match(board, /const MODAL_FOCUSABLE_SELECTOR/);
+  assert.match(board, /confirmationOpenerRef\.current = document\.activeElement instanceof HTMLElement/);
+  assert.match(board, /ref=\{confirmationDialogRef\}[\s\S]{0,180}?role="alertdialog"[\s\S]{0,180}?tabIndex=\{-1\}/);
+  assert.match(board, /event\.key !== "Tab"/);
+  assert.match(board, /event\.shiftKey && \(active === first \|\| !dialog\.contains\(active\)\)/);
+  assert.match(board, /!event\.shiftKey && \(active === last \|\| !dialog\.contains\(active\)\)/);
+  assert.match(board, /window\.addEventListener\("keydown", handleDialogKey, true\)/);
+  assert.match(board, /pendingFocusRestoreRef\.current = confirmationOpenerRef\.current/);
+  assert.match(board, /if \(confirmation \|\| working \|\| !pendingFocusRestoreRef\.current\) return/);
+  assert.match(board, /opener\?\.isConnected && !openerDisabled[\s\S]{0,100}?opener\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(board, /tabRefs\.current\[activeTabIndex\]\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(board, /event\.key === "Escape"[\s\S]{0,100}?setConfirmation\(null\)/);
+});
+
 test("market polling and write commands follow the authoritative protocol", async () => {
   const [client, protocol, board] = await Promise.all([
     readSource("app/economy-client.ts"),

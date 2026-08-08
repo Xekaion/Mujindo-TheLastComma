@@ -3729,6 +3729,23 @@ export default function GameCanvas({
     if (!canvas || !context) return;
     let frame = 0;
     let last = performance.now();
+    let canvasCssScale = 1;
+    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
+      if (renderedWidth <= 0 || renderedHeight <= 0) return;
+      canvasCssScale = Math.max(
+        0.01,
+        Math.min(renderedWidth / WIDTH, renderedHeight / HEIGHT),
+      );
+    };
+    const initialCanvasRect = canvas.getBoundingClientRect();
+    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
+    const canvasResizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
+    });
+    canvasResizeObserver.observe(canvas);
+    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
+      Math.max(basePx, minimumCssPx / canvasCssScale);
     const lootVfxShowcaseMode = isLocalRarityShowcaseHost()
       ? new URLSearchParams(window.location.search).get("lootVfxShowcase")
       : null;
@@ -8071,7 +8088,7 @@ export default function GameCanvas({
           }
           context.globalAlpha = clamp((itemReveal - 0.35) / 0.65, 0, 1);
           context.shadowBlur = 5;
-          context.font = "700 10px sans-serif";
+          context.font = `700 ${readableCanvasFontSize(10, 11)}px sans-serif`;
           context.textAlign = "center";
           context.fillStyle = rarity.color;
           const itemDisplayName = formatGearDisplayName(drop.item);
@@ -8317,10 +8334,9 @@ export default function GameCanvas({
           enemy.kind === 7 ||
           enemy.kind === MARGIN_SEVERER_KIND
         ) {
-          context.font =
-            isBossKind(enemy.kind)
-              ? "700 15px serif"
-              : "600 11px sans-serif";
+          context.font = isBossKind(enemy.kind)
+            ? `700 ${readableCanvasFontSize(15, 11)}px serif`
+            : `600 ${readableCanvasFontSize(11, 11)}px sans-serif`;
           context.textAlign = "center";
           context.fillStyle = "#e8dfc8";
           context.fillText(ENEMY_NAMES[enemy.kind], enemy.x, enemy.y - enemy.radius - 46);
@@ -8477,7 +8493,7 @@ export default function GameCanvas({
       }
 
       if (!world.roomCleared && world.enemies.length) {
-        context.font = "700 12px sans-serif";
+        context.font = `700 ${readableCanvasFontSize(12, 11)}px sans-serif`;
         context.textAlign = "center";
         context.fillStyle = "rgba(232,223,200,.68)";
         context.fillText(`${world.enemies.length}개의 기억이 문을 붙들고 있다`, WIDTH / 2, HEIGHT - 22);
@@ -8503,7 +8519,10 @@ export default function GameCanvas({
       frame = requestAnimationFrame(loop);
     };
     frame = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      canvasResizeObserver.disconnect();
+      cancelAnimationFrame(frame);
+    };
   }, [
     gainXp,
     isSimulationRunning,

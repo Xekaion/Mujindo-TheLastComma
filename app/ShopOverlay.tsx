@@ -244,7 +244,12 @@ export default function ShopOverlay({
                 </span>
               ))}
             </div>
-            <div className="shop-product-grid">
+            <div
+              className="shop-product-grid"
+              role="region"
+              aria-label="상점 상품 목록 스크롤 영역"
+              tabIndex={0}
+            >
               {SHOP_PRODUCTS.map((product, index) => {
                 const isExpansion = product.kind === "inventory-expansion";
                 const productOwned = entitlements.purchasedProductIds.includes(product.id);
@@ -299,7 +304,11 @@ export default function ShopOverlay({
             )}
           </section>
 
-          <aside className="shop-checkout" aria-labelledby="shop-checkout-title">
+          <aside
+            className="shop-checkout"
+            aria-labelledby="shop-checkout-title"
+            tabIndex={0}
+          >
             <small>SELECTED OFFER</small>
             <h3 id="shop-checkout-title">{selectedProduct.name}</h3>
             <p>{selectedProduct.description}</p>

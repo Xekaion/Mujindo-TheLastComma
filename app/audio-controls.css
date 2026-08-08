@@ -227,3 +227,34 @@
     animation: none;
   }
 }
+
+/* Readability and viewport-safe audio controls. */
+.audio-dock__trigger {
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.audio-dock__panel {
+  max-height: calc(100dvh - 104px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.audio-dock__header span,
+.audio-dock__track span,
+.audio-dock__slider,
+.audio-dock__panel p {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.audio-dock__track button {
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .audio-dock__panel {
+    max-height: calc(100dvh - 176px);
+  }
+}

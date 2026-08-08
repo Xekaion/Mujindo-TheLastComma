@@ -300,6 +300,26 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     sprites.src = "/assets/walk/harin-walk-v2.png";
     const renderedPositions = new Map<string, { x: number; y: number; facing: number }>();
     let animationFrame = 0;
+    let canvasCssScale = 1;
+    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
+      if (renderedWidth <= 0 || renderedHeight <= 0) return;
+      canvasCssScale = Math.max(
+        0.01,
+        Math.min(
+          renderedWidth / PVP_ARENA_WIDTH,
+          renderedHeight / PVP_ARENA_HEIGHT,
+        ),
+      );
+    };
+    const initialCanvasRect = canvas.getBoundingClientRect();
+    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
+    const canvasResizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
+    });
+    canvasResizeObserver.observe(canvas);
+    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
+      Math.max(basePx, minimumCssPx / canvasCssScale);
 
     const drawBackground = () => {
       context.fillStyle = "#07090d";
@@ -407,7 +427,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
       context.restore();
 
-      context.font = "700 12px Pretendard, sans-serif";
+      context.font = `700 ${readableCanvasFontSize(12, 11)}px Pretendard, sans-serif`;
+      context.letterSpacing = "0px";
       context.textAlign = "center";
       context.fillStyle = "rgba(250, 239, 216, 0.95)";
       context.fillText(player.name, rendered.x, rendered.y - 88);
@@ -455,13 +476,13 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";
-          context.font = "700 82px Georgia, serif";
+          context.font = `700 ${readableCanvasFontSize(82, 11)}px Georgia, serif`;
           context.fillStyle = "rgba(250, 224, 168, 0.96)";
           context.shadowColor = "rgba(231, 90, 108, 0.72)";
           context.shadowBlur = 28;
           context.fillText(String(Math.max(1, Math.ceil(remaining / 1_000))), 640, 336);
           context.shadowBlur = 0;
-          context.font = "800 12px Pretendard, sans-serif";
+          context.font = `800 ${readableCanvasFontSize(12, 10)}px Pretendard, sans-serif`;
           context.letterSpacing = "0.32em";
           context.fillText("MEMORY DUEL", 640, 370);
         }
@@ -469,7 +490,10 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       animationFrame = window.requestAnimationFrame(render);
     };
     animationFrame = window.requestAnimationFrame(render);
-    return () => window.cancelAnimationFrame(animationFrame);
+    return () => {
+      canvasResizeObserver.disconnect();
+      window.cancelAnimationFrame(animationFrame);
+    };
   }, [result?.matchId, snapshot?.matchId]);
 
   const handleAim = (event: ReactPointerEvent<HTMLCanvasElement>) => {

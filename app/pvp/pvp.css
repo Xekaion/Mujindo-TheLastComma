@@ -853,3 +853,57 @@
     animation: none !important;
   }
 }
+
+/* Readability and short-viewport safety audit. */
+.pvp-screen {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.pvp-screen small {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.pvp-screen button,
+.pvp-screen input,
+.pvp-screen a {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.pvp-title-lockup small,
+.pvp-eyebrow,
+.pvp-panel-heading small,
+.pvp-combatant small,
+.pvp-scoreboard small {
+  font-size: 10px;
+}
+
+.pvp-network-state,
+.pvp-rule-strip span,
+.pvp-name-form label,
+.pvp-readiness span,
+.pvp-build-profile small,
+.pvp-build-profile > span,
+.pvp-queue-card p,
+.pvp-lobby-panel > footer,
+.pvp-combatant > span,
+.pvp-scoreboard > span,
+.pvp-result p span {
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.pvp-notice {
+  font-size: 12px;
+}
+
+.pvp-readiness span {
+  min-height: 34px;
+}
+
+.pvp-queue-card {
+  height: auto;
+}

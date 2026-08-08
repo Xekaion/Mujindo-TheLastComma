@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -7,6 +9,7 @@ import {
   type FocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
+  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -66,7 +69,7 @@ export type InventoryOverlayProps = {
 };
 
 const TOOLTIP_WIDTH = 390;
-const TOOLTIP_HEIGHT = 720;
+const TOOLTIP_MAX_HEIGHT = 720;
 const TOOLTIP_GAP = 20;
 
 type TooltipPosition = {
@@ -90,17 +93,24 @@ function formatPowerDelta(delta: number) {
   return "0";
 }
 
-function clampTooltipPosition(clientX: number, clientY: number): TooltipPosition {
+function clampTooltipPosition(
+  clientX: number,
+  clientY: number,
+  tooltipWidth = TOOLTIP_WIDTH,
+  tooltipHeight = TOOLTIP_MAX_HEIGHT,
+): TooltipPosition {
   if (typeof window === "undefined") return { x: clientX, y: clientY };
 
-  const roomOnRight = clientX + TOOLTIP_GAP + TOOLTIP_WIDTH <= window.innerWidth;
+  const safeWidth = Math.min(tooltipWidth, Math.max(0, window.innerWidth - 24));
+  const safeHeight = Math.min(tooltipHeight, Math.max(0, window.innerHeight - 24));
+  const roomOnRight = clientX + TOOLTIP_GAP + safeWidth <= window.innerWidth;
   const preferredX = roomOnRight
     ? clientX + TOOLTIP_GAP
-    : clientX - TOOLTIP_WIDTH - TOOLTIP_GAP;
+    : clientX - safeWidth - TOOLTIP_GAP;
 
   return {
-    x: Math.max(12, Math.min(preferredX, window.innerWidth - TOOLTIP_WIDTH - 12)),
-    y: Math.max(12, Math.min(clientY - 48, window.innerHeight - TOOLTIP_HEIGHT - 12)),
+    x: Math.max(12, Math.min(preferredX, window.innerWidth - safeWidth - 12)),
+    y: Math.max(12, Math.min(clientY - 48, window.innerHeight - safeHeight - 12)),
   };
 }
 
@@ -220,17 +230,35 @@ function GearTooltip({
   equipment,
   equipped,
   position,
+  onMeasure,
 }: {
   item: GearItem;
   comparisonItem: GearItem | null;
   equipment: EquipmentLoadout;
   equipped: boolean;
   position: TooltipPosition;
+  onMeasure: (width: number, height: number) => void;
 }) {
   const powerDelta = calculateEquipmentPowerDelta(equipment, item);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  useLayoutEffect(() => {
+    const tooltip = tooltipRef.current;
+    if (!tooltip) return;
+
+    const reportSize = () => {
+      const rect = tooltip.getBoundingClientRect();
+      onMeasure(rect.width, rect.height);
+    };
+    reportSize();
+    const observer = new ResizeObserver(reportSize);
+    observer.observe(tooltip);
+    return () => observer.disconnect();
+  }, [item.id, onMeasure]);
 
   return (
     <div
+      ref={tooltipRef}
       id="inventory-screen-hover-tooltip"
       role="tooltip"
       className={`inventory-screen-tooltip ${rarityClass(item)} ${item.rarity === "rare" ? "inventory-screen-tooltip--rare" : ""} ${item.rarity === "epic" ? "inventory-screen-tooltip--epic" : ""} ${item.rarity === "legendary" ? "inventory-screen-tooltip--legendary" : ""} ${item.rarity === "mythic" ? "inventory-screen-tooltip--mythic" : ""} ${item.rarity === "cosmic" ? "inventory-screen-tooltip--cosmic" : ""}`}
@@ -241,47 +269,52 @@ function GearTooltip({
         <RarityAura rarity={item.rarity} />
         <GearIcon item={item} size={88} />
       </div>
-      <div className="inventory-screen-tooltip-heading">
-        <small>
-          {GEAR_RARITY_META[item.rarity].label} · {EQUIPMENT_SLOT_LABELS[item.slot]}
-        </small>
-        <h4>{formatGearDisplayName(item)}</h4>
-        <span>아이템 레벨 {item.level}</span>
-      </div>
-      <div className="inventory-screen-tooltip-power">
-        <span>전투력</span>
-        <strong>{item.powerScore.toLocaleString("ko-KR")}</strong>
-        {!equipped && (
-          <em className={powerDeltaClass(powerDelta)}>
-            {formatPowerDelta(powerDelta)}
-          </em>
-        )}
-      </div>
-      <GearImplicitBreakdown item={item} compact />
-      <div className="inventory-screen-tooltip-quality">
-        <span>품질</span>
-        <i aria-hidden="true">
-          <b style={{ width: `${item.qualityScore}%` }} />
-        </i>
-        <strong aria-label={`장비 품질 ${item.qualityScore}점`}>
-          품질 {item.qualityScore}/100
-        </strong>
-      </div>
-      <div className="inventory-screen-tooltip-affixes">
-        {item.affixes.map((affix) => (
-          <GearAffixBreakdown item={item} affix={affix} compact key={affix.stat} />
-        ))}
-      </div>
-      {item.legendaryPowerId && (
-        <div className="inventory-screen-tooltip-legendary-power">
-          <strong>{LEGENDARY_POWERS[item.legendaryPowerId].name}</strong>
-          <p>{LEGENDARY_POWERS[item.legendaryPowerId].description}</p>
+      <div className="inventory-screen-tooltip-scroll">
+        <div className="inventory-screen-tooltip-heading">
+          <small>
+            {GEAR_RARITY_META[item.rarity].label} · {EQUIPMENT_SLOT_LABELS[item.slot]}
+          </small>
+          <h4>{formatGearDisplayName(item)}</h4>
+          <span>아이템 레벨 {item.level}</span>
         </div>
-      )}
-      <footer>
-        {equipped ? "현재 장착 중" : comparisonItem ? `${formatGearDisplayName(comparisonItem)}와 비교` : "빈 슬롯과 비교"}
-        <span>{equipped ? "클릭하여 선택 · 더블 클릭하여 장착 해제" : "클릭하여 선택 · 더블 클릭하여 장착"}</span>
-      </footer>
+        <div className="inventory-screen-tooltip-power">
+          <span>전투력</span>
+          <strong>{item.powerScore.toLocaleString("ko-KR")}</strong>
+          {!equipped && (
+            <em className={powerDeltaClass(powerDelta)}>
+              {formatPowerDelta(powerDelta)}
+            </em>
+          )}
+        </div>
+        <GearImplicitBreakdown item={item} compact />
+        <div className="inventory-screen-tooltip-quality">
+          <span>품질</span>
+          <i aria-hidden="true">
+            <b style={{ width: `${item.qualityScore}%` }} />
+          </i>
+          <strong aria-label={`장비 품질 ${item.qualityScore}점`}>
+            품질 {item.qualityScore}/100
+          </strong>
+        </div>
+        <div className="inventory-screen-tooltip-affixes">
+          {item.affixes.map((affix) => (
+            <GearAffixBreakdown item={item} affix={affix} compact key={affix.stat} />
+          ))}
+        </div>
+        {item.legendaryPowerId && (
+          <div className="inventory-screen-tooltip-legendary-power">
+            <strong>{LEGENDARY_POWERS[item.legendaryPowerId].name}</strong>
+            <p>{LEGENDARY_POWERS[item.legendaryPowerId].description}</p>
+          </div>
+        )}
+        <footer>
+          {equipped ? "현재 장착 중" : comparisonItem ? `${formatGearDisplayName(comparisonItem)}와 비교` : "빈 슬롯과 비교"}
+          <span>
+            {equipped ? "클릭하여 선택 · 더블 클릭하여 장착 해제" : "클릭하여 선택 · 더블 클릭하여 장착"}
+            {" · 휠·PageUp/Down 옵션 스크롤"}
+          </span>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -323,6 +356,11 @@ export default function InventoryOverlay({
   const [inventorySortMode, setInventorySortMode] =
     useState<InventorySortMode>("power");
   const inventoryViewportRef = useRef<HTMLDivElement>(null);
+  const tooltipAnchorRef = useRef({ x: 12, y: 12 });
+  const handleTooltipMeasure = useCallback((width: number, height: number) => {
+    const anchor = tooltipAnchorRef.current;
+    setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y, width, height));
+  }, []);
   const normalizedInventoryCapacity = Math.max(
     BASE_INVENTORY_CAPACITY,
     Math.floor(inventoryCapacity),
@@ -444,6 +482,7 @@ export default function InventoryOverlay({
     event: MouseEvent<HTMLElement>,
   ) => {
     if (salvageMode) return;
+    tooltipAnchorRef.current = { x: event.clientX, y: event.clientY };
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
     setTooltipPosition(clampTooltipPosition(event.clientX, event.clientY));
@@ -456,22 +495,65 @@ export default function InventoryOverlay({
   ) => {
     if (salvageMode) return;
     const rect = event.currentTarget.getBoundingClientRect();
+    const anchor = {
+      x: rect.right,
+      y: rect.top + Math.min(rect.height / 2, 56),
+    };
+    tooltipAnchorRef.current = anchor;
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
-    setTooltipPosition(
-      clampTooltipPosition(rect.right, rect.top + Math.min(rect.height / 2, 56)),
-    );
+    setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y));
   };
 
   const hidePointerTooltip = (event: MouseEvent<HTMLElement>) => {
     if (document.activeElement === event.currentTarget) {
       const rect = event.currentTarget.getBoundingClientRect();
-      setTooltipPosition(
-        clampTooltipPosition(rect.right, rect.top + Math.min(rect.height / 2, 56)),
-      );
+      const anchor = {
+        x: rect.right,
+        y: rect.top + Math.min(rect.height / 2, 56),
+      };
+      tooltipAnchorRef.current = anchor;
+      setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y));
       return;
     }
     setHoveredItem(null);
+  };
+
+  const hideFocusTooltip = () => {
+    setHoveredItem(null);
+  };
+
+  const scrollTooltipBy = (delta: number, edge?: "start" | "end") => {
+    const scroller = document.querySelector<HTMLElement>(
+      "#inventory-screen-hover-tooltip .inventory-screen-tooltip-scroll",
+    );
+    if (!scroller || scroller.scrollHeight <= scroller.clientHeight) return false;
+    if (edge === "start") scroller.scrollTo({ top: 0 });
+    else if (edge === "end") scroller.scrollTo({ top: scroller.scrollHeight });
+    else scroller.scrollBy({ top: delta });
+    return true;
+  };
+
+  const handleTooltipWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    if (!hoveredItem || !scrollTooltipBy(event.deltaY)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const handleTooltipKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    const command = event.key;
+    const handled = command === "PageDown"
+      ? scrollTooltipBy(180)
+      : command === "PageUp"
+        ? scrollTooltipBy(-180)
+        : command === "Home"
+          ? scrollTooltipBy(0, "start")
+          : command === "End"
+            ? scrollTooltipBy(0, "end")
+            : false;
+    if (!handled) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   const equipItem = (gearId: string) => {
@@ -662,7 +744,9 @@ export default function InventoryOverlay({
                       onMouseMove={(event) => item && showPointerTooltip(item, true, event)}
                       onMouseLeave={(event) => item && hidePointerTooltip(event)}
                       onFocus={(event) => item && showFocusTooltip(item, true, event)}
-                      onBlur={() => setHoveredItem(null)}
+                      onBlur={hideFocusTooltip}
+                      onWheel={handleTooltipWheel}
+                      onKeyDown={handleTooltipKeyDown}
                       aria-label={
                         item
                           ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${formatGearDisplayName(item, { includeZero: true })} 정보 보기`
@@ -734,7 +818,12 @@ export default function InventoryOverlay({
                   </div>
 
                   <div className="inventory-screen-detail-columns">
-                    <div className="inventory-screen-detail-stats">
+                    <div
+                      className="inventory-screen-detail-stats"
+                      role="region"
+                      aria-label="장비 옵션 스크롤 영역"
+                      tabIndex={0}
+                    >
                       {!selectedIsEquipped && (
                         <div className="inventory-screen-comparison">
                           <span>{comparisonItem ? formatGearDisplayName(comparisonItem) : "빈 슬롯"} 대비</span>
@@ -771,6 +860,7 @@ export default function InventoryOverlay({
                       <section
                         className="inventory-screen-enhancement"
                         aria-labelledby="inventory-screen-enhancement-title"
+                        tabIndex={0}
                       >
                         <div className="inventory-screen-enhancement-heading">
                           <div>
@@ -1080,7 +1170,9 @@ export default function InventoryOverlay({
                       onMouseMove={(event) => showPointerTooltip(item, false, event)}
                       onMouseLeave={hidePointerTooltip}
                       onFocus={(event) => showFocusTooltip(item, false, event)}
-                      onBlur={() => setHoveredItem(null)}
+                      onBlur={hideFocusTooltip}
+                      onWheel={handleTooltipWheel}
+                      onKeyDown={handleTooltipKeyDown}
                       aria-label={salvageMode
                         ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
                         : `${formatGearDisplayName(item, { includeZero: true })}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
@@ -1198,6 +1290,7 @@ export default function InventoryOverlay({
             equipment={equipment}
             equipped={hoveredItemIsEquipped}
             position={tooltipPosition}
+            onMeasure={handleTooltipMeasure}
           />,
           document.body,
         )}

@@ -720,3 +720,61 @@
     animation: none;
   }
 }
+
+/* Readability audit: content remains scrollable while labels stay legible. */
+.stats-dialog small {
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.stats-identity p,
+.stats-close span,
+.stats-prime small,
+.stats-prime span,
+.stats-equipment-power span,
+.stats-specials > span,
+.stats-footer p {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.stats-row {
+  min-height: 32px;
+}
+
+.stats-row dt > span,
+.stats-row dd {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+.stats-row dt small,
+.stats-equipment-power small,
+.stats-specials > small {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.stats-equipment-grid > div {
+  min-height: 28px;
+}
+
+.stats-equipment-grid dt,
+.stats-equipment-grid dd {
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+.stats-section > header {
+  min-height: 46px;
+}
+
+.stats-dialog .stats-identity small,
+.stats-dialog .stats-section header small,
+.stats-dialog .stats-header-meta small,
+.stats-dialog .stats-prime small,
+.stats-dialog .stats-equipment-power small,
+.stats-dialog .stats-specials > small {
+  font-size: 10px;
+  line-height: 1.4;
+}

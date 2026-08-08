@@ -395,6 +395,7 @@ function drawPlayer(
   player: DrawPlayer,
   image: HTMLImageElement | undefined,
   time: number,
+  readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
 ) {
   const shadowWidth = player.local ? 34 : 30;
   context.fillStyle = "rgba(0, 0, 0, .58)";
@@ -438,11 +439,13 @@ function drawPlayer(
   context.shadowColor = "rgba(0, 0, 0, .95)";
   context.shadowBlur = 7;
   context.fillStyle = player.local ? "#fff1bd" : "#edf5f2";
-  context.font = player.local ? "700 14px sans-serif" : "600 13px sans-serif";
+  context.font = player.local
+    ? `700 ${readableCanvasFontSize(14, 11)}px sans-serif`
+    : `600 ${readableCanvasFontSize(13, 11)}px sans-serif`;
   context.fillText(`${player.displayName} · LV.${player.level}`, player.x, player.y - 105);
   if (player.local) {
     context.fillStyle = "#71e4d5";
-    context.font = "700 9px sans-serif";
+    context.font = `700 ${readableCanvasFontSize(9, 11)}px sans-serif`;
     context.fillText("현재 캐릭터", player.x, player.y - 121);
   }
   context.restore();
@@ -729,6 +732,31 @@ export default function PlazaHub({
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
     let animationFrame = 0;
+    let canvasCssScale = 1;
+    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
+      const { width: logicalWidth, height: logicalHeight } = viewportRef.current;
+      if (
+        renderedWidth <= 0 ||
+        renderedHeight <= 0 ||
+        logicalWidth <= 0 ||
+        logicalHeight <= 0
+      ) {
+        return;
+      }
+      canvasCssScale = Math.max(
+        0.01,
+        Math.min(renderedWidth / logicalWidth, renderedHeight / logicalHeight),
+      );
+    };
+    const initialCanvasRect = canvas.getBoundingClientRect();
+    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
+    const canvasResizeObserver = new ResizeObserver(([entry]) => {
+      if (!entry) return;
+      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
+    });
+    canvasResizeObserver.observe(canvas);
+    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
+      Math.max(basePx, minimumCssPx / canvasCssScale);
 
     const frame = (now: number) => {
       const previous = previousTimeRef.current || now;
@@ -888,7 +916,13 @@ export default function PlazaHub({
       });
       players.sort((left, right) => left.y - right.y || Number(left.local) - Number(right.local));
       for (const player of players) {
-        drawPlayer(context, player, spriteImagesRef.current.get(player.spriteKey), time);
+        drawPlayer(
+          context,
+          player,
+          spriteImagesRef.current.get(player.spriteKey),
+          time,
+          readableCanvasFontSize,
+        );
       }
       context.restore();
 
@@ -909,6 +943,7 @@ export default function PlazaHub({
 
     animationFrame = window.requestAnimationFrame(frame);
     return () => {
+      canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
       previousTimeRef.current = 0;
       const moveHandler = onMoveIntentRef.current;
