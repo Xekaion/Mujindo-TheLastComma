@@ -276,6 +276,52 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   db.close();
 });
 
+test("hub schema cache self-heals when local D1 state is recreated", async () => {
+  const { handleHubRequest } = await importHubServer();
+  const db = new D1DatabaseAdapter();
+  const env = { DB: db };
+  const healthRequest = () =>
+    new Request("https://game.local/api/hub/health", { method: "GET" });
+
+  const initialized = await handleHubRequest(healthRequest(), env);
+  assert.equal(initialized.status, 200);
+
+  db.database.exec("DROP TABLE hub_rate_limits");
+  const sessionResponse = await handleHubRequest(
+    new Request("https://game.local/api/hub/session", {
+      method: "POST",
+      headers: {
+        origin: "https://game.local",
+        "content-type": "application/json",
+        "x-mujindo-hub-auth-mode": "guest",
+      },
+      body: JSON.stringify({
+        characterSlot: 2,
+        displayName: "Recovery",
+        level: 70,
+        appearance: { spriteKey: "harin" },
+      }),
+    }),
+    env,
+  );
+  assert.equal(sessionResponse.status, 201, "a consumed request body must replay safely");
+  assert.ok(
+    db.database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='hub_rate_limits'")
+      .get(),
+  );
+
+  db.database.exec("DROP TABLE hub_sessions");
+  const recoveredHealth = await handleHubRequest(healthRequest(), env);
+  assert.equal(recoveredHealth.status, 200);
+  assert.ok(
+    db.database
+      .prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='hub_sessions'")
+      .get(),
+  );
+  db.close();
+});
+
 test("hub migration enforces selected-slot ownership and one live session per identity", async () => {
   const migration = await readSource("drizzle/0003_sparkling_smasher.sql");
   const db = new DatabaseSync(":memory:");

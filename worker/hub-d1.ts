@@ -225,6 +225,18 @@ async function ensureSchema(db: D1Database): Promise<void> {
   return setup;
 }
 
+function isMissingHubSchemaError(error: unknown): boolean {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : String(error);
+  return /\bno such table:\s*hub_(?:character_slots|sessions|rate_limits)\b/i.test(
+    message,
+  );
+}
+
 async function enforceRateLimit(
   db: D1Database,
   accountId: string,
@@ -583,6 +595,29 @@ function methodNotAllowed(allowed: string): Response {
   return json({ error: "method_not_allowed", message: `Use ${allowed}.` }, 405, { allow: allowed });
 }
 
+async function dispatchHubRequest(
+  request: Request,
+  db: D1Database,
+  route: string,
+): Promise<Response> {
+  if (route === "/api/hub/session") {
+    return request.method === "POST" ? createSession(request, db) : methodNotAllowed("POST");
+  }
+  if (route === "/api/hub/sync") {
+    return request.method === "POST" ? syncSession(request, db) : methodNotAllowed("POST");
+  }
+  if (route === "/api/hub/heartbeat") {
+    return request.method === "POST" ? heartbeat(request, db) : methodNotAllowed("POST");
+  }
+  if (route === "/api/hub/appearance") {
+    return request.method === "PATCH" ? updateAppearance(request, db) : methodNotAllowed("PATCH");
+  }
+  if (route === "/api/hub/leave") {
+    return request.method === "POST" ? leaveSession(request, db) : methodNotAllowed("POST");
+  }
+  return request.method === "GET" ? health(db) : methodNotAllowed("GET");
+}
+
 export async function handleHubRequest(request: Request, env: HubD1Env): Promise<Response> {
   try {
     if (!env.DB) {
@@ -603,22 +638,18 @@ export async function handleHubRequest(request: Request, env: HubD1Env): Promise
       return json({ error: "invalid_origin", message: "Origin does not match." }, 403);
     }
     await ensureSchema(db);
-    if (route === "/api/hub/session") {
-      return request.method === "POST" ? createSession(request, db) : methodNotAllowed("POST");
+    const retryRequest = (request.body === null ? request : request.clone()) as Request;
+    try {
+      return await dispatchHubRequest(request, db, route);
+    } catch (error) {
+      if (!isMissingHubSchemaError(error)) throw error;
+      // Local D1 can be recreated while Vite keeps this Worker isolate alive.
+      // Rebuild only the missing hub schema and replay the request once; never
+      // delete or replace the rest of the shared database.
+      schemaReady.delete(db as object);
+      await ensureSchema(db);
+      return dispatchHubRequest(retryRequest, db, route);
     }
-    if (route === "/api/hub/sync") {
-      return request.method === "POST" ? syncSession(request, db) : methodNotAllowed("POST");
-    }
-    if (route === "/api/hub/heartbeat") {
-      return request.method === "POST" ? heartbeat(request, db) : methodNotAllowed("POST");
-    }
-    if (route === "/api/hub/appearance") {
-      return request.method === "PATCH" ? updateAppearance(request, db) : methodNotAllowed("PATCH");
-    }
-    if (route === "/api/hub/leave") {
-      return request.method === "POST" ? leaveSession(request, db) : methodNotAllowed("POST");
-    }
-    return request.method === "GET" ? health(db) : methodNotAllowed("GET");
   } catch (error) {
     if (error instanceof HubProblem) {
       return json(
