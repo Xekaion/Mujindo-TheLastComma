@@ -3,6 +3,7 @@ export const SAVE_SLOT_KEY_PREFIX = "mujindo:last-comma:save-v2:slot:";
 export const ACTIVE_SAVE_SLOT_KEY = "mujindo:last-comma:active-save-slot-v1";
 export const SAVE_SLOT_IDS = [1, 2, 3] as const;
 export const SAVE_AUGMENT_STACK_CAP = 20;
+export const DEFAULT_DUNGEON_FLOOR = 1;
 
 export type SaveSlotId = (typeof SAVE_SLOT_IDS)[number];
 
@@ -18,12 +19,14 @@ export type SaveRunPayload = JsonRecord & {
     augments: Record<string, number>;
     endingSeen?: boolean;
     endingVersion?: number;
+    bossesCleared?: number;
     profession?: string | null;
     inventory?: unknown[];
     equipment?: JsonRecord;
   };
   world?: JsonRecord & {
     rooms?: JsonRecord;
+    dungeonFloor?: number;
   };
   stableAugments?: Record<string, number>;
 };
@@ -33,6 +36,7 @@ export type SaveSlotSummary = {
   savedAt: number;
   level: number;
   roomsCleared: number;
+  dungeonFloor: number;
   augmentStacks: number;
   profession: string | null;
   inventoryItems: number;
@@ -72,6 +76,13 @@ function normalizeSavedAugmentStacks(
   );
 }
 
+/** Mirrors the runtime floor rule while keeping standalone save parsing dependency-free. */
+export function normalizeDungeonFloor(value: unknown): number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 1
+    ? value
+    : DEFAULT_DUNGEON_FLOOR;
+}
+
 function normalizeSaveRunPayload(save: SaveRunPayload): SaveRunPayload {
   return {
     ...save,
@@ -81,6 +92,14 @@ function normalizeSaveRunPayload(save: SaveRunPayload): SaveRunPayload {
     },
     ...(save.stableAugments
       ? { stableAugments: normalizeSavedAugmentStacks(save.stableAugments) }
+      : {}),
+    ...(save.world
+      ? {
+          world: {
+            ...save.world,
+            dungeonFloor: normalizeDungeonFloor(save.world.dungeonFloor),
+          },
+        }
       : {}),
   };
 }
@@ -181,10 +200,22 @@ export function isSaveRunPayload(value: unknown): value is SaveRunPayload {
   ) {
     return false;
   }
+  if (
+    value.player.bossesCleared !== undefined &&
+    !isNonNegativeInteger(value.player.bossesCleared)
+  ) {
+    return false;
+  }
 
   if (value.world !== undefined) {
     if (!isRecord(value.world)) return false;
     if (value.world.rooms !== undefined && !isRecord(value.world.rooms)) return false;
+    if (
+      value.world.dungeonFloor !== undefined &&
+      !isPositiveInteger(value.world.dungeonFloor)
+    ) {
+      return false;
+    }
   }
 
   if (
@@ -219,6 +250,7 @@ export function summarizeSaveSlot(
     savedAt: save.savedAt,
     level: save.player.level,
     roomsCleared: typeof playerRooms === "number" ? playerRooms : 0,
+    dungeonFloor: normalizeDungeonFloor(save.world?.dungeonFloor),
     augmentStacks: Object.values(save.player.augments).reduce(
       (total, stacks) => total + stacks,
       0,

@@ -23,18 +23,26 @@ test("character selection enters the shared plaza before every service", async (
   assert.match(canvas, /onReturnToPlaza\?\.\(\)/);
 });
 
-test("the plaza binds selected save visuals to server-authoritative presence", async () => {
-  const flow = await source("app/GameEntryFlow.tsx");
+test("the plaza binds selected save visuals and allowlisted floor claims to presence", async () => {
+  const [flow, plaza] = await Promise.all([
+    source("app/GameEntryFlow.tsx"),
+    source("app/PlazaHub.tsx"),
+  ]);
 
   assert.match(flow, /readSaveSlot\(selection\.slot\)/);
   assert.match(flow, /normalizeEquipment\(savedCharacter\?\.player\.equipment\)/);
   assert.match(flow, /client\.enter\(\{/);
   assert.match(flow, /characterSlot: selection\.slot/);
+  assert.match(flow, /savedCharacter\?\.world\?\.dungeonFloor/);
+  assert.match(flow, /dungeonFloor,/);
+  assert.match(flow, /dungeonFloor: self\?\.dungeonFloor \?\? dungeonFloor/);
   assert.match(flow, /appearance: hubAppearance/);
   assert.match(flow, /snapshot\.nearbyPlayers|hubSnapshot\?\.nearbyPlayers/);
   assert.match(flow, /localAuthoritativePosition=/);
   assert.match(flow, /getMemoryPlazaClient\(\)\.setMoveIntent/);
   assert.doesNotMatch(flow, /setMoveIntent\(\{[^}]*\b(?:x|y|speed|teleport)\s*:/s);
+  assert.match(plaza, /지하 \$\{player\.dungeonFloor\}층/);
+  assert.match(plaza, /지하 \{normalizedCharacter\.dungeonFloor\}층/);
 });
 
 test("duel and exchange return to the already selected town character", async () => {

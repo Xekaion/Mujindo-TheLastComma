@@ -125,6 +125,7 @@ test("hub protocol strips coordinate authority and allowlists every visual field
     characterSlot: 2,
     displayName: "  기억   순례자  ",
     level: 50_000,
+    dungeonFloor: 50_000_000,
     arrival: "duel",
     accountId: "client-forgery",
     appearance: {
@@ -137,6 +138,7 @@ test("hub protocol strips coordinate authority and allowlists every visual field
   assert.equal(session.characterSlot, 2);
   assert.equal(session.displayName, "기억 순례자");
   assert.equal(session.level, protocol.HUB_MAX_LEVEL);
+  assert.equal(session.dungeonFloor, protocol.HUB_MAX_DUNGEON_FLOOR);
   assert.equal(session.arrival, "duel");
   assert.equal(session.appearance.spriteKey, "harin");
   assert.equal(session.appearance.palette, "scarlet");
@@ -146,6 +148,19 @@ test("hub protocol strips coordinate authority and allowlists every visual field
   assert.equal("spriteUrl" in session.appearance, false);
   assert.equal("css" in session.appearance.gear, false);
   assert.equal("accountId" in session, false);
+  assert.equal(
+    protocol.parseHubSessionRequest({ characterSlot: 1 }).dungeonFloor,
+    protocol.HUB_MIN_DUNGEON_FLOOR,
+  );
+  assert.equal(
+    protocol.parseHubAppearanceRequest({ dungeonFloor: -10 }).dungeonFloor,
+    protocol.HUB_MIN_DUNGEON_FLOOR,
+  );
+  assert.equal(
+    protocol.parseHubAppearanceRequest({}).dungeonFloor,
+    null,
+    "an old appearance-only client must not reset a newer floor claim",
+  );
 
   const intent = protocol.parseHubMoveIntent({
     sequence: 11,
@@ -156,6 +171,7 @@ test("hub protocol strips coordinate authority and allowlists every visual field
     y: 1,
     speed: 99_999,
     teleport: true,
+    dungeonFloor: 888_888,
   });
   assert.deepEqual(intent, {
     sequence: 11,
@@ -163,7 +179,7 @@ test("hub protocol strips coordinate authority and allowlists every visual field
     moveY: 0.8,
     facing: 7,
   });
-  for (const forbidden of ["x", "y", "speed", "teleport"]) {
+  for (const forbidden of ["x", "y", "speed", "teleport", "dungeonFloor"]) {
     assert.equal(forbidden in intent, false);
   }
 });
@@ -203,6 +219,7 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
   assert.match(client, /class HubRequestError extends Error/);
   assert.match(client, /if \(!retryable\) \{[\s\S]{0,100}?this\.setState\("offline"\)/);
   assert.match(client, /characterSlot:\s*this\.config\.characterSlot/);
+  assert.match(client, /dungeonFloor:\s*this\.config\.dungeonFloor/);
   assert.match(client, /\{ sequence: \+\+this\.sequence, \.\.\.this\.intent \}/);
 });
 
@@ -227,6 +244,7 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
       characterSlot: 1,
       displayName: "A",
       level: 20,
+      dungeonFloor: 17,
       appearance: { spriteKey: "harin" },
     }),
     env,
@@ -235,6 +253,7 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   const sessionA = await responseA.json();
   assert.match(sessionA.token, /^[a-f0-9]{64}$/);
   assert.equal(sessionA.self.characterSlot, 1);
+  assert.equal(sessionA.self.dungeonFloor, 17);
   assert.equal("accountId" in sessionA.self, false);
 
   const responseB = await handleHubRequest(
@@ -248,7 +267,12 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   );
   assert.equal(responseB.status, 201);
   const sessionB = await responseB.json();
+  assert.equal(sessionB.self.dungeonFloor, 1, "missing legacy claims default to floor one");
   assert.equal(sessionB.nearbyPlayers.some((player) => player.displayName === "A"), true);
+  assert.equal(
+    sessionB.nearbyPlayers.find((player) => player.displayName === "A").dungeonFloor,
+    17,
+  );
 
   const beforeX = sessionA.self.x;
   const movedResponse = await handleHubRequest(
@@ -322,8 +346,42 @@ test("hub schema cache self-heals when local D1 state is recreated", async () =>
   db.close();
 });
 
+test("runtime schema setup adds floor-one claims to pre-floor D1 tables", async () => {
+  const [{ handleHubRequest }, legacyMigration] = await Promise.all([
+    importHubServer(),
+    readSource("drizzle/0003_sparkling_smasher.sql"),
+  ]);
+  const db = new D1DatabaseAdapter();
+  for (const statement of legacyMigration.split("--> statement-breakpoint")) {
+    if (statement.trim()) db.database.exec(statement);
+  }
+  const now = Date.now();
+  db.database.prepare(`INSERT INTO hub_character_slots
+    (account_id,slot,public_character_id,level,appearance_json,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?)`).run("legacy", 1, "legacy-character", 44, "{}", now, now);
+
+  const response = await handleHubRequest(
+    new Request("https://game.local/api/hub/health", { method: "GET" }),
+    { DB: db },
+  );
+  assert.equal(response.status, 200);
+  assert.equal(
+    db.database.prepare("SELECT dungeon_floor FROM hub_character_slots WHERE account_id='legacy'")
+      .get().dungeon_floor,
+    1,
+  );
+  assert.ok(
+    db.database.prepare("PRAGMA table_info(hub_sessions)").all()
+      .some((column) => column.name === "dungeon_floor"),
+  );
+  db.close();
+});
+
 test("hub migration enforces selected-slot ownership and one live session per identity", async () => {
-  const migration = await readSource("drizzle/0003_sparkling_smasher.sql");
+  const [migration, floorMigration] = await Promise.all([
+    readSource("drizzle/0003_sparkling_smasher.sql"),
+    readSource("drizzle/0004_superb_the_anarchist.sql"),
+  ]);
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   for (const statement of migration.split("--> statement-breakpoint")) {
@@ -360,6 +418,23 @@ test("hub migration enforces selected-slot ownership and one live session per id
       "{}", "memory-plaza-v1", 1200, 1000, 4, 0, 0, now, now, now + 10_000, 0, now, now,
     ),
     /FOREIGN KEY constraint failed/,
+  );
+
+  for (const statement of floorMigration.split("--> statement-breakpoint")) {
+    if (statement.trim()) db.exec(statement);
+  }
+  assert.equal(
+    db.prepare("SELECT dungeon_floor FROM hub_character_slots WHERE account_id=? AND slot=?")
+      .get("guest-a", 1).dungeon_floor,
+    1,
+  );
+  assert.equal(
+    db.prepare("SELECT dungeon_floor FROM hub_sessions WHERE id=?")
+      .get("player-a").dungeon_floor,
+    1,
+  );
+  assert.throws(() =>
+    db.prepare("UPDATE hub_sessions SET dungeon_floor=0 WHERE id=?").run("player-a"),
   );
   db.close();
 });

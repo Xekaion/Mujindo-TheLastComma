@@ -169,14 +169,14 @@
 
 .plaza-character-plate > strong,
 .plaza-character-plate > span {
-  display: inline-block;
+  display: block;
   margin-top: 7px;
   font-size: 13px;
 }
 
 .plaza-character-plate > strong {
   overflow: hidden;
-  max-width: 120px;
+  max-width: 100%;
   color: #f1ead9;
   text-overflow: ellipsis;
   vertical-align: bottom;
@@ -184,7 +184,7 @@
 }
 
 .plaza-character-plate > span {
-  float: right;
+  margin-top: 4px;
   color: #79dbca;
   font-weight: 800;
 }

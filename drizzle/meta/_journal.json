@@ -29,6 +29,13 @@
       "when": 1786161611115,
       "tag": "0003_sparkling_smasher",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1786215270193,
+      "tag": "0004_superb_the_anarchist",
+      "breakpoints": true
     }
   ]
 }

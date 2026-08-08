@@ -89,7 +89,7 @@ test("the shared plaza canvas keeps character labels readable without frame-time
   );
   assert.match(
     source,
-    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,180}?context\.fillText\(`\$\{player\.displayName\} · LV\.\$\{player\.level\}`/,
+    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,220}?context\.fillText\([\s\S]{0,100}?`\$\{player\.displayName\} · 기록 심도 지하 \$\{player\.dungeonFloor\}층 · LV\.\$\{player\.level\}`/,
   );
   assert.match(
     source,

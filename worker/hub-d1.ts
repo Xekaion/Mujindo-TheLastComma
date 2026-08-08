@@ -4,6 +4,7 @@ import {
   DEFAULT_HUB_APPEARANCE,
   HUB_HEARTBEAT_INTERVAL_MS,
   HUB_MAP_VERSION,
+  HUB_MAX_DUNGEON_FLOOR,
   HUB_NEARBY_RADIUS,
   HUB_ONLINE_WINDOW_MS,
   HUB_PLAYER_SPEED,
@@ -12,6 +13,7 @@ import {
   HUB_SPAWN_POINTS,
   HUB_ZONE_ID,
   normalizeHubAppearance,
+  normalizeHubDungeonFloor,
   parseHubAppearanceRequest,
   parseHubMoveIntent,
   parseHubSessionRequest,
@@ -37,6 +39,7 @@ type SessionRow = {
   public_character_id: string;
   display_name: string;
   level: number;
+  dungeon_floor: number;
   appearance_json: string;
   x: number;
   y: number;
@@ -57,6 +60,7 @@ type NearbyRow = Pick<
   | "public_character_id"
   | "display_name"
   | "level"
+  | "dungeon_floor"
   | "appearance_json"
   | "x"
   | "y"
@@ -169,13 +173,14 @@ async function readJson(request: Request, allowEmpty = false): Promise<unknown> 
 async function ensureSchema(db: D1Database): Promise<void> {
   const existing = schemaReady.get(db as object);
   if (existing) return existing;
-  const setup = db
-    .batch([
+  const setup = (async () => {
+    await db.batch([
       db.prepare(`CREATE TABLE IF NOT EXISTS hub_character_slots (
         account_id TEXT NOT NULL,
         slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
         public_character_id TEXT NOT NULL UNIQUE,
         level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 999),
+        dungeon_floor INTEGER NOT NULL DEFAULT 1 CHECK (dungeon_floor BETWEEN 1 AND ${HUB_MAX_DUNGEON_FLOOR}),
         appearance_json TEXT NOT NULL,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL,
@@ -189,6 +194,7 @@ async function ensureSchema(db: D1Database): Promise<void> {
         public_character_id TEXT NOT NULL,
         display_name TEXT NOT NULL,
         level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 999),
+        dungeon_floor INTEGER NOT NULL DEFAULT 1 CHECK (dungeon_floor BETWEEN 1 AND ${HUB_MAX_DUNGEON_FLOOR}),
         appearance_json TEXT NOT NULL,
         zone TEXT NOT NULL DEFAULT 'memory-plaza-v1',
         x REAL NOT NULL,
@@ -215,9 +221,27 @@ async function ensureSchema(db: D1Database): Promise<void> {
         blocked_until INTEGER,
         PRIMARY KEY (account_id, bucket)
       )`),
-    ])
-    .then(() => undefined)
-    .catch((error: unknown) => {
+    ]);
+
+    // The worker also self-heals local/legacy D1 databases that predate the
+    // display-only dungeon-floor claim. Production still receives the matching
+    // numbered migration; this path prevents CREATE IF NOT EXISTS from leaving
+    // an old table shape behind during local recovery.
+    for (const table of ["hub_character_slots", "hub_sessions"] as const) {
+      const columns = await db.prepare(`PRAGMA table_info(${table})`).all<{ name: string }>();
+      if ((columns.results ?? []).some((column) => column.name === "dungeon_floor")) {
+        continue;
+      }
+      try {
+        await db.prepare(
+          `ALTER TABLE ${table} ADD COLUMN dungeon_floor INTEGER NOT NULL DEFAULT 1 CHECK (dungeon_floor BETWEEN 1 AND ${HUB_MAX_DUNGEON_FLOOR})`,
+        ).run();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/duplicate column name:\s*dungeon_floor/i.test(message)) throw error;
+      }
+    }
+  })().catch((error: unknown) => {
       schemaReady.delete(db as object);
       throw error;
     });
@@ -296,6 +320,7 @@ function toSnapshot(row: NearbyRow): HubPlayerSnapshot {
     displayName: row.display_name,
     characterSlot: slot,
     level: clamp(Math.floor(row.level), 1, 999),
+    dungeonFloor: normalizeHubDungeonFloor(row.dungeon_floor),
     x: Math.round(row.x * 100) / 100,
     y: Math.round(row.y * 100) / 100,
     facing: clamp(Math.floor(row.facing), 0, 7) as HubFacing,
@@ -323,7 +348,7 @@ async function sessionByToken(
 
 async function snapshotEnvelope(db: D1Database, selfRow: SessionRow, now: number) {
   const candidates = await db.prepare(`SELECT
-      id,character_slot,public_character_id,display_name,level,appearance_json,
+      id,character_slot,public_character_id,display_name,level,dungeon_floor,appearance_json,
       x,y,facing,moving,updated_at
     FROM hub_sessions
     WHERE zone=? AND id<>? AND last_seen_at>=? AND expires_at>?
@@ -410,16 +435,18 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   const appearanceJson = JSON.stringify(parsed.appearance);
   const generatedCharacterId = crypto.randomUUID();
   const character = await db.prepare(`INSERT INTO hub_character_slots
-      (account_id,slot,public_character_id,level,appearance_json,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?)
+      (account_id,slot,public_character_id,level,dungeon_floor,appearance_json,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?)
     ON CONFLICT(account_id,slot) DO UPDATE SET
-      level=excluded.level,appearance_json=excluded.appearance_json,updated_at=excluded.updated_at
+      level=excluded.level,dungeon_floor=excluded.dungeon_floor,
+      appearance_json=excluded.appearance_json,updated_at=excluded.updated_at
     RETURNING public_character_id`)
     .bind(
       accountId,
       parsed.characterSlot,
       generatedCharacterId,
       parsed.level,
+      parsed.dungeonFloor,
       appearanceJson,
       now,
       now,
@@ -436,13 +463,14 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   const spawnY = spawn.y + Math.sin(jitterAngle) * 24;
   await db.prepare(`INSERT INTO hub_sessions
       (id,token_hash,account_id,character_slot,public_character_id,display_name,
-       level,appearance_json,zone,x,y,facing,moving,last_sequence,last_move_at,
-       last_seen_at,expires_at,version,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,0,?,?)
+       level,dungeon_floor,appearance_json,zone,x,y,facing,moving,last_sequence,
+       last_move_at,last_seen_at,expires_at,version,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,0,?,?)
     ON CONFLICT(account_id) DO UPDATE SET
       id=excluded.id,token_hash=excluded.token_hash,character_slot=excluded.character_slot,
       public_character_id=excluded.public_character_id,display_name=excluded.display_name,
-      level=excluded.level,appearance_json=excluded.appearance_json,zone=excluded.zone,
+      level=excluded.level,dungeon_floor=excluded.dungeon_floor,
+      appearance_json=excluded.appearance_json,zone=excluded.zone,
       x=excluded.x,y=excluded.y,facing=excluded.facing,moving=0,last_sequence=0,
       last_move_at=excluded.last_move_at,last_seen_at=excluded.last_seen_at,
       expires_at=excluded.expires_at,version=hub_sessions.version+1,
@@ -455,6 +483,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
       character.public_character_id,
       trustedDisplayName(request, parsed.displayName),
       parsed.level,
+      parsed.dungeonFloor,
       appearanceJson,
       HUB_ZONE_ID,
       spawnX,
@@ -547,14 +576,17 @@ async function updateAppearance(request: Request, db: D1Database): Promise<Respo
   const accountId = row.account_id;
   await enforceRateLimit(db, accountId, "appearance", 12, 60_000, 15_000);
   const now = Date.now();
+  const dungeonFloor = normalizeHubDungeonFloor(
+    parsed.dungeonFloor ?? row.dungeon_floor,
+  );
   const appearanceJson = JSON.stringify(parsed.appearance);
   await db.batch([
-    db.prepare(`UPDATE hub_character_slots SET level=?,appearance_json=?,updated_at=?
+    db.prepare(`UPDATE hub_character_slots SET level=?,dungeon_floor=?,appearance_json=?,updated_at=?
       WHERE account_id=? AND slot=?`)
-      .bind(parsed.level, appearanceJson, now, accountId, row.character_slot),
-    db.prepare(`UPDATE hub_sessions SET level=?,appearance_json=?,last_seen_at=?,
+      .bind(parsed.level, dungeonFloor, appearanceJson, now, accountId, row.character_slot),
+    db.prepare(`UPDATE hub_sessions SET level=?,dungeon_floor=?,appearance_json=?,last_seen_at=?,
       version=version+1,updated_at=? WHERE id=? AND account_id=?`)
-      .bind(parsed.level, appearanceJson, now, now, row.id, accountId),
+      .bind(parsed.level, dungeonFloor, appearanceJson, now, now, row.id, accountId),
   ]);
   const current = await sessionByToken(db, request);
   return json(await snapshotEnvelope(db, current, now));

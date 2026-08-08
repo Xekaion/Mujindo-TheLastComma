@@ -20,6 +20,7 @@ import {
 } from "./hub-protocol";
 import {
   isSaveSlotId,
+  normalizeDungeonFloor,
   readSaveSlot,
 } from "./save-slots";
 import type { PlazaPortalDefinition } from "./plaza-world";
@@ -111,6 +112,9 @@ export default function GameEntryFlow({
   }, [equipment, selection]);
 
   const level = savedCharacter?.player.level ?? 1;
+  const dungeonFloor = normalizeDungeonFloor(
+    savedCharacter?.world?.dungeonFloor,
+  );
   const inventoryCount = Array.isArray(savedCharacter?.player.inventory)
     ? savedCharacter.player.inventory.length
     : 0;
@@ -128,6 +132,7 @@ export default function GameEntryFlow({
       characterSlot: selection.slot,
       displayName,
       level,
+      dungeonFloor,
       appearance: hubAppearance,
       arrival,
     });
@@ -137,7 +142,7 @@ export default function GameEntryFlow({
       setHubSnapshot(null);
       setHubConnection("offline");
     };
-  }, [arrival, displayName, hubAppearance, level, selection, view]);
+  }, [arrival, displayName, dungeonFloor, hubAppearance, level, selection, view]);
 
   const moveInPlaza = useCallback((intent: {
     moveX: number;
@@ -244,6 +249,7 @@ export default function GameEntryFlow({
           characterId: self?.characterId ?? `local-character-slot-${selection.slot}`,
           displayName: self?.displayName ?? displayName,
           level: self?.level ?? level,
+          dungeonFloor: self?.dungeonFloor ?? dungeonFloor,
           saveSlot: selection.slot,
           appearance: {
             spriteKey: self?.appearance.spriteKey ?? hubAppearance.spriteKey,

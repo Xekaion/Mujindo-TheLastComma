@@ -29,6 +29,8 @@ test("character selection preserves migration and isolates destructive slot acti
   assert.match(hydration, /readActiveSaveSlot\(\)/);
   assert.match(hydration, /readSaveSlotSummaries\(\)/);
   assert.match(gate, /writeActiveSaveSlot\(selectedSlot\);/);
+  assert.match(gate, /지하 \{summary\.dungeonFloor\}층/);
+  assert.doesNotMatch(gate, /방 돌파 \{summary\.roomsCleared\}/);
   assert.match(gate, /if \(!removeSaveSlot\(deleteTarget\)\)/);
   assert.doesNotMatch(gate, /localStorage\.(?:clear|removeItem)/);
   assert.doesNotMatch(gate, /window\.(?:alert|confirm)\(/);

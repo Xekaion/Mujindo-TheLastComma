@@ -53,6 +53,7 @@ export const hubCharacterSlots = sqliteTable(
     slot: integer("slot").notNull(),
     publicCharacterId: text("public_character_id").notNull().unique(),
     level: integer("level").notNull(),
+    dungeonFloor: integer("dungeon_floor").notNull().default(1),
     appearanceJson: text("appearance_json").notNull(),
     createdAt: integer("created_at").notNull(),
     updatedAt: integer("updated_at").notNull(),
@@ -61,6 +62,10 @@ export const hubCharacterSlots = sqliteTable(
     primaryKey({ columns: [table.accountId, table.slot] }),
     check("hub_character_slot_range", sql`${table.slot} BETWEEN 1 AND 3`),
     check("hub_character_level_range", sql`${table.level} BETWEEN 1 AND 999`),
+    check(
+      "hub_character_dungeon_floor_range",
+      sql`${table.dungeonFloor} BETWEEN 1 AND 999999`,
+    ),
   ],
 );
 
@@ -74,6 +79,7 @@ export const hubSessions = sqliteTable(
     publicCharacterId: text("public_character_id").notNull(),
     displayName: text("display_name").notNull(),
     level: integer("level").notNull(),
+    dungeonFloor: integer("dungeon_floor").notNull().default(1),
     appearanceJson: text("appearance_json").notNull(),
     zone: text("zone").notNull().default("memory-plaza-v1"),
     x: real("x").notNull(),
@@ -97,6 +103,10 @@ export const hubSessions = sqliteTable(
     }).onDelete("cascade"),
     check("hub_session_slot_range", sql`${table.characterSlot} BETWEEN 1 AND 3`),
     check("hub_session_level_range", sql`${table.level} BETWEEN 1 AND 999`),
+    check(
+      "hub_session_dungeon_floor_range",
+      sql`${table.dungeonFloor} BETWEEN 1 AND 999999`,
+    ),
     check("hub_session_facing_range", sql`${table.facing} BETWEEN 0 AND 7`),
     check("hub_session_moving_boolean", sql`${table.moving} IN (0, 1)`),
   ],

@@ -27,6 +27,7 @@ import {
 } from "./plaza-world";
 import {
   HUB_PLAYER_SPEED,
+  normalizeHubDungeonFloor,
   type HubCharacterSlot,
   type HubFacing,
   type HubPlayerSnapshot,
@@ -48,6 +49,7 @@ export type PlazaCharacterIdentity = {
   characterId: string;
   displayName: string;
   level: number;
+  dungeonFloor: number;
   saveSlot: HubCharacterSlot;
   appearance?: {
     spriteKey?: HubSpriteKey;
@@ -88,6 +90,7 @@ type DrawPlayer = {
   key: string;
   displayName: string;
   level: number;
+  dungeonFloor: number;
   x: number;
   y: number;
   facing: number;
@@ -442,7 +445,11 @@ function drawPlayer(
   context.font = player.local
     ? `700 ${readableCanvasFontSize(14, 11)}px sans-serif`
     : `600 ${readableCanvasFontSize(13, 11)}px sans-serif`;
-  context.fillText(`${player.displayName} · LV.${player.level}`, player.x, player.y - 105);
+  context.fillText(
+    `${player.displayName} · 기록 심도 지하 ${player.dungeonFloor}층 · LV.${player.level}`,
+    player.x,
+    player.y - 105,
+  );
   if (player.local) {
     context.fillStyle = "#71e4d5";
     context.font = `700 ${readableCanvasFontSize(9, 11)}px sans-serif`;
@@ -502,6 +509,7 @@ export default function PlazaHub({
       characterId: character.characterId,
       displayName: safeLabel(character.displayName, "이름 없는 기록자"),
       level: clampLevel(character.level),
+      dungeonFloor: normalizeHubDungeonFloor(character.dungeonFloor),
       saveSlot: character.saveSlot,
       appearance: characterSpriteKey !== undefined || characterEquipped !== undefined
         ? {
@@ -515,6 +523,7 @@ export default function PlazaHub({
       characterSpriteKey,
       character.characterId,
       character.displayName,
+      character.dungeonFloor,
       character.level,
       character.saveSlot,
     ],
@@ -564,6 +573,7 @@ export default function PlazaHub({
         ...player,
         displayName: safeLabel(player.displayName, "기록자"),
         level: clampLevel(player.level),
+        dungeonFloor: normalizeHubDungeonFloor(player.dungeonFloor),
         x: point.x,
         y: point.y,
         facing: normalizedFacing(player.facing) as HubFacing,
@@ -889,6 +899,7 @@ export default function PlazaHub({
           key: player.characterId,
           displayName: player.displayName,
           level: player.level,
+          dungeonFloor: player.dungeonFloor,
           x: renderPoint?.x ?? player.x,
           y: renderPoint?.y ?? player.y,
           facing: player.facing,
@@ -903,6 +914,7 @@ export default function PlazaHub({
         key: localCharacter.characterId,
         displayName: localCharacter.displayName,
         level: localCharacter.level,
+        dungeonFloor: localCharacter.dungeonFloor,
         x: positionRef.current.x,
         y: positionRef.current.y,
         facing: facingRef.current,
@@ -1029,7 +1041,9 @@ export default function PlazaHub({
       <section className="plaza-character-plate" aria-label="선택한 캐릭터">
         <small>RECORD 0{normalizedCharacter.saveSlot}</small>
         <strong>{normalizedCharacter.displayName}</strong>
-        <span>LV.{normalizedCharacter.level}</span>
+        <span title="현재는 클라이언트 저장 기록 기준입니다.">
+          LV.{normalizedCharacter.level} · 기록 심도 지하 {normalizedCharacter.dungeonFloor}층
+        </span>
         {onExitToCharacterSelect ? (
           <button type="button" onClick={onExitToCharacterSelect}>
             캐릭터 변경

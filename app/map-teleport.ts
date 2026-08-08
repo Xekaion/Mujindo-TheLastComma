@@ -18,7 +18,7 @@ export const MAP_TELEPORT_STATUS_LABELS: Record<MapTeleportStatus, string> = {
 };
 
 export function isSafeMapCoordinate(x: number, y: number): boolean {
-  return Number.isSafeInteger(x) && Number.isSafeInteger(y);
+  return isDungeonCoordinate(x, y);
 }
 
 export function parseMapCoordinateKey(key: string): { x: number; y: number } | null {
@@ -71,3 +71,4 @@ export function getMapTeleportStatus({
   if (!cleared) return "uncleared";
   return "available";
 }
+import { isDungeonCoordinate } from "./dungeon-floor";

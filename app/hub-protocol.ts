@@ -27,6 +27,8 @@ export const HUB_HEARTBEAT_INTERVAL_MS = 4_000;
 export const HUB_ONLINE_WINDOW_MS = 12_000;
 export const HUB_SESSION_TTL_MS = 12 * 60 * 60 * 1_000;
 export const HUB_MAX_LEVEL = 999;
+export const HUB_MIN_DUNGEON_FLOOR = 1;
+export const HUB_MAX_DUNGEON_FLOOR = 999_999;
 
 export const HUB_CHARACTER_SLOTS = [1, 2, 3] as const;
 export type HubCharacterSlot = (typeof HUB_CHARACTER_SLOTS)[number];
@@ -82,6 +84,8 @@ export type HubPlayerSnapshot = {
   displayName: string;
   characterSlot: HubCharacterSlot;
   level: number;
+  /** Display-only client claim. It is not authoritative PvE progression. */
+  dungeonFloor: number;
   x: number;
   y: number;
   facing: HubFacing;
@@ -139,6 +143,8 @@ export type HubSessionRequest = {
   characterSlot: HubCharacterSlot;
   displayName: string;
   level: number;
+  /** Allowlisted public profile claim; the plaza server only clamps it. */
+  dungeonFloor: number;
   appearance: HubAppearance;
   arrival: HubArrival;
 };
@@ -146,6 +152,8 @@ export type HubSessionRequest = {
 export type HubAppearanceRequest = {
   appearance: HubAppearance;
   level: number;
+  /** Null only for rolling-upgrade clients that predate the public claim. */
+  dungeonFloor: number | null;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -212,6 +220,14 @@ export function normalizeHubLevel(value: unknown): number {
   return Math.max(1, Math.min(HUB_MAX_LEVEL, Math.floor(value)));
 }
 
+export function normalizeHubDungeonFloor(value: unknown): number {
+  if (!isFiniteNumber(value)) return HUB_MIN_DUNGEON_FLOOR;
+  return Math.max(
+    HUB_MIN_DUNGEON_FLOOR,
+    Math.min(HUB_MAX_DUNGEON_FLOOR, Math.floor(value)),
+  );
+}
+
 export function normalizeHubDisplayName(value: unknown): string {
   if (typeof value !== "string") return "방랑자";
   const normalized = value
@@ -270,6 +286,7 @@ export function parseHubSessionRequest(value: unknown): HubSessionRequest | null
     characterSlot: value.characterSlot,
     displayName: normalizeHubDisplayName(value.displayName),
     level: normalizeHubLevel(value.level),
+    dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
     appearance: normalizeHubAppearance(value.appearance),
     arrival,
   };
@@ -280,5 +297,9 @@ export function parseHubAppearanceRequest(value: unknown): HubAppearanceRequest 
   return {
     appearance: normalizeHubAppearance(value.appearance),
     level: normalizeHubLevel(value.level),
+    dungeonFloor:
+      value.dungeonFloor === undefined
+        ? null
+        : normalizeHubDungeonFloor(value.dungeonFloor),
   };
 }

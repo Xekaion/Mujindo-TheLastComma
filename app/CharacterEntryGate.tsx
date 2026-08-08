@@ -209,7 +209,7 @@ export default function CharacterEntryGate({
                     {summary ? (
                       <>
                         <b>LV.{summary.level}</b>
-                        <small>방 돌파 {summary.roomsCleared} · 증강 {summary.augmentStacks}스택</small>
+                        <small>지하 {summary.dungeonFloor}층 · 증강 {summary.augmentStacks}스택</small>
                         <small>장착 {summary.equippedItems} · 가방 {summary.inventoryItems}</small>
                         <time dateTime={validSavedAt(summary.savedAt)?.toISOString()}>
                           마지막 기록 {formatSavedAt(summary.savedAt)}

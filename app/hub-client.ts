@@ -12,6 +12,7 @@ import {
   isHubFacing,
   normalizeHubAppearance,
   normalizeHubDisplayName,
+  normalizeHubDungeonFloor,
   normalizeHubLevel,
   parseHubMoveIntent,
   type HubAppearance,
@@ -34,6 +35,7 @@ export type HubClientConfig = {
   characterSlot: HubCharacterSlot;
   displayName: string;
   level: number;
+  dungeonFloor: number;
   appearance?: Partial<HubAppearance> | null;
   arrival?: HubArrival;
   /** Local two-client smoke testing only; ignored away from localhost. */
@@ -93,6 +95,7 @@ function normalizedConfig(value: HubClientConfig): HubClientConfig {
     characterSlot: value.characterSlot,
     displayName: normalizeHubDisplayName(value.displayName),
     level: normalizeHubLevel(value.level),
+    dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
     appearance: normalizeHubAppearance(value.appearance),
     arrival: value.arrival ?? "center",
     ...(value.developmentUser ? { developmentUser: value.developmentUser } : {}),
@@ -111,6 +114,7 @@ function parsePlayerSnapshot(value: unknown): HubPlayerSnapshot | null {
     typeof value.displayName !== "string" ||
     !isHubCharacterSlot(value.characterSlot) ||
     !isFiniteNumber(value.level) ||
+    (value.dungeonFloor !== undefined && !isFiniteNumber(value.dungeonFloor)) ||
     !isFiniteNumber(value.x) ||
     !isFiniteNumber(value.y) ||
     !isHubFacing(value.facing) ||
@@ -125,6 +129,7 @@ function parsePlayerSnapshot(value: unknown): HubPlayerSnapshot | null {
     displayName: normalizeHubDisplayName(value.displayName),
     characterSlot: value.characterSlot,
     level: normalizeHubLevel(value.level),
+    dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
     x: Math.max(0, Math.min(HUB_MAP_WIDTH, value.x)),
     y: Math.max(0, Math.min(HUB_MAP_HEIGHT, value.y)),
     facing: value.facing,
@@ -244,14 +249,22 @@ export class MemoryPlazaClient {
     if (this.token && !this.requestActive) this.schedule(0);
   }
 
-  async updateAppearance(appearance: unknown, level: unknown): Promise<void> {
+  async updateAppearance(
+    appearance: unknown,
+    level: unknown,
+    dungeonFloor: unknown = this.config?.dungeonFloor,
+  ): Promise<void> {
     if (!this.token) return;
     const generation = this.generation;
     try {
       const payload = await this.requestJson(
         "/api/hub/appearance",
         "PATCH",
-        { appearance: normalizeHubAppearance(appearance), level: normalizeHubLevel(level) },
+        {
+          appearance: normalizeHubAppearance(appearance),
+          level: normalizeHubLevel(level),
+          dungeonFloor: normalizeHubDungeonFloor(dungeonFloor),
+        },
         this.token,
       );
       if (generation !== this.generation) return;
@@ -307,6 +320,7 @@ export class MemoryPlazaClient {
         characterSlot: this.config.characterSlot,
         displayName: this.config.displayName,
         level: this.config.level,
+        dungeonFloor: this.config.dungeonFloor,
         appearance: normalizeHubAppearance(this.config.appearance),
         arrival: this.config.arrival,
       },

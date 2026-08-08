@@ -434,8 +434,13 @@ function assertWebPIntegrity(webp, relativePath) {
   return dimensions;
 }
 
-async function importTypeScriptModule(relativePath) {
-  const source = await readFile(path.join(root, relativePath), "utf8");
+async function typeScriptModuleUrl(relativePath, dependencyUrls = {}) {
+  let source = await readFile(path.join(root, relativePath), "utf8");
+  for (const [specifier, dependencyUrl] of Object.entries(dependencyUrls)) {
+    source = source
+      .replaceAll(`"${specifier}"`, `"${dependencyUrl}"`)
+      .replaceAll(`'${specifier}'`, `'${dependencyUrl}'`);
+  }
   const output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -443,7 +448,11 @@ async function importTypeScriptModule(relativePath) {
     },
     fileName: relativePath,
   }).outputText;
-  return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+  return `data:text/javascript;base64,${Buffer.from(output).toString("base64")}`;
+}
+
+async function importTypeScriptModule(relativePath, dependencyUrls = {}) {
+  return import(await typeScriptModuleUrl(relativePath, dependencyUrls));
 }
 
 class MemoryStorage {
@@ -472,6 +481,7 @@ const sampleSave = {
   },
   world: {
     seed: 42,
+    dungeonFloor: 6,
     roomX: 5,
     roomY: 0,
     rooms: { "5,0": { kind: "shelter", cleared: true } },
@@ -879,6 +889,13 @@ test("three save slots isolate data and preserve the legacy backup on migration"
   assert.equal(saves.writeSaveSlot(2, sampleSave, storage), true);
   assert.equal(saves.readSaveSlot(1, storage), null);
   assert.equal(saves.readSaveSlot(2, storage).player.level, 12);
+  assert.equal(saves.readSaveSlot(2, storage).world.dungeonFloor, 6);
+  assert.equal(saves.readSaveSlotSummaries(storage)[1].dungeonFloor, 6);
+  assert.equal(
+    saves.readSaveSlotSummaries(storage)[1].roomsCleared,
+    27,
+    "the lifetime room ledger must remain independent from dungeon floor",
+  );
   assert.equal(saves.readSaveSlotSummaries(storage)[1].augmentStacks, 27);
   const gearSave = structuredClone(sampleSave);
   const rolledWeapon = equipment.rollGear("save-slot-gear", {
@@ -906,6 +923,28 @@ test("three save slots isolate data and preserve the legacy backup on migration"
   assert.equal(storage.getItem(saves.LEGACY_SAVE_KEY), legacyRaw);
   assert.equal(storage.getItem(saves.saveSlotKey(1)), legacyRaw);
   assert.equal(saves.migrateLegacySave(storage), "slot-occupied");
+});
+
+test("legacy saves default to the first dungeon floor without reinterpreting cleared rooms", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  const legacy = structuredClone(sampleSave);
+  delete legacy.world.dungeonFloor;
+  legacy.player.rooms = 847;
+  storage.setItem(saves.saveSlotKey(1), JSON.stringify(legacy));
+
+  const normalized = saves.readSaveSlot(1, storage);
+  assert.equal(normalized.world.dungeonFloor, 1);
+  assert.equal(normalized.player.rooms, 847);
+  assert.equal(saves.readSaveSlotSummaries(storage)[0].dungeonFloor, 1);
+  assert.equal(saves.readSaveSlotSummaries(storage)[0].roomsCleared, 847);
+  assert.equal(saves.normalizeDungeonFloor(2_000_000), 2_000_000);
+
+  for (const invalidFloor of [0, -1, 1.5, "2"]) {
+    const malformed = structuredClone(sampleSave);
+    malformed.world.dungeonFloor = invalidFloor;
+    assert.equal(saves.writeSaveSlot(2, malformed, storage), false);
+  }
 });
 
 test("corrupt saves are rejected without overwriting occupied slot 1", async () => {
@@ -1010,7 +1049,7 @@ test("the blank cartographer owns the first boss and its long ending can trigger
 
   assert.match(
     source,
-    /const bossKind =[\s\S]{0,160}?kind === "boss"[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, clearedBossRooms\)[\s\S]{0,1000}?if \(kind === "boss"\) \{[\s\S]{0,180}?makeEnemy\(bossKind,/,
+    /const bossKind =[\s\S]{0,160}?kind === "boss"[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, player\.bossesCleared\)[\s\S]{0,1000}?if \(kind === "boss"\) \{[\s\S]{0,180}?makeEnemy\(bossKind,/,
     "boss spawning must preserve the first boss while selecting the post-ending roster",
   );
   assert.match(
@@ -1097,7 +1136,7 @@ test("the blank cartographer deterministically cycles every inherited attack beh
   assert.ok(bossRoom, "the boss-room spawn branch must remain isolated");
   assert.match(
     source,
-    /const bossKind =[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, clearedBossRooms\)/,
+    /const bossKind =[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, player\.bossesCleared\)/,
   );
   assert.match(bossRoom[1], /if \(bossKind === null\) return;/);
   assert.match(bossRoom[1], /makeEnemy\(bossKind,/);
@@ -1377,9 +1416,15 @@ test("each shelter heals and saves only on its first coordinate visit", async ()
   assert.equal(visit("3,0", "battle"), false, "ordinary rooms never activate a shelter rest");
   assert.match(shelterMemory.SPENT_SHELTER_MESSAGE, /체력 회복과 기억 고정은 다시 일어나지 않습니다/);
 
-  assert.match(
-    source,
-    /const shelterActivated\s*=\s*isFirstShelterRest\(kind, world\.visitedLookup\[key\] === true\);[\s\S]{0,500}?if \(!world\.visitedLookup\[key\]\)/,
+  const firstVisitDecision = source.indexOf(
+    "const shelterActivated =\n        isFirstShelterRest(kind, world.visitedLookup[key] === true);",
+  );
+  const visitedLedgerInsertion = source.indexOf(
+    "if (!world.visitedLookup[key])",
+    firstVisitDecision,
+  );
+  assert.ok(
+    firstVisitDecision >= 0 && visitedLedgerInsertion > firstVisitDecision,
     "the first-visit decision must be captured before the coordinate enters the visited ledger",
   );
   assert.match(
@@ -1390,7 +1435,7 @@ test("each shelter heals and saves only on its first coordinate visit", async ()
   assert.match(source, /const saveAtShelter[\s\S]{0,180}?player\.hp = player\.maxHp;/);
   assert.match(
     source,
-    /enterRoom\(data\.world\.roomX, data\.world\.roomY, "left"\);\s*setGameMode\("playing"\);\s*setToast\(`\$\{slot\}번 슬롯 · 고정된 기억에서 원정을 재개했습니다\.`\);/,
+    /const savedDungeon = normalizeSavedDungeonWorld\(data\.world\);[\s\S]{0,1200}?enterRoom\(savedDungeon\.roomX, savedDungeon\.roomY, "left"\);\s*setGameMode\("playing"\);\s*setToast\(`\$\{slot\}번 슬롯 · 고정된 기억에서 원정을 재개했습니다\.`\);/,
     "loading a checkpoint must not pretend to activate its already-spent shelter again",
   );
   assert.match(source, /새 쉼터에 처음 닿을 때만 장비와 빌드가 함께 저장됩니다/);
@@ -3799,7 +3844,7 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.doesNotMatch(game, /context\.strokeRect\(68, 64, WIDTH - 136, HEIGHT - 128\)/);
 });
 
-test("minimap coordinates, complete snapshots, room states, and square geometry match the world", async () => {
+test("the minimap uses one fixed 99x99 floor and reveals stairs only after conquest", async () => {
   const [source, css] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
@@ -3811,14 +3856,44 @@ test("minimap coordinates, complete snapshots, room states, and square geometry 
     "north/east/south/west room offsets must match screen orientation",
   );
   assert.match(source, /const knownCoordinates = Object\.keys\(world\.rooms\)/);
+  assert.match(
+    source,
+    /const minimumX = large\s*\? DUNGEON_MIN_COORDINATE\s*:\s*Math\.max\(DUNGEON_MIN_COORDINATE, world\.roomX - radius\)/,
+  );
+  assert.match(
+    source,
+    /const maximumX = large\s*\? DUNGEON_MAX_COORDINATE\s*:\s*Math\.min\(DUNGEON_MAX_COORDINATE, world\.roomX \+ radius\)/,
+  );
+  assert.match(
+    source,
+    /const minimumY = large\s*\? DUNGEON_MIN_COORDINATE\s*:\s*Math\.max\(DUNGEON_MIN_COORDINATE, world\.roomY - radius\)/,
+  );
+  assert.match(
+    source,
+    /const maximumY = large\s*\? DUNGEON_MAX_COORDINATE\s*:\s*Math\.min\(DUNGEON_MAX_COORDINATE, world\.roomY \+ radius\)/,
+  );
   assert.match(source, /gridColumn: x - minimumX \+ 1/);
   assert.match(source, /gridRow: y - minimumY \+ 1/);
   assert.match(source, /room \? `is-\$\{room\.kind\}` : ""/);
   assert.match(source, /data-room-kind=\{room\?\.kind \?\? "unknown"\}/);
   assert.match(source, /data-cleared=\{Boolean\(room\?\.cleared\)\}/);
   assert.match(source, /data-visited=\{wasVisited\}/);
+  assert.match(
+    source,
+    /const stairsRevealed =\s*wasVisited && Boolean\(room\?\.cleared\) && world\.stairRoomLookup\[key\] === true;/,
+    "an adjacent pre-generated room must not expose its staircase before visit and conquest",
+  );
+  assert.match(source, /data-stairs-revealed=\{stairsRevealed\}/);
+  assert.match(source, /stairsRevealed \? "is-stairs" : ""/);
+  assert.equal(
+    (source.match(/stairsRevealed \? <span className="map-room-emblem map-room-emblem--stairs"/g) ?? []).length,
+    2,
+    "both minimap scales must render the same revealed-stair emblem",
+  );
   assert.match(source, /rooms: Object\.fromEntries\(/);
   assert.match(source, /visited: \[\.\.\.world\.visited\]/);
+  assert.match(source, /dungeonFloor: world\.dungeonFloor/);
+  assert.match(source, /stairRoomLookup: \{ \.\.\.world\.stairRoomLookup \}/);
   assert.match(
     source,
     /<MapGrid[\s\S]{0,220}?world=\{mapSnapshot\}[\s\S]{0,120}?large[\s\S]{0,260}?onTeleport=\{teleportToVisitedRoom\}/,
@@ -3834,6 +3909,8 @@ test("minimap coordinates, complete snapshots, room states, and square geometry 
   );
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-columns/);
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-rows/);
+  assert.match(css, /\.map-cell\.is-stairs\s*\{/);
+  assert.match(css, /\.map-room-emblem--stairs\s*\{/);
   for (const kind of ["battle", "horde", "elite", "memory", "shelter", "boss"]) {
     assert.match(css, new RegExp(`\\.map-cell\\.is-${kind}\\s*\\{`), `${kind} needs a map style`);
   }
@@ -3841,8 +3918,11 @@ test("minimap coordinates, complete snapshots, room states, and square geometry 
 });
 
 test("the purchased wayfinder teleports only between safe visited and cleared map rooms", async () => {
+  const dungeonFloorUrl = await typeScriptModuleUrl("app/dungeon-floor.ts");
   const [travel, source, shopOverlay, css] = await Promise.all([
-    importTypeScriptModule("app/map-teleport.ts"),
+    importTypeScriptModule("app/map-teleport.ts", {
+      "./dungeon-floor": dungeonFloorUrl,
+    }),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/ShopOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
@@ -3878,8 +3958,14 @@ test("the purchased wayfinder teleports only between safe visited and cleared ma
     ["available", "combat-locked", "current", "locked-product", "uncleared", "unknown", "unvisited"],
   );
 
-  assert.equal(travel.isSafeMapCoordinate(-12, 7), true);
+  for (const [x, y] of [[-49, -49], [-12, 7], [0, 0], [49, 49]]) {
+    assert.equal(travel.isSafeMapCoordinate(x, y), true);
+  }
   for (const [x, y] of [
+    [-50, 0],
+    [50, 0],
+    [0, -50],
+    [0, 50],
     [1.5, 2],
     [Number.NaN, 2],
     [Number.POSITIVE_INFINITY, 2],
@@ -3888,7 +3974,7 @@ test("the purchased wayfinder teleports only between safe visited and cleared ma
     assert.equal(travel.isSafeMapCoordinate(x, y), false);
   }
   assert.deepEqual(travel.parseMapCoordinateKey("-12,7"), { x: -12, y: 7 });
-  for (const key of ["1,2,3", "01,2", "+1,2", "1,2foo", "1", "", "-0,2"]) {
+  for (const key of ["-50,0", "50,0", "1,2,3", "01,2", "+1,2", "1,2foo", "1", "", "-0,2"]) {
     assert.equal(travel.parseMapCoordinateKey(key), null, `${key} must not become a map target`);
   }
 
@@ -3950,15 +4036,20 @@ test("player movement is constrained to the walkable floor while open door corri
     source,
     /function pointInsideWalkableFloor[\s\S]{0,900}?WALKABLE_FLOOR_POLYGON/,
   );
+  const constraintStart = source.indexOf("function constrainPlayerToWalkableFloor(");
+  const constraintEnd = source.indexOf("const isLocalRarityShowcaseHost", constraintStart);
+  assert.ok(constraintStart >= 0 && constraintEnd > constraintStart);
+  const constraint = source.slice(constraintStart, constraintEnd);
+  assert.match(constraint, /doors: DungeonDoorAccess/);
   assert.match(
-    source,
-    /function constrainPlayerToWalkableFloor\([\s\S]{0,800}?if \(doorOpen && inHorizontalDoor\)[\s\S]{0,180}?player\.x\s*=\s*clamp\([\s\S]{0,180}?return;/,
-    "an open horizontal doorway must preserve its left/right corridor",
+    constraint,
+    /const canUseHorizontalDoor =[\s\S]{0,220}?player\.x < WIDTH \/ 2 && doors\.west[\s\S]{0,120}?player\.x >= WIDTH \/ 2 && doors\.east[\s\S]{0,160}?if \(canUseHorizontalDoor\) \{[\s\S]{0,120}?player\.x = clamp\(/,
+    "horizontal corridors must open only toward the available west/east door",
   );
   assert.match(
-    source,
-    /function constrainPlayerToWalkableFloor\([\s\S]{0,1200}?if \(doorOpen && inVerticalDoor\)[\s\S]{0,180}?player\.y\s*=\s*clamp\([\s\S]{0,180}?return;/,
-    "an open vertical doorway must preserve its top/bottom corridor",
+    constraint,
+    /const canUseVerticalDoor =[\s\S]{0,220}?player\.y < HEIGHT \/ 2 && doors\.north[\s\S]{0,120}?player\.y >= HEIGHT \/ 2 && doors\.south[\s\S]{0,160}?if \(canUseVerticalDoor\) \{[\s\S]{0,120}?player\.y = clamp\(/,
+    "vertical corridors must open only toward the available north/south door",
   );
   assert.match(
     source,
@@ -3967,7 +4058,7 @@ test("player movement is constrained to the walkable floor while open door corri
   );
   assert.match(
     source,
-    /player\.x \+= dx \* speed \* dt;[\s\S]{0,9000}?constrainPlayerToWalkableFloor\(player, doorOpen\);/,
+    /player\.x \+= dx \* speed \* dt;[\s\S]{0,4000}?const doors = dungeonDoorAccess\(\s*world\.roomX,\s*world\.roomY,\s*world\.roomCleared,?\s*\);[\s\S]{0,1800}?constrainPlayerToWalkableFloor\(player, doors\);/,
     "the movement update must invoke the polygon constraint after applying motion",
   );
 });

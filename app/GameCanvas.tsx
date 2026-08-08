@@ -71,8 +71,21 @@ import {
   getMapTeleportStatus,
   isMapTeleportDepartureSafe,
   isSafeMapCoordinate,
-  parseMapCoordinateKey,
 } from "./map-teleport";
+import {
+  DUNGEON_CENTER_COORDINATE,
+  DUNGEON_GRID_SIZE,
+  DUNGEON_LAYOUT_VERSION,
+  DUNGEON_MAX_COORDINATE,
+  DUNGEON_MIN_COORDINATE,
+  createDownStairRoomLookup,
+  dungeonDisplayCoordinate,
+  dungeonDoorAccess,
+  isDungeonCoordinate,
+  normalizeDungeonFloor,
+  parseDungeonCoordinateKey,
+  type DungeonDoorAccess,
+} from "./dungeon-floor";
 import {
   SAVE_SLOT_IDS,
   markSaveSlotEndingSeen,
@@ -209,6 +222,9 @@ const TIME_RIFT_SEQUENCE_GAP = 0.34;
 const TIME_RIFT_RADIUS = 74;
 const TIME_RIFT_SPRITE_GRID = 2;
 const TIME_RIFT_SOURCE_INSET_RATIO = 0.025;
+const STAIRCASE_X = WIDTH / 2;
+const STAIRCASE_Y = HEIGHT / 2 + 88;
+const STAIRCASE_INTERACTION_RADIUS = 74;
 const ROOM_GEOMETRY = {
   left: 74,
   right: WIDTH - 74,
@@ -618,6 +634,7 @@ type Player = {
   nextXp: number;
   level: number;
   rooms: number;
+  bossesCleared: number;
   kills: number;
   expeditionPowerRating: number;
   augments: Record<string, number>;
@@ -671,7 +688,10 @@ function pointInsideWalkableFloor(x: number, y: number) {
   return inside;
 }
 
-function constrainPlayerToWalkableFloor(player: Pick<Player, "x" | "y">, doorOpen: boolean) {
+function constrainPlayerToWalkableFloor(
+  player: Pick<Player, "x" | "y">,
+  doors: DungeonDoorAccess,
+) {
   const inHorizontalDoor =
     player.y > ROOM_GEOMETRY.horizontalDoorTop &&
     player.y < ROOM_GEOMETRY.horizontalDoorBottom;
@@ -679,11 +699,20 @@ function constrainPlayerToWalkableFloor(player: Pick<Player, "x" | "y">, doorOpe
     player.x > ROOM_GEOMETRY.verticalDoorLeft &&
     player.x < ROOM_GEOMETRY.verticalDoorRight;
 
-  if (doorOpen && inHorizontalDoor) {
+  const canUseHorizontalDoor =
+    inHorizontalDoor &&
+    ((player.x < WIDTH / 2 && doors.west) ||
+      (player.x >= WIDTH / 2 && doors.east));
+  const canUseVerticalDoor =
+    inVerticalDoor &&
+    ((player.y < HEIGHT / 2 && doors.north) ||
+      (player.y >= HEIGHT / 2 && doors.south));
+
+  if (canUseHorizontalDoor) {
     player.x = clamp(player.x, ROOM_GEOMETRY.openInsetX, WIDTH - ROOM_GEOMETRY.openInsetX);
     return;
   }
-  if (doorOpen && inVerticalDoor) {
+  if (canUseVerticalDoor) {
     player.y = clamp(player.y, ROOM_GEOMETRY.openInsetY, HEIGHT - ROOM_GEOMETRY.openInsetY);
     return;
   }
@@ -725,6 +754,8 @@ const isLocalRarityShowcaseHost = () =>
 
 type World = {
   seed: number;
+  layoutVersion: number;
+  dungeonFloor: number;
   roomX: number;
   roomY: number;
   roomKind: RoomKind;
@@ -732,6 +763,9 @@ type World = {
   rooms: Record<string, RoomRecord>;
   visited: string[];
   visitedLookup: Record<string, true>;
+  stairRoomLookup: Record<string, true>;
+  knownRoomCount: number;
+  clearedRoomCount: number;
   enemies: Enemy[];
   projectiles: Projectile[];
   orbs: MemoryOrb[];
@@ -744,11 +778,24 @@ type World = {
   expeditionDifficulty: ExpeditionDifficulty;
 };
 
-type CartographyWorld = Pick<World, "roomX" | "roomY" | "rooms" | "visited">;
+type CartographyWorld = Pick<
+  World,
+  | "seed"
+  | "dungeonFloor"
+  | "roomX"
+  | "roomY"
+  | "rooms"
+  | "visited"
+  | "stairRoomLookup"
+>;
 
 type SaveData = {
   player: Player;
-  world: Pick<World, "seed" | "roomX" | "roomY" | "rooms" | "visited">;
+  world: Pick<
+    World,
+    "seed" | "roomX" | "roomY" | "rooms" | "visited"
+  > &
+    Partial<Pick<World, "layoutVersion" | "dungeonFloor">>;
   stableAugments: Record<string, number>;
   savedAt: number;
 };
@@ -767,6 +814,12 @@ function isHydratableSaveData(value: unknown): value is SaveData {
   const data = value as Partial<SaveData>;
   const world = data.world as SaveData["world"] | undefined;
   if (!data.player || !world || !Number.isFinite(world.seed)) return false;
+  if (
+    world.dungeonFloor !== undefined &&
+    (!Number.isSafeInteger(world.dungeonFloor) || world.dungeonFloor < 1)
+  ) {
+    return false;
+  }
   if (!Number.isInteger(world.roomX) || !Number.isInteger(world.roomY)) return false;
   if (!world.rooms || typeof world.rooms !== "object") return false;
   if (!Array.isArray(world.visited) || !world.visited.every((key) => typeof key === "string")) {
@@ -779,6 +832,46 @@ function isHydratableSaveData(value: unknown): value is SaveData {
       ROOM_KIND_VALUES.has(room.kind) &&
       typeof room.cleared === "boolean",
   );
+}
+
+function normalizeSavedDungeonWorld(world: SaveData["world"]): {
+  dungeonFloor: number;
+  roomX: number;
+  roomY: number;
+  rooms: Record<string, RoomRecord>;
+  visited: string[];
+} {
+  if (world.layoutVersion !== DUNGEON_LAYOUT_VERSION) {
+    return {
+      dungeonFloor: 1,
+      roomX: DUNGEON_CENTER_COORDINATE,
+      roomY: DUNGEON_CENTER_COORDINATE,
+      rooms: {},
+      visited: [],
+    };
+  }
+
+  const rooms = Object.fromEntries(
+    Object.entries(world.rooms)
+      .filter(([key]) => parseDungeonCoordinateKey(key) !== null)
+      .slice(0, DUNGEON_GRID_SIZE * DUNGEON_GRID_SIZE)
+      .map(([key, room]) => [key, { ...room }] as const),
+  );
+  const visited = Array.from(
+    new Set(
+      world.visited.filter(
+        (key) => parseDungeonCoordinateKey(key) !== null && rooms[key] !== undefined,
+      ),
+    ),
+  );
+  const currentInBounds = isDungeonCoordinate(world.roomX, world.roomY);
+  return {
+    dungeonFloor: normalizeDungeonFloor(world.dungeonFloor),
+    roomX: currentInBounds ? world.roomX : DUNGEON_CENTER_COORDINATE,
+    roomY: currentInBounds ? world.roomY : DUNGEON_CENTER_COORDINATE,
+    rooms,
+    visited,
+  };
 }
 
 const AUGMENTS: Augment[] = [
@@ -1518,6 +1611,7 @@ function makePlayer(): Player {
     nextXp: xpThreshold(1),
     level: 1,
     rooms: 0,
+    bossesCleared: 0,
     kills: 0,
     expeditionPowerRating: 1_000,
     augments: {},
@@ -1599,16 +1693,22 @@ function normalizeLegendaryRuntimeFromSave(
   };
 }
 
-function makeWorld(seed: number): World {
+function makeWorld(seed: number, dungeonFloor = 1): World {
+  const normalizedFloor = normalizeDungeonFloor(dungeonFloor);
   return {
     seed,
-    roomX: 0,
-    roomY: 0,
+    layoutVersion: DUNGEON_LAYOUT_VERSION,
+    dungeonFloor: normalizedFloor,
+    roomX: DUNGEON_CENTER_COORDINATE,
+    roomY: DUNGEON_CENTER_COORDINATE,
     roomKind: "battle",
     roomCleared: false,
     rooms: {},
     visited: [],
     visitedLookup: {},
+    stairRoomLookup: createDownStairRoomLookup(seed, normalizedFloor),
+    knownRoomCount: 0,
+    clearedRoomCount: 0,
     enemies: [],
     projectiles: [],
     orbs: [],
@@ -1766,7 +1866,7 @@ function MapGrid({
   const currentKey = keyOf(world.roomX, world.roomY);
   const knownCoordinates = Object.keys(world.rooms)
     .map((key) => {
-      const coordinate = parseMapCoordinateKey(key);
+      const coordinate = parseDungeonCoordinateKey(key);
       return coordinate ? { key, ...coordinate } : null;
     })
     .filter((coordinate): coordinate is { key: string; x: number; y: number } =>
@@ -1778,17 +1878,17 @@ function MapGrid({
   }
 
   const minimumX = large
-    ? Math.min(world.roomX, ...knownCoordinates.map(({ x }) => x)) - 1
-    : world.roomX - radius;
+    ? DUNGEON_MIN_COORDINATE
+    : Math.max(DUNGEON_MIN_COORDINATE, world.roomX - radius);
   const maximumX = large
-    ? Math.max(world.roomX, ...knownCoordinates.map(({ x }) => x)) + 1
-    : world.roomX + radius;
+    ? DUNGEON_MAX_COORDINATE
+    : Math.min(DUNGEON_MAX_COORDINATE, world.roomX + radius);
   const minimumY = large
-    ? Math.min(world.roomY, ...knownCoordinates.map(({ y }) => y)) - 1
-    : world.roomY - radius;
+    ? DUNGEON_MIN_COORDINATE
+    : Math.max(DUNGEON_MIN_COORDINATE, world.roomY - radius);
   const maximumY = large
-    ? Math.max(world.roomY, ...knownCoordinates.map(({ y }) => y)) + 1
-    : world.roomY + radius;
+    ? DUNGEON_MAX_COORDINATE
+    : Math.min(DUNGEON_MAX_COORDINATE, world.roomY + radius);
   const columns = maximumX - minimumX + 1;
   const rows = maximumY - minimumY + 1;
 
@@ -1797,6 +1897,8 @@ function MapGrid({
     const room = world.rooms[key];
     const wasVisited = visited.has(key);
     const current = x === world.roomX && y === world.roomY;
+    const stairsRevealed =
+      wasVisited && Boolean(room?.cleared) && world.stairRoomLookup[key] === true;
     const status = room?.cleared ? "정복 완료" : wasVisited ? "탐사 중" : "정찰됨";
     const teleportStatus = getMapTeleportStatus({
       hasEntitlement: teleportUnlocked,
@@ -1813,6 +1915,7 @@ function MapGrid({
       room ? `is-${room.kind}` : "",
       wasVisited ? "is-visited" : "",
       room?.cleared ? "is-cleared" : "",
+      stairsRevealed ? "is-stairs" : "",
       current ? "is-current" : "",
       large && teleportStatus === "available" ? "is-teleportable" : "",
       large && teleportStatus !== "available" ? "is-teleport-locked" : "",
@@ -1825,9 +1928,10 @@ function MapGrid({
           gridRow: y - minimumY + 1,
         }
       : undefined;
+    const floorCoordinate = `${dungeonDisplayCoordinate(x)},${dungeonDisplayCoordinate(y)}`;
     const baseTitle = room
-      ? `${ROOM_NAMES[room.kind]} · ${status} · ${key}`
-      : `미지의 좌표 · ${key}`;
+      ? `${ROOM_NAMES[room.kind]} · ${status} · ${floorCoordinate}${stairsRevealed ? " · 하행 계단 발견" : ""}`
+      : `미지의 방 · ${floorCoordinate}`;
 
     if (large && onTeleport) {
       return (
@@ -1839,6 +1943,7 @@ function MapGrid({
           data-cleared={Boolean(room?.cleared)}
           data-visited={wasVisited}
           data-current={current}
+          data-stairs-revealed={stairsRevealed}
           data-teleport-status={teleportStatus}
           className={className}
           style={cellStyle}
@@ -1853,6 +1958,7 @@ function MapGrid({
               aria-hidden="true"
             />
           ) : null}
+          {stairsRevealed ? <span className="map-room-emblem map-room-emblem--stairs" aria-hidden="true" /> : null}
           {current ? <i /> : null}
         </button>
       );
@@ -1866,6 +1972,7 @@ function MapGrid({
         data-cleared={Boolean(room?.cleared)}
         data-visited={wasVisited}
         data-current={current}
+        data-stairs-revealed={stairsRevealed}
         className={className}
         style={cellStyle}
         title={baseTitle}
@@ -1876,6 +1983,7 @@ function MapGrid({
             aria-hidden="true"
           />
         ) : null}
+        {stairsRevealed ? <span className="map-room-emblem map-room-emblem--stairs" aria-hidden="true" /> : null}
         {current ? <i /> : null}
       </span>
     );
@@ -1906,8 +2014,8 @@ function MapGrid({
       role={large && onTeleport ? "group" : "img"}
       aria-label={
         large
-          ? `전체 지도. 현재 위치 ${currentKey}, 확인한 좌표 ${knownCoordinates.length}개`
-          : `주변 지도. 현재 위치 ${currentKey}`
+          ? `지하 ${world.dungeonFloor}층 전체 지도. 현재 위치 ${dungeonDisplayCoordinate(world.roomX)},${dungeonDisplayCoordinate(world.roomY)}, 확인한 방 ${knownCoordinates.length}개`
+          : `지하 ${world.dungeonFloor}층 주변 지도. 현재 위치 ${dungeonDisplayCoordinate(world.roomX)},${dungeonDisplayCoordinate(world.roomY)}`
       }
     >
       {cells}
@@ -1929,7 +2037,11 @@ export default function GameCanvas({
   const playerRef = useRef<Player>(makePlayer());
   const worldRef = useRef<World>(makeWorld(1));
   const stableAugmentsRef = useRef<Record<string, number>>({});
-  const checkpointRef = useRef<{ x: number; y: number } | null>(null);
+  const checkpointRef = useRef<{
+    dungeonFloor: number;
+    x: number;
+    y: number;
+  } | null>(null);
   const activeSaveSlotRef = useRef<SaveSlotId>(1);
   const idRef = useRef(1);
   const keysRef = useRef(new Set<string>());
@@ -2012,12 +2124,15 @@ export default function GameCanvas({
     player: { ...makePlayer(), augments: {} as Record<string, number> },
     stableAugments: {} as Record<string, number>,
     world: {
-      roomX: 0,
-      roomY: 0,
+      seed: 1,
+      dungeonFloor: 1,
+      roomX: DUNGEON_CENTER_COORDINATE,
+      roomY: DUNGEON_CENTER_COORDINATE,
       roomKind: "battle" as RoomKind,
       roomCleared: false,
       rooms: {} as Record<string, RoomRecord>,
       visited: [] as string[],
+      stairRoomLookup: {} as Record<string, true>,
       knownRoomCount: 0,
       visitedCount: 0,
       clearedRoomCount: 0,
@@ -2038,13 +2153,18 @@ export default function GameCanvas({
       gearDrops: 0,
       proofreaderEnemies: 0,
       proofreaderWindups: 0,
+      staircaseRevealed: false,
+      staircaseNearby: false,
     },
   }));
   const [mapSnapshot, setMapSnapshot] = useState<CartographyWorld>(() => ({
-    roomX: 0,
-    roomY: 0,
+    seed: 1,
+    dungeonFloor: 1,
+    roomX: DUNGEON_CENTER_COORDINATE,
+    roomY: DUNGEON_CENTER_COORDINATE,
     rooms: {},
     visited: [],
+    stairRoomLookup: {},
   }));
   const [mapTeleportDepartureSafe, setMapTeleportDepartureSafe] = useState(false);
   const inventoryCapacity = useMemo(
@@ -2283,15 +2403,18 @@ export default function GameCanvas({
       },
       stableAugments: { ...stableAugmentsRef.current },
       world: {
+        seed: world.seed,
+        dungeonFloor: world.dungeonFloor,
         roomX: world.roomX,
         roomY: world.roomY,
         roomKind: world.roomKind,
         roomCleared: world.roomCleared,
         rooms: nearbyRooms,
         visited: nearbyVisited,
-        knownRoomCount: Object.keys(world.rooms).length,
+        stairRoomLookup: world.stairRoomLookup,
+        knownRoomCount: world.knownRoomCount,
         visitedCount: world.visited.length,
-        clearedRoomCount: Object.values(world.rooms).filter((room) => room.cleared).length,
+        clearedRoomCount: world.clearedRoomCount,
         enemies: world.enemies.length,
         bossHp: boss?.hp ?? 0,
         bossMaxHp: boss?.maxHp ?? 0,
@@ -2316,6 +2439,15 @@ export default function GameCanvas({
         proofreaderWindups: world.enemies.filter(
           (enemy) => enemy.kind === 6 && enemy.patternPhase === "windup",
         ).length,
+        staircaseRevealed:
+          world.roomCleared &&
+          world.visitedLookup[keyOf(world.roomX, world.roomY)] === true &&
+          world.stairRoomLookup[keyOf(world.roomX, world.roomY)] === true,
+        staircaseNearby:
+          world.roomCleared &&
+          world.stairRoomLookup[keyOf(world.roomX, world.roomY)] === true &&
+          distance(player.x, player.y, STAIRCASE_X, STAIRCASE_Y) <=
+            STAIRCASE_INTERACTION_RADIUS,
       },
     });
   }, []);
@@ -2351,12 +2483,15 @@ export default function GameCanvas({
   const openMap = useCallback(() => {
     const world = worldRef.current;
     setMapSnapshot({
+      seed: world.seed,
+      dungeonFloor: world.dungeonFloor,
       roomX: world.roomX,
       roomY: world.roomY,
       rooms: Object.fromEntries(
         Object.entries(world.rooms).map(([key, room]) => [key, { ...room }]),
       ),
       visited: [...world.visited],
+      stairRoomLookup: { ...world.stairRoomLookup },
     });
     setMapTeleportDepartureSafe(
       isMapTeleportDepartureSafe({
@@ -2406,7 +2541,11 @@ export default function GameCanvas({
       powerRankOf(player, "ward") * 5 +
       equipmentStats.roomEntryShieldFlat;
     stableAugmentsRef.current = normalizeAugmentStacks(player.augments);
-    checkpointRef.current = { x: world.roomX, y: world.roomY };
+    checkpointRef.current = {
+      dungeonFloor: world.dungeonFloor,
+      x: world.roomX,
+      y: world.roomY,
+    };
     const data: SaveData = {
       player: {
         ...player,
@@ -2418,6 +2557,8 @@ export default function GameCanvas({
       },
       world: {
         seed: world.seed,
+        layoutVersion: world.layoutVersion,
+        dungeonFloor: world.dungeonFloor,
         roomX: world.roomX,
         roomY: world.roomY,
         rooms: world.rooms,
@@ -2547,7 +2688,11 @@ export default function GameCanvas({
       const player = playerRef.current;
       const depth = player.rooms;
       const enemies: Enemy[] = [];
-      const seedSalt = world.roomX * 41 + world.roomY * 73 + depth * 97;
+      const seedSalt =
+        world.roomX * 41 +
+        world.roomY * 73 +
+        depth * 97 +
+        world.dungeonFloor * 131;
       let marginSevererCount = 0;
 
       if (kind !== "boss") world.activeBossKind = null;
@@ -2558,15 +2703,9 @@ export default function GameCanvas({
         return;
       }
 
-      const clearedBossRooms =
-        kind === "boss"
-          ? Object.values(world.rooms).filter(
-              (room) => room.kind === "boss" && room.cleared,
-            ).length
-          : 0;
       const bossKind =
         kind === "boss"
-          ? bossKindForProgress(player.endingVersion, clearedBossRooms)
+          ? bossKindForProgress(player.endingVersion, player.bossesCleared)
           : null;
       const currentCombatPower = calculatePlayerStatsForRuntime(player).ratings.combatPower;
       player.expeditionPowerRating = updateExpeditionPowerRating({
@@ -2644,7 +2783,11 @@ export default function GameCanvas({
     const world = worldRef.current;
     const existing = world.rooms[keyOf(x, y)];
     if (existing) return existing.kind;
-    if (x === 0 && y === 0) return "battle";
+    if (x === DUNGEON_CENTER_COORDINATE && y === DUNGEON_CENTER_COORDINATE) {
+      return "battle";
+    }
+
+    const layoutSeed = world.seed ^ Math.imul(world.dungeonFloor, 0x45d9f3b);
 
     const radialDistance = Math.abs(x) + Math.abs(y);
     const onCardinalRoute = x === 0 || y === 0;
@@ -2655,32 +2798,32 @@ export default function GameCanvas({
       return "shelter";
     }
 
-    // Infinite-map landmarks are coordinate deterministic. Every 9×9 sector has
-    // one boss and every 5×5 sector has one shelter, so a saved seed can never
-    // reshuffle when the player explores branches in a different order.
+    // Floor landmarks are coordinate deterministic. Every 9×9 sector has one
+    // boss and every 5×5 sector has one shelter, so a saved seed cannot reshuffle
+    // this floor when the player explores branches in a different order.
     const bossSectorX = Math.floor(x / 9);
     const bossSectorY = Math.floor(y / 9);
     const bossX =
       bossSectorX * 9 +
-      Math.min(8, Math.floor(hash(world.seed, bossSectorX, bossSectorY, 901) * 9));
+      Math.min(8, Math.floor(hash(layoutSeed, bossSectorX, bossSectorY, 901) * 9));
     const bossY =
       bossSectorY * 9 +
-      Math.min(8, Math.floor(hash(world.seed, bossSectorY, bossSectorX, 977) * 9));
+      Math.min(8, Math.floor(hash(layoutSeed, bossSectorY, bossSectorX, 977) * 9));
     if (Math.abs(x) + Math.abs(y) >= 6 && x === bossX && y === bossY) return "boss";
 
     const shelterSectorX = Math.floor(x / 5);
     const shelterSectorY = Math.floor(y / 5);
     const shelterX =
       shelterSectorX * 5 +
-      Math.min(4, Math.floor(hash(world.seed, shelterSectorX, shelterSectorY, 503) * 5));
+      Math.min(4, Math.floor(hash(layoutSeed, shelterSectorX, shelterSectorY, 503) * 5));
     const shelterY =
       shelterSectorY * 5 +
-      Math.min(4, Math.floor(hash(world.seed, shelterSectorY, shelterSectorX, 557) * 5));
+      Math.min(4, Math.floor(hash(layoutSeed, shelterSectorY, shelterSectorX, 557) * 5));
     if (Math.abs(x) + Math.abs(y) >= 3 && x === shelterX && y === shelterY) {
       return "shelter";
     }
 
-    const roll = hash(world.seed, x, y, 173);
+    const roll = hash(layoutSeed, x, y, 173);
     if (roll < 0.49) return "battle";
     if (roll < 0.67) return "horde";
     if (roll < 0.81) return "elite";
@@ -2693,23 +2836,33 @@ export default function GameCanvas({
       y: number,
       entry: "left" | "right" | "top" | "bottom" | "center" = "left",
     ) => {
+      if (!isDungeonCoordinate(x, y)) return;
       const world = worldRef.current;
       const player = playerRef.current;
       const key = keyOf(x, y);
       const kind = determineRoomKind(x, y);
-      if (!world.rooms[key]) world.rooms[key] = { kind, cleared: kind === "shelter" };
+      if (!world.rooms[key]) {
+        const cleared = kind === "shelter";
+        world.rooms[key] = { kind, cleared };
+        world.knownRoomCount += 1;
+        if (cleared) world.clearedRoomCount += 1;
+      }
       const shelterActivated =
         isFirstShelterRest(kind, world.visitedLookup[key] === true);
       for (const [offsetX, offsetY] of ROOM_DIRECTIONS) {
         const neighborX = x + offsetX;
         const neighborY = y + offsetY;
+        if (!isDungeonCoordinate(neighborX, neighborY)) continue;
         const neighborKey = keyOf(neighborX, neighborY);
         if (!world.rooms[neighborKey]) {
           const neighborKind = determineRoomKind(neighborX, neighborY);
+          const neighborCleared = neighborKind === "shelter";
           world.rooms[neighborKey] = {
             kind: neighborKind,
-            cleared: neighborKind === "shelter",
+            cleared: neighborCleared,
           };
+          world.knownRoomCount += 1;
+          if (neighborCleared) world.clearedRoomCount += 1;
         }
       }
       if (!world.visitedLookup[key]) {
@@ -2788,6 +2941,60 @@ export default function GameCanvas({
   useEffect(() => {
     roomEnterRef.current = enterRoom;
   }, [enterRoom]);
+
+  const descendToNextFloor = useCallback(() => {
+    const world = worldRef.current;
+    const player = playerRef.current;
+    const currentKey = keyOf(world.roomX, world.roomY);
+    const currentRoom = world.rooms[currentKey];
+    if (
+      world.stairRoomLookup[currentKey] !== true ||
+      !currentRoom?.cleared ||
+      !world.visitedLookup[currentKey]
+    ) {
+      setToast("이 방에는 아래로 이어지는 계단이 없습니다.");
+      return;
+    }
+    if (world.enemies.length > 0 || world.transition > 0) {
+      setToast("방의 기억이 가라앉을 때까지 계단을 이용할 수 없습니다.");
+      return;
+    }
+    if (world.dungeonFloor >= Number.MAX_SAFE_INTEGER) {
+      setToast("기록 가능한 가장 깊은 층에 도달했습니다.");
+      return;
+    }
+    if (
+      distance(player.x, player.y, STAIRCASE_X, STAIRCASE_Y) >
+      STAIRCASE_INTERACTION_RADIUS
+    ) {
+      inputRef.current.moveTargetX = STAIRCASE_X;
+      inputRef.current.moveTargetY = STAIRCASE_Y;
+      inputRef.current.hasMoveTarget = true;
+      setToast("하행 계단 앞으로 이동합니다. 도착하면 E를 다시 누르세요.");
+      return;
+    }
+
+    const nextFloor = world.dungeonFloor + 1;
+    worldRef.current = makeWorld(world.seed, nextFloor);
+    setMapSnapshot({
+      seed: world.seed,
+      dungeonFloor: nextFloor,
+      roomX: DUNGEON_CENTER_COORDINATE,
+      roomY: DUNGEON_CENTER_COORDINATE,
+      rooms: {},
+      visited: [],
+      stairRoomLookup: { ...worldRef.current.stairRoomLookup },
+    });
+    setMapTeleportDepartureSafe(false);
+    enterRoom(
+      DUNGEON_CENTER_COORDINATE,
+      DUNGEON_CENTER_COORDINATE,
+      "center",
+    );
+    playGameSfx("enemyTeleport", { priority: 7, playbackRate: 0.74 });
+    setGameMode("playing");
+    setToast(`지하 ${nextFloor}층. 새로운 99×99 구조가 기억을 다시 배열합니다.`);
+  }, [enterRoom, setGameMode]);
 
   const teleportToVisitedRoom = useCallback(
     (x: number, y: number) => {
@@ -3040,6 +3247,13 @@ export default function GameCanvas({
           typeof data.player.profession === "string" ? data.player.profession : null,
         endingSeen: savedEndingVersion >= FIRST_BOSS_ENDING_VERSION,
         endingVersion: savedEndingVersion,
+        bossesCleared: Math.max(
+          savedEndingVersion >= FIRST_BOSS_ENDING_VERSION ? 1 : 0,
+          Number.isSafeInteger(data.player.bossesCleared) &&
+            data.player.bossesCleared >= 0
+            ? data.player.bossesCleared
+            : 0,
+        ),
         x: WIDTH / 2,
         y: HEIGHT / 2,
         augments: normalizeAugmentStacks(data.player.augments),
@@ -3079,22 +3293,31 @@ export default function GameCanvas({
         data.player.expeditionPowerRating >= 1_000
           ? Math.floor(data.player.expeditionPowerRating)
           : calculatePlayerStatsForRuntime(hydratedPlayer).ratings.combatPower;
-      const world = makeWorld(data.world.seed);
-      world.rooms = data.world.rooms;
-      world.visited = data.world.visited;
+      const savedDungeon = normalizeSavedDungeonWorld(data.world);
+      const world = makeWorld(data.world.seed, savedDungeon.dungeonFloor);
+      world.rooms = savedDungeon.rooms;
+      world.visited = savedDungeon.visited;
       world.visitedLookup = Object.fromEntries(
-        data.world.visited.map((key) => [key, true] as const),
+        savedDungeon.visited.map((key) => [key, true] as const),
       );
+      world.knownRoomCount = Object.keys(savedDungeon.rooms).length;
+      world.clearedRoomCount = Object.values(savedDungeon.rooms).filter(
+        (room) => room.cleared,
+      ).length;
       worldRef.current = world;
       stableAugmentsRef.current = normalizeAugmentStacks(
         data.stableAugments ?? {},
       );
-      checkpointRef.current = { x: data.world.roomX, y: data.world.roomY };
+      checkpointRef.current = {
+        dungeonFloor: savedDungeon.dungeonFloor,
+        x: savedDungeon.roomX,
+        y: savedDungeon.roomY,
+      };
       setBuildPanelOpen(false);
       setInventoryScreenOpen(false);
       setStatsScreenOpen(false);
       setStarted(true);
-      enterRoom(data.world.roomX, data.world.roomY, "left");
+      enterRoom(savedDungeon.roomX, savedDungeon.roomY, "left");
       setGameMode("playing");
       setToast(`${slot}번 슬롯 · 고정된 기억에서 원정을 재개했습니다.`);
       return true;
@@ -3136,7 +3359,7 @@ export default function GameCanvas({
     setInventoryScreenOpen(false);
     setStatsScreenOpen(false);
     setStarted(true);
-    enterRoom(0, 0, "left");
+    enterRoom(DUNGEON_CENTER_COORDINATE, DUNGEON_CENTER_COORDINATE, "center");
     showStory(
       "서장 · 끝을 찾는 자",
       "라온의 목소리",
@@ -3639,6 +3862,14 @@ export default function GameCanvas({
       if (key === " " && isSimulationRunning()) {
         inputRef.current.dashQueued = true;
       }
+      if (
+        (key === "e" || key === "enter") &&
+        modeRef.current === "playing" &&
+        !event.repeat
+      ) {
+        event.preventDefault();
+        descendToNextFloor();
+      }
       if (key === "b" && modeRef.current === "playing" && !event.repeat) {
         const shouldOpen = !(buildOpenRef.current && buildTab === "build");
         setInventoryScreenOpen(false);
@@ -3694,6 +3925,7 @@ export default function GameCanvas({
     chooseAugment,
     closeShop,
     closeGameConfirmation,
+    descendToNextFloor,
     menuStage,
     openMap,
     openShop,
@@ -4635,6 +4867,7 @@ export default function GameCanvas({
       world.roomCleared = true;
       playGameSfx("roomClear", { priority: 7 });
       world.rooms[keyOf(world.roomX, world.roomY)].cleared = true;
+      world.clearedRoomCount += 1;
       player.rooms += 1;
       const conquestRank = powerRankOf(player, "conquest");
       const moonBeacon = activeSynergies(player).find(
@@ -4666,6 +4899,7 @@ export default function GameCanvas({
       setToast(`방 정복 · 기억 ${Math.round(14 + player.rooms * 1.5)} · 문이 열렸습니다.`);
 
       if (world.roomKind === "boss") {
+        player.bossesCleared += 1;
         if (
           shouldRevealFirstBossEnding(
             world.roomKind,
@@ -4882,32 +5116,52 @@ export default function GameCanvas({
         player.walkCycle = 1;
       }
 
-      const doorOpen = world.roomCleared;
+      const doors = dungeonDoorAccess(
+        world.roomX,
+        world.roomY,
+        world.roomCleared,
+      );
       const inHorizontalDoor =
         player.y > ROOM_GEOMETRY.horizontalDoorTop &&
         player.y < ROOM_GEOMETRY.horizontalDoorBottom;
       const inVerticalDoor =
         player.x > ROOM_GEOMETRY.verticalDoorLeft &&
         player.x < ROOM_GEOMETRY.verticalDoorRight;
-      if (doorOpen && world.transition <= 0) {
-        if (player.x < ROOM_GEOMETRY.transitionInsetX && inHorizontalDoor) {
+      if (world.roomCleared && world.transition <= 0) {
+        if (
+          doors.west &&
+          player.x < ROOM_GEOMETRY.transitionInsetX &&
+          inHorizontalDoor
+        ) {
           roomEnterRef.current(world.roomX - 1, world.roomY, "right");
           return;
         }
-        if (player.x > WIDTH - ROOM_GEOMETRY.transitionInsetX && inHorizontalDoor) {
+        if (
+          doors.east &&
+          player.x > WIDTH - ROOM_GEOMETRY.transitionInsetX &&
+          inHorizontalDoor
+        ) {
           roomEnterRef.current(world.roomX + 1, world.roomY, "left");
           return;
         }
-        if (player.y < ROOM_GEOMETRY.transitionInsetY && inVerticalDoor) {
+        if (
+          doors.north &&
+          player.y < ROOM_GEOMETRY.transitionInsetY &&
+          inVerticalDoor
+        ) {
           roomEnterRef.current(world.roomX, world.roomY - 1, "top");
           return;
         }
-        if (player.y > HEIGHT - ROOM_GEOMETRY.transitionInsetY && inVerticalDoor) {
+        if (
+          doors.south &&
+          player.y > HEIGHT - ROOM_GEOMETRY.transitionInsetY &&
+          inVerticalDoor
+        ) {
           roomEnterRef.current(world.roomX, world.roomY + 1, "bottom");
           return;
         }
       }
-      constrainPlayerToWalkableFloor(player, doorOpen);
+      constrainPlayerToWalkableFloor(player, doors);
       const actualMoveX = player.x - previousPlayerX;
       const actualMoveY = player.y - previousPlayerY;
       const actuallyMoved = Math.hypot(actualMoveX, actualMoveY) > 0.05;
@@ -7698,6 +7952,11 @@ export default function GameCanvas({
       context.fillRect(0, 0, WIDTH, HEIGHT);
 
       const ambientTime = performance.now() / 1000;
+      const currentDoorAccess = dungeonDoorAccess(
+        world.roomX,
+        world.roomY,
+        world.roomCleared,
+      );
       context.save();
       context.fillStyle = roomGrade.mote;
       for (let index = 0; index < 18; index += 1) {
@@ -7758,8 +8017,9 @@ export default function GameCanvas({
       const drawDoorWard = ({ side, x, y, w, h }: (typeof doorRects)[number]) => {
         const horizontal = side === "west" || side === "east";
         const pulse = 0.72 + Math.sin(ambientTime * 3.2 + x * 0.01 + y * 0.01) * 0.16;
+        const doorIsOpen = currentDoorAccess[side];
         context.save();
-        if (!world.roomCleared) {
+        if (!doorIsOpen) {
           const sealShade = horizontal
             ? context.createLinearGradient(x, y, x + w, y)
             : context.createLinearGradient(x, y, x, y + h);
@@ -7836,6 +8096,66 @@ export default function GameCanvas({
       };
 
       doorRects.forEach(drawDoorWard);
+
+      const currentRoomKey = keyOf(world.roomX, world.roomY);
+      if (
+        world.roomCleared &&
+        world.visitedLookup[currentRoomKey] &&
+        world.stairRoomLookup[currentRoomKey]
+      ) {
+        const stairPulse = 0.72 + Math.sin(ambientTime * 2.4) * 0.18;
+        context.save();
+        context.translate(STAIRCASE_X, STAIRCASE_Y);
+        const stairGlow = context.createRadialGradient(0, 6, 8, 0, 6, 104);
+        stairGlow.addColorStop(0, `rgba(116,224,205,${0.22 + stairPulse * 0.16})`);
+        stairGlow.addColorStop(0.48, `rgba(55,118,119,${0.13 + stairPulse * 0.08})`);
+        stairGlow.addColorStop(1, "rgba(5,11,14,0)");
+        context.fillStyle = stairGlow;
+        context.fillRect(-118, -82, 236, 178);
+
+        context.fillStyle = "rgba(0,0,0,.72)";
+        context.beginPath();
+        context.ellipse(0, 24, 76, 42, 0, 0, Math.PI * 2);
+        context.fill();
+
+        for (let step = 0; step < 7; step += 1) {
+          const width = 112 - step * 10;
+          const y = -24 + step * 9;
+          const shade = 37 - step * 3;
+          context.fillStyle = `rgb(${shade},${shade + 7},${shade + 10})`;
+          context.strokeStyle = `rgba(123,221,204,${0.28 + stairPulse * 0.18})`;
+          context.lineWidth = 1.2;
+          context.beginPath();
+          context.moveTo(-width / 2, y);
+          context.lineTo(width / 2, y);
+          context.lineTo(width / 2 - 7, y + 8);
+          context.lineTo(-width / 2 + 7, y + 8);
+          context.closePath();
+          context.fill();
+          context.stroke();
+        }
+
+        context.strokeStyle = `rgba(201,241,224,${0.48 + stairPulse * 0.24})`;
+        context.shadowColor = "#73d9c5";
+        context.shadowBlur = 16;
+        context.lineWidth = 2;
+        context.beginPath();
+        context.arc(0, -15, 67, Math.PI * 1.08, Math.PI * 1.92);
+        context.stroke();
+        context.shadowBlur = 0;
+        context.fillStyle = `rgba(216,250,237,${0.64 + stairPulse * 0.25})`;
+        context.beginPath();
+        context.moveTo(0, 55);
+        context.lineTo(-9, 42);
+        context.lineTo(-3, 42);
+        context.lineTo(-3, 31);
+        context.lineTo(3, 31);
+        context.lineTo(3, 42);
+        context.lineTo(9, 42);
+        context.closePath();
+        context.fill();
+        context.restore();
+      }
 
       if (inputRef.current.hasMoveTarget) {
         const pulse = 12 + Math.sin(performance.now() / 140) * 3;
@@ -8640,6 +8960,8 @@ export default function GameCanvas({
         const [x, y] = key.split(",").map(Number);
         return {
           key,
+          x,
+          y,
           room,
           distance: Math.abs(x - hud.world.roomX) + Math.abs(y - hud.world.roomY),
         };
@@ -8655,6 +8977,8 @@ export default function GameCanvas({
         const [x, y] = key.split(",").map(Number);
         return {
           key,
+          x,
+          y,
           room,
           distance: Math.abs(x - mapSnapshot.roomX) + Math.abs(y - mapSnapshot.roomY),
         };
@@ -8782,7 +9106,7 @@ export default function GameCanvas({
                     </header>
                     {summary ? (
                       <>
-                        <h3>LV.{summary.level} · {summary.roomsCleared}방</h3>
+                        <h3>LV.{summary.level} · 지하 {summary.dungeonFloor}층</h3>
                         <p>{professionTitle ?? "미전직 방랑자"}</p>
                         <dl>
                           <div><dt>증강</dt><dd>{summary.augmentStacks}</dd></div>
@@ -8833,7 +9157,7 @@ export default function GameCanvas({
           <aside className="menu-features" aria-label="게임 특징">
             <span>MAX 모든 증강 20스택</span>
             <span>⚔ 접사와 전설 장비</span>
-            <span>⌘ 좌표로 이어지는 무한 방</span>
+            <span>⌘ 층마다 99×99방 · 숨은 계단 40개</span>
             <span>✦ 새 쉼터마다 1회 기록</span>
           </aside>
         )}
@@ -8861,6 +9185,8 @@ export default function GameCanvas({
     <main
       className={`game-screen ${hud.player.hp / hud.player.maxHp < 0.3 ? "is-low-health" : ""}`}
       data-game-mode={mode}
+      data-dungeon-floor={hud.world.dungeonFloor}
+      data-dungeon-grid={`${DUNGEON_GRID_SIZE}x${DUNGEON_GRID_SIZE}`}
       data-room-x={hud.world.roomX}
       data-room-y={hud.world.roomY}
       data-room-kind={hud.world.roomKind}
@@ -8948,13 +9274,15 @@ export default function GameCanvas({
 
         <section className="room-heading">
           <small>
-            좌표 {hud.world.roomX >= 0 ? "+" : ""}
-            {hud.world.roomX} : {hud.world.roomY >= 0 ? "+" : ""}
-            {hud.world.roomY}
+            지하 {hud.world.dungeonFloor}층 · 방 {dungeonDisplayCoordinate(hud.world.roomX)} : {dungeonDisplayCoordinate(hud.world.roomY)}
           </small>
           <h2>{ROOM_NAMES[hud.world.roomKind]}</h2>
           <span className={hud.world.roomCleared ? "is-clear" : "is-locked"}>
-            {hud.world.roomCleared ? "탐색 가능 · 네 방향 개방" : `봉쇄 중 · 남은 기억 ${hud.world.enemies}`}
+            {hud.world.roomCleared
+              ? `탐색 가능 · ${Object.values(
+                  dungeonDoorAccess(hud.world.roomX, hud.world.roomY, true),
+                ).filter(Boolean).length}방향 개방`
+              : `봉쇄 중 · 남은 기억 ${hud.world.enemies}`}
           </span>
         </section>
 
@@ -8966,12 +9294,33 @@ export default function GameCanvas({
         >
           <div>
             <small>무진도 단편</small>
-            <strong>{hud.player.rooms} 방 돌파</strong>
+            <strong>지하 {hud.world.dungeonFloor}층</strong>
             <span>M · 전체 지도</span>
           </div>
           <MapGrid world={hud.world} />
         </button>
       </header>
+
+      {hud.world.staircaseRevealed && mode === "playing" && (
+        <button
+          type="button"
+          className={`staircase-action ${hud.world.staircaseNearby ? "is-nearby" : ""}`}
+          aria-label={
+            hud.world.staircaseNearby
+              ? `지하 ${hud.world.dungeonFloor + 1}층으로 내려가기`
+              : "하행 계단 앞으로 이동"
+          }
+          onClick={descendToNextFloor}
+        >
+          <span aria-hidden="true">⌄</span>
+          <small>{hud.world.staircaseNearby ? "E · 하행 계단" : "계단 발견"}</small>
+          <strong>
+            {hud.world.staircaseNearby
+              ? `지하 ${hud.world.dungeonFloor + 1}층으로 내려가기`
+              : "계단 앞으로 이동"}
+          </strong>
+        </button>
+      )}
 
       {hud.world.bossMaxHp > 0 && (
         <section className="boss-hud" aria-label="보스 체력">
@@ -9325,7 +9674,8 @@ export default function GameCanvas({
         <button type="button" onClick={openShop}><kbd>P</kbd> 상점</button>
         {nearestLandmark && (
           <em>
-            {nearestLandmark.room.kind === "shelter" ? "✦ 쉼터" : "◆ 보스"} {nearestLandmark.key}
+            {nearestLandmark.room.kind === "shelter" ? "✦ 쉼터" : "◆ 보스"}{" "}
+            {dungeonDisplayCoordinate(nearestLandmark.x)} : {dungeonDisplayCoordinate(nearestLandmark.y)}
             <small>{nearestLandmark.distance}칸</small>
           </em>
         )}
@@ -9530,8 +9880,8 @@ export default function GameCanvas({
                 <dd>{Object.values(hud.player.augments).reduce((a, b) => a + b, 0)}</dd>
               </div>
               <div>
-                <dt>돌파한 방</dt>
-                <dd>{hud.player.rooms}</dd>
+                <dt>현재 심도</dt>
+                <dd>지하 {hud.world.dungeonFloor}층</dd>
               </div>
               <div>
                 <dt>활성 시너지</dt>
@@ -9555,10 +9905,10 @@ export default function GameCanvas({
           <section className="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-title">
             <header>
               <div>
-                <p className="modal-kicker">INFINITE CARTOGRAPHY · M</p>
+                <p className="modal-kicker">99×99 FLOOR CARTOGRAPHY · M</p>
                 <h2 id="map-title">무진도 탐사도</h2>
                 <span>
-                  현재 좌표 {mapSnapshot.roomX >= 0 ? "+" : ""}{mapSnapshot.roomX} : {mapSnapshot.roomY >= 0 ? "+" : ""}{mapSnapshot.roomY}
+                  지하 {mapSnapshot.dungeonFloor}층 · 방 {dungeonDisplayCoordinate(mapSnapshot.roomX)} : {dungeonDisplayCoordinate(mapSnapshot.roomY)}
                 </span>
               </div>
               <div className="map-header-actions">
@@ -9622,15 +9972,16 @@ export default function GameCanvas({
                 <span><i className="legend-memory" />기억</span>
                 <span><i className="legend-shelter" />쉼터</span>
                 <span><i className="legend-boss" />보스</span>
+                <span><i className="legend-stairs" />발견한 하행 계단</span>
               </div>
               <div className="map-route-summary">
                 <small>탐사 기록</small>
                 <strong>
-                  {mapCounts.visited}개 진입 · {mapCounts.cleared}개 정복 · {mapCounts.known}개 좌표 확인
+                  {mapCounts.visited.toLocaleString("ko-KR")}/9,801 진입 · {mapCounts.cleared.toLocaleString("ko-KR")} 정복 · {mapCounts.known.toLocaleString("ko-KR")} 좌표 확인
                 </strong>
                 <span>
                   {mapNearestLandmark
-                    ? `가장 가까운 ${mapNearestLandmark.room.kind === "shelter" ? "쉼터" : "보스"}: ${mapNearestLandmark.key} · ${mapNearestLandmark.distance}칸`
+                    ? `가장 가까운 ${mapNearestLandmark.room.kind === "shelter" ? "쉼터" : "보스"}: ${dungeonDisplayCoordinate(mapNearestLandmark.x)} : ${dungeonDisplayCoordinate(mapNearestLandmark.y)} · ${mapNearestLandmark.distance}칸`
                     : "사방의 문을 지나 새로운 좌표를 정찰하세요."}
                 </span>
               </div>
@@ -9650,7 +10001,7 @@ export default function GameCanvas({
             <div className="pause-dashboard">
               <div>
                 <small>현재 원정</small>
-                <strong>LV.{hud.player.level} · {hud.player.rooms}방 돌파</strong>
+                <strong>LV.{hud.player.level} · 지하 {hud.world.dungeonFloor}층</strong>
                 <span>증강 {Object.values(hud.player.augments).reduce((a, b) => a + b, 0)}중첩 · 시너지 {synergies.length}</span>
               </div>
               <dl>
@@ -9703,7 +10054,7 @@ export default function GameCanvas({
                 처치 <b>{hud.player.kills}</b>
               </span>
               <span>
-                돌파 <b>{hud.player.rooms}</b>
+                심도 <b>지하 {hud.world.dungeonFloor}층</b>
               </span>
               <span>
                 증강 <b>{ownedAugments.length}</b>
