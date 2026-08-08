@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
+import GameAudioProvider from "./GameAudioProvider";
 import "./globals.css";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -53,7 +54,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <GameAudioProvider>{children}</GameAudioProvider>
+      </body>
     </html>
   );
 }

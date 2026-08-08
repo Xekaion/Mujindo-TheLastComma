@@ -12,6 +12,7 @@ import {
 import "./game.css";
 import InventoryOverlay from "./InventoryOverlay";
 import ShopOverlay from "./ShopOverlay";
+import { playGameSfx, playGearRaritySfx } from "./game-audio";
 import {
   MAX_AUGMENT_STACKS,
   SIMPLE_AUGMENT_BONUSES,
@@ -2129,6 +2130,7 @@ export default function GameCanvas({
       savedAt: Date.now(),
     };
     if (writeSaveSlot(activeSaveSlotRef.current, data)) {
+      playGameSfx("shelterRest");
       refreshSaveSlots();
       setToast(`${activeSaveSlotRef.current}번 슬롯 · 쉼터에 기억이 고정되었습니다.`);
     } else {
@@ -2265,6 +2267,7 @@ export default function GameCanvas({
         world.activeBossKind = bossKind;
         enemies.push(makeEnemy(bossKind, WIDTH / 2, 210, depth, true));
         world.enemies = enemies;
+        playGameSfx("bossAppear", { priority: 10 });
         return;
       }
 
@@ -2529,6 +2532,7 @@ export default function GameCanvas({
             size: 190,
           });
           arrivalWorld.effectCounts.teleport += 1;
+          playGameSfx("enemyTeleport", { gain: 0.8 });
           setGameMode("playing");
           setToast(`무진도의 길잡이 · ${targetKey} 좌표로 도약했습니다.`);
           syncHud();
@@ -2594,6 +2598,7 @@ export default function GameCanvas({
         player.xp -= player.nextXp;
         player.level += 1;
         player.nextXp = xpThreshold(player.level);
+        playGameSfx("lootRare", { playbackRate: 1.16, gain: 0.82 });
         openAugmentChoice();
       }
     },
@@ -2636,6 +2641,7 @@ export default function GameCanvas({
     if (!professionCandidate) return;
     const player = playerRef.current;
     player.profession = professionCandidate.id;
+    playGameSfx("lootLegendary", { playbackRate: 1.08, gain: 0.9 });
     const rawRank = rankOf(player, professionCandidate.id);
     setToast(
       `${PROFESSION_TITLES[professionCandidate.id]} 전직 완료 · ${professionCandidate.name} ${rawRank}스택 효과가 ${100 + PROFESSION_BONUS_PERCENT}%로 증폭됩니다.`,
@@ -2656,6 +2662,7 @@ export default function GameCanvas({
       }
       const nextRank = Math.min(MAX_AUGMENT_STACKS, previous + 1);
       player.augments[augment.id] = nextRank;
+      playGameSfx("lootRare", { playbackRate: 1.04 + Math.min(0.12, nextRank * 0.005) });
       if (augment.id === "blood" && previous === 0) {
         player.maxHp = 85 + aggregateEquipmentStats(player.equipment).maxHpFlat;
         player.hp = Math.min(player.hp, player.maxHp);
@@ -2866,6 +2873,7 @@ export default function GameCanvas({
       player.equipment[item.slot] = item;
       player.inventory.splice(itemIndex, 1);
       if (replaced) player.inventory.push(replaced);
+      playGameSfx("lootDrop", { playbackRate: 1.12, gain: 0.84 });
       const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const maxHpDelta = nextMaxHp - previousMaxHp;
       player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
@@ -2894,6 +2902,7 @@ export default function GameCanvas({
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       player.equipment[slot] = null;
       player.inventory.push(item);
+      playGameSfx("uiBack", { gain: 0.9 });
       const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const maxHpDelta = nextMaxHp - previousMaxHp;
       player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
@@ -2914,6 +2923,7 @@ export default function GameCanvas({
       player.inventory.splice(index, 1);
       const ashBreakdown = getGearSalvageAshBreakdown(item);
       player.memoryAsh += ashBreakdown.total;
+      playGameSfx("salvage");
       setSelectedGearId(null);
       setToast(
         `${item.displayName}을 분해해 기억의 재 ${ashBreakdown.total.toLocaleString("ko-KR")}개를 얻었습니다.${ashBreakdown.enhancementRefund > 0 ? ` · 강화 비용 ${ashBreakdown.enhancementRefund.toLocaleString("ko-KR")}개 전액 환급(100% 성공 기준)` : ""}`,
@@ -2946,6 +2956,10 @@ export default function GameCanvas({
         (item) => !requestedIds.has(item.id),
       );
       player.memoryAsh += ashBreakdown.total;
+      playGameSfx("salvage", {
+        playbackRate: Math.min(1.22, 0.96 + items.length * 0.012),
+        gain: Math.min(1.18, 0.88 + items.length * 0.015),
+      });
       if (selectedGearId && requestedIds.has(selectedGearId)) {
         setSelectedGearId(null);
       }
@@ -3056,6 +3070,7 @@ export default function GameCanvas({
       player.memoryAsh -= rule.ashCost;
       const roll = Math.random() * 100;
       if (roll < rule.successPercent) {
+        playGameSfx("enhanceSuccess");
         const enhancedItem: GearItem = {
           ...item,
           enhancement: rule.target,
@@ -3072,11 +3087,13 @@ export default function GameCanvas({
           `강화 성공 · ${enhancedItem.displayName} +${enhancedItem.enhancement} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
         );
       } else if (roll < rule.successPercent + rule.destroyPercent) {
+        playGameSfx("enhanceDestroy", { priority: 9 });
         if (inventoryIndex >= 0) player.inventory.splice(inventoryIndex, 1);
         else if (equippedSlot) player.equipment[equippedSlot] = null;
         setSelectedGearId(null);
         setToast(`강화 파괴 · ${item.displayName}이 기억의 재로 흩어졌습니다.`);
       } else {
+        playGameSfx("enhanceFail");
         setToast(
           `강화 실패 · ${item.displayName} +${item.enhancement} 유지 · 기억의 재 ${rule.ashCost} 소모`,
         );
@@ -3408,6 +3425,9 @@ export default function GameCanvas({
         return;
       }
       player.hp -= amount;
+      playGameSfx("playerHit", {
+        gain: impact > player.maxHp * 0.22 ? 1.12 : 0.9,
+      });
       player.invulnerable = 0.6;
       setToast(`기억이 ${Math.ceil(impact)}만큼 찢겼습니다.`);
       if (player.hp <= 0) {
@@ -3429,6 +3449,12 @@ export default function GameCanvas({
       const muzzleOffset = radius + (affinity === "boss" ? 18 : 12);
       const startX = x + Math.cos(angle) * muzzleOffset;
       const startY = y + Math.sin(angle) * muzzleOffset;
+      playGameSfx("enemyShot", {
+        pan: clamp((x - WIDTH / 2) / (WIDTH * 0.55), -0.75, 0.75),
+        gain: affinity === "boss" ? 1.18 : affinity === "witch" ? 1.04 : 0.84,
+        playbackRate: affinity === "boss" ? 0.86 : affinity === "witch" ? 1.12 : 1,
+        priority: affinity === "boss" ? 6 : 2,
+      });
       worldRef.current.projectiles.push({
         id: idRef.current++,
         x: startX,
@@ -3468,6 +3494,15 @@ export default function GameCanvas({
         size,
       });
       world.effectCounts[kind] += 1;
+      if (kind === "summon") {
+        playGameSfx("enemySummon", {
+          pan: clamp((x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+        });
+      } else if (kind === "teleport") {
+        playGameSfx("enemyTeleport", {
+          pan: clamp((x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+        });
+      }
     };
 
     const spawnLootAwakening = (
@@ -3507,6 +3542,7 @@ export default function GameCanvas({
         color: GEAR_RARITY_META[rarity].color,
         rarity,
       });
+      playGearRaritySfx(rarity);
     };
 
     const spawnLocalLootVfxShowcase = () => {
@@ -3596,6 +3632,13 @@ export default function GameCanvas({
         endX,
         endY,
       });
+      if (kind === "timeRiftTelegraph" || kind === "timeRiftBurst") {
+        playGameSfx("timeRift", {
+          pan: clamp((x - WIDTH / 2) / (WIDTH * 0.55), -0.72, 0.72),
+          playbackRate: kind === "timeRiftBurst" ? 0.88 : 1.08,
+          gain: kind === "timeRiftBurst" ? 1.08 : 0.78,
+        });
+      }
     };
 
     const killEnemy = (enemy: Enemy) => {
@@ -3609,6 +3652,15 @@ export default function GameCanvas({
           SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
         );
       player.kills += 1;
+      playGameSfx(
+        isBossKind(enemy.kind) || enemy.elite ? "enemyDeathHeavy" : "enemyDeath",
+        {
+          pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.76, 0.76),
+          gain: isBossKind(enemy.kind) ? 1.28 : enemy.elite ? 1.05 : 0.82,
+          playbackRate: isBossKind(enemy.kind) ? 0.82 : enemy.elite ? 0.92 : 1,
+          priority: isBossKind(enemy.kind) ? 10 : enemy.elite ? 6 : 2,
+        },
+      );
       const baseValue =
         isBossKind(enemy.kind)
           ? 80
@@ -3922,6 +3974,7 @@ export default function GameCanvas({
       );
       if (Math.random() < critChance) {
         damage *= 1.7 + eyeRank * 0.1 + equipmentStats.critDamagePercent / 100;
+        playGameSfx("playerCrit", { playbackRate: overcharged ? 0.92 : 1 });
       }
       const spread = Math.min(0.62, visibleCount * 0.07);
       const projectileSpeed =
@@ -3940,6 +3993,10 @@ export default function GameCanvas({
           SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
         );
       const chargedColor = overcharged ? "#ff7764" : projectileColor;
+      playGameSfx("playerShot", {
+        gain: overcharged ? 1.15 : 0.88,
+        playbackRate: overcharged ? 0.88 : 1 + Math.min(0.12, visibleRate / 100),
+      });
       spawnCombatEffect(
         "muzzle",
         player.x,
@@ -4049,6 +4106,7 @@ export default function GameCanvas({
       if (world.clearHandled) return;
       world.clearHandled = true;
       world.roomCleared = true;
+      playGameSfx("roomClear", { priority: 7 });
       world.rooms[keyOf(world.roomX, world.roomY)].cleared = true;
       player.rooms += 1;
       const conquestRank = powerRankOf(player, "conquest");
@@ -4187,6 +4245,10 @@ export default function GameCanvas({
         player.dashX = moveX || Math.cos(Math.atan2(inputRef.current.aimY - player.y, inputRef.current.aimX - player.x));
         player.dashY = moveY || Math.sin(Math.atan2(inputRef.current.aimY - player.y, inputRef.current.aimX - player.x));
         player.dashTime = 0.17 + 0.075 * (1 - Math.exp(-0.12 * reflexRank));
+        playGameSfx("playerDash", {
+          pan: clamp(player.dashX * 0.45, -0.45, 0.45),
+          playbackRate: 1 + Math.min(0.12, reflexRank * 0.008),
+        });
         player.invulnerable = player.dashTime + 0.03;
         player.dashCooldown =
           1.35 /
@@ -4345,6 +4407,16 @@ export default function GameCanvas({
               enemy.bossPatternIndex = patternIndex + 1;
               enemy.patternHit = false;
               enemy.moving = false;
+              playGameSfx(
+                nextPattern === "timeRifts"
+                  ? "timeRift"
+                  : nextPattern === "teleport"
+                    ? "enemyTeleport"
+                    : nextPattern === "charge"
+                      ? "enemyCharge"
+                      : "enemyShot",
+                { gain: 1.12, priority: 7 },
+              );
 
               if (nextPattern === "timeRifts") {
                 enemy.timeRifts = Array.from(
@@ -4759,6 +4831,10 @@ export default function GameCanvas({
               enemy.patternTimer = FINAL_BINDER_TELEGRAPH_SECONDS[nextPattern];
               enemy.patternHit = false;
               enemy.moving = false;
+              playGameSfx(
+                nextPattern === "chapterBurst" ? "timeRift" : "enemyCharge",
+                { playbackRate: 0.86, gain: 1.16, priority: 8 },
+              );
 
               if (nextPattern === "pageWall") {
                 const wallCastIndex = Math.floor(patternIndex / 3);
@@ -4929,6 +5005,9 @@ export default function GameCanvas({
               enemy.patternX = Math.cos(chargeAngle);
               enemy.patternY = Math.sin(chargeAngle);
               enemy.patternPhase = "windup";
+              playGameSfx("enemyCharge", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+              });
               enemy.patternTimer = 0.82;
               enemy.patternHit = false;
               enemy.facing = directionRow(enemy.patternX, enemy.patternY, enemy.facing);
@@ -5005,6 +5084,10 @@ export default function GameCanvas({
             (enemy.walkCycle + dt * (5.6 + enemy.speed / 40) * slowMultiplier) % 4;
 
           if (phase === "orbit" && (enemy.patternTimer ?? 0) <= 0) {
+            playGameSfx("timeRift", {
+              pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+              playbackRate: 1.08,
+            });
             enemy.timeRifts = Array.from({ length: 3 }, (_, index) => {
               const delay = index * TIME_RIFT_SEQUENCE_GAP;
               const predictionDistance =
@@ -5115,6 +5198,10 @@ export default function GameCanvas({
               enemy.patternY = playerIsMoving ? dx : Math.cos(angle);
               enemy.patternPhase = "inscribe";
               enemy.patternTimer = MARGIN_SEVERER_TELEGRAPH_SECONDS;
+              playGameSfx("enemyCharge", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+                playbackRate: 0.9,
+              });
               enemy.patternHit = false;
               enemy.moving = false;
               enemy.facing = directionRow(
@@ -5392,6 +5479,10 @@ export default function GameCanvas({
                 (1 + (finalSentence?.tier ?? 0) * 0.12);
             }
             enemy.hp -= hitDamage;
+            playGameSfx("playerImpact", {
+              pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.76, 0.76),
+              gain: projectile.pierce > 0 ? 0.86 : 1,
+            });
             if (equipmentStats.lifeOnHitFlat > 0 && player.hp < player.maxHp) {
               const lifeOnHit = Math.min(1.5, equipmentStats.lifeOnHitFlat * 0.08);
               player.hp = Math.min(player.maxHp, player.hp + lifeOnHit);
@@ -5527,6 +5618,10 @@ export default function GameCanvas({
         }
         if (d < player.radius + 15) {
           orb.value *= -1;
+          playGameSfx("memoryPickup", {
+            playbackRate: 0.96 + Math.min(0.2, player.memoryPickupCounter * 0.004),
+            gain: 0.82,
+          });
           gainXp(Math.abs(orb.value));
           player.memoryPickupCounter += 1;
           if (
@@ -5615,6 +5710,7 @@ export default function GameCanvas({
           continue;
         }
         player.inventory.push(cloneGearItem(drop.item));
+        playGearRaritySfx(drop.item.rarity);
         collectedGear.add(drop.id);
         if (drop.item.rarity === "mythic" || drop.item.rarity === "cosmic") {
           getRealtimeClient().announceLoot({
