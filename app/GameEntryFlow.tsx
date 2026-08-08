@@ -5,9 +5,15 @@ import CharacterEntryGate, {
   type CharacterEntrySelection,
 } from "./CharacterEntryGate";
 import GameCanvas from "./GameCanvas";
+import InventoryOverlay from "./InventoryOverlay";
 import PlazaHub from "./PlazaHub";
 import TownCaravanOverlay from "./TownCaravanOverlay";
-import { normalizeEquipment } from "./equipment";
+import {
+  calculateEquipmentCombatPower,
+  normalizeEquipment,
+  normalizeGearItem,
+  type GearItem,
+} from "./equipment";
 import {
   getMemoryPlazaClient,
   type HubConnectionState,
@@ -23,6 +29,7 @@ import {
   normalizeDungeonFloor,
   readSaveSlot,
 } from "./save-slots";
+import { inventoryCapacityFor, readShopEntitlements } from "./shop";
 import type { PlazaPortalDefinition } from "./plaza-world";
 
 type GameEntryFlowProps = {
@@ -50,6 +57,11 @@ export default function GameEntryFlow({
   const [selection, setSelection] = useState<CharacterEntrySelection | null>(null);
   const [view, setView] = useState<EntryView>("plaza");
   const [shopOpen, setShopOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [selectedGearId, setSelectedGearId] = useState<string | null>(null);
+  const [inventoryCapacity, setInventoryCapacity] = useState(() =>
+    inventoryCapacityFor(readShopEntitlements()),
+  );
   const [arrival, setArrival] = useState<HubArrival>("center");
   const [hubConnection, setHubConnection] =
     useState<HubConnectionState>("idle");
@@ -77,6 +89,10 @@ export default function GameEntryFlow({
     setSelection(next);
     setView("plaza");
     setArrival("center");
+    setShopOpen(false);
+    setInventoryOpen(false);
+    setSelectedGearId(null);
+    setInventoryCapacity(inventoryCapacityFor(readShopEntitlements()));
   }, []);
 
   const savedCharacter = useMemo(() => {
@@ -92,6 +108,23 @@ export default function GameEntryFlow({
   const equipment = useMemo(
     () => normalizeEquipment(savedCharacter?.player.equipment),
     [savedCharacter],
+  );
+  const inventory = useMemo(
+    () =>
+      Array.isArray(savedCharacter?.player.inventory)
+        ? savedCharacter.player.inventory
+            .map((item) => normalizeGearItem(item))
+            .filter((item): item is GearItem => item !== null)
+        : [],
+    [savedCharacter],
+  );
+  const memoryAsh = Math.max(
+    0,
+    Math.floor(Number(savedCharacter?.player.memoryAsh) || 0),
+  );
+  const equippedPower = useMemo(
+    () => calculateEquipmentCombatPower(equipment),
+    [equipment],
   );
 
   const hubAppearance = useMemo<HubAppearance>(() => {
@@ -115,9 +148,7 @@ export default function GameEntryFlow({
   const dungeonFloor = normalizeDungeonFloor(
     savedCharacter?.world?.dungeonFloor,
   );
-  const inventoryCount = Array.isArray(savedCharacter?.player.inventory)
-    ? savedCharacter.player.inventory.length
-    : 0;
+  const inventoryCount = inventory.length;
   const displayName = accountName?.trim() || "이름 없는 기록자";
 
   useEffect(() => {
@@ -173,6 +204,8 @@ export default function GameEntryFlow({
   const activatePortal = useCallback(
     (portal: PlazaPortalDefinition) => {
       if (!selection) return;
+      setInventoryOpen(false);
+      setSelectedGearId(null);
       if (portal.id === "expedition") {
         setArrival("expedition");
         setView("expedition");
@@ -204,8 +237,49 @@ export default function GameEntryFlow({
     window.location.assign(`${destination.pathname}${destination.search}`);
   }, [rememberTownReturn, selection]);
 
+  const openInventory = useCallback(() => {
+    if (shopOpen) return;
+    setInventoryCapacity(inventoryCapacityFor(readShopEntitlements()));
+    setInventoryOpen(true);
+  }, [shopOpen]);
+
+  const openShopFromInventory = useCallback(() => {
+    setInventoryOpen(false);
+    setSelectedGearId(null);
+    setShopOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (!selection || view !== "plaza") return undefined;
+
+    const handlePlazaInventoryKey = (event: KeyboardEvent) => {
+      if (event.repeat || shopOpen) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, select, textarea, [contenteditable='true']")) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === "i") {
+        event.preventDefault();
+        setInventoryOpen((current) => !current);
+        return;
+      }
+      if (key === "escape" && inventoryOpen) {
+        event.preventDefault();
+        setInventoryOpen(false);
+        setSelectedGearId(null);
+      }
+    };
+
+    window.addEventListener("keydown", handlePlazaInventoryKey);
+    return () => window.removeEventListener("keydown", handlePlazaInventoryKey);
+  }, [inventoryOpen, selection, shopOpen, view]);
+
   const returnToCharacterSelect = useCallback(() => {
     setShopOpen(false);
+    setInventoryOpen(false);
+    setSelectedGearId(null);
     setHubSnapshot(null);
     setSelection(null);
     setView("plaza");
@@ -260,16 +334,45 @@ export default function GameEntryFlow({
         onlineCount={hubSnapshot?.online ?? 1}
         localAuthoritativePosition={self ? { x: self.x, y: self.y } : null}
         connectionState={connectionForPlaza(hubConnection)}
-        paused={shopOpen}
+        paused={shopOpen || inventoryOpen}
         onMoveIntent={moveInPlaza}
         onPortalActivate={activatePortal}
+        onInventoryOpen={openInventory}
         onExitToCharacterSelect={returnToCharacterSelect}
       />
+      {inventoryOpen && (
+        <InventoryOverlay
+          open
+          readOnly
+          equipment={equipment}
+          inventory={inventory}
+          inventoryCapacity={inventoryCapacity}
+          memoryAsh={memoryAsh}
+          equippedPower={equippedPower}
+          selectedGearId={selectedGearId}
+          autoSalvageMaxRarity={null}
+          onClose={() => {
+            setInventoryOpen(false);
+            setSelectedGearId(null);
+          }}
+          onSelect={setSelectedGearId}
+          onOpenShop={openShopFromInventory}
+          onEquip={() => undefined}
+          onUnequip={() => undefined}
+          onSalvage={() => undefined}
+          onSalvageMany={() => undefined}
+          onAutoSalvageMaxRarityChange={() => undefined}
+          onEnhance={() => undefined}
+        />
+      )}
       {shopOpen && (
         <TownCaravanOverlay
           open
           inventoryCount={inventoryCount}
-          onClose={() => setShopOpen(false)}
+          onClose={() => {
+            setInventoryCapacity(inventoryCapacityFor(readShopEntitlements()));
+            setShopOpen(false);
+          }}
           onOpenMarket={openMarketFromCaravan}
         />
       )}

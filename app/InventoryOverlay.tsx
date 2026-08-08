@@ -49,6 +49,7 @@ import { BASE_INVENTORY_CAPACITY } from "./shop";
 
 export type InventoryOverlayProps = {
   open: boolean;
+  readOnly?: boolean;
   onClose: () => void;
   equipment: EquipmentLoadout;
   inventory: GearItem[];
@@ -229,6 +230,7 @@ function GearTooltip({
   comparisonItem,
   equipment,
   equipped,
+  readOnly,
   position,
   onMeasure,
 }: {
@@ -236,6 +238,7 @@ function GearTooltip({
   comparisonItem: GearItem | null;
   equipment: EquipmentLoadout;
   equipped: boolean;
+  readOnly: boolean;
   position: TooltipPosition;
   onMeasure: (width: number, height: number) => void;
 }) {
@@ -310,7 +313,11 @@ function GearTooltip({
         <footer>
           {equipped ? "현재 장착 중" : comparisonItem ? `${formatGearDisplayName(comparisonItem)}와 비교` : "빈 슬롯과 비교"}
           <span>
-            {equipped ? "클릭하여 선택 · 더블 클릭하여 장착 해제" : "클릭하여 선택 · 더블 클릭하여 장착"}
+            {readOnly
+              ? "클릭하여 상세 정보 확인"
+              : equipped
+                ? "클릭하여 선택 · 더블 클릭하여 장착 해제"
+                : "클릭하여 선택 · 더블 클릭하여 장착"}
             {" · 휠·PageUp/Down 옵션 스크롤"}
           </span>
         </footer>
@@ -321,6 +328,7 @@ function GearTooltip({
 
 export default function InventoryOverlay({
   open,
+  readOnly = false,
   onClose,
   equipment,
   inventory,
@@ -355,6 +363,7 @@ export default function InventoryOverlay({
   );
   const [inventorySortMode, setInventorySortMode] =
     useState<InventorySortMode>("power");
+  const salvageModeActive = !readOnly && salvageMode;
   const inventoryViewportRef = useRef<HTMLDivElement>(null);
   const tooltipAnchorRef = useRef({ x: 12, y: 12 });
   const handleTooltipMeasure = useCallback((width: number, height: number) => {
@@ -481,7 +490,7 @@ export default function InventoryOverlay({
     equipped: boolean,
     event: MouseEvent<HTMLElement>,
   ) => {
-    if (salvageMode) return;
+    if (salvageModeActive) return;
     tooltipAnchorRef.current = { x: event.clientX, y: event.clientY };
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
@@ -493,7 +502,7 @@ export default function InventoryOverlay({
     equipped: boolean,
     event: FocusEvent<HTMLElement>,
   ) => {
-    if (salvageMode) return;
+    if (salvageModeActive) return;
     const rect = event.currentTarget.getBoundingClientRect();
     const anchor = {
       x: rect.right,
@@ -557,17 +566,20 @@ export default function InventoryOverlay({
   };
 
   const equipItem = (gearId: string) => {
+    if (readOnly) return;
     setHoveredItem(null);
     onEquip(gearId);
   };
 
   const unequipItem = (slot: EquipmentSlot) => {
+    if (readOnly) return;
     setHoveredItem(null);
     setHoveredItemIsEquipped(false);
     onUnequip(slot);
   };
 
   const toggleSalvageSelection = (gearId: string) => {
+    if (readOnly) return;
     setSelectedForSalvage((current) => {
       const next = new Set(current);
       if (next.has(gearId)) next.delete(gearId);
@@ -577,18 +589,21 @@ export default function InventoryOverlay({
   };
 
   const toggleRarityForSalvage = (rarity: GearRarity) => {
+    if (readOnly) return;
     setSelectedForSalvage((current) =>
       toggleRaritySalvageSelection(inventory, current, rarity),
     );
   };
 
   const chooseAutoSalvageThreshold = (value: string) => {
+    if (readOnly) return;
     const threshold =
       AUTO_SALVAGE_RARITIES.find((rarity) => rarity === value) ?? null;
     onAutoSalvageMaxRarityChange(threshold);
   };
 
   const selectAllForSalvage = () => {
+    if (readOnly) return;
     setSelectedForSalvage(new Set(inventory.map((item) => item.id)));
   };
 
@@ -605,12 +620,14 @@ export default function InventoryOverlay({
   };
 
   const toggleSalvageMode = () => {
+    if (readOnly) return;
     setSalvageMode((current) => !current);
     clearSalvageSelection();
     setHoveredItem(null);
   };
 
   const requestSalvageMany = () => {
+    if (readOnly) return;
     if (selectedSalvageItems.length === 0) return;
     setHoveredItem(null);
     setPendingSingleSalvageId(null);
@@ -618,6 +635,7 @@ export default function InventoryOverlay({
   };
 
   const requestSalvageOne = (gearId: string) => {
+    if (readOnly) return;
     if (!inventory.some((item) => item.id === gearId)) return;
     setHoveredItem(null);
     setPendingSingleSalvageId(gearId);
@@ -630,6 +648,7 @@ export default function InventoryOverlay({
   };
 
   const confirmSalvage = () => {
+    if (readOnly) return;
     const gearIds = confirmationSalvageItems.map((item) => item.id);
     if (gearIds.length === 0) return;
     if (pendingSingleSalvageItem) onSalvage(pendingSingleSalvageItem.id);
@@ -677,7 +696,8 @@ export default function InventoryOverlay({
 
   return (
     <div
-      className="inventory-screen"
+      className={`inventory-screen${readOnly ? " inventory-screen--read-only" : ""}`}
+      data-inventory-mode={readOnly ? "inspect" : "manage"}
       role="dialog"
       aria-modal="true"
       aria-labelledby="inventory-screen-title"
@@ -697,7 +717,9 @@ export default function InventoryOverlay({
             </h2>
           </div>
           <p className="inventory-screen-subtitle">
-            장비 위에 커서를 올리면 모든 접사와 비교 수치가 펼쳐집니다.
+            {readOnly
+              ? "광장에서 장착 장비와 가방의 모든 옵션을 안전하게 확인합니다."
+              : "장비 위에 커서를 올리면 모든 접사와 비교 수치가 펼쳐집니다."}
           </p>
           <div className="inventory-screen-header-resources">
             <span>기억의 재</span>
@@ -738,7 +760,7 @@ export default function InventoryOverlay({
                       className={`inventory-screen-equipment-card inventory-screen-equipment-card--${slot} ${item ? rarityClass(item) : "inventory-screen-equipment-card--empty"} ${selected ? "inventory-screen-item--selected" : ""}`}
                       onClick={() => item && onSelect(item.id)}
                       onDoubleClick={() => {
-                        if (item && !salvageMode) unequipItem(slot);
+                        if (item && !salvageModeActive && !readOnly) unequipItem(slot);
                       }}
                       onMouseEnter={(event) => item && showPointerTooltip(item, true, event)}
                       onMouseMove={(event) => item && showPointerTooltip(item, true, event)}
@@ -752,7 +774,7 @@ export default function InventoryOverlay({
                           ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${formatGearDisplayName(item, { includeZero: true })} 정보 보기`
                           : `${EQUIPMENT_SLOT_LABELS[slot]} 슬롯 비어 있음`
                       }
-                      aria-describedby={item && !salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
+                      aria-describedby={item && !salvageModeActive && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={item ? selected : undefined}
                       disabled={!item}
                     >
@@ -786,12 +808,14 @@ export default function InventoryOverlay({
             </section>
 
             <section
-              className={`inventory-screen-details ${selectedItem ? rarityClass(selectedItem) : "inventory-screen-details--empty"}`}
+              className={`inventory-screen-details ${readOnly ? "inventory-screen-details--read-only" : ""} ${selectedItem ? rarityClass(selectedItem) : "inventory-screen-details--empty"}`}
               aria-labelledby="inventory-screen-details-title"
               aria-live="polite"
             >
               <div className="inventory-screen-section-heading">
-                <h3 id="inventory-screen-details-title">각인 작업대</h3>
+                <h3 id="inventory-screen-details-title">
+                  {readOnly ? "장비 상세" : "각인 작업대"}
+                </h3>
                 {selectedIsEquipped && (
                   <span className="inventory-screen-equipped-badge">장착 중</span>
                 )}
@@ -817,7 +841,7 @@ export default function InventoryOverlay({
                     )}
                   </div>
 
-                  <div className="inventory-screen-detail-columns">
+                  <div className={`inventory-screen-detail-columns${readOnly ? " inventory-screen-detail-columns--read-only" : ""}`}>
                     <div
                       className="inventory-screen-detail-stats"
                       role="region"
@@ -856,12 +880,13 @@ export default function InventoryOverlay({
                       )}
                     </div>
 
-                    <div className="inventory-screen-detail-actions-column">
-                      <section
-                        className="inventory-screen-enhancement"
-                        aria-labelledby="inventory-screen-enhancement-title"
-                        tabIndex={0}
-                      >
+                    {!readOnly && (
+                      <div className="inventory-screen-detail-actions-column">
+                        <section
+                          className="inventory-screen-enhancement"
+                          aria-labelledby="inventory-screen-enhancement-title"
+                          tabIndex={0}
+                        >
                         <div className="inventory-screen-enhancement-heading">
                           <div>
                             <small>기억 각인</small>
@@ -938,7 +963,7 @@ export default function InventoryOverlay({
                             <span>모든 강화 단계가 적용되었습니다.</span>
                           </div>
                         )}
-                      </section>
+                        </section>
 
                       {selectedIsEquipped ? (
                         <div className="inventory-screen-equipped-actions">
@@ -962,20 +987,25 @@ export default function InventoryOverlay({
                           </button>
                         </div>
                       )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
                 <div className="inventory-screen-detail-placeholder">
                   <span aria-hidden="true">✦</span>
-                  <p>장비를 선택하면 이곳에서 장착·강화·분해할 수 있습니다.</p>
+                  <p>
+                    {readOnly
+                      ? "장비를 선택하면 모든 능력치와 고유 효과를 확인할 수 있습니다."
+                      : "장비를 선택하면 이곳에서 장착·강화·분해할 수 있습니다."}
+                  </p>
                 </div>
               )}
             </section>
           </div>
 
           <section
-            className="inventory-screen-backpack"
+            className={`inventory-screen-backpack${readOnly ? " inventory-screen-backpack--read-only" : ""}`}
             aria-labelledby="inventory-screen-backpack-title"
           >
             <div className="inventory-screen-section-heading">
@@ -1009,16 +1039,19 @@ export default function InventoryOverlay({
                     <em>초과 {inventory.length - normalizedInventoryCapacity}</em>
                   )}
                 </span>
-                <button type="button" onClick={onOpenShop}>
-                  ＋ 공간 확장
-                </button>
+                {!readOnly && (
+                  <button type="button" onClick={onOpenShop}>
+                    ＋ 공간 확장
+                  </button>
+                )}
               </div>
             </div>
 
-            <div
-              className={`inventory-screen-batch-toolbar ${salvageMode ? "inventory-screen-batch-toolbar--active" : ""}`}
-              aria-label="장비 일괄 분해 도구"
-            >
+            {!readOnly && (
+              <div
+                className={`inventory-screen-batch-toolbar ${salvageMode ? "inventory-screen-batch-toolbar--active" : ""}`}
+                aria-label="장비 일괄 분해 도구"
+              >
               <button
                 type="button"
                 className="inventory-screen-batch-mode-button"
@@ -1133,7 +1166,8 @@ export default function InventoryOverlay({
                   </div>
                 </>
               )}
-            </div>
+              </div>
+            )}
 
             <div
               ref={inventoryViewportRef}
@@ -1148,23 +1182,24 @@ export default function InventoryOverlay({
                 {sortedInventory.map((item, itemIndex) => {
                 const selected = item.id === selectedGearId;
                 const itemPowerDelta = calculateEquipmentPowerDelta(equipment, item);
-                const checkedForSalvage = selectedForSalvage.has(item.id);
+                const checkedForSalvage =
+                  salvageModeActive && selectedForSalvage.has(item.id);
                 const sourceIndex = inventorySourceIndexById.get(item.id) ?? itemIndex;
                 const overCapacity = sourceIndex >= normalizedInventoryCapacity;
                 return (
                   <div
-                    className={`inventory-screen-grid-cell ${salvageMode ? "inventory-screen-grid-cell--salvage-mode" : ""} ${checkedForSalvage ? "inventory-screen-grid-cell--salvage-selected" : ""} ${overCapacity ? "inventory-screen-grid-cell--over-capacity" : ""}`}
+                    className={`inventory-screen-grid-cell ${salvageModeActive ? "inventory-screen-grid-cell--salvage-mode" : ""} ${checkedForSalvage ? "inventory-screen-grid-cell--salvage-selected" : ""} ${overCapacity ? "inventory-screen-grid-cell--over-capacity" : ""}`}
                     key={item.id}
                   >
                     <button
                       type="button"
-                      className={`inventory-screen-grid-item ${rarityClass(item)} ${!salvageMode && selected ? "inventory-screen-item--selected" : ""}`}
+                      className={`inventory-screen-grid-item ${rarityClass(item)} ${!salvageModeActive && selected ? "inventory-screen-item--selected" : ""}`}
                       onClick={() => {
-                        if (salvageMode) toggleSalvageSelection(item.id);
+                        if (salvageModeActive) toggleSalvageSelection(item.id);
                         else onSelect(item.id);
                       }}
                       onDoubleClick={() => {
-                        if (!salvageMode) equipItem(item.id);
+                        if (!salvageModeActive && !readOnly) equipItem(item.id);
                       }}
                       onMouseEnter={(event) => showPointerTooltip(item, false, event)}
                       onMouseMove={(event) => showPointerTooltip(item, false, event)}
@@ -1173,11 +1208,11 @@ export default function InventoryOverlay({
                       onBlur={hideFocusTooltip}
                       onWheel={handleTooltipWheel}
                       onKeyDown={handleTooltipKeyDown}
-                      aria-label={salvageMode
+                      aria-label={salvageModeActive
                         ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
                         : `${formatGearDisplayName(item, { includeZero: true })}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
-                      aria-describedby={!salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
-                      aria-pressed={salvageMode ? checkedForSalvage : selected}
+                      aria-describedby={!salvageModeActive && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
+                      aria-pressed={salvageModeActive ? checkedForSalvage : selected}
                     >
                       <RaritySpectacle rarity={item.rarity} />
                       <span className="inventory-screen-slot-clip" aria-hidden="true">
@@ -1214,12 +1249,16 @@ export default function InventoryOverlay({
         </div>
 
         <footer className="inventory-screen-footer">
-          <span>클릭: 선택 · 가방 더블 클릭: 장착 · 장착 장비 더블 클릭: 해제 · 장비 위에 커서: 전체 옵션</span>
+          <span>
+            {readOnly
+              ? "클릭: 상세 선택 · 장비 위에 커서: 전체 옵션 · 정렬 및 스크롤 사용 가능"
+              : "클릭: 선택 · 가방 더블 클릭: 장착 · 장착 장비 더블 클릭: 해제 · 장비 위에 커서: 전체 옵션"}
+          </span>
           <span><kbd>I</kbd> 또는 <kbd>ESC</kbd> 닫기</span>
         </footer>
       </div>
 
-      {salvageConfirmationOpen && (
+      {!readOnly && salvageConfirmationOpen && (
         <div
           className="inventory-screen-confirm-backdrop"
           onMouseDown={(event) => {
@@ -1282,13 +1321,14 @@ export default function InventoryOverlay({
         </div>
       )}
 
-      {!salvageMode && hoveredItem && typeof document !== "undefined" &&
+      {!salvageModeActive && hoveredItem && typeof document !== "undefined" &&
         createPortal(
           <GearTooltip
             item={hoveredItem}
             comparisonItem={hoveredComparisonItem}
             equipment={equipment}
             equipped={hoveredItemIsEquipped}
+            readOnly={readOnly}
             position={tooltipPosition}
             onMeasure={handleTooltipMeasure}
           />,

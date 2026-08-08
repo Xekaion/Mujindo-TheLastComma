@@ -10481,6 +10481,21 @@ button.equipment-slot-card:hover {
   }
 }
 
+/* Plaza inspection mode keeps the archive readable without exposing
+   destructive equipment actions outside the expedition save controller. */
+.inventory-screen .inventory-screen-backpack--read-only {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.inventory-screen .inventory-screen-detail-columns--read-only {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+
+.inventory-screen-details--read-only .inventory-screen-detail-stats {
+  padding-right: 10px;
+}
+
 @media (max-height: 520px) {
   .inventory-screen-panel {
     grid-template-rows: 54px minmax(0, 1fr) 22px;

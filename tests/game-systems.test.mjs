@@ -4546,7 +4546,7 @@ test("I opens the centered inventory overlay and equipped-slot clicks drive its 
   );
   assert.match(
     overlay,
-    /className=\{`inventory-screen-details \$\{selectedItem \? rarityClass\(selectedItem\) : "inventory-screen-details--empty"\}`\}/,
+    /className=\{`inventory-screen-details \$\{readOnly \? "inventory-screen-details--read-only" : ""\} \$\{selectedItem \? rarityClass\(selectedItem\) : "inventory-screen-details--empty"\}`\}/,
     "the shared detail panel must render from the normalized selected item",
   );
 });
@@ -4607,17 +4607,17 @@ test("equipped gear can be safely unequipped without overflowing the backpack or
   );
   assert.match(
     overlay,
-    /const unequipItem\s*=\s*\(slot:\s*EquipmentSlot\)\s*=>\s*\{\s*setHoveredItem\(null\);\s*setHoveredItemIsEquipped\(false\);\s*onUnequip\(slot\);\s*\}/,
+    /const unequipItem\s*=\s*\(slot:\s*EquipmentSlot\)\s*=>\s*\{\s*if \(readOnly\) return;\s*setHoveredItem\(null\);\s*setHoveredItemIsEquipped\(false\);\s*onUnequip\(slot\);\s*\}/,
     "every inventory unequip gesture must reuse one tooltip-safe callback",
   );
   assert.match(
     overlay,
-    /inventory-screen-equipment-card[\s\S]{0,700}?onDoubleClick=\{\(\) => \{\s*if \(item && !salvageMode\) unequipItem\(slot\);\s*\}\}/,
+    /inventory-screen-equipment-card[\s\S]{0,700}?onDoubleClick=\{\(\) => \{\s*if \(item && !salvageModeActive && !readOnly\) unequipItem\(slot\);\s*\}\}/,
     "double-clicking equipped gear must use the safe runtime unequip path outside salvage mode",
   );
   assert.match(
     overlay,
-    /equipped \? ["']클릭하여 선택 · 더블 클릭하여 장착 해제["'] : ["']클릭하여 선택 · 더블 클릭하여 장착["']/,
+    /readOnly[\s\S]{0,160}?equipped[\s\S]{0,160}?더블 클릭하여 장착 해제[\s\S]{0,100}?더블 클릭하여 장착/,
     "the item tooltip must explain the correct double-click action for its source",
   );
   assert.match(
@@ -5042,11 +5042,11 @@ test("inventory clears a tooltip before moving its item to equipment", async () 
   const overlay = await readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8");
   assert.match(
     overlay,
-    /const equipItem\s*=\s*\(gearId:\s*string\)\s*=>\s*\{\s*setHoveredItem\(null\);\s*onEquip\(gearId\);\s*\}/,
+    /const equipItem\s*=\s*\(gearId:\s*string\)\s*=>\s*\{\s*if \(readOnly\) return;\s*setHoveredItem\(null\);\s*onEquip\(gearId\);\s*\}/,
   );
   assert.match(
     overlay,
-    /onDoubleClick=\{\(\) => \{\s*if \(!salvageMode\) equipItem\(item\.id\)/,
+    /onDoubleClick=\{\(\) => \{\s*if \(!salvageModeActive && !readOnly\) equipItem\(item\.id\)/,
     "moving gear between backpack and equipment must dismiss the stale source tooltip",
   );
 });
@@ -5055,12 +5055,12 @@ test("batch salvage mode suppresses item information tooltips", async () => {
   const overlay = await readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8");
   assert.match(
     overlay,
-    /const showPointerTooltip[\s\S]{0,220}?if \(salvageMode\) return;/,
+    /const showPointerTooltip[\s\S]{0,220}?if \(salvageModeActive\) return;/,
     "pointer hover must be inert while batch salvage selection is active",
   );
   assert.match(
     overlay,
-    /const showFocusTooltip[\s\S]{0,220}?if \(salvageMode\) return;/,
+    /const showFocusTooltip[\s\S]{0,220}?if \(salvageModeActive\) return;/,
     "keyboard focus must not open item information during batch salvage",
   );
   assert.match(
@@ -5070,11 +5070,11 @@ test("batch salvage mode suppresses item information tooltips", async () => {
   );
   assert.match(
     overlay,
-    /\{!salvageMode && hoveredItem && typeof document !== ["']undefined["'] &&[\s\S]{0,120}?createPortal/,
+    /\{!salvageModeActive && hoveredItem && typeof document !== ["']undefined["'] &&[\s\S]{0,120}?createPortal/,
     "the tooltip portal needs a final render guard against salvage mode",
   );
   assert.ok(
-    [...overlay.matchAll(/aria-describedby=\{[^}]*!salvageMode[^}]*inventory-screen-hover-tooltip/g)].length >= 2,
+    [...overlay.matchAll(/aria-describedby=\{[^}]*!salvageModeActive[^}]*inventory-screen-hover-tooltip/g)].length >= 2,
     "equipped and backpack cards must both drop tooltip descriptions in salvage mode",
   );
 });
@@ -5547,11 +5547,11 @@ test("inventory salvage mode toggles whole cards and confirms single or batch ac
   assert.match(overlay, /(?:const|function)\s+clearSalvageSelection\b/);
   assert.match(
     overlay,
-    /const checkedForSalvage\s*=\s*selectedForSalvage\.has\(item\.id\)/,
+    /const checkedForSalvage\s*=\s*salvageModeActive && selectedForSalvage\.has\(item\.id\)/,
     "the occupied backpack card itself must be the keyboard-accessible selection control",
   );
-  assert.match(overlay, /onClick=\{\(\) => \{\s*if \(salvageMode\) toggleSalvageSelection\(item\.id\)/);
-  assert.match(overlay, /aria-pressed=\{salvageMode \? checkedForSalvage : selected\}/);
+  assert.match(overlay, /onClick=\{\(\) => \{\s*if \(salvageModeActive\) toggleSalvageSelection\(item\.id\)/);
+  assert.match(overlay, /aria-pressed=\{salvageModeActive \? checkedForSalvage : selected\}/);
   assert.match(
     overlay,
     /\{checkedForSalvage\s*&&\s*\([\s\S]{0,260}?inventory-screen-salvage-selection-mark[\s\S]{0,180}?aria-hidden=["']true["'][\s\S]{0,180}?분해 선택됨/,

@@ -83,6 +83,7 @@ export type PlazaHubProps = {
   paused?: boolean;
   onMoveIntent?: (intent: PlazaMoveIntent) => void;
   onPortalActivate?: (portal: PlazaPortalDefinition) => void;
+  onInventoryOpen?: () => void;
   onExitToCharacterSelect?: () => void;
 };
 
@@ -475,6 +476,7 @@ export default function PlazaHub({
   paused = false,
   onMoveIntent,
   onPortalActivate,
+  onInventoryOpen,
   onExitToCharacterSelect,
 }: PlazaHubProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -1044,6 +1046,15 @@ export default function PlazaHub({
         <span title="현재는 클라이언트 저장 기록 기준입니다.">
           LV.{normalizedCharacter.level} · 기록 심도 지하 {normalizedCharacter.dungeonFloor}층
         </span>
+        {onInventoryOpen ? (
+          <button
+            type="button"
+            onClick={onInventoryOpen}
+            aria-keyshortcuts="I"
+          >
+            장비 확인 · I
+          </button>
+        ) : null}
         {onExitToCharacterSelect ? (
           <button type="button" onClick={onExitToCharacterSelect}>
             캐릭터 변경
@@ -1146,7 +1157,7 @@ export default function PlazaHub({
       </div>
 
       <p className="plaza-control-hint">
-        WASD / 방향키 이동 · 바닥 클릭 이동 · <kbd>E</kbd> 포탈 이용 · 숫자 1–4 포탈 안내
+        WASD / 방향키 이동 · <kbd>I</kbd> 장비 확인 · <kbd>E</kbd> 포탈 이용 · 숫자 1–4 포탈 안내
       </p>
     </main>
   );
