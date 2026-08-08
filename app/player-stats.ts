@@ -6,6 +6,13 @@ import {
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import {
+  BOSS_CONVERSION_VERSION,
+  STANDARD_BOSS_PROFILE,
+  calculateCombatEvaluation,
+  calculateStandardBossHitRate,
+  type CombatEvaluationRatings,
+} from "./combat-evaluation";
+import {
   GEAR_DROP_BASE_CHANCE,
   GEAR_DROP_CHANCE_CAP,
   GEAR_DROP_SCAVENGER_CHANCE_CAP,
@@ -73,6 +80,11 @@ export type PlayerStatSnapshot = {
     powers: LegendaryPowerId[];
     power: EquipmentCombatPowerBreakdown;
   };
+  ratings: CombatEvaluationRatings & {
+    survivalBudget: number;
+    threeTargetDps: number;
+    conversionLabel: string;
+  };
   resources: {
     hp: number;
     maxHp: number;
@@ -84,6 +96,7 @@ export type PlayerStatSnapshot = {
     ashboundShieldTime: number;
   };
   offense: {
+    sheetAttackPower: number;
     baseAttack: number;
     normalProjectileDamage: number;
     criticalProjectileDamage: number;
@@ -99,6 +112,7 @@ export type PlayerStatSnapshot = {
     critChance: number;
     critMultiplier: number;
     eliteMultiplier: number;
+    bossMultiplier: number;
     executeThreshold: number;
     executeMultiplier: number;
     overchargePeriod: number | null;
@@ -210,19 +224,33 @@ export function calculatePlayerStatSnapshot(
   );
 
   const splitRank = rank("split");
-  const theoreticalProjectileCount = 1 + splitRank;
+  const theoreticalProjectileCount =
+    1 + splitRank + Math.max(0, Math.floor(equipmentStats.projectileCountFlat));
   const renderedProjectileCount = Math.min(9, theoreticalProjectileCount);
   const projectileOverflowFactor =
     theoreticalProjectileCount / renderedProjectileCount;
-  const theoreticalFireRate =
+  const unconditionalFireRate =
     1.4 *
     Math.pow(1 + 0.14 * rank("haste"), 0.7) *
-    Math.pow(1 + rank("frenzy") * missingHpRatio * 0.12, 0.65) *
     simpleAugmentMultiplier(
       rank("rapidfire"),
       SIMPLE_AUGMENT_BONUSES.rapidfireAttackSpeedPerRank,
     ) *
     (1 + equipmentStats.attackSpeedPercent / 100);
+  const theoreticalFireRate =
+    unconditionalFireRate *
+    Math.pow(1 + rank("frenzy") * missingHpRatio * 0.12, 0.65);
+  const standardBossFireRate =
+    unconditionalFireRate *
+    (1 - STANDARD_BOSS_PROFILE.lowHpUptime +
+      STANDARD_BOSS_PROFILE.lowHpUptime *
+        Math.pow(
+          1 +
+            rank("frenzy") *
+              (1 - STANDARD_BOSS_PROFILE.lowHpRatio) *
+              0.12,
+          0.65,
+        ));
   const renderedFireRate = Math.min(12, theoreticalFireRate);
   const fireRateOverflowFactor = Math.max(
     1,
@@ -232,10 +260,10 @@ export function calculatePlayerStatSnapshot(
   const missingHealthBonus =
     bloodRank > 0 ? missingHpRatio * bloodRank * 0.2 : 0;
   const baseAttack = BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat;
-  const normalProjectileDamage =
+  const sheetAttackPower =
     baseAttack *
     (1 + rank("fang") * 0.18) *
-    (1 + bloodRank * 0.14 + missingHealthBonus) *
+    (1 + bloodRank * 0.14) *
     (1 + rank("ember") * 0.08) *
     (1 + rank("poison") * 0.06) *
     (1 + rank("time") * 0.07) *
@@ -248,7 +276,11 @@ export function calculatePlayerStatSnapshot(
       SIMPLE_AUGMENT_BONUSES.strengthDamagePerRank,
     ) *
     (1 + synergyPower) *
-    (1 + equipmentStats.damagePercent / 100) *
+    (1 + equipmentStats.damagePercent / 100);
+  const normalProjectileDamage =
+    sheetAttackPower *
+    ((1 + bloodRank * 0.14 + missingHealthBonus) /
+      Math.max(0.01, 1 + bloodRank * 0.14)) *
     (starfallMantleActive
       ? 1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100
       : 1) *
@@ -283,13 +315,21 @@ export function calculatePlayerStatSnapshot(
     Math.pow(1 + rank("giantbane") * 0.15, 0.65) *
     (1 + equipmentStats.eliteDamagePercent / 100) *
     (powerSet.has("hunterSigil") ? 1.18 : 1);
+  const bossMultiplier =
+    eliteMultiplier * (1 + equipmentStats.bossDamagePercent / 100);
   const executionRank = rank("execution");
-  const executeThreshold = Math.min(0.4, 0.12 + executionRank * 0.012);
-  const executeMultiplier =
+  const executeThreshold =
     executionRank > 0
+      ? Math.min(0.4, 0.12 + executionRank * 0.012)
+      : equipmentStats.executeDamagePercent > 0
+        ? 0.2
+        : 0;
+  const executeMultiplier =
+    (executionRank > 0
       ? (1.28 + executionRank * 0.04) *
         (1 + synergyTier(input.synergies, "마지막 문장") * 0.12)
-      : 1;
+      : 1) *
+    (1 + equipmentStats.executeDamagePercent / 100);
 
   const focusRank = rank("focus");
   const returnRank = rank("return");
@@ -310,22 +350,30 @@ export function calculatePlayerStatSnapshot(
     simpleAugmentMultiplier(
       rangeRank,
       SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-    );
-  const projectileRadius =
-    (5 + Math.min(5, rank("fang")) + Math.min(5, caliberRank * 0.55)) *
+    ) *
+    (1 + equipmentStats.projectileLifetimePercent / 100);
+  const projectileSizeMultiplier =
     (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
     simpleAugmentMultiplier(
       rank("expansion"),
       SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
     );
+  const projectileRadius =
+    (5 + Math.min(5, rank("fang")) + Math.min(5, caliberRank * 0.55)) *
+    projectileSizeMultiplier;
   const homingRank = rank("homing");
+  const homingStrength =
+    (homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : 0) +
+    equipmentStats.homingStrengthFlat;
 
   const gearIncomingMultiplier =
     1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
-  const alwaysIncomingMultiplier =
+  const stableAlwaysIncomingMultiplier =
     gearIncomingMultiplier *
     simpleDefenseDamageMultiplier(rank("defense")) /
-    Math.pow(1 + rank("armor") * 0.1, 0.62) *
+    Math.pow(1 + rank("armor") * 0.1, 0.62);
+  const alwaysIncomingMultiplier =
+    stableAlwaysIncomingMultiplier *
     (starfallMantleActive
       ? 1 -
         LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent / 100
@@ -344,12 +392,17 @@ export function calculatePlayerStatSnapshot(
     currentIncomingMultiplier /= Math.pow(1 + rank("bulwark") * 0.12, 0.55);
   }
   currentIncomingMultiplier = Math.max(0.01, currentIncomingMultiplier);
-  const roomEntryShield = 10 + rank("glass") * 9 + rank("ward") * 5;
+  const roomEntryShield =
+    10 +
+    rank("glass") * 9 +
+    rank("ward") * 5 +
+    equipmentStats.roomEntryShieldFlat;
   const conquestShieldCap = roomEntryShield + rank("conquest") * 4;
 
   const moonBeaconTier = synergyTier(input.synergies, "달빛 봉화");
   const bloodNeedleTier = synergyTier(input.synergies, "혈침 순환");
-  const regenerationPerSecond = rank("regeneration") * 0.14;
+  const regenerationPerSecond =
+    rank("regeneration") * 0.14 + equipmentStats.hpRegenPerSecondFlat;
   const equipmentHealPerHit = Math.min(
     1.5,
     equipmentStats.lifeOnHitFlat * 0.08,
@@ -364,7 +417,8 @@ export function calculatePlayerStatSnapshot(
     (4 +
       rank("map") * 2 +
       rank("conquest") * 1.2 +
-      rank("recovery") * SIMPLE_AUGMENT_BONUSES.recoveryRoomHealPerRank) *
+      rank("recovery") * SIMPLE_AUGMENT_BONUSES.recoveryRoomHealPerRank +
+      equipmentStats.roomClearHealFlat) *
     (1 + moonBeaconTier * 0.08);
   const conquestShieldGain =
     rank("conquest") * 1.8 * (1 + moonBeaconTier * 0.08);
@@ -385,7 +439,10 @@ export function calculatePlayerStatSnapshot(
       ? 1 + LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent / 100
       : 1);
   const dashDuration = 0.17 + 0.075 * (1 - Math.exp(-0.12 * reflexRank));
-  const dashSpeed = 900 * Math.pow(1 + reflexRank * 0.05, 0.4);
+  const dashSpeed =
+    900 *
+    Math.pow(1 + reflexRank * 0.05, 0.4) *
+    (1 + equipmentStats.dashSpeedPercent / 100);
   const dashCooldown =
     1.35 /
     (Math.pow(1 + bootsRank * 0.08, 0.6) *
@@ -432,6 +489,275 @@ export function calculatePlayerStatSnapshot(
     GEAR_DROP_BASE_CHANCE.elite * (1 + effectiveGearFindPercent / 100),
   );
 
+  const timeRank = rank("time");
+  const poisonRank = rank("poison");
+  const orbitRank = rank("orbit");
+  const voidRank = rank("void");
+  const starfallUptime = powerSet.has("starfallMantle")
+    ? Math.min(
+        0.65,
+        (LEGENDARY_POWERS.starfallMantle.parameters.durationSeconds /
+          Math.max(0.05, dashCooldown)) *
+          0.55,
+      )
+    : 0;
+  const standardStarfallMultiplier =
+    1 +
+    starfallUptime *
+      (LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100);
+  const standardBloodMultiplier =
+    1 +
+    STANDARD_BOSS_PROFILE.lowHpUptime *
+      (((1 - STANDARD_BOSS_PROFILE.lowHpRatio) * bloodRank * 0.2) /
+        Math.max(0.01, 1 + bloodRank * 0.14));
+  const standardPrimaryDamageMultiplier =
+    standardBloodMultiplier * standardStarfallMultiplier;
+  const projectileSpreadDegrees =
+    (Math.min(0.62, renderedProjectileCount * 0.07) * 180) / Math.PI;
+  const standardBossHitRate = calculateStandardBossHitRate({
+    theoreticalProjectileCount,
+    projectileGeometryCount: renderedProjectileCount,
+    projectileSpreadDegrees,
+    projectileRadius,
+    projectileSpeed,
+    projectileRange: projectileSpeed * projectileLifetime,
+    homing: homingStrength,
+  });
+  const standardPrimaryHitEventsPerSecond =
+    Math.min(12, standardBossFireRate) *
+    renderedProjectileCount *
+    standardBossHitRate;
+  const expectedCriticalMultiplier = 1 + critChance * (critMultiplier - 1);
+  const theoreticalStatDps =
+    sheetAttackPower *
+    standardBossFireRate *
+    theoreticalProjectileCount *
+    expectedCriticalMultiplier *
+    averageOverchargeMultiplier *
+    standardPrimaryDamageMultiplier;
+  const legendaryBaseDamage =
+    baseAttack * (1 + equipmentStats.damagePercent / 100);
+  let legendaryProcBonusDps = 0;
+  if (powerSet.has("crescentEcho")) {
+    const crescentHitRate = calculateStandardBossHitRate({
+      theoreticalProjectileCount:
+        LEGENDARY_POWERS.crescentEcho.parameters.projectileCount,
+      projectileGeometryCount:
+        LEGENDARY_POWERS.crescentEcho.parameters.projectileCount,
+      projectileSpreadDegrees: (0.68 * 180) / Math.PI,
+      projectileRadius: 6 * projectileSizeMultiplier,
+      projectileSpeed: projectileSpeed * 0.94,
+      projectileRange: projectileSpeed * 0.94 * projectileLifetime,
+      homing: Math.min(12, homingStrength),
+    });
+    legendaryProcBonusDps +=
+      sheetAttackPower *
+      (standardBossFireRate / LEGENDARY_POWERS.crescentEcho.parameters.everyShots) *
+      projectileOverflowFactor *
+      LEGENDARY_POWERS.crescentEcho.parameters.projectileCount *
+      LEGENDARY_POWERS.crescentEcho.parameters.damageMultiplier *
+      expectedCriticalMultiplier *
+      averageOverchargeMultiplier *
+      standardPrimaryDamageMultiplier *
+      crescentHitRate;
+  }
+  if (powerSet.has("bloodwovenGrip")) {
+    const power = LEGENDARY_POWERS.bloodwovenGrip.parameters;
+    const criticalVolleyHitChance =
+      critChance * Math.min(1, standardBossHitRate * renderedProjectileCount);
+    const bloodwovenHitRate = calculateStandardBossHitRate({
+      theoreticalProjectileCount: power.projectileCount,
+      projectileGeometryCount: power.projectileCount,
+      projectileSpreadDegrees: (0.34 * 180) / Math.PI,
+      projectileRadius: 5.5 * projectileSizeMultiplier,
+      projectileSpeed: projectileSpeed * 1.04,
+      projectileRange: projectileSpeed * 1.04 * projectileLifetime,
+      homing: Math.min(13, homingStrength),
+    });
+    legendaryProcBonusDps +=
+      (standardBossFireRate * criticalVolleyHitChance /
+        Math.max(1, power.everyCriticalHits)) *
+      sheetAttackPower *
+      projectileOverflowFactor *
+      power.projectileCount *
+      power.damageMultiplier *
+      expectedCriticalMultiplier *
+      averageOverchargeMultiplier *
+      standardPrimaryDamageMultiplier *
+      bloodwovenHitRate;
+  }
+  if (powerSet.has("phantomMarch")) {
+    legendaryProcBonusDps +=
+      (legendaryBaseDamage *
+        LEGENDARY_POWERS.phantomMarch.parameters.trailDamageMultiplier /
+        0.4) *
+      0.45 *
+      standardStarfallMultiplier;
+  }
+  if (powerSet.has("riftStride")) {
+    const dashTriggeredStarfallMultiplier = powerSet.has("starfallMantle")
+      ? 1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100
+      : 1;
+    legendaryProcBonusDps +=
+      (legendaryBaseDamage *
+        0.4 *
+        Math.max(1, dashDuration / 0.055) /
+        Math.max(0.05, dashCooldown)) *
+      0.45 *
+      dashTriggeredStarfallMultiplier;
+  }
+  if (powerSet.has("mirrorAegis")) {
+    legendaryProcBonusDps +=
+      (legendaryBaseDamage *
+        LEGENDARY_POWERS.mirrorAegis.parameters.damageMultiplier) /
+      (LEGENDARY_POWERS.mirrorAegis.parameters.everyHits * 1.5) *
+      standardStarfallMultiplier;
+  }
+  if (orbitRank > 0) {
+    // Orbitals require close positioning; the v1 conversion grants a fixed
+    // 25% contact window instead of pretending they hit a 260px target always.
+    legendaryProcBonusDps +=
+      ((7 + orbitRank * 3) / 0.24) *
+      0.25 *
+      standardStarfallMultiplier;
+  }
+  if (voidRank > 0) {
+    const cometTier = synergyTier(input.synergies, "혜성 자국");
+    const dashTriggeredStarfallMultiplier = powerSet.has("starfallMantle")
+      ? 1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100
+      : 1;
+    legendaryProcBonusDps +=
+      ((8 + voidRank * 5) *
+        (1 + cometTier * 0.28) /
+        Math.max(0.05, dashCooldown)) *
+      0.65 *
+      dashTriggeredStarfallMultiplier;
+  }
+
+  const timeEchoBonus =
+    timeRank > 0
+      ? (0.45 + timeRank * 0.07) /
+        Math.max(2, 6 - Math.min(4, timeRank))
+      : 0;
+  const timeEchoProjectileLifetime =
+    1.05 *
+    simpleAugmentMultiplier(
+      rangeRank,
+      SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
+    ) *
+    (1 + equipmentStats.projectileLifetimePercent / 100);
+  const timeEchoHitRate =
+    timeRank > 0
+      ? calculateStandardBossHitRate({
+          theoreticalProjectileCount,
+          projectileGeometryCount: renderedProjectileCount,
+          projectileSpreadDegrees,
+          projectileRadius:
+            (4 + Math.min(4, timeRank)) * projectileSizeMultiplier,
+          projectileSpeed: projectileSpeed * 0.92,
+          projectileRange:
+            projectileSpeed * 0.92 * timeEchoProjectileLifetime,
+          homing: Math.min(14, homingStrength),
+        })
+      : 0;
+  const returnBonus =
+    returnRank > 0
+      ? (0.45 + returnRank * 0.1) *
+        Math.min(0.82, 0.55 + homingStrength * 0.02)
+      : 0;
+  const poisonApplicationRate =
+    poisonRank > 0
+      ? 1 - Math.exp(-standardPrimaryHitEventsPerSecond * 5)
+      : 0;
+  const poisonDps =
+    poisonRank > 0
+      ? (2 + poisonRank * 1.2) *
+        poisonApplicationRate *
+        standardStarfallMultiplier
+      : 0;
+  const stormMultiTarget = 1 - Math.pow(0.8, rank("storm"));
+  const ricochetMultiTarget = 1 - Math.pow(0.88, rank("ricochet"));
+  const totalPierce = rank("pierce") + Math.max(0, Math.floor(equipmentStats.pierceFlat));
+  const threeTargetFactor =
+    1 +
+    Math.min(
+      2,
+      totalPierce * 0.32 +
+        stormMultiTarget * 0.42 +
+        ricochetMultiTarget * 0.32 +
+        Math.min(0.35, rank("oil") * 0.035),
+    );
+  const threeTargetDps = theoreticalStatDps * threeTargetFactor;
+
+  const standardIncomingMultiplier = Math.max(
+    0.01,
+    stableAlwaysIncomingMultiplier *
+      (1 -
+        starfallUptime *
+          (LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent /
+            100)) *
+      (0.8 +
+        0.2 /
+          Math.pow(1 + rank("resolve") * 0.14, 0.6)) *
+      (roomEntryShield > 0
+        ? 0.7 + 0.3 / Math.pow(1 + rank("bulwark") * 0.12, 0.55)
+        : 1),
+  );
+  const lastMemoryReserve = powerSet.has("lastMemory")
+    ? maxHp * LEGENDARY_POWERS.lastMemory.parameters.restoreMaxHpRatio
+    : 0;
+  const ashboundReserve = powerSet.has("ashboundGirdle")
+    ? maxHp * LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.4
+    : 0;
+  const baseSurvivalBudget =
+    (maxHp + roomEntryShield + lastMemoryReserve + ashboundReserve) /
+    standardIncomingMultiplier;
+  const standardHealingPerSecond =
+    regenerationPerSecond +
+    (equipmentHealPerHit + leechHealPerHit) *
+      standardPrimaryHitEventsPerSecond +
+    roomClearHeal / 30;
+  const survivalBudget =
+    baseSurvivalBudget +
+    Math.min(
+      baseSurvivalBudget * 0.5,
+      (standardHealingPerSecond * 60) / standardIncomingMultiplier,
+    );
+  const combatEvaluation = calculateCombatEvaluation({
+    sheetAttackPower,
+    theoreticalFireRate: standardBossFireRate,
+    theoreticalProjectileCount,
+    projectileGeometryCount: renderedProjectileCount,
+    critChance,
+    critMultiplier,
+    overchargeAverageMultiplier: averageOverchargeMultiplier,
+    standardPrimaryDamageMultiplier,
+    projectileSpreadDegrees,
+    projectileRadius,
+    projectileSpeed,
+    projectileRange: projectileSpeed * projectileLifetime,
+    homing: homingStrength,
+    bossMultiplier,
+    executeThreshold,
+    executeMultiplier,
+    timeEchoBonus,
+    timeEchoHitRate,
+    returnBonus,
+    poisonDps,
+    legendaryProcBonusDps,
+    threeTargetDps,
+    survivalBudget,
+    moveSpeed,
+    dashCooldown,
+    dashDistance: dashSpeed * dashDuration,
+  });
+  const ratings: PlayerStatSnapshot["ratings"] = {
+    ...combatEvaluation,
+    survivalBudget,
+    threeTargetDps,
+    conversionLabel: `표준 보스 v${BOSS_CONVERSION_VERSION} · 전 생명력 처치 환산`,
+  };
+
   const specials: PlayerSpecialStat[] = [];
   if (overchargePeriod) {
     specials.push({
@@ -441,7 +767,6 @@ export function calculatePlayerStatSnapshot(
       condition: "기본 공격 횟수 기준",
     });
   }
-  const timeRank = rank("time");
   if (timeRank > 0) {
     specials.push({
       id: "time-echo",
@@ -458,12 +783,13 @@ export function calculatePlayerStatSnapshot(
       condition: "되돌아오는 투사체",
     });
   }
-  if (executionRank > 0) {
+  if (executeThreshold > 0) {
     specials.push({
       id: "execution",
       label: "처형",
       value: `생명력 ${(executeThreshold * 100).toFixed(1)}% 이하 ×${executeMultiplier.toFixed(2)}`,
-      condition: "적 현재 생명력 기준",
+      condition:
+        executionRank > 0 ? "처형 증강·장비 반영" : "장비 처형 추가옵션",
     });
   }
   if (powerSet.has("crescentEcho")) {
@@ -591,6 +917,7 @@ export function calculatePlayerStatSnapshot(
       powers: equipmentPowers,
       power: equipmentPower,
     },
+    ratings,
     resources: {
       hp,
       maxHp,
@@ -604,6 +931,7 @@ export function calculatePlayerStatSnapshot(
       ashboundShieldTime: safePositive(input.ashboundShieldTime),
     },
     offense: {
+      sheetAttackPower,
       baseAttack,
       normalProjectileDamage,
       criticalProjectileDamage: normalProjectileDamage * critMultiplier,
@@ -619,6 +947,7 @@ export function calculatePlayerStatSnapshot(
       critChance,
       critMultiplier,
       eliteMultiplier,
+      bossMultiplier,
       executeThreshold,
       executeMultiplier,
       overchargePeriod,
@@ -636,8 +965,9 @@ export function calculatePlayerStatSnapshot(
       diameter: projectileRadius * 2,
       spreadDegrees:
         (Math.min(0.62, renderedProjectileCount * 0.07) * 180) / Math.PI,
-      pierce: rank("pierce"),
-      homing: homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : 0,
+      pierce:
+        rank("pierce") + Math.max(0, Math.floor(equipmentStats.pierceFlat)),
+      homing: Math.min(14, homingStrength),
       returnDelay: returnRank > 0 ? 0.58 : null,
       returnDamageMultiplier: returnRank > 0 ? 0.45 + returnRank * 0.1 : null,
     },

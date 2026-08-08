@@ -413,6 +413,16 @@ export const GEAR_AFFIX_STATS = [
   "eliteDamagePercent",
   "lifeOnHitFlat",
   "gearFindPercent",
+  "projectileCountFlat",
+  "pierceFlat",
+  "projectileLifetimePercent",
+  "homingStrengthFlat",
+  "hpRegenPerSecondFlat",
+  "roomClearHealFlat",
+  "roomEntryShieldFlat",
+  "dashSpeedPercent",
+  "bossDamagePercent",
+  "executeDamagePercent",
 ] as const;
 
 export type GearAffixStat = (typeof GEAR_AFFIX_STATS)[number];
@@ -443,8 +453,249 @@ export type GearAffixDefinition = {
   powerWeight: number;
   /** Relative chance when choosing an eligible affix, before duplicate removal. */
   rollWeight: number;
-  slots: readonly EquipmentSlot[];
+  /** Slots that may roll this option on newly generated equipment. */
+  dropSlots: readonly EquipmentSlot[];
+  /** Slots accepted when normalizing saves, including the pre-pool rules. */
+  legacySlots: readonly EquipmentSlot[];
+  /** Count-like stats roll and render as whole numbers. */
+  integerRoll?: boolean;
 };
+
+/**
+ * New drops use exactly twenty distinct, runtime-backed option types per slot.
+ * The explicit pools make slot identity auditable and keep future edits from
+ * silently changing a slot merely because a definition's compatibility list
+ * was widened. Attack speed intentionally appears only on weapons here.
+ */
+export const GEAR_AFFIX_DROP_POOL_BY_SLOT: Readonly<
+  Record<EquipmentSlot, readonly GearAffixStat[]>
+> = {
+  weapon: [
+    "damagePercent",
+    "attackSpeedPercent",
+    "projectileSpeedPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  offhand: [
+    "damagePercent",
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "bossDamagePercent",
+  ],
+  helm: [
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "gearFindPercent",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "bossDamagePercent",
+    "executeDamagePercent",
+    "lifeOnHitFlat",
+  ],
+  shoulders: [
+    "damagePercent",
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  armor: [
+    "damagePercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "projectileLifetimePercent",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  gloves: [
+    "damagePercent",
+    "projectileSpeedPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "roomClearHealFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  belt: [
+    "damagePercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  legs: [
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  boots: [
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+  relic: [
+    "damagePercent",
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "critChancePercent",
+    "critDamagePercent",
+    "projectileSizePercent",
+    "eliteDamagePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "bossDamagePercent",
+    "executeDamagePercent",
+  ],
+};
+
+const dropSlotsFor = (stat: GearAffixStat): readonly EquipmentSlot[] =>
+  EQUIPMENT_SLOTS.filter((slot) =>
+    GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(stat),
+  );
 
 /**
  * Affixes cover core offense/defense/mobility, projectile shaping, critical and
@@ -465,7 +716,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 80,
     powerWeight: 1.25,
     rollWeight: 100,
-    slots: ["weapon", "offhand", "shoulders", "armor", "gloves", "belt", "relic"],
+    dropSlots: dropSlotsFor("damagePercent"),
+    legacySlots: ["weapon", "offhand", "shoulders", "armor", "gloves", "belt", "relic"],
   },
   attackSpeedPercent: {
     name: "공격 속도",
@@ -477,7 +729,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 55,
     powerWeight: 1.2,
     rollWeight: 85,
-    slots: ["weapon", "offhand", "helm", "gloves", "belt", "boots", "relic"],
+    dropSlots: dropSlotsFor("attackSpeedPercent"),
+    legacySlots: ["weapon", "offhand", "helm", "gloves", "belt", "boots", "relic"],
   },
   projectileSpeedPercent: {
     name: "투사체 속도",
@@ -489,7 +742,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 90,
     powerWeight: 0.55,
     rollWeight: 65,
-    slots: ["weapon", "offhand", "helm", "shoulders", "gloves", "relic"],
+    dropSlots: dropSlotsFor("projectileSpeedPercent"),
+    legacySlots: ["weapon", "offhand", "helm", "shoulders", "gloves", "relic"],
   },
   maxHpFlat: {
     name: "최대 생명력",
@@ -501,7 +755,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 3000,
     powerWeight: 0.12,
     rollWeight: 100,
-    slots: ["offhand", "helm", "shoulders", "armor", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("maxHpFlat"),
+    legacySlots: ["offhand", "helm", "shoulders", "armor", "belt", "legs", "boots", "relic"],
   },
   damageReductionPercent: {
     name: "받는 피해",
@@ -513,7 +768,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 24,
     powerWeight: 2.4,
     rollWeight: 55,
-    slots: ["offhand", "helm", "shoulders", "armor", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("damageReductionPercent"),
+    legacySlots: ["offhand", "helm", "shoulders", "armor", "belt", "legs", "boots", "relic"],
   },
   moveSpeedPercent: {
     name: "이동 속도",
@@ -525,7 +781,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 50,
     powerWeight: 1,
     rollWeight: 75,
-    slots: ["weapon", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("moveSpeedPercent"),
+    legacySlots: ["weapon", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic"],
   },
   dashCooldownPercent: {
     name: "회피 재사용 대기시간",
@@ -537,7 +794,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 42,
     powerWeight: 1.15,
     rollWeight: 60,
-    slots: ["weapon", "offhand", "helm", "gloves", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("dashCooldownPercent"),
+    legacySlots: ["weapon", "offhand", "helm", "gloves", "belt", "legs", "boots", "relic"],
   },
   pickupRadiusPercent: {
     name: "기억 흡수 범위",
@@ -549,7 +807,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 120,
     powerWeight: 0.35,
     rollWeight: 55,
-    slots: ["weapon", "offhand", "armor", "gloves", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("pickupRadiusPercent"),
+    legacySlots: ["weapon", "offhand", "armor", "gloves", "belt", "legs", "boots", "relic"],
   },
   xpGainPercent: {
     name: "기억 획득량",
@@ -561,7 +820,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 65,
     powerWeight: 0.7,
     rollWeight: 65,
-    slots: ["helm", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("xpGainPercent"),
+    legacySlots: ["helm", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic"],
   },
   critChancePercent: {
     name: "치명타 확률",
@@ -573,7 +833,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 25,
     powerWeight: 2.3,
     rollWeight: 50,
-    slots: ["weapon", "offhand", "helm", "shoulders", "gloves", "belt", "relic"],
+    dropSlots: dropSlotsFor("critChancePercent"),
+    legacySlots: ["weapon", "offhand", "helm", "shoulders", "gloves", "belt", "relic"],
   },
   critDamagePercent: {
     name: "치명타 피해",
@@ -585,7 +846,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 100,
     powerWeight: 0.65,
     rollWeight: 50,
-    slots: ["weapon", "offhand", "helm", "shoulders", "gloves", "belt", "relic"],
+    dropSlots: dropSlotsFor("critDamagePercent"),
+    legacySlots: ["weapon", "offhand", "helm", "shoulders", "gloves", "belt", "relic"],
   },
   projectileSizePercent: {
     name: "투사체 크기",
@@ -597,7 +859,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 80,
     powerWeight: 0.55,
     rollWeight: 55,
-    slots: ["weapon", "offhand", "shoulders", "armor", "gloves", "relic"],
+    dropSlots: dropSlotsFor("projectileSizePercent"),
+    legacySlots: ["weapon", "offhand", "shoulders", "armor", "gloves", "relic"],
   },
   eliteDamagePercent: {
     name: "정예·보스 피해",
@@ -609,7 +872,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 70,
     powerWeight: 1,
     rollWeight: 45,
-    slots: ["weapon", "offhand", "helm", "shoulders", "armor", "gloves", "belt", "legs", "relic"],
+    dropSlots: dropSlotsFor("eliteDamagePercent"),
+    legacySlots: ["weapon", "offhand", "helm", "shoulders", "armor", "gloves", "belt", "legs", "relic"],
   },
   lifeOnHitFlat: {
     name: "적중 회복 효율",
@@ -621,7 +885,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 16,
     powerWeight: 4,
     rollWeight: 30,
-    slots: ["weapon", "offhand", "armor", "gloves", "belt", "legs", "relic"],
+    dropSlots: dropSlotsFor("lifeOnHitFlat"),
+    legacySlots: ["weapon", "offhand", "armor", "gloves", "belt", "legs", "relic"],
   },
   gearFindPercent: {
     name: "장비 발견률",
@@ -633,7 +898,140 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     cap: 60,
     powerWeight: 0.5,
     rollWeight: 40,
-    slots: ["offhand", "helm", "shoulders", "gloves", "belt", "legs", "boots", "relic"],
+    dropSlots: dropSlotsFor("gearFindPercent"),
+    legacySlots: ["offhand", "helm", "shoulders", "gloves", "belt", "legs", "boots", "relic"],
+  },
+  projectileCountFlat: {
+    name: "추가 투사체",
+    unit: "flat",
+    sign: "+",
+    minValue: 0.6,
+    maxValue: 1.1,
+    perLevel: 0.002,
+    cap: 3,
+    powerWeight: 30,
+    rollWeight: 18,
+    dropSlots: dropSlotsFor("projectileCountFlat"),
+    legacySlots: dropSlotsFor("projectileCountFlat"),
+    integerRoll: true,
+  },
+  pierceFlat: {
+    name: "관통 횟수",
+    unit: "flat",
+    sign: "+",
+    minValue: 0.55,
+    maxValue: 1.15,
+    perLevel: 0.0025,
+    cap: 4,
+    powerWeight: 12,
+    rollWeight: 22,
+    dropSlots: dropSlotsFor("pierceFlat"),
+    legacySlots: dropSlotsFor("pierceFlat"),
+    integerRoll: true,
+  },
+  projectileLifetimePercent: {
+    name: "투사체 지속시간",
+    unit: "percent",
+    sign: "+",
+    minValue: 6,
+    maxValue: 12,
+    perLevel: 0.12,
+    cap: 90,
+    powerWeight: 0.5,
+    rollWeight: 55,
+    dropSlots: dropSlotsFor("projectileLifetimePercent"),
+    legacySlots: dropSlotsFor("projectileLifetimePercent"),
+  },
+  homingStrengthFlat: {
+    name: "유도 성능",
+    unit: "flat",
+    sign: "+",
+    minValue: 1,
+    maxValue: 2,
+    perLevel: 0.02,
+    cap: 14,
+    powerWeight: 3.2,
+    rollWeight: 32,
+    dropSlots: dropSlotsFor("homingStrengthFlat"),
+    legacySlots: dropSlotsFor("homingStrengthFlat"),
+  },
+  hpRegenPerSecondFlat: {
+    name: "초당 체력 재생",
+    unit: "flat",
+    sign: "+",
+    minValue: 1,
+    maxValue: 2,
+    perLevel: 0.025,
+    cap: 24,
+    powerWeight: 3.5,
+    rollWeight: 30,
+    dropSlots: dropSlotsFor("hpRegenPerSecondFlat"),
+    legacySlots: dropSlotsFor("hpRegenPerSecondFlat"),
+  },
+  roomClearHealFlat: {
+    name: "방 클리어 회복",
+    unit: "flat",
+    sign: "+",
+    minValue: 2,
+    maxValue: 5,
+    perLevel: 0.1,
+    cap: 120,
+    powerWeight: 0.65,
+    rollWeight: 38,
+    dropSlots: dropSlotsFor("roomClearHealFlat"),
+    legacySlots: dropSlotsFor("roomClearHealFlat"),
+  },
+  roomEntryShieldFlat: {
+    name: "방 입장 보호막",
+    unit: "flat",
+    sign: "+",
+    minValue: 5,
+    maxValue: 10,
+    perLevel: 0.35,
+    cap: 450,
+    powerWeight: 0.2,
+    rollWeight: 35,
+    dropSlots: dropSlotsFor("roomEntryShieldFlat"),
+    legacySlots: dropSlotsFor("roomEntryShieldFlat"),
+  },
+  dashSpeedPercent: {
+    name: "대시 속도",
+    unit: "percent",
+    sign: "+",
+    minValue: 4,
+    maxValue: 8,
+    perLevel: 0.08,
+    cap: 55,
+    powerWeight: 0.85,
+    rollWeight: 55,
+    dropSlots: dropSlotsFor("dashSpeedPercent"),
+    legacySlots: dropSlotsFor("dashSpeedPercent"),
+  },
+  bossDamagePercent: {
+    name: "보스 피해",
+    unit: "percent",
+    sign: "+",
+    minValue: 5,
+    maxValue: 10,
+    perLevel: 0.11,
+    cap: 75,
+    powerWeight: 0.9,
+    rollWeight: 40,
+    dropSlots: dropSlotsFor("bossDamagePercent"),
+    legacySlots: dropSlotsFor("bossDamagePercent"),
+  },
+  executeDamagePercent: {
+    name: "처형 피해",
+    unit: "percent",
+    sign: "+",
+    minValue: 6,
+    maxValue: 12,
+    perLevel: 0.12,
+    cap: 90,
+    powerWeight: 0.75,
+    rollWeight: 35,
+    dropSlots: dropSlotsFor("executeDamagePercent"),
+    legacySlots: dropSlotsFor("executeDamagePercent"),
   },
 };
 
@@ -1157,10 +1555,20 @@ export function gearIconCell(iconIndex: number): { column: number; row: number }
   };
 }
 
+function formatGearAffixMagnitude(
+  stat: GearAffixStat,
+  value: number,
+): string {
+  const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
+  return GEAR_AFFIX_DEFINITIONS[stat].integerRoll
+    ? Math.round(numericValue).toLocaleString("ko-KR")
+    : formatGearNumericValue(numericValue);
+}
+
 export function formatGearAffix(stat: GearAffixStat, value: number): string {
   const definition = GEAR_AFFIX_DEFINITIONS[stat];
   const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
-  const amount = formatGearNumericValue(numericValue);
+  const amount = formatGearAffixMagnitude(stat, numericValue);
   const sign = numericValue < 0.005 ? "+" : definition.sign;
   return `${definition.name} ${sign}${amount}${definition.unit === "percent" ? "%" : ""}`;
 }
@@ -1235,7 +1643,11 @@ const formatGearAffixContribution = (
   const unit = definition.unit === "percent" ? (percentPoint ? "%p" : "%") : "";
   const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
   const sign = numericValue < 0.005 ? "+" : definition.sign;
-  return `${sign}${formatGearNumericValue(numericValue)}${unit}`;
+  const amount =
+    stat !== "attackPowerFlat" && GEAR_AFFIX_DEFINITIONS[stat].integerRoll
+      ? formatGearAffixMagnitude(stat, numericValue)
+      : formatGearNumericValue(numericValue);
+  return `${sign}${amount}${unit}`;
 };
 
 /**
@@ -1450,9 +1862,7 @@ function rollAffixes(
   rarity: GearRarity,
   level: number,
 ): GearAffix[] {
-  const candidates = GEAR_AFFIX_STATS.filter((stat) =>
-    GEAR_AFFIX_DEFINITIONS[stat].slots.includes(slot),
-  );
+  const candidates = [...GEAR_AFFIX_DROP_POOL_BY_SLOT[slot]];
   const affixes: GearAffix[] = [];
   const count = Math.min(GEAR_RARITY_META[rarity].affixCount, candidates.length);
 
@@ -1572,6 +1982,13 @@ export function calculateCombatPowerFromEquipmentStats(
     BASE_CRIT_MULTIPLIER + positive(stats.critDamagePercent) / 100;
   const critIndex =
     (1 + critChance * (critMultiplier - 1)) / BASE_CRIT_EXPECTATION;
+  const projectileCountFactor = 1 + positive(stats.projectileCountFlat);
+  const executeMultiplier =
+    1 + positive(stats.executeDamagePercent) / 100;
+  const executeFactor =
+    executeMultiplier > 1
+      ? 1 / (0.8 + 0.2 / executeMultiplier)
+      : 1;
 
   let procFactor = 1;
   if (hasPower(powers, "crescentEcho")) {
@@ -1619,13 +2036,25 @@ export function calculateCombatPowerFromEquipmentStats(
   }
 
   const normalDpsIndex =
-    attackPowerFactor * damageFactor * attackSpeedFactor * critIndex * procFactor;
+    attackPowerFactor *
+    damageFactor *
+    attackSpeedFactor *
+    critIndex *
+    projectileCountFactor *
+    executeFactor *
+    procFactor;
   const hunterEliteBonus = hasPower(powers, "hunterSigil")
     ? LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent
     : 0;
   const eliteIndex =
     normalDpsIndex *
     (1 + (positive(stats.eliteDamagePercent) + hunterEliteBonus) / 100);
+  const bossIndex =
+    normalDpsIndex *
+    (1 +
+      (positive(stats.eliteDamagePercent) + hunterEliteBonus) /
+        100) *
+    (1 + positive(stats.bossDamagePercent) / 100);
   const projectileSpeedHandling = Math.pow(
     1 + positive(stats.projectileSpeedPercent) / 100,
     0.08,
@@ -1634,10 +2063,22 @@ export function calculateCombatPowerFromEquipmentStats(
     1 + Math.min(150, positive(stats.projectileSizePercent)) / 100,
     0.08,
   );
+  const projectileLifetimeHandling = Math.pow(
+    1 + positive(stats.projectileLifetimePercent) / 100,
+    0.06,
+  );
+  const homingHandling = Math.pow(
+    1 + Math.min(14, positive(stats.homingStrengthFlat)) / 10,
+    0.06,
+  );
+  const pierceHandling = 1 + positive(stats.pierceFlat) * 0.06;
   const offenseIndex =
-    (normalDpsIndex * 0.8 + eliteIndex * 0.2) *
+    (normalDpsIndex * 0.75 + eliteIndex * 0.17 + bossIndex * 0.08) *
     projectileSpeedHandling *
-    projectileSizeHandling;
+    projectileSizeHandling *
+    projectileLifetimeHandling *
+    homingHandling *
+    pierceHandling;
 
   const maxHp = 100 + positive(stats.maxHpFlat);
   const damageReduction =
@@ -1665,7 +2106,9 @@ export function calculateCombatPowerFromEquipmentStats(
       LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.35
     : 1;
   const defenseIndex =
-    (maxHp / 100 / Math.max(0.01, 1 - damageReduction)) *
+    ((maxHp + positive(stats.roomEntryShieldFlat) * 0.35) /
+      100 /
+      Math.max(0.01, 1 - damageReduction)) *
     lastMemoryFactor *
     mirrorBarrierFactor *
     starfallDefenseFactor *
@@ -1678,7 +2121,14 @@ export function calculateCombatPowerFromEquipmentStats(
       LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.25
     : 1;
   const sustainIndex =
-    (1 + Math.min(1, (healPerHit * referenceHitsPerSecond * 10) / maxHp)) *
+    (1 +
+      Math.min(
+        1,
+        (healPerHit * referenceHitsPerSecond * 10 +
+          positive(stats.hpRegenPerSecondFlat) * 10 +
+          positive(stats.roomClearHealFlat) * 0.35) /
+          maxHp,
+      )) *
     ashboundSustainFactor;
 
   const riftDashBonus = hasPower(powers, "riftStride")
@@ -1691,7 +2141,11 @@ export function calculateCombatPowerFromEquipmentStats(
     1 + (positive(stats.moveSpeedPercent) + phantomMoveSpeedBonus) / 100;
   const dashFactor =
     1 + (positive(stats.dashCooldownPercent) + riftDashBonus) / 100;
-  const mobilityIndex = Math.sqrt(moveFactor) * Math.pow(dashFactor, 0.18);
+  const dashSpeedFactor = 1 + positive(stats.dashSpeedPercent) / 100;
+  const mobilityIndex =
+    Math.sqrt(moveFactor) *
+    Math.pow(dashFactor, 0.18) *
+    Math.pow(dashSpeedFactor, 0.25);
 
   const xpFactor = 1 + positive(stats.xpGainPercent) / 100;
   const gearFindFactor =
@@ -1851,7 +2305,13 @@ function normalizeAffixes(
   for (const candidate of value) {
     if (!isRecord(candidate) || !isGearAffixStat(candidate.stat)) return null;
     const definition = GEAR_AFFIX_DEFINITIONS[candidate.stat];
-    if (!definition.slots.includes(slot) || usedStats.has(candidate.stat)) return null;
+    if (
+      (!definition.dropSlots.includes(slot) &&
+        !definition.legacySlots.includes(slot)) ||
+      usedStats.has(candidate.stat)
+    ) {
+      return null;
+    }
     if (
       typeof candidate.value !== "number" ||
       !Number.isSafeInteger(candidate.value) ||
@@ -2043,6 +2503,16 @@ export function createEmptyGearStatTotals(): GearStatTotals {
     eliteDamagePercent: 0,
     lifeOnHitFlat: 0,
     gearFindPercent: 0,
+    projectileCountFlat: 0,
+    pierceFlat: 0,
+    projectileLifetimePercent: 0,
+    homingStrengthFlat: 0,
+    hpRegenPerSecondFlat: 0,
+    roomClearHealFlat: 0,
+    roomEntryShieldFlat: 0,
+    dashSpeedPercent: 0,
+    bossDamagePercent: 0,
+    executeDamagePercent: 0,
   };
 }
 

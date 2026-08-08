@@ -540,9 +540,20 @@ test("twenty new augments are unique, profession-ready, and wired into combat", 
 
   assert.match(source, /projectile\.homing \* dt/);
   assert.match(source, /const shardCount = 2 \+ Math\.min\(6, shrapnelRank\)/);
-  assert.match(source, /const executionThreshold = Math\.min\(0\.4/);
+  assert.match(
+    source,
+    /const executionThreshold =[\s\S]{0,140}?Math\.min\(0\.4/,
+  );
+  assert.match(
+    source,
+    /function applyPlayerDamage[\s\S]{0,1800}?bossDamagePercent[\s\S]{0,900}?executeDamagePercent/,
+  );
   assert.match(source, /Math\.pow\(1 \+ armorRank \* 0\.1, 0\.62\)/);
-  assert.match(source, /player\.hp \+ regenerationRank \* 0\.14 \* dt/);
+  assert.match(
+    source,
+    /const regenerationPerSecond =[\s\S]{0,140}?regenerationRank \* 0\.14 \+ equipmentStats\.hpRegenPerSecondFlat/,
+  );
+  assert.match(source, /player\.hp \+ regenerationPerSecond \* dt/);
   assert.match(
     source,
     /const baseValue =[\s\S]{0,90}?isBossKind\(enemy\.kind\)/,
@@ -644,6 +655,41 @@ test("opening basic attacks defeat common enemies in two unmodified hits", async
     /const resonanceDamage =\s*\(BASE_PLAYER_ATTACK_DAMAGE \+ equipmentStats\.attackPowerFlat\) \*/,
   );
   assert.doesNotMatch(source, /let damage =\s*12 \*/);
+});
+
+test("projectile cadence, return timing, and special-projectile gear rules match the sheet", async () => {
+  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  assert.match(source, /player\.fireCooldown \+= 1 \/ visibleRate/);
+  assert.match(
+    source,
+    /while \(player\.fireCooldown <= 0 && catchUpShots < 4\)/,
+    "low frame rates must preserve elapsed attack time with bounded catch-up",
+  );
+  assert.match(
+    source,
+    /projectile\.outboundSpent = true;[\s\S]{0,100}?projectile\.vx = 0;[\s\S]{0,80}?projectile\.vy = 0;/,
+    "an outbound hit must survive until the authored return timer",
+  );
+  assert.match(
+    source,
+    /projectile\.returning = true;[\s\S]{0,80}?projectile\.outboundSpent = false;/,
+  );
+  assert.match(
+    source,
+    /const echoProjectileLife =[\s\S]{0,240}?equipmentStats\.projectileLifetimePercent/,
+  );
+  assert.match(
+    source,
+    /const resonanceSpeed =[\s\S]{0,260}?equipmentStats\.projectileSpeedPercent/,
+  );
+  assert.match(
+    source,
+    /const resonanceLife =[\s\S]{0,260}?equipmentStats\.projectileLifetimePercent/,
+  );
+  assert.match(
+    source,
+    /pierce:\s*1 \+ Math\.max\(0, Math\.floor\(equipmentStats\.pierceFlat\)\)/,
+  );
 });
 
 test("the universal twenty-stack ceiling normalizes runtime choices and every save boundary", async () => {
@@ -2815,7 +2861,7 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     return loadout;
   };
   const scoreStat = (stat, value) => {
-    const slot = equipment.GEAR_AFFIX_DEFINITIONS[stat].slots[0];
+    const slot = equipment.GEAR_AFFIX_DEFINITIONS[stat].legacySlots[0];
     return equipment.calculateEquipmentCombatPower(
       loadoutOf(makeItem({ slot, stat, value })),
     );
@@ -2854,6 +2900,16 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     eliteDamagePercent: [50, 200],
     lifeOnHitFlat: [5, 15],
     gearFindPercent: [50, 150],
+    projectileCountFlat: [1, 3],
+    pierceFlat: [1, 4],
+    projectileLifetimePercent: [30, 90],
+    homingStrengthFlat: [4, 12],
+    hpRegenPerSecondFlat: [5, 20],
+    roomClearHealFlat: [20, 100],
+    roomEntryShieldFlat: [50, 300],
+    dashSpeedPercent: [20, 55],
+    bossDamagePercent: [30, 75],
+    executeDamagePercent: [30, 90],
   };
   assert.deepEqual(Object.keys(monotonicRanges), equipment.GEAR_AFFIX_STATS);
   for (const stat of equipment.GEAR_AFFIX_STATS) {
@@ -2863,7 +2919,7 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     assert.ok(lowerPower > emptyPower, `${stat} must contribute to comprehensive power`);
     assert.ok(
       higherPower > lowerPower,
-      `${stat} must remain monotonic before its runtime cap`,
+      `${stat} must remain monotonic across realistic loadout totals`,
     );
   }
 
@@ -2873,6 +2929,7 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     ["projectileSizePercent", 150, 500],
     ["lifeOnHitFlat", 18.75, 500],
     ["gearFindPercent", 200, 500],
+    ["homingStrengthFlat", 14, 500],
   ]) {
     assert.equal(
       scoreStat(stat, overflow),
@@ -2880,6 +2937,36 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
       `${stat} must stop adding power at the same cap used by live combat`,
     );
   }
+
+  for (const [stat, formerScoreCap, stackedTotal] of [
+    ["projectileCountFlat", 3, 9],
+    ["pierceFlat", 4, 12],
+    ["projectileLifetimePercent", 90, 270],
+    ["roomEntryShieldFlat", 450, 900],
+    ["dashSpeedPercent", 55, 165],
+    ["bossDamagePercent", 75, 225],
+    ["executeDamagePercent", 90, 270],
+  ]) {
+    assert.ok(
+      scoreStat(stat, stackedTotal) > scoreStat(stat, formerScoreCap),
+      `${stat} must not lose legitimate multi-slot totals to a score-only cap`,
+    );
+  }
+
+  const stackedRegeneration = equipment.aggregateEquipmentStats(
+    loadoutOf(
+      makeItem({ slot: "weapon", stat: "hpRegenPerSecondFlat", value: 20 }),
+      makeItem({ slot: "offhand", stat: "hpRegenPerSecondFlat", value: 20 }),
+    ),
+  );
+  assert.equal(stackedRegeneration.hpRegenPerSecondFlat, 40);
+  const stackedRoomHeal = equipment.aggregateEquipmentStats(
+    loadoutOf(
+      makeItem({ slot: "weapon", stat: "roomClearHealFlat", value: 100 }),
+      makeItem({ slot: "offhand", stat: "roomClearHealFlat", value: 100 }),
+    ),
+  );
+  assert.equal(stackedRoomHeal.roomClearHealFlat, 200);
 
   const assertMultiplicativeSynergy = (first, second, description) => {
     const firstPower = equipment.calculateEquipmentCombatPower(loadoutOf(first));
@@ -3072,7 +3159,7 @@ test("enhancement power comes only from slot implicits and stale saves recompute
   }
 });
 
-test("equipment rolls fifteen affix types with percent quality and identical-seed determinism", async () => {
+test("equipment rolls twenty-five real affix types from twenty-option slot pools deterministically", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const expectedStats = [
     "damagePercent",
@@ -3090,18 +3177,49 @@ test("equipment rolls fifteen affix types with percent quality and identical-see
     "eliteDamagePercent",
     "lifeOnHitFlat",
     "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
   ];
   assert.deepEqual(equipment.GEAR_AFFIX_STATS, expectedStats);
   assert.deepEqual(Object.keys(equipment.GEAR_AFFIX_DEFINITIONS), expectedStats);
   for (const slot of equipment.EQUIPMENT_SLOTS) {
-    const eligibleAffixes = expectedStats.filter((stat) =>
-      equipment.GEAR_AFFIX_DEFINITIONS[stat].slots.includes(slot),
+    const dropPool = equipment.GEAR_AFFIX_DROP_POOL_BY_SLOT[slot];
+    assert.equal(dropPool.length, 20, `${slot} must expose exactly twenty drop options`);
+    assert.equal(
+      new Set(dropPool).size,
+      20,
+      `${slot} drop options must be actual distinct stats`,
     );
-    assert.ok(
-      eligibleAffixes.length >= equipment.GEAR_RARITY_META.cosmic.affixCount,
-      `${slot} needs at least eight eligible affixes for cosmic gear`,
-    );
+    for (const stat of dropPool) {
+      assert.ok(expectedStats.includes(stat), `${slot}/${stat} must be a real affix stat`);
+      assert.ok(
+        equipment.GEAR_AFFIX_DEFINITIONS[stat].dropSlots.includes(slot),
+        `${slot}/${stat} must agree with its definition drop slots`,
+      );
+    }
   }
+  assert.deepEqual(
+    equipment.GEAR_AFFIX_DEFINITIONS.attackSpeedPercent.dropSlots,
+    ["weapon"],
+    "new attack-speed affixes must be weapon-exclusive",
+  );
+  assert.deepEqual(
+    equipment.GEAR_AFFIX_DEFINITIONS.attackSpeedPercent.legacySlots,
+    ["weapon", "offhand", "helm", "gloves", "belt", "boots", "relic"],
+    "the pre-pool attack-speed slots remain valid for save migration",
+  );
+  assert.equal(equipment.GEAR_AFFIX_DEFINITIONS.projectileCountFlat.integerRoll, true);
+  assert.equal(equipment.GEAR_AFFIX_DEFINITIONS.pierceFlat.integerRoll, true);
+  assert.equal(equipment.formatGearAffix("projectileCountFlat", 2), "추가 투사체 +2");
+  assert.equal(equipment.formatGearAffix("pierceFlat", 3), "관통 횟수 +3");
 
   const observedBases = new Set();
   const observedStats = new Set();
@@ -3127,9 +3245,21 @@ test("equipment rolls fifteen affix types with percent quality and identical-see
         );
         assert.equal(equipment.isGearItem(first), true);
         assert.deepEqual(JSON.parse(JSON.stringify(first)), first, "gear must remain JSON-safe");
+        assert.equal(
+          new Set(first.affixes.map((affix) => affix.stat)).size,
+          first.affixes.length,
+          "one item must never repeat an affix stat",
+        );
         for (const affix of first.affixes) {
+          assert.ok(
+            equipment.GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(affix.stat),
+            `${slot} must only roll stats from its explicit drop pool`,
+          );
           assert.ok(Number.isSafeInteger(affix.rollPercent));
           assert.ok(affix.rollPercent >= 1 && affix.rollPercent <= 100);
+          if (affix.stat === "projectileCountFlat" || affix.stat === "pierceFlat") {
+            assert.ok(Number.isSafeInteger(affix.value), `${affix.stat} must roll whole values`);
+          }
           observedStats.add(affix.stat);
         }
         assert.equal(first.qualityScore, equipment.calculateGearQualityScore(first.affixes));
@@ -3146,6 +3276,29 @@ test("equipment rolls fifteen affix types with percent quality and identical-see
     equipment.rollGear(987_654_321, numericOptions),
     equipment.rollGear(987_654_321, numericOptions),
     "numeric seeds must be deterministic too",
+  );
+
+  const legacyOffhand = equipment.rollGear("legacy-offhand-attack-speed", {
+    level: 1,
+    slot: "offhand",
+    rarity: "common",
+  });
+  legacyOffhand.affixes = [{
+    stat: "attackSpeedPercent",
+    value: 4,
+    rollPercent: 1,
+    label: equipment.formatGearAffix("attackSpeedPercent", 4),
+  }];
+  legacyOffhand.qualityScore = -1;
+  legacyOffhand.powerScore = -1;
+  const normalizedLegacyOffhand = equipment.normalizeGearItem(legacyOffhand);
+  assert.ok(normalizedLegacyOffhand, "an old non-weapon attack-speed item must remain loadable");
+  assert.equal(normalizedLegacyOffhand.affixes[0].stat, "attackSpeedPercent");
+  assert.equal(equipment.isGearItem(normalizedLegacyOffhand), true);
+  assert.equal(
+    equipment.GEAR_AFFIX_DROP_POOL_BY_SLOT.offhand.includes("attackSpeedPercent"),
+    false,
+    "the compatible legacy stat must not leak back into new offhand drops",
   );
 });
 

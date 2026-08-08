@@ -178,6 +178,7 @@ import {
   type EquipmentLoadout,
   type EquipmentSlot,
   type GearItem,
+  type GearStatTotals,
 } from "./equipment";
 
 const WIDTH = 1280;
@@ -352,6 +353,8 @@ type Projectile = {
   hit: Set<number>;
   returnAfter?: number;
   returning?: boolean;
+  /** Outbound hit is spent, but the projectile remains alive for its return. */
+  outboundSpent?: boolean;
   returnMultiplier?: number;
   homing?: number;
   /** One id shared by every primary projectile in a single basic-attack volley. */
@@ -1618,6 +1621,59 @@ function activeSynergies(player: Player) {
   }));
 }
 
+/**
+ * One target-aware resolver for every player-owned damage source. Keeping
+ * elite, boss, and execution multipliers here prevents basic projectiles from
+ * receiving bonuses that poison, orbitals, dashes, and legendary effects do
+ * not receive.
+ */
+function applyPlayerDamage(
+  player: Player,
+  enemy: Enemy,
+  rawDamage: number,
+  equipmentStats: GearStatTotals,
+) {
+  let multiplier = 1;
+  const boss = isBossKind(enemy.kind);
+  if (enemy.elite || boss) {
+    multiplier *= Math.pow(1 + powerRankOf(player, "giantbane") * 0.15, 0.65);
+    multiplier *= 1 + equipmentStats.eliteDamagePercent / 100;
+    if (hasLegendaryPower(player, "hunterSigil")) {
+      multiplier *=
+        1 + LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent / 100;
+    }
+  }
+  if (boss) multiplier *= 1 + equipmentStats.bossDamagePercent / 100;
+
+  const executionRank = powerRankOf(player, "execution");
+  const gearExecutionPercent = Math.max(0, equipmentStats.executeDamagePercent);
+  const executionThreshold =
+    executionRank > 0
+      ? Math.min(0.4, 0.12 + executionRank * 0.012)
+      : gearExecutionPercent > 0
+        ? 0.2
+        : 0;
+  if (
+    executionThreshold > 0 &&
+    enemy.maxHp > 0 &&
+    enemy.hp / enemy.maxHp <= executionThreshold
+  ) {
+    if (executionRank > 0) {
+      const finalSentence = activeSynergies(player).find(
+        (synergy) => synergy.name === "마지막 문장",
+      );
+      multiplier *=
+        (1.28 + executionRank * 0.04) *
+        (1 + (finalSentence?.tier ?? 0) * 0.12);
+    }
+    multiplier *= 1 + gearExecutionPercent / 100;
+  }
+
+  const dealt = Math.max(0, Number.isFinite(rawDamage) ? rawDamage : 0) * multiplier;
+  enemy.hp -= dealt;
+  return dealt;
+}
+
 function AugmentIcon({ icon, size = 76 }: { icon: number; size?: number }) {
   const column = icon % 5;
   const row = Math.floor(icon / 5);
@@ -2298,6 +2354,7 @@ export default function GameCanvas({
   const saveAtShelter = useCallback(() => {
     const player = playerRef.current;
     const world = worldRef.current;
+    const equipmentStats = aggregateEquipmentStats(player.equipment);
     player.hp = player.maxHp;
     clearAshboundShield(player);
     player.mirrorAegisBarrierTime = 0;
@@ -2305,7 +2362,10 @@ export default function GameCanvas({
     player.phantomMarchMoveTime = 0;
     player.phantomMarchTrailCooldown = 0;
     player.shield =
-      10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5;
+      10 +
+      powerRankOf(player, "glass") * 9 +
+      powerRankOf(player, "ward") * 5 +
+      equipmentStats.roomEntryShieldFlat;
     stableAugmentsRef.current = normalizeAugmentStacks(player.augments);
     checkpointRef.current = { x: world.roomX, y: world.roomY };
     const data: SaveData = {
@@ -2629,7 +2689,10 @@ export default function GameCanvas({
               : HEIGHT / 2;
       player.shield = Math.max(
         player.shield,
-        10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5,
+        10 +
+          powerRankOf(player, "glass") * 9 +
+          powerRankOf(player, "ward") * 5 +
+          aggregateEquipmentStats(player.equipment).roomEntryShieldFlat,
       );
       world.activeBossKind = null;
       if (world.roomCleared) world.enemies = [];
@@ -3715,7 +3778,7 @@ export default function GameCanvas({
             legendaryAttackMultiplier(player);
           for (const enemy of worldRef.current.enemies) {
             if (distance(player.x, player.y, enemy.x, enemy.y) <= 190 + enemy.radius) {
-              enemy.hp -= waveDamage;
+              applyPlayerDamage(player, enemy, waveDamage, equipmentStats);
             }
           }
           spawnLegendaryEffect(
@@ -4115,7 +4178,7 @@ export default function GameCanvas({
         );
         for (const other of world.enemies) {
           if (other.id !== enemy.id && distance(enemy.x, enemy.y, other.x, other.y) < 118) {
-            other.hp -= burst;
+            applyPlayerDamage(player, other, burst, equipmentStats);
           }
         }
       }
@@ -4130,13 +4193,15 @@ export default function GameCanvas({
           simpleAugmentMultiplier(
             powerRankOf(player, "velocity"),
             SIMPLE_AUGMENT_BONUSES.velocityProjectileSpeedPerRank,
-          );
+          ) *
+          (1 + equipmentStats.projectileSpeedPercent / 100);
         const shardLife =
           (0.62 + focusRank * 0.025) *
           simpleAugmentMultiplier(
             powerRankOf(player, "range"),
             SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-          );
+          ) *
+          (1 + equipmentStats.projectileLifetimePercent / 100);
         for (let i = 0; i < shardCount; i += 1) {
           const angle = (Math.PI * 2 * i) / shardCount + enemy.id * 0.73;
           world.projectiles.push({
@@ -4148,7 +4213,9 @@ export default function GameCanvas({
             radius: (3.5 + Math.min(3, shrapnelRank * 0.25)) * projectileSizeMultiplier,
             damage: (5 + shrapnelRank * 2.4) * legendaryAttackMultiplier(player),
             life: shardLife,
-            pierce: Math.floor(shrapnelRank / 5),
+            pierce:
+              Math.floor(shrapnelRank / 5) +
+              Math.max(0, Math.floor(equipmentStats.pierceFlat)),
             hostile: false,
             color: "#ead9b8",
             affinity: "arcane",
@@ -4158,7 +4225,13 @@ export default function GameCanvas({
             previousY: enemy.y,
             hit: new Set<number>([enemy.id]),
             homing:
-              homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
+              homingRank > 0 || equipmentStats.homingStrengthFlat > 0
+                ? Math.min(
+                    14,
+                    (homingRank > 0 ? 1.8 + homingRank * 0.55 : 0) +
+                      equipmentStats.homingStrengthFlat,
+                  )
+                : undefined,
           });
         }
       }
@@ -4167,11 +4240,11 @@ export default function GameCanvas({
     const firePlayerWeapon = () => {
       const player = playerRef.current;
       const world = worldRef.current;
-      if (!world.enemies.length) return;
       const aimRecently = performance.now() - inputRef.current.lastAim < 850;
       let target: Enemy | undefined;
       let best = Infinity;
       for (const enemy of world.enemies) {
+        if (enemy.hp <= 0) continue;
         const d = distance(player.x, player.y, enemy.x, enemy.y);
         if (aimRecently) {
           const aimAngle = Math.atan2(
@@ -4192,7 +4265,7 @@ export default function GameCanvas({
           target = enemy;
         }
       }
-      if (!target) target = world.enemies[0];
+      if (!target) return false;
       const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
       const bloodwovenBurst =
         hasLegendaryPower(player, "bloodwovenGrip") && player.bloodwovenBurstReady;
@@ -4205,7 +4278,12 @@ export default function GameCanvas({
           SIMPLE_AUGMENT_BONUSES.expansionProjectileSizePerRank,
         );
       const splitRank = powerRankOf(player, "split");
-      const theoreticalCount = 1 + splitRank;
+      const gearProjectileCount = Math.max(
+        0,
+        Math.floor(equipmentStats.projectileCountFlat),
+      );
+      const gearPierce = Math.max(0, Math.floor(equipmentStats.pierceFlat));
+      const theoreticalCount = 1 + splitRank + gearProjectileCount;
       const visibleCount = Math.min(9, theoreticalCount);
       const overflowCount = theoreticalCount / visibleCount;
       const hasteRank = powerRankOf(player, "haste");
@@ -4317,7 +4395,11 @@ export default function GameCanvas({
         simpleAugmentMultiplier(
           rangeRank,
           SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-        );
+        ) *
+        (1 + equipmentStats.projectileLifetimePercent / 100);
+      const homingStrength =
+        (homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : 0) +
+        equipmentStats.homingStrengthFlat;
       const chargedColor = overcharged ? "#ff7764" : projectileColor;
       playGameSfx("playerShot", {
         gain: overcharged ? 1.15 : 0.88,
@@ -4349,7 +4431,7 @@ export default function GameCanvas({
             projectileSizeMultiplier,
           damage,
           life: projectileLife,
-          pierce: powerRankOf(player, "pierce"),
+          pierce: powerRankOf(player, "pierce") + gearPierce,
           hostile: false,
           color: chargedColor,
           affinity: projectileAffinity,
@@ -4361,8 +4443,7 @@ export default function GameCanvas({
           returnAfter: returnRank > 0 ? 0.58 : undefined,
           returning: false,
           returnMultiplier: 0.45 + returnRank * 0.1,
-          homing:
-            homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
+          homing: homingStrength > 0 ? Math.min(14, homingStrength) : undefined,
           criticalVolleyId,
           bloodwovenEligible:
             isCritical && hasLegendaryPower(player, "bloodwovenGrip"),
@@ -4373,7 +4454,8 @@ export default function GameCanvas({
             simpleAugmentMultiplier(
               rangeRank,
               SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-            );
+            ) *
+            (1 + equipmentStats.projectileLifetimePercent / 100);
           world.projectiles.push({
             id: idRef.current++,
             x: player.x,
@@ -4383,7 +4465,7 @@ export default function GameCanvas({
             radius: (4 + Math.min(4, timeRank)) * projectileSizeMultiplier,
             damage: damage * (0.45 + timeRank * 0.07),
             life: echoProjectileLife,
-            pierce: powerRankOf(player, "pierce"),
+            pierce: powerRankOf(player, "pierce") + gearPierce,
             hostile: false,
             color: "#d0a9ee",
             affinity: "echo",
@@ -4392,8 +4474,7 @@ export default function GameCanvas({
             previousX: player.x,
             previousY: player.y - 8,
             hit: new Set<number>(),
-            homing:
-              homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
+            homing: homingStrength > 0 ? Math.min(14, homingStrength) : undefined,
           });
         }
       }
@@ -4415,7 +4496,9 @@ export default function GameCanvas({
             radius: 5.5 * projectileSizeMultiplier,
             damage: damage * LEGENDARY_RUNTIME.bloodwovenDamageMultiplier,
             life: projectileLife,
-            pierce: Math.max(0, Math.floor(powerRankOf(player, "pierce") / 2)),
+            pierce:
+              Math.max(0, Math.floor(powerRankOf(player, "pierce") / 2)) +
+              gearPierce,
             hostile: false,
             color: "#ff5f8f",
             affinity: "blood",
@@ -4424,8 +4507,7 @@ export default function GameCanvas({
             previousX: player.x,
             previousY: player.y - 8,
             hit: new Set<number>(),
-            homing:
-              homingRank > 0 ? Math.min(9, 1.6 + homingRank * 0.48) : undefined,
+            homing: homingStrength > 0 ? Math.min(13, homingStrength) : undefined,
           });
         }
         spawnLegendaryEffect(
@@ -4454,7 +4536,7 @@ export default function GameCanvas({
             radius: 6 * projectileSizeMultiplier,
             damage: damage * 0.65,
             life: projectileLife,
-            pierce: 1 + Math.floor(powerRankOf(player, "pierce") / 2),
+            pierce: 1 + Math.floor(powerRankOf(player, "pierce") / 2) + gearPierce,
             hostile: false,
             color: "#f0b86e",
             affinity: "echo",
@@ -4463,18 +4545,20 @@ export default function GameCanvas({
             previousX: player.x,
             previousY: player.y - 8,
             hit: new Set<number>(),
-            homing: homingRank > 0 ? Math.min(8, 1.6 + homingRank * 0.45) : undefined,
+            homing: homingStrength > 0 ? Math.min(12, homingStrength) : undefined,
           });
         }
       }
       player.shotCounter += 1;
-      player.fireCooldown = 1 / visibleRate;
+      player.fireCooldown += 1 / visibleRate;
+      return true;
     };
 
     const completeRoom = () => {
       const world = worldRef.current;
       const player = playerRef.current;
       if (world.clearHandled) return;
+      const equipmentStats = aggregateEquipmentStats(player.equipment);
       world.clearHandled = true;
       world.roomCleared = true;
       playGameSfx("roomClear", { priority: 7 });
@@ -4489,7 +4573,8 @@ export default function GameCanvas({
           powerRankOf(player, "map") * 2 +
           conquestRank * 1.2 +
           powerRankOf(player, "recovery") *
-            SIMPLE_AUGMENT_BONUSES.recoveryRoomHealPerRank) *
+            SIMPLE_AUGMENT_BONUSES.recoveryRoomHealPerRank +
+          equipmentStats.roomClearHealFlat) *
         (1 + (moonBeacon?.tier ?? 0) * 0.08);
       player.hp = Math.min(player.maxHp, player.hp + heal);
       if (conquestRank > 0) {
@@ -4497,7 +4582,8 @@ export default function GameCanvas({
           10 +
           powerRankOf(player, "glass") * 9 +
           powerRankOf(player, "ward") * 5 +
-          conquestRank * 4;
+          conquestRank * 4 +
+          equipmentStats.roomEntryShieldFlat;
         player.shield = Math.min(
           shieldCap,
           player.shield +
@@ -4567,6 +4653,9 @@ export default function GameCanvas({
         );
       }
       player.fireCooldown -= dt;
+      if (world.enemies.length === 0) {
+        player.fireCooldown = Math.max(0, player.fireCooldown);
+      }
       player.invulnerable = Math.max(0, player.invulnerable - dt);
       player.dashCooldown = Math.max(0, player.dashCooldown - dt);
       player.dashTime = Math.max(0, player.dashTime - dt);
@@ -4582,8 +4671,13 @@ export default function GameCanvas({
         if (player.ashboundShieldTime === 0) clearAshboundShield(player);
       }
       const regenerationRank = powerRankOf(player, "regeneration");
-      if (regenerationRank > 0 && player.hp > 0) {
-        player.hp = Math.min(player.maxHp, player.hp + regenerationRank * 0.14 * dt);
+      const regenerationPerSecond =
+        regenerationRank * 0.14 + equipmentStats.hpRegenPerSecondFlat;
+      if (regenerationPerSecond > 0 && player.hp > 0) {
+        player.hp = Math.min(
+          player.maxHp,
+          player.hp + regenerationPerSecond * dt,
+        );
       }
       const keys = keysRef.current;
       let moveX =
@@ -4661,10 +4755,14 @@ export default function GameCanvas({
           );
           for (const enemy of world.enemies) {
             if (distance(player.x, player.y, enemy.x, enemy.y) < 125) {
-              enemy.hp -=
+              applyPlayerDamage(
+                player,
+                enemy,
                 (8 + voidRank * 5) *
                 (1 + (comet?.tier ?? 0) * 0.28) *
-                legendaryAttackMultiplier(player);
+                legendaryAttackMultiplier(player),
+                equipmentStats,
+              );
               if (comet) enemy.slow = Math.max(enemy.slow, 0.8);
             }
           }
@@ -4675,7 +4773,9 @@ export default function GameCanvas({
 
       const speed =
         player.dashTime > 0
-          ? 900 * Math.pow(1 + reflexRank * 0.05, 0.4)
+          ? 900 *
+            Math.pow(1 + reflexRank * 0.05, 0.4) *
+            (1 + equipmentStats.dashSpeedPercent / 100)
           : moveSpeed;
       const dx = player.dashTime > 0 ? player.dashX : moveX;
       const dy = player.dashTime > 0 ? player.dashY : moveY;
@@ -4697,7 +4797,7 @@ export default function GameCanvas({
         spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
         for (const enemy of world.enemies) {
           if (distance(player.x, player.y, enemy.x, enemy.y) < 72) {
-            enemy.hp -= riftDamage;
+            applyPlayerDamage(player, enemy, riftDamage, equipmentStats);
           }
         }
       }
@@ -4770,12 +4870,19 @@ export default function GameCanvas({
         );
         for (const enemy of world.enemies) {
           if (distance(previousPlayerX, previousPlayerY, enemy.x, enemy.y) < 54) {
-            enemy.hp -= trailDamage;
+            applyPlayerDamage(player, enemy, trailDamage, equipmentStats);
           }
         }
       }
 
-      if (player.fireCooldown <= 0) firePlayerWeapon();
+      let catchUpShots = 0;
+      while (player.fireCooldown <= 0 && catchUpShots < 4) {
+        if (!firePlayerWeapon()) {
+          player.fireCooldown = 0;
+          break;
+        }
+        catchUpShots += 1;
+      }
 
       const now = performance.now();
       for (const enemy of world.enemies) {
@@ -4785,7 +4892,12 @@ export default function GameCanvas({
         if (enemy.patternTimer !== undefined) enemy.patternTimer -= dt;
         if (enemy.poisonTime > 0) {
           enemy.poisonTime -= dt;
-          enemy.hp -= enemy.poisonDamage * dt * legendaryAttackMultiplier(player);
+          applyPlayerDamage(
+            player,
+            enemy,
+            enemy.poisonDamage * dt * legendaryAttackMultiplier(player),
+            equipmentStats,
+          );
         }
         const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         const d = distance(player.x, player.y, enemy.x, enemy.y);
@@ -5770,7 +5882,12 @@ export default function GameCanvas({
             const ox = player.x + Math.cos(angle) * (62 + orbitRank * 2);
             const oy = player.y + Math.sin(angle) * (44 + orbitRank * 1.4);
             if (distance(ox, oy, enemy.x, enemy.y) < enemy.radius + 13) {
-              enemy.hp -= (7 + orbitRank * 3) * legendaryAttackMultiplier(player);
+              applyPlayerDamage(
+                player,
+                enemy,
+                (7 + orbitRank * 3) * legendaryAttackMultiplier(player),
+                equipmentStats,
+              );
               enemy.orbitalCooldown = 0.24;
               break;
             }
@@ -5790,6 +5907,7 @@ export default function GameCanvas({
           projectile.returnAfter -= dt;
           if (projectile.returnAfter <= 0) {
             projectile.returning = true;
+            projectile.outboundSpent = false;
             const returnAngle = Math.atan2(
               player.y - projectile.y,
               player.x - projectile.x,
@@ -5903,6 +6021,7 @@ export default function GameCanvas({
           }
           continue;
         }
+        if (!projectile.returning && projectile.outboundSpent) continue;
         for (const enemy of world.enemies) {
           if (enemy.hp <= 0 || projectile.hit.has(enemy.id)) continue;
           if (
@@ -5948,24 +6067,12 @@ export default function GameCanvas({
                 setToast("전설 · 피로 짠 손아귀가 충전되어 다음 기본 공격이 증식합니다.");
               }
             }
-            let hitDamage = projectile.damage;
-            const giantbaneRank = powerRankOf(player, "giantbane");
-            if (enemy.elite || isBossKind(enemy.kind)) {
-              hitDamage *= Math.pow(1 + giantbaneRank * 0.15, 0.65);
-              hitDamage *= 1 + equipmentStats.eliteDamagePercent / 100;
-              if (hasLegendaryPower(player, "hunterSigil")) hitDamage *= 1.18;
-            }
-            const executionRank = powerRankOf(player, "execution");
-            const executionThreshold = Math.min(0.4, 0.12 + executionRank * 0.012);
-            if (executionRank > 0 && enemy.hp / enemy.maxHp <= executionThreshold) {
-              const finalSentence = activeSynergies(player).find(
-                (synergy) => synergy.name === "마지막 문장",
-              );
-              hitDamage *=
-                (1.28 + executionRank * 0.04) *
-                (1 + (finalSentence?.tier ?? 0) * 0.12);
-            }
-            enemy.hp -= hitDamage;
+            applyPlayerDamage(
+              player,
+              enemy,
+              projectile.damage,
+              equipmentStats,
+            );
             playGameSfx("playerImpact", {
               pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.76, 0.76),
               gain: projectile.pierce > 0 ? 0.86 : 1,
@@ -6013,10 +6120,14 @@ export default function GameCanvas({
                 const plagueStorm = activeSynergies(player).find(
                   (synergy) => synergy.name === "역병 폭풍",
                 );
-                next.hp -=
-                  hitDamage *
-                  0.55 *
-                  (1 + (plagueStorm?.tier ?? 0) * 0.24);
+                applyPlayerDamage(
+                  player,
+                  next,
+                  projectile.damage *
+                    0.55 *
+                    (1 + (plagueStorm?.tier ?? 0) * 0.24),
+                  equipmentStats,
+                );
                 spawnCombatEffect(
                   "chainArc",
                   enemy.x,
@@ -6051,10 +6162,10 @@ export default function GameCanvas({
                   (synergy) => synergy.name === "백골 메아리",
                 );
                 const echoDamage =
-                  hitDamage *
+                  projectile.damage *
                   Math.min(0.72, 0.22 + ricochetRank * 0.025) *
                   (1 + (boneEcho?.tier ?? 0) * 0.14);
-                next.hp -= echoDamage;
+                applyPlayerDamage(player, next, echoDamage, equipmentStats);
                 spawnCombatEffect(
                   "chainArc",
                   enemy.x,
@@ -6068,8 +6179,17 @@ export default function GameCanvas({
                 );
               }
             }
-            if (projectile.pierce <= 0) projectile.life = 0;
-            else projectile.pierce -= 1;
+            if (projectile.pierce <= 0) {
+              if (!projectile.returning && projectile.returnAfter !== undefined) {
+                projectile.outboundSpent = true;
+                projectile.vx = 0;
+                projectile.vy = 0;
+              } else {
+                projectile.life = 0;
+              }
+            } else {
+              projectile.pierce -= 1;
+            }
             break;
           }
         }
@@ -6154,13 +6274,15 @@ export default function GameCanvas({
               simpleAugmentMultiplier(
                 powerRankOf(player, "velocity"),
                 SIMPLE_AUGMENT_BONUSES.velocityProjectileSpeedPerRank,
-              );
+              ) *
+              (1 + equipmentStats.projectileSpeedPercent / 100);
             const resonanceLife =
               1.05 *
               simpleAugmentMultiplier(
                 powerRankOf(player, "range"),
                 SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-              );
+              ) *
+              (1 + equipmentStats.projectileLifetimePercent / 100);
             const resonanceSize =
               6 *
               (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
@@ -6179,7 +6301,8 @@ export default function GameCanvas({
                 radius: resonanceSize,
                 damage: resonanceDamage,
                 life: resonanceLife,
-                pierce: 1,
+                pierce:
+                  1 + Math.max(0, Math.floor(equipmentStats.pierceFlat)),
                 hostile: false,
                 color: "#f0b86e",
                 affinity: "echo",
@@ -6188,6 +6311,10 @@ export default function GameCanvas({
                 previousX: player.x,
                 previousY: player.y,
                 hit: new Set<number>(),
+                homing:
+                  equipmentStats.homingStrengthFlat > 0
+                    ? Math.min(14, equipmentStats.homingStrengthFlat)
+                    : undefined,
               });
             }
           }
@@ -8414,8 +8541,16 @@ export default function GameCanvas({
   const buildMetrics = useMemo(() => {
     return [
       {
-        label: "현재 공격력",
-        value: formatGearNumericValue(playerStats.offense.normalProjectileDamage),
+        label: "스탯 공격력",
+        value: formatGearNumericValue(playerStats.ratings.sheetAttackPower),
+      },
+      {
+        label: "종합 전투력",
+        value: playerStats.ratings.combatPower.toLocaleString("ko-KR"),
+      },
+      {
+        label: "환산 보스 DPS",
+        value: formatGearNumericValue(playerStats.ratings.standardBossDps),
       },
       {
         label: "발사 속도",
@@ -8429,14 +8564,14 @@ export default function GameCanvas({
         label: "치명타",
         value: `${formatGearNumericValue(playerStats.offense.critChance * 100)}% · ×${formatGearNumericValue(playerStats.offense.critMultiplier)}`,
       },
-      { label: "장비 전투력", value: equippedPower.toLocaleString("ko-KR") },
+      { label: "장비 기여도", value: equippedPower.toLocaleString("ko-KR") },
       {
         label: "현재 피해 감소",
         value: `${formatGearNumericValue(playerStats.defense.currentDamageReduction * 100)}%`,
       },
       {
-        label: "정예·보스 피해",
-        value: `×${formatGearNumericValue(playerStats.offense.eliteMultiplier)}`,
+        label: "보스 피해",
+        value: `×${formatGearNumericValue(playerStats.offense.bossMultiplier)}`,
       },
       {
         label: "장비 발견",

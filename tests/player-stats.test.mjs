@@ -28,6 +28,7 @@ async function loadPlayerStatsModules() {
       const dependencies = {
         "./augment-balance": "app/augment-balance.ts",
         "./combat-balance": "app/combat-balance.ts",
+        "./combat-evaluation": "app/combat-evaluation.ts",
         "./equipment": "app/equipment.ts",
         "./professions": "app/professions.ts",
       };
@@ -98,6 +99,16 @@ test("the character sheet baseline matches the live combat constants exactly", a
   assert.equal(snapshot.offense.critMultiplier, 1.7);
   nearlyEqual(snapshot.offense.expectedProjectileDamage, 14.49);
   nearlyEqual(snapshot.offense.expectedPrimaryDps, 20.286);
+  assert.equal(snapshot.ratings.sheetAttackPower, 14);
+  nearlyEqual(snapshot.ratings.statAttackDps, 20.286);
+  assert.ok(snapshot.ratings.standardBossDps > 19);
+  assert.ok(snapshot.ratings.standardBossDps < snapshot.ratings.statAttackDps);
+  nearlyEqual(
+    snapshot.ratings.standardBossDamage60,
+    snapshot.ratings.standardBossDps * 60,
+  );
+  assert.ok(snapshot.ratings.combatPower > 1_000);
+  assert.equal(snapshot.ratings.version, 1);
 
   assert.equal(snapshot.resources.maxHp, 100);
   assert.equal(snapshot.resources.roomEntryShield, 10);
@@ -125,6 +136,130 @@ test("the character sheet baseline matches the live combat constants exactly", a
   assert.equal(snapshot.utility.eliteGearDropChance, 0.68);
   assert.equal(snapshot.utility.bossGearDropChance, 1);
   assert.equal(snapshot.utility.bossGearRolls, 2);
+});
+
+test("slot affixes feed the intended rating without contaminating other metrics", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const snapshotFor = (loadout) =>
+    playerStats.calculatePlayerStatSnapshot({
+      level: 60,
+      hp: 100,
+      maxHp: 100,
+      shield: 0,
+      shotCounter: 0,
+      augments: {},
+      profession: null,
+      equipment: loadout,
+      synergies: [],
+      legendaryArmorReady: true,
+      ...dormantLegendaryRuntime,
+    });
+  const withAffix = (item, stat, value) => ({
+    ...item,
+    affixes: [
+      {
+        stat,
+        value,
+        rollPercent: 50,
+        label: equipment.formatGearAffix(stat, value),
+      },
+    ],
+  });
+
+  const baseWeapon = {
+    ...equipment.rollGear("rating-speed-weapon", {
+      level: 60,
+      slot: "weapon",
+      rarity: "common",
+    }),
+    affixes: [],
+  };
+  const normalWeaponLoadout = equipment.createEmptyEquipment();
+  normalWeaponLoadout.weapon = baseWeapon;
+  const fastWeaponLoadout = equipment.createEmptyEquipment();
+  fastWeaponLoadout.weapon = withAffix(
+    baseWeapon,
+    "attackSpeedPercent",
+    20,
+  );
+  const normalWeapon = snapshotFor(normalWeaponLoadout);
+  const fastWeapon = snapshotFor(fastWeaponLoadout);
+  assert.equal(
+    fastWeapon.ratings.sheetAttackPower,
+    normalWeapon.ratings.sheetAttackPower,
+    "attack speed must not masquerade as one-shot sheet attack power",
+  );
+  assert.ok(fastWeapon.ratings.statAttackDps > normalWeapon.ratings.statAttackDps);
+  assert.ok(fastWeapon.ratings.standardBossDps > normalWeapon.ratings.standardBossDps);
+  assert.ok(fastWeapon.ratings.combatPower > normalWeapon.ratings.combatPower);
+
+  const baseOffhand = {
+    ...equipment.rollGear("rating-boss-offhand", {
+      level: 60,
+      slot: "offhand",
+      rarity: "common",
+    }),
+    affixes: [],
+  };
+  const normalBossLoadout = equipment.createEmptyEquipment();
+  normalBossLoadout.offhand = baseOffhand;
+  const bossDamageLoadout = equipment.createEmptyEquipment();
+  bossDamageLoadout.offhand = withAffix(
+    baseOffhand,
+    "bossDamagePercent",
+    25,
+  );
+  const normalBoss = snapshotFor(normalBossLoadout);
+  const bossDamage = snapshotFor(bossDamageLoadout);
+  assert.equal(bossDamage.ratings.sheetAttackPower, normalBoss.ratings.sheetAttackPower);
+  assert.equal(bossDamage.ratings.statAttackDps, normalBoss.ratings.statAttackDps);
+  nearlyEqual(
+    bossDamage.ratings.standardBossDps,
+    normalBoss.ratings.standardBossDps * 1.25,
+  );
+  assert.ok(bossDamage.ratings.combatPower > normalBoss.ratings.combatPower);
+});
+
+test("the standard HP profile and rendered hit budget keep conversion honest", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const snapshotFor = (augments) =>
+    playerStats.calculatePlayerStatSnapshot({
+      level: 60,
+      hp: 50,
+      maxHp: 100,
+      shield: 0,
+      shotCounter: 0,
+      augments,
+      profession: null,
+      equipment: equipment.createEmptyEquipment(),
+      synergies: [],
+      legendaryArmorReady: true,
+      ...dormantLegendaryRuntime,
+    });
+
+  const blood = snapshotFor({ blood: 20 });
+  const stableBloodDps =
+    blood.ratings.sheetAttackPower * 1.4 * (1 + 0.05 * (1.7 - 1));
+  const expectedBloodProfileMultiplier =
+    1 + 0.2 * ((0.65 * 20 * 0.2) / (1 + 20 * 0.14));
+  nearlyEqual(
+    blood.ratings.statAttackDps,
+    stableBloodDps * expectedBloodProfileMultiplier,
+  );
+
+  const nineRendered = snapshotFor({ split: 8, leech: 1 });
+  const overflowRendered = snapshotFor({ split: 20, leech: 1 });
+  assert.equal(nineRendered.offense.renderedProjectileCount, 9);
+  assert.equal(overflowRendered.offense.renderedProjectileCount, 9);
+  assert.ok(
+    overflowRendered.ratings.statAttackDps > nineRendered.ratings.statAttackDps,
+    "damage throughput must preserve theoretical overflow",
+  );
+  nearlyEqual(
+    overflowRendered.ratings.survivalBudget,
+    nineRendered.ratings.survivalBudget,
+  );
+  assert.match(overflowRendered.ratings.conversionLabel, /전 생명력 처치 환산/);
 });
 
 test("the character sheet preserves caps, overflow throughput, and live conditional defense", async () => {
@@ -332,6 +467,16 @@ test("the detailed stats dialog is keyboard-safe, mutually exclusive, and comple
     "eliteDamagePercent",
     "lifeOnHitFlat",
     "gearFindPercent",
+    "projectileCountFlat",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "bossDamagePercent",
+    "executeDamagePercent",
   ]) {
     assert.ok(overlay.includes(statKey), `missing equipment contribution: ${statKey}`);
   }
@@ -343,4 +488,7 @@ test("the detailed stats dialog is keyboard-safe, mutually exclusive, and comple
   assert.match(stats, /expectedPrimaryDps/);
   assert.match(stats, /normalGearDropChance/);
   assert.match(stats, /calculateEquipmentCombatPowerBreakdown/);
+  assert.match(stats, /calculateCombatEvaluation/);
+  assert.match(overlay, /ratings\.standardBossDps/);
+  assert.match(overlay, /ratings\.combatPower/);
 });
