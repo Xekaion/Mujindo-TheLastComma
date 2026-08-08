@@ -87,6 +87,11 @@ import {
   type DungeonDoorAccess,
 } from "./dungeon-floor";
 import {
+  WALKABLE_FLOOR_POLYGON,
+  constrainPointToConvexPolygon,
+  projectPointToConvexPolygon,
+} from "./room-collision";
+import {
   SAVE_SLOT_IDS,
   markSaveSlotEndingSeen,
   migrateLegacySave,
@@ -225,6 +230,9 @@ const TIME_RIFT_SOURCE_INSET_RATIO = 0.025;
 const STAIRCASE_X = WIDTH / 2;
 const STAIRCASE_Y = HEIGHT / 2 + 88;
 const STAIRCASE_INTERACTION_RADIUS = 74;
+const MEMORY_DROP_WALL_CLEARANCE = 30;
+const GEAR_DROP_WALL_CLEARANCE = 40;
+const SUMMON_WALL_CLEARANCE = 28;
 const ROOM_GEOMETRY = {
   left: 74,
   right: WIDTH - 74,
@@ -239,16 +247,6 @@ const ROOM_GEOMETRY = {
   openInsetX: 24,
   openInsetY: 24,
 } as const;
-const WALKABLE_FLOOR_POLYGON = [
-  { x: 270, y: 142 },
-  { x: WIDTH - 270, y: 142 },
-  { x: WIDTH - 146, y: 224 },
-  { x: WIDTH - 146, y: HEIGHT - 224 },
-  { x: WIDTH - 266, y: HEIGHT - 138 },
-  { x: 266, y: HEIGHT - 138 },
-  { x: 146, y: HEIGHT - 224 },
-  { x: 146, y: 224 },
-] as const;
 type GameMode =
   | "menu"
   | "playing"
@@ -761,6 +759,23 @@ function constrainPlayerToWalkableFloor(
   }
   player.x = closestX;
   player.y = closestY;
+}
+
+function constrainEnemyToWalkableFloor(enemy: Enemy) {
+  return constrainPointToConvexPolygon(
+    enemy,
+    WALKABLE_FLOOR_POLYGON,
+    enemy.radius,
+  );
+}
+
+function safeWalkableFloorPoint(x: number, y: number, clearance: number) {
+  return projectPointToConvexPolygon(
+    x,
+    y,
+    WALKABLE_FLOOR_POLYGON,
+    clearance,
+  );
 }
 
 const isLocalRarityShowcaseHost = () =>
@@ -2614,6 +2629,8 @@ export default function GameCanvas({
       const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED];
       const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11, FINAL_BINDER_BASE_DAMAGE];
       const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS];
+      const radius = radii[kind];
+      const spawnPoint = safeWalkableFloorPoint(x, y, radius);
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
       const eliteScale = elite ? 2.25 : 1;
       const difficultyTier = isBossKind(kind) ? "boss" : elite ? "elite" : "normal";
@@ -2625,9 +2642,9 @@ export default function GameCanvas({
       return {
         id: idRef.current++,
         kind,
-        x,
-        y,
-        radius: radii[kind],
+        x: spawnPoint.x,
+        y: spawnPoint.y,
+        radius,
         hp,
         maxHp: hp,
         speed: speedBases[kind] * (elite ? 1.12 : 1),
@@ -4372,19 +4389,24 @@ export default function GameCanvas({
           lootVfxShowcaseRarities.length === 1
             ? { x: WIDTH / 2, y: HEIGHT / 2 + 70 }
             : showcasePositions[index];
+        const safePosition = safeWalkableFloorPoint(
+          position.x,
+          position.y,
+          GEAR_DROP_WALL_CLEARANCE,
+        );
         const item = rollGear(`local-loot-vfx-${rarity}`, {
           level: Math.max(1, playerRef.current.level),
           rarity,
         });
         world.gearDrops.push({
           id: idRef.current++,
-          x: position.x,
-          y: position.y,
+          x: safePosition.x,
+          y: safePosition.y,
           item,
           pickupDelay: 30,
           appearanceAge: 0,
         });
-        spawnLootAwakening(position.x, position.y, rarity);
+        spawnLootAwakening(safePosition.x, safePosition.y, rarity);
       }
     };
 
@@ -4468,7 +4490,17 @@ export default function GameCanvas({
             : 7 + enemy.kind * 2;
       const scavengerRank = powerRankOf(player, "scavenger");
       const value = baseValue * Math.pow(1 + scavengerRank * 0.1, 0.75);
-      world.orbs.push({ id: idRef.current++, x: enemy.x, y: enemy.y, value });
+      const memoryDropPoint = safeWalkableFloorPoint(
+        enemy.x,
+        enemy.y,
+        MEMORY_DROP_WALL_CLEARANCE,
+      );
+      world.orbs.push({
+        id: idRef.current++,
+        x: memoryDropPoint.x,
+        y: memoryDropPoint.y,
+        value,
+      });
       const lootRoll = hash(
         world.seed,
         world.roomX + enemy.id,
@@ -4539,17 +4571,20 @@ export default function GameCanvas({
             level: dropLevel,
             rarity: forcedRarity,
           });
-          const dropX = enemy.x + (dropIndex - (dropCount - 1) / 2) * 52;
-          const dropY = enemy.y + 12;
+          const gearDropPoint = safeWalkableFloorPoint(
+            enemy.x + (dropIndex - (dropCount - 1) / 2) * 52,
+            enemy.y + 12,
+            GEAR_DROP_WALL_CLEARANCE,
+          );
           world.gearDrops.push({
             id: idRef.current++,
-            x: dropX,
-            y: dropY,
+            x: gearDropPoint.x,
+            y: gearDropPoint.y,
             item,
             pickupDelay: EQUIPMENT_RARITY_VFX[item.rarity].awakeningDuration + 0.18,
             appearanceAge: 0,
           });
-          spawnLootAwakening(dropX, dropY, item.rarity);
+          spawnLootAwakening(gearDropPoint.x, gearDropPoint.y, item.rarity);
           if (firstRoomDrop) firstRoomGearDroppedRef.current = true;
           if (item.rarity === "cosmic") {
             setToast(`${GEAR_RARITY_META[item.rarity].label} · ${formatGearDisplayName(item)}`);
@@ -5471,16 +5506,21 @@ export default function GameCanvas({
                         patternIndex + 5419,
                       ) *
                         105;
-                    const candidateX = clamp(
-                      player.x + Math.cos(targetAngle) * targetRadius,
-                      108,
-                      WIDTH - 108,
+                    const candidate = safeWalkableFloorPoint(
+                      clamp(
+                        player.x + Math.cos(targetAngle) * targetRadius,
+                        108,
+                        WIDTH - 108,
+                      ),
+                      clamp(
+                        player.y + Math.sin(targetAngle) * targetRadius,
+                        104,
+                        HEIGHT - 104,
+                      ),
+                      enemy.radius,
                     );
-                    const candidateY = clamp(
-                      player.y + Math.sin(targetAngle) * targetRadius,
-                      104,
-                      HEIGHT - 104,
-                    );
+                    const candidateX = candidate.x;
+                    const candidateY = candidate.y;
                     const candidateDistance = distance(
                       player.x,
                       player.y,
@@ -5527,18 +5567,19 @@ export default function GameCanvas({
                     (_, index) => {
                       const summonAngle =
                         angle + Math.PI / 2 + index * Math.PI;
-                      const target = {
-                        x: clamp(
+                      const target = safeWalkableFloorPoint(
+                        clamp(
                           enemy.x + Math.cos(summonAngle) * 132,
                           104,
                           WIDTH - 104,
                         ),
-                        y: clamp(
+                        clamp(
                           enemy.y + Math.sin(summonAngle) * 106,
                           100,
                           HEIGHT - 100,
                         ),
-                      };
+                        SUMMON_WALL_CLEARANCE,
+                      );
                       spawnVisualEffect(
                         "summon",
                         target.x,
@@ -5684,6 +5725,7 @@ export default function GameCanvas({
             const chargeSpeed = 650;
             enemy.x += (enemy.patternX ?? 0) * chargeSpeed * dt;
             enemy.y += (enemy.patternY ?? 1) * chargeSpeed * dt;
+            const chargeHitWall = constrainEnemyToWalkableFloor(enemy);
             enemy.moving = true;
             enemy.walkCycle = (enemy.walkCycle + dt * 14) % 4;
             enemy.facing = directionRow(
@@ -5706,7 +5748,7 @@ export default function GameCanvas({
               enemy.patternHit = true;
               damagePlayer(enemy.damage * 1.35);
             }
-            if ((enemy.patternTimer ?? 0) <= 0) beginRecovery(0.92);
+            if (chargeHitWall || (enemy.patternTimer ?? 0) <= 0) beginRecovery(0.92);
           } else if (bossPhase === "timeRifts") {
             moveBoss(0.38);
             const timeRifts = enemy.timeRifts ?? [];
@@ -6016,6 +6058,7 @@ export default function GameCanvas({
             const chargeSpeed = enemy.elite ? 760 : 680;
             enemy.x += (enemy.patternX ?? 0) * chargeSpeed * dt;
             enemy.y += (enemy.patternY ?? 1) * chargeSpeed * dt;
+            const chargeHitWall = constrainEnemyToWalkableFloor(enemy);
             enemy.moving = true;
             enemy.walkCycle = (enemy.walkCycle + dt * 15) % 4;
             enemy.facing = directionRow(
@@ -6038,7 +6081,7 @@ export default function GameCanvas({
               enemy.patternHit = true;
               damagePlayer(enemy.damage * 1.45);
             }
-            if ((enemy.patternTimer ?? 0) <= 0) {
+            if (chargeHitWall || (enemy.patternTimer ?? 0) <= 0) {
               enemy.patternPhase = "recover";
               enemy.patternTimer = 0.88;
             }
@@ -6268,8 +6311,7 @@ export default function GameCanvas({
               (enemy.walkCycle + dt * (5.4 + enemy.speed / 38) * Math.abs(movement)) % 4;
           }
         }
-        enemy.x = clamp(enemy.x, 82, WIDTH - 82);
-        enemy.y = clamp(enemy.y, 78, HEIGHT - 78);
+        constrainEnemyToWalkableFloor(enemy);
 
         if (enemy.kind === 1 && enemy.shootCooldown <= 0) {
           for (let i = -1; i <= 1; i += 1) {
@@ -6278,16 +6320,27 @@ export default function GameCanvas({
           enemy.shootCooldown = 2.2;
         }
         if (enemy.kind === 3 && enemy.shootCooldown <= 0 && world.enemies.length < 28) {
-          const summonX = enemy.x + Math.cos(angle + 1) * 58;
-          const summonY = enemy.y + Math.sin(angle + 1) * 58;
-          world.enemies.push(makeEnemy(0, summonX, summonY, player.rooms));
-          spawnVisualEffect("summon", summonX, summonY + 8, 0.72, 154);
+          const summonedEnemy = makeEnemy(
+            0,
+            enemy.x + Math.cos(angle + 1) * 58,
+            enemy.y + Math.sin(angle + 1) * 58,
+            player.rooms,
+          );
+          world.enemies.push(summonedEnemy);
+          spawnVisualEffect("summon", summonedEnemy.x, summonedEnemy.y + 8, 0.72, 154);
           enemy.shootCooldown = 4.6;
         }
         if (enemy.kind === 4 && enemy.shootCooldown <= 0) {
           spawnVisualEffect("teleport", enemy.x, enemy.y + 8, 0.58, 146);
-          enemy.x = 120 + hash(world.seed, enemy.id, player.rooms, now | 0) * (WIDTH - 240);
-          enemy.y = 110 + hash(world.seed, player.rooms, enemy.id, (now / 7) | 0) * (HEIGHT - 220);
+          const teleportTarget = safeWalkableFloorPoint(
+            120 + hash(world.seed, enemy.id, player.rooms, now | 0) * (WIDTH - 240),
+            110 +
+              hash(world.seed, player.rooms, enemy.id, (now / 7) | 0) *
+                (HEIGHT - 220),
+            enemy.radius,
+          );
+          enemy.x = teleportTarget.x;
+          enemy.y = teleportTarget.y;
           spawnVisualEffect("teleport", enemy.x, enemy.y + 8, 0.68, 162);
           const teleportAngle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
           spawnHostileProjectile(enemy.x, enemy.y, teleportAngle, 350, enemy.damage, 9, "witch");

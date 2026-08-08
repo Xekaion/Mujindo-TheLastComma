@@ -4130,11 +4130,19 @@ test("the purchased wayfinder teleports only between safe visited and cleared ma
 });
 
 test("player movement is constrained to the walkable floor while open door corridors remain passable", async () => {
-  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const [source, collisionSource] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/room-collision.ts"), "utf8"),
+  ]);
+  assert.match(
+    collisionSource,
+    /export const WALKABLE_FLOOR_POLYGON\s*=\s*\[[\s\S]{0,700}?\] as const;/,
+    "the room floor needs an explicit collision polygon",
+  );
   assert.match(
     source,
-    /const WALKABLE_FLOOR_POLYGON\s*=\s*\[[\s\S]{0,700}?\] as const;/,
-    "the room floor needs an explicit collision polygon",
+    /import \{[\s\S]{0,160}?WALKABLE_FLOOR_POLYGON,[\s\S]{0,180}?\} from "\.\/room-collision";/,
+    "players, enemies, and loot must share one polygon source of truth",
   );
   assert.match(
     source,
@@ -4164,6 +4172,204 @@ test("player movement is constrained to the walkable floor while open door corri
     source,
     /player\.x \+= dx \* speed \* dt;[\s\S]{0,4000}?const doors = dungeonDoorAccess\(\s*world\.roomX,\s*world\.roomY,\s*world\.roomCleared,?\s*\);[\s\S]{0,1800}?constrainPlayerToWalkableFloor\(player, doors\);/,
     "the movement update must invoke the polygon constraint after applying motion",
+  );
+});
+
+test("enemy bodies, teleports, summons, and death loot stay on the walkable room floor", async () => {
+  const [collision, source] = await Promise.all([
+    importTypeScriptModule("app/room-collision.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  const polygon = collision.WALKABLE_FLOOR_POLYGON;
+
+  assert.equal(collision.pointInsideConvexPolygon({ x: 640, y: 360 }, polygon), true);
+  for (const clearance of [0, 21, 32, 62]) {
+    for (const [x, y] of [
+      [82, 360],
+      [1198, 360],
+      [640, 78],
+      [640, 642],
+      [130, 120],
+      [1160, 110],
+      [120, 610],
+      [1160, 610],
+    ]) {
+      const projected = collision.projectPointToConvexPolygon(
+        x,
+        y,
+        polygon,
+        clearance,
+      );
+      assert.equal(
+        collision.pointInsideConvexPolygon(projected, polygon, clearance),
+        true,
+        `${x},${y} with ${clearance}px clearance must land on the field`,
+      );
+      const repeated = { ...projected };
+      assert.equal(
+        collision.constrainPointToConvexPolygon(repeated, polygon, clearance),
+        false,
+        "a safe projection must be idempotent",
+      );
+      assert.deepEqual(repeated, projected);
+    }
+    for (let x = 82; x <= 1198; x += 37) {
+      for (let y = 78; y <= 642; y += 29) {
+        const projected = collision.projectPointToConvexPolygon(
+          x,
+          y,
+          polygon,
+          clearance,
+        );
+        assert.equal(
+          collision.pointInsideConvexPolygon(projected, polygon, clearance),
+          true,
+          `grid projection ${x},${y}/${clearance}`,
+        );
+      }
+    }
+  }
+  const reversedPolygon = [...polygon].reverse();
+  const reversedProjection = collision.projectPointToConvexPolygon(
+    120,
+    110,
+    reversedPolygon,
+    62,
+  );
+  assert.equal(
+    collision.pointInsideConvexPolygon(reversedProjection, reversedPolygon, 62),
+    true,
+    "polygon winding must not weaken wall collision",
+  );
+
+  const bossDeath = collision.projectPointToConvexPolygon(130, 120, polygon, 62);
+  const bossDrops = [-26, 26].map((offset) =>
+    collision.projectPointToConvexPolygon(
+      bossDeath.x + offset,
+      bossDeath.y + 12,
+      polygon,
+      40,
+    ),
+  );
+  for (const drop of bossDrops) {
+    assert.equal(collision.pointInsideConvexPolygon(drop, polygon, 40), true);
+  }
+  assert.ok(
+    Math.hypot(
+      bossDrops[0].x - bossDrops[1].x,
+      bossDrops[0].y - bossDrops[1].y,
+    ) > 20,
+    "two boss drops must remain visibly distinct after wall projection",
+  );
+
+  assert.match(
+    source,
+    /const spawnPoint = safeWalkableFloorPoint\(x, y, radius\);[\s\S]{0,520}?return \{[\s\S]{0,120}?x: spawnPoint\.x,[\s\S]{0,80}?y: spawnPoint\.y,[\s\S]{0,80}?radius,/,
+    "every makeEnemy caller must receive the normalized spawn coordinate",
+  );
+  assert.match(
+    source,
+    /const memoryDropPoint = safeWalkableFloorPoint\([\s\S]{0,180}?MEMORY_DROP_WALL_CLEARANCE[\s\S]{0,220}?x: memoryDropPoint\.x,[\s\S]{0,80}?y: memoryDropPoint\.y/,
+    "memory fragments need their own safe death coordinate",
+  );
+  assert.match(
+    source,
+    /const gearDropPoint = safeWalkableFloorPoint\([\s\S]{0,260}?GEAR_DROP_WALL_CLEARANCE[\s\S]{0,320}?x: gearDropPoint\.x,[\s\S]{0,80}?y: gearDropPoint\.y[\s\S]{0,260}?spawnLootAwakening\(gearDropPoint\.x, gearDropPoint\.y, item\.rarity\)/,
+    "the ground item and its awakening effect must share one safe coordinate",
+  );
+  assert.doesNotMatch(
+    source,
+    /enemy\.x = clamp\(enemy\.x, 82, WIDTH - 82\)/,
+    "the obsolete rectangular enemy clamp would still admit diagonal wall space",
+  );
+  assert.match(
+    source,
+    /const candidate = safeWalkableFloorPoint\([\s\S]{0,700}?enemy\.radius[\s\S]{0,180}?const candidateX = candidate\.x;[\s\S]{0,80}?const candidateY = candidate\.y;/,
+    "the boss teleport telegraph and arrival need one radius-safe target",
+  );
+  assert.match(
+    source,
+    /const target = safeWalkableFloorPoint\([\s\S]{0,700}?SUMMON_WALL_CLEARANCE[\s\S]{0,220}?spawnVisualEffect\([\s\S]{0,80}?target\.x,[\s\S]{0,80}?target\.y \+ 8/,
+    "boss summon telegraphs must also be painted on safe floor",
+  );
+  assert.match(
+    source,
+    /bestTargetX = candidateX;[\s\S]{0,80}?bestTargetY = candidateY;[\s\S]{0,180}?enemy\.patternTargetX = bestTargetX;[\s\S]{0,80}?enemy\.patternTargetY = bestTargetY;/,
+    "the boss must retain the selected safe teleport candidate",
+  );
+  assert.match(
+    source,
+    /pattern === "teleport"[\s\S]{0,160}?enemy\.x = enemy\.patternTargetX \?\? enemy\.x;[\s\S]{0,80}?enemy\.y = enemy\.patternTargetY \?\? enemy\.y;[\s\S]{0,160}?spawnVisualEffect\("teleport", enemy\.x, enemy\.y \+ 8/,
+    "the boss arrival must consume the same safe target used by its telegraph",
+  );
+  assert.match(
+    source,
+    /const summonedEnemy = makeEnemy\([\s\S]{0,260}?world\.enemies\.push\(summonedEnemy\)[\s\S]{0,160}?summonedEnemy\.x,[\s\S]{0,80}?summonedEnemy\.y \+ 8/,
+    "summon VFX and the spawned enemy must use the same normalized location",
+  );
+  assert.equal(
+    (source.match(/const chargeHitWall = constrainEnemyToWalkableFloor\(enemy\);/g) ?? [])
+      .length,
+    2,
+    "both charge enemies must collide before swept-hit evaluation",
+  );
+
+  const chargeContracts = [
+    {
+      start: "const chargeSpeed = 650;",
+      end: '} else if (bossPhase === "timeRifts")',
+    },
+    {
+      start: "const chargeSpeed = enemy.elite ? 760 : 680;",
+      end: "          } else {\n            enemy.moving = false;",
+    },
+  ];
+  for (const contract of chargeContracts) {
+    const start = source.indexOf(contract.start);
+    const end = source.indexOf(contract.end, start);
+    assert.ok(start >= 0 && end > start, contract.start);
+    const branch = source.slice(start, end);
+    const movement = branch.indexOf("enemy.x +=");
+    const constraint = branch.indexOf("const chargeHitWall = constrainEnemyToWalkableFloor(enemy);");
+    const sweptHit = branch.indexOf("distanceToSegment(");
+    const wallRecovery = branch.indexOf("chargeHitWall ||");
+    assert.ok(
+      movement >= 0 &&
+        movement < constraint &&
+        constraint < sweptHit &&
+        sweptHit < wallRecovery,
+      `${contract.start} must use its wall-clipped endpoint for hit and recovery`,
+    );
+  }
+
+  const updateStart = source.indexOf("const now = performance.now();");
+  const updateEnd = source.indexOf("const orbitRank = powerRankOf(player, \"orbit\")", updateStart);
+  assert.ok(updateStart >= 0 && updateEnd > updateStart);
+  const enemyUpdate = source.slice(updateStart, updateEnd);
+  const finalConstraint = enemyUpdate.indexOf("\n        constrainEnemyToWalkableFloor(enemy);");
+  const rangedAttack = enemyUpdate.indexOf("if (enemy.kind === 1 && enemy.shootCooldown <= 0)");
+  const ordinaryTeleport = enemyUpdate.indexOf("const teleportTarget = safeWalkableFloorPoint(");
+  assert.ok(finalConstraint >= 0 && finalConstraint < rangedAttack);
+  assert.ok(rangedAttack < ordinaryTeleport);
+  const teleportEnd = enemyUpdate.indexOf("const bossCanDealContactDamage", ordinaryTeleport);
+  const teleportBlock = enemyUpdate.slice(ordinaryTeleport, teleportEnd);
+  const teleportRadius = teleportBlock.indexOf("enemy.radius");
+  const applyTeleportX = teleportBlock.indexOf("enemy.x = teleportTarget.x;");
+  const applyTeleportY = teleportBlock.indexOf("enemy.y = teleportTarget.y;");
+  const arrivalEffect = teleportBlock.indexOf('spawnVisualEffect("teleport", enemy.x');
+  const arrivalShot = teleportBlock.indexOf("spawnHostileProjectile(enemy.x, enemy.y");
+  assert.ok(
+    teleportRadius >= 0 &&
+      teleportRadius < applyTeleportX &&
+      applyTeleportX < applyTeleportY &&
+      applyTeleportY < arrivalEffect &&
+      arrivalEffect < arrivalShot,
+    "ordinary teleport must apply its radius-safe target before VFX and firing",
+  );
+  assert.match(
+    source,
+    /const safePosition = safeWalkableFloorPoint\([\s\S]{0,180}?GEAR_DROP_WALL_CLEARANCE[\s\S]{0,320}?x: safePosition\.x,[\s\S]{0,80}?y: safePosition\.y[\s\S]{0,220}?spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity\)/,
+    "the local VFX showcase must preserve the same GearDrop invariant",
   );
 });
 
@@ -6049,7 +6255,14 @@ test("the field-loot showcase is localhost-only and spawns real drops through pr
     /world\.gearDrops\.push\(\{[\s\S]{0,220}?item,[\s\S]{0,120}?pickupDelay:\s*30,[\s\S]{0,80}?appearanceAge:\s*0/,
     "the showcase must create real collectible GearDrop records",
   );
-  assert.match(showcase[0], /spawnLootAwakening\(position\.x, position\.y, rarity\)/);
+  assert.match(
+    showcase[0],
+    /const safePosition = safeWalkableFloorPoint\([\s\S]{0,180}?GEAR_DROP_WALL_CLEARANCE/,
+  );
+  assert.match(
+    showcase[0],
+    /spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity\)/,
+  );
   assert.match(source, /const loop = \(now: number\) => \{[\s\S]{0,140}?spawnLocalLootVfxShowcase\(\)/);
 });
 
