@@ -10667,7 +10667,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-/* Equipment stat disclosure: total value first, then its base/enhancement split. */
+/* Equipment stat disclosure: deterministic implicit first, fixed rolls second. */
 .inventory-screen-affix-breakdown,
 .inventory-screen-tooltip-affixes > .inventory-screen-affix-breakdown {
   display: grid;
@@ -10799,6 +10799,150 @@ button.equipment-slot-card:hover {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.inventory-screen-implicit-option {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid rgba(221, 181, 94, 0.32);
+  border-left: 3px solid #e1b75d;
+  background:
+    radial-gradient(circle at 86% 12%, rgba(230, 190, 95, 0.12), transparent 35%),
+    linear-gradient(105deg, rgba(80, 56, 19, 0.34), rgba(10, 17, 17, 0.72));
+  box-shadow:
+    inset 0 0 18px rgba(227, 184, 88, 0.045),
+    0 5px 20px rgba(0, 0, 0, 0.2);
+}
+
+.inventory-screen-implicit-option > header,
+.inventory-screen-option-group-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.inventory-screen-implicit-option > header > span,
+.inventory-screen-option-group-label > strong {
+  color: #d8bd82;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.inventory-screen-implicit-option > header > em {
+  border: 1px solid rgba(111, 221, 185, 0.26);
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: #91d7bf;
+  background: rgba(34, 112, 88, 0.12);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.inventory-screen-implicit-option > strong {
+  color: #fff0c9;
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1.15;
+  text-shadow: 0 0 12px rgba(237, 191, 88, 0.22);
+}
+
+.inventory-screen-implicit-option > small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(223, 214, 190, 0.68);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-screen-implicit-option > small > i {
+  color: rgba(224, 180, 83, 0.48);
+  font-style: normal;
+}
+
+.inventory-screen-implicit-option--compact {
+  margin: 7px 0 6px;
+  gap: 4px;
+  padding: 8px 10px;
+}
+
+.inventory-screen-implicit-option--compact > strong {
+  font-size: 11px;
+}
+
+.inventory-screen-option-group-label {
+  margin: 7px 0 4px;
+  padding: 0 2px;
+}
+
+.inventory-screen-option-group-label > span {
+  color: rgba(185, 205, 196, 0.54);
+  font-size: 7px;
+  text-align: right;
+}
+
+.inventory-screen-option-group-label--detail {
+  margin-top: 10px;
+}
+
+.inventory-screen-enhancement-affix-gains > small {
+  display: block;
+  margin-top: 5px;
+  border-top: 1px solid rgba(132, 173, 160, 0.1);
+  padding-top: 5px;
+  color: rgba(184, 205, 197, 0.56);
+  font-size: 7px;
+  line-height: 1.35;
+}
+
+.gear-implicit-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0;
+  border: 1px solid rgba(224, 181, 87, 0.28);
+  border-left: 3px solid #dcb35e;
+  padding: 8px 10px;
+  background: linear-gradient(100deg, rgba(92, 61, 17, 0.32), rgba(7, 11, 12, 0.58));
+}
+
+.gear-implicit-line > span {
+  display: grid;
+  gap: 3px;
+}
+
+.gear-implicit-line small,
+.gear-option-group-heading span {
+  color: rgba(191, 207, 200, 0.58);
+  font-size: 8px;
+}
+
+.gear-implicit-line b {
+  color: #f3d99c;
+  font-size: 11px;
+}
+
+.gear-implicit-line > em {
+  color: #8fd5bd;
+  font-size: 8px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.gear-option-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 8px 0 4px;
+  color: #d9be83;
+  font-size: 9px;
 }
 
 @media (max-height: 780px) {

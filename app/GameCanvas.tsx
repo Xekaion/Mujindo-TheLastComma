@@ -143,7 +143,6 @@ import {
   GEAR_DROP_SCAVENGER_CHANCE_PER_RANK,
   GEAR_ICON_COLUMNS,
   GEAR_ICON_ROWS,
-  GEAR_AFFIX_DEFINITIONS,
   GEAR_RARITIES,
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
@@ -155,6 +154,7 @@ import {
   formatGearNumericValue,
   gearIconCell,
   getGearAffixDisplay,
+  getGearImplicitDisplay,
   getGearSalvageAshBreakdown,
   getGearEnhancementRule,
   isExpeditionStartingRoom,
@@ -3051,12 +3051,8 @@ export default function GameCanvas({
 
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const previousEquipmentPower = calculateEquipmentCombatPower(player.equipment);
-      const optionGainSummary = item.affixes
-        .map((affix) => {
-          const nextStageGain = getGearAffixDisplay(affix, item).nextStageGainLabel;
-          return `${GEAR_AFFIX_DEFINITIONS[affix.stat].name} ${nextStageGain}`;
-        })
-        .join(" · ") || "옵션 증가 없음";
+      const implicitDisplay = getGearImplicitDisplay(item);
+      const optionGainSummary = `기본 옵션 증가 · ${implicitDisplay.label} ${implicitDisplay.nextStageGainLabel} · 추가 옵션 고정`;
       player.memoryAsh -= rule.ashCost;
       const roll = Math.random() * 100;
       if (roll < rule.successPercent) {
@@ -3128,12 +3124,8 @@ export default function GameCanvas({
         ? calculateEquipmentPowerDelta(player.equipment, previewItem)
         : previewItem.powerScore - item.powerScore;
       const powerGainLabel = equippedSlot ? "장착 종합 전투력" : "아이템 전투력";
-      const optionGainSummary = item.affixes
-        .map((affix) => {
-          const nextStageGain = getGearAffixDisplay(affix, item).nextStageGainLabel;
-          return `${GEAR_AFFIX_DEFINITIONS[affix.stat].name} ${nextStageGain}`;
-        })
-        .join(" · ") || "옵션 증가 없음";
+      const implicitDisplay = getGearImplicitDisplay(item);
+      const optionGainSummary = `기본 옵션 ${implicitDisplay.label} ${implicitDisplay.nextStageGainLabel} · 추가 옵션은 변하지 않음`;
       if (rule.destroyPercent <= 0) {
         performGearEnhancement(itemId);
         return;
@@ -3901,7 +3893,7 @@ export default function GameCanvas({
         timeRank > 0 &&
         (player.shotCounter + 1) % Math.max(2, 6 - Math.min(4, timeRank)) === 0;
       let damage =
-        BASE_PLAYER_ATTACK_DAMAGE *
+        (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
         (1 + powerRankOf(player, "fang") * 0.18) *
         (1 + bloodRank * 0.14 + missingHealthBonus) *
         (1 + powerRankOf(player, "ember") * 0.08) *
@@ -4235,7 +4227,7 @@ export default function GameCanvas({
       ) {
         player.riftTrailCooldown = 0.055;
         const riftDamage =
-          BASE_PLAYER_ATTACK_DAMAGE *
+          (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
           (1 + equipmentStats.damagePercent / 100) *
           0.4;
         spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
@@ -5542,7 +5534,7 @@ export default function GameCanvas({
             player.memoryPickupCounter % 8 === 0
           ) {
             const resonanceDamage =
-              BASE_PLAYER_ATTACK_DAMAGE *
+              (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
               (1 + equipmentStats.damagePercent / 100) *
               0.75;
             spawnCombatEffect("muzzle", player.x, player.y, 0.46, 78, "#f0b86e");
@@ -7553,11 +7545,16 @@ export default function GameCanvas({
   const selectedGearComparison = selectedGear
     ? hud.player.equipment[selectedGear.slot]
     : null;
+  const selectedGearImplicit = selectedGear
+    ? getGearImplicitDisplay(selectedGear)
+    : null;
   const selectedPowerDelta = selectedGear
     ? calculateEquipmentPowerDelta(hud.player.equipment, selectedGear)
     : 0;
   const buildMetrics = useMemo(() => {
     const damageMultiplier =
+      ((BASE_PLAYER_ATTACK_DAMAGE + gearStats.attackPowerFlat) /
+        BASE_PLAYER_ATTACK_DAMAGE) *
       (1 + powerRankOf(hud.player, "fang") * 0.18) *
       (1 + powerRankOf(hud.player, "blood") * 0.14) *
       (1 + powerRankOf(hud.player, "ember") * 0.08) *
@@ -8124,7 +8121,7 @@ export default function GameCanvas({
                         <strong>{item?.displayName ?? "비어 있음"}</strong>
                         <span>
                           {item
-                            ? `전투력 ${item.powerScore} · 옵션 품질 ${item.qualityScore}%`
+                            ? `전투력 ${item.powerScore} · 추가 옵션 품질 ${item.qualityScore}%`
                             : "전리품을 장착하세요"}
                         </span>
                       </div>
@@ -8159,7 +8156,7 @@ export default function GameCanvas({
                   ))
                 )}
               </div>
-              {selectedGear && (
+              {selectedGear && selectedGearImplicit && (
                 <section className={`gear-comparison ${gearRarityClass(selectedGear)}`}>
                   <div className="gear-comparison-heading">
                     <div>
@@ -8176,8 +8173,17 @@ export default function GameCanvas({
                   <p>
                     현재 장착: {selectedGearComparison?.displayName ?? "없음"}
                   </p>
-                  <div className="gear-quality-line" aria-label={`옵션 품질 ${selectedGear.qualityScore}%`}>
-                    <span>옵션 품질</span>
+                  <div className="gear-implicit-line">
+                    <span>
+                      <small>기본 옵션 · 강화 적용</small>
+                      <b>{selectedGearImplicit.totalLabel}</b>
+                    </span>
+                    <em>
+                      {selectedGearImplicit.baseLabel} · {selectedGearImplicit.enhancementLabel}
+                    </em>
+                  </div>
+                  <div className="gear-quality-line" aria-label={`추가 옵션 품질 ${selectedGear.qualityScore}%`}>
+                    <span>추가 옵션 품질</span>
                     <span className="gear-quality-meter" aria-hidden="true">
                       <i
                         className="gear-quality-fill"
@@ -8185,6 +8191,10 @@ export default function GameCanvas({
                       />
                     </span>
                     <b className="gear-quality-value">{selectedGear.qualityScore}%</b>
+                  </div>
+                  <div className="gear-option-group-heading">
+                    <strong>추가 옵션</strong>
+                    <span>획득 시 확정 · 강화 영향 없음</span>
                   </div>
                   <div className="gear-item-affixes">
                     {selectedGear.affixes.map((affix) => {
@@ -8194,9 +8204,7 @@ export default function GameCanvas({
                           <span className="gear-affix-display-copy">
                             <b>{display.totalLabel}</b>
                             <br />
-                            <small>
-                              {display.baseLabel} · {display.enhancementLabel}
-                            </small>
+                            <small>획득 시 고정 · 강화 영향 없음</small>
                           </span>
                           <em>품질 {affix.rollPercent}/100</em>
                         </span>

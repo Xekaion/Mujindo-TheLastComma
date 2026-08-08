@@ -22,6 +22,7 @@ import {
   calculateEquipmentPowerDelta,
   gearIconCell,
   getGearAffixDisplay,
+  getGearImplicitDisplay,
   getGearEnhancementRule,
   getGearSalvageAshBreakdown,
   type EquipmentLoadout,
@@ -185,15 +186,41 @@ function GearAffixBreakdown({
       <span className="inventory-screen-affix-values">
         <strong>{display.totalLabel}</strong>
         <small>
-          {display.baseLabel}
-          <i aria-hidden="true">·</i>
-          {display.enhancementLabel}
+          추가 옵션 · 획득 시 고정 · 강화 영향 없음
         </small>
       </span>
-      <em aria-label={`옵션 품질 백분위 ${affix.rollPercent}점`}>
+      <em aria-label={`추가 옵션 품질 백분위 ${affix.rollPercent}점`}>
         품질 {affix.rollPercent}/100
       </em>
     </div>
+  );
+}
+
+function GearImplicitBreakdown({
+  item,
+  compact = false,
+}: {
+  item: GearItem;
+  compact?: boolean;
+}) {
+  const display = getGearImplicitDisplay(item);
+
+  return (
+    <section
+      className={`inventory-screen-implicit-option${compact ? " inventory-screen-implicit-option--compact" : ""}`}
+      aria-label={`기본 옵션 ${display.totalLabel}`}
+    >
+      <header>
+        <span>기본 옵션</span>
+        <em>강화 적용</em>
+      </header>
+      <strong>{display.totalLabel}</strong>
+      <small>
+        {display.baseLabel}
+        <i aria-hidden="true">·</i>
+        {display.enhancementLabel}
+      </small>
+    </section>
   );
 }
 
@@ -242,14 +269,19 @@ function GearTooltip({
           </em>
         )}
       </div>
+      <GearImplicitBreakdown item={item} compact />
       <div className="inventory-screen-tooltip-quality">
-        <span>옵션 품질 백분위</span>
+        <span>추가 옵션 품질 백분위</span>
         <i aria-hidden="true">
           <b style={{ width: `${item.qualityScore}%` }} />
         </i>
-        <strong aria-label={`옵션 품질 백분위 ${item.qualityScore}점`}>
+        <strong aria-label={`추가 옵션 품질 백분위 ${item.qualityScore}점`}>
           품질 {item.qualityScore}/100
         </strong>
+      </div>
+      <div className="inventory-screen-option-group-label">
+        <strong>추가 옵션</strong>
+        <span>획득 시 확정 · 강화로 변경되지 않음</span>
       </div>
       <div className="inventory-screen-tooltip-affixes">
         {item.affixes.map((affix) => (
@@ -367,6 +399,9 @@ export default function InventoryOverlay({
   const enhancementEfficiencyPercent = selectedItem
     ? (GEAR_ENHANCEMENT_EFFECT_PER_STAGE[selectedItem.rarity] * 100).toFixed(2)
     : "0.00";
+  const selectedImplicitDisplay = selectedItem
+    ? getGearImplicitDisplay(selectedItem)
+    : null;
   const equipmentWithSelectedItem: EquipmentLoadout = selectedItem
     ? { ...equipment, [selectedItem.slot]: selectedItem }
     : equipment;
@@ -712,8 +747,9 @@ export default function InventoryOverlay({
                           </strong>
                         </div>
                       )}
-                      <div className="inventory-screen-quality" aria-label={`옵션 품질 백분위 ${selectedItem.qualityScore}점`}>
-                        <span>옵션 품질 백분위</span>
+                      <GearImplicitBreakdown item={selectedItem} />
+                      <div className="inventory-screen-quality" aria-label={`추가 옵션 품질 백분위 ${selectedItem.qualityScore}점`}>
+                        <span>추가 옵션 품질 백분위</span>
                         <span className="inventory-screen-quality-track" aria-hidden="true">
                           <i
                             className="inventory-screen-quality-fill"
@@ -721,6 +757,10 @@ export default function InventoryOverlay({
                           />
                         </span>
                         <b>품질 {selectedItem.qualityScore}/100</b>
+                      </div>
+                      <div className="inventory-screen-option-group-label inventory-screen-option-group-label--detail">
+                        <strong>추가 옵션</strong>
+                        <span>드랍 당시 품질로 확정 · 강화 영향 없음</span>
                       </div>
                       <div className="inventory-screen-affixes">
                         {selectedItem.affixes.map((affix) => (
@@ -762,18 +802,16 @@ export default function InventoryOverlay({
                               </em>
                             </div>
                             <div className="inventory-screen-enhancement-affix-gains">
-                              <strong>이번 강화 옵션 증가</strong>
+                              <strong>이번 강화 기본 옵션 증가</strong>
                               <ul>
-                                {selectedItem.affixes.map((affix) => {
-                                  const display = getGearAffixDisplay(affix, selectedItem);
-                                  return (
-                                    <li key={affix.stat}>
-                                      <span>{display.totalLabel}</span>
-                                      <em>{display.nextStageGainLabel}</em>
-                                    </li>
-                                  );
-                                })}
+                                <li>
+                                  <span>{selectedImplicitDisplay?.totalLabel}</span>
+                                  <em>{selectedImplicitDisplay?.nextStageGainLabel}</em>
+                                </li>
                               </ul>
+                              <small>
+                                추가 옵션 {selectedItem.affixes.length}개는 획득 당시 수치로 유지됩니다.
+                              </small>
                             </div>
                             <dl className="inventory-screen-enhancement-rates">
                               <div className="inventory-screen-enhancement-rate--cost">
@@ -819,7 +857,7 @@ export default function InventoryOverlay({
                           <div className="inventory-screen-enhancement-max">
                             <strong>최대 강화 +{MAX_GEAR_ENHANCEMENT}</strong>
                             <span>
-                              {GEAR_RARITY_META[selectedItem.rarity].label} 등급은 단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}%가 추가되며, 최대 효율이 모두 적용되었습니다.
+                              {GEAR_RARITY_META[selectedItem.rarity].label} 등급은 단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}%가 추가됩니다. 기본 옵션은 최대 효율이 적용되었고 추가 옵션은 획득 당시 수치로 고정됩니다.
                             </span>
                           </div>
                         )}
@@ -1058,7 +1096,7 @@ export default function InventoryOverlay({
                       onBlur={() => setHoveredItem(null)}
                       aria-label={salvageMode
                         ? `${item.displayName} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${item.displayName} +${item.enhancement}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 옵션 품질 백분위 ${item.qualityScore}점`}
+                        : `${item.displayName} +${item.enhancement}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 추가 옵션 품질 백분위 ${item.qualityScore}점`}
                       aria-describedby={!salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageMode ? checkedForSalvage : selected}
                     >

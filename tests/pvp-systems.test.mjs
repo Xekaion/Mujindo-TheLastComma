@@ -147,7 +147,7 @@ test("adaptive PVP balance is symmetric, monotonic, and preserves minimum surviv
   assert.equal(protocol.PVP_MIN_HITS_TO_KO, 8);
   assert.equal(protocol.PVP_BURST_WINDOW_MS, 300);
   assert.equal(protocol.PVP_BURST_MAX_HEALTH_FRACTION, 0.25);
-  assert.equal(protocol.PVP_BALANCE_VERSION, 2);
+  assert.equal(protocol.PVP_BALANCE_VERSION, 3);
 
   const weak = { level: 1, equipmentPower: 0, augmentStacks: 0 };
   const middle = { level: 120, equipmentPower: 80_000, augmentStacks: 360 };

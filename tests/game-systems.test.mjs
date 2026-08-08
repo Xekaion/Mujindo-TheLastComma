@@ -612,12 +612,18 @@ test("ten simple augments use exact card values and affect runtime calculations"
 });
 
 test("opening basic attacks defeat common enemies in two unmodified hits", async () => {
-  const [combatBalance, source] = await Promise.all([
+  const [combatBalance, equipment, source] = await Promise.all([
     importTypeScriptModule("app/combat-balance.ts"),
+    importTypeScriptModule("app/equipment.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
   ]);
 
   assert.equal(combatBalance.BASE_PLAYER_ATTACK_DAMAGE, 14);
+  assert.equal(
+    equipment.EQUIPMENT_POWER_BASE_ATTACK_DAMAGE,
+    combatBalance.BASE_PLAYER_ATTACK_DAMAGE,
+    "combat and equipment power must share one unmodified attack anchor",
+  );
   assert.equal(Math.ceil(24 / combatBalance.BASE_PLAYER_ATTACK_DAMAGE), 2);
   assert.equal(Math.ceil(28 / combatBalance.BASE_PLAYER_ATTACK_DAMAGE), 2);
   assert.ok(
@@ -625,9 +631,18 @@ test("opening basic attacks defeat common enemies in two unmodified hits", async
     "the five-percent opening critical roll must not randomly one-shot even the weakest enemy",
   );
   assert.match(source, /import \{ BASE_PLAYER_ATTACK_DAMAGE \} from "\.\/combat-balance";/);
-  assert.match(source, /let damage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
-  assert.match(source, /const riftDamage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
-  assert.match(source, /const resonanceDamage =\s*BASE_PLAYER_ATTACK_DAMAGE \*/);
+  assert.match(
+    source,
+    /let damage =\s*\(BASE_PLAYER_ATTACK_DAMAGE \+ equipmentStats\.attackPowerFlat\) \*/,
+  );
+  assert.match(
+    source,
+    /const riftDamage =\s*\(BASE_PLAYER_ATTACK_DAMAGE \+ equipmentStats\.attackPowerFlat\) \*/,
+  );
+  assert.match(
+    source,
+    /const resonanceDamage =\s*\(BASE_PLAYER_ATTACK_DAMAGE \+ equipmentStats\.attackPowerFlat\) \*/,
+  );
   assert.doesNotMatch(source, /let damage =\s*12 \*/);
 });
 
@@ -2618,7 +2633,55 @@ test("rarity tier rating preserves the level-100 equivalence ladder without faki
   }
 });
 
-test("gear option text keeps two decimals and exposes the exact enhancement contribution", async () => {
+test("all ten slots derive one rarity-equivalent basic option and enhance only that option", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  assert.deepEqual(
+    Object.fromEntries(
+      equipment.EQUIPMENT_SLOTS.map((slot) => [
+        slot,
+        equipment.GEAR_IMPLICIT_OPTION_BY_SLOT[slot].stat,
+      ]),
+    ),
+    {
+      weapon: "attackPowerFlat",
+      offhand: "projectileSizePercent",
+      helm: "maxHpFlat",
+      shoulders: "projectileSpeedPercent",
+      armor: "damageReductionPercent",
+      gloves: "attackSpeedPercent",
+      belt: "lifeOnHitFlat",
+      legs: "dashCooldownPercent",
+      boots: "moveSpeedPercent",
+      relic: "critChancePercent",
+    },
+  );
+
+  for (const slot of equipment.EQUIPMENT_SLOTS) {
+    const commonAnchor = equipment.getGearImplicitBaseValue({
+      slot,
+      level: 100,
+      rarity: "common",
+      enhancement: 0,
+    });
+    assert.ok(commonAnchor > 0, `${slot} needs a meaningful base option`);
+    for (const rarity of equipment.GEAR_RARITIES) {
+      const level = 100 - equipment.GEAR_RARITY_LEVEL_EQUIVALENT[rarity];
+      const item = { slot, level, rarity, enhancement: 0 };
+      assert.equal(
+        equipment.getGearImplicitBaseValue(item),
+        commonAnchor,
+        `${slot} ${rarity} must preserve the established equivalent-level ladder`,
+      );
+      assert.ok(
+        equipment.getEnhancedGearImplicitValue({ ...item, enhancement: 10 })
+          > commonAnchor,
+        `${slot} ${rarity} +10 must have a visible reason to upgrade`,
+      );
+    }
+  }
+});
+
+test("gear text separates enhanced implicit options from fate-locked additional rolls", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
 
   assert.equal(equipment.formatGearNumericValue(12.345), "12.35");
@@ -2654,25 +2717,56 @@ test("gear option text keeps two decimals and exposes the exact enhancement cont
       nextStageGainValue: display.nextStageGainValue,
     },
     {
-      totalValue: 13,
+      totalValue: 10,
       baseValue: 10,
-      enhancementValue: 3,
-      nextStageGainValue: 1,
+      enhancementValue: 0,
+      nextStageGainValue: 0,
     },
   );
   assert.equal(display.totalLabel, equipment.formatEnhancedGearAffix(item, affix));
-  assert.match(display.totalLabel, /\+13\.00%$/);
+  assert.match(display.totalLabel, /\+10\.00%$/);
   assert.match(display.baseLabel, /\+10\.00%$/);
-  assert.match(display.enhancementLabel, /\+3\.00%p$/);
-  assert.match(display.nextStageGainLabel, /\+1\.00%p$/);
+  assert.equal(display.enhancementLabel, "강화 영향 없음");
+  assert.equal(display.nextStageGainLabel, "고정");
+  assert.equal(
+    equipment.getEnhancedGearAffixValue(item, affix),
+    affix.value,
+    "random additional options must stay exactly as rolled at every enhancement",
+  );
+
+  const implicit = equipment.getGearImplicitDisplay({
+    slot: "weapon",
+    level: 70,
+    rarity: "legendary",
+    enhancement: 3,
+  });
+  assert.deepEqual(
+    {
+      stat: implicit.stat,
+      baseValue: implicit.baseValue,
+      totalValue: implicit.totalValue,
+      enhancementValue: implicit.enhancementValue,
+      nextStageGainValue: implicit.nextStageGainValue,
+    },
+    {
+      stat: "attackPowerFlat",
+      baseValue: 4,
+      totalValue: 5.68,
+      enhancementValue: 1.68,
+      nextStageGainValue: 0.56,
+    },
+  );
+  assert.equal(implicit.totalLabel, "기본 공격력 +5.68");
+  assert.match(implicit.enhancementLabel, /\+1\.68$/);
+  assert.match(implicit.nextStageGainLabel, /\+0\.56$/);
 
   const reductionDisplay = equipment.getGearAffixDisplay(
     { ...affix, stat: "damageReductionPercent" },
     item,
   );
-  assert.match(reductionDisplay.totalLabel, /-13\.00%$/);
+  assert.match(reductionDisplay.totalLabel, /-10\.00%$/);
   assert.match(reductionDisplay.baseLabel, /-10\.00%$/);
-  assert.match(reductionDisplay.enhancementLabel, /-3\.00%p$/);
+  assert.equal(reductionDisplay.enhancementLabel, "강화 영향 없음");
   assert.doesNotMatch(
     [
       display.totalLabel,
@@ -2731,6 +2825,18 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     equipment.createEmptyEquipment(),
   );
   assert.equal(emptyPower, 1_000, "the documented equipment-only baseline must remain stable");
+  assert.deepEqual(equipment.GEAR_STAT_KEYS, ["attackPowerFlat", ...equipment.GEAR_AFFIX_STATS]);
+  const lowAttack = equipment.createEmptyGearStatTotals();
+  lowAttack.attackPowerFlat = 4;
+  const highAttack = equipment.createEmptyGearStatTotals();
+  highAttack.attackPowerFlat = 12;
+  const lowAttackPower = equipment.calculateCombatPowerFromEquipmentStats(lowAttack).total;
+  const highAttackPower = equipment.calculateCombatPowerFromEquipmentStats(highAttack).total;
+  assert.ok(lowAttackPower > emptyPower);
+  assert.ok(
+    highAttackPower > lowAttackPower,
+    "implicit weapon attack power must be monotonic in the comprehensive score",
+  );
 
   const monotonicRanges = {
     damagePercent: [20, 80],
@@ -2832,9 +2938,6 @@ test("combat power values only implemented legendary effects and computes contex
     for (const item of items) loadout[item.slot] = item;
     return loadout;
   };
-  const emptyPower = equipment.calculateEquipmentCombatPower(
-    equipment.createEmptyEquipment(),
-  );
   const activePowers = [
     "crescentEcho",
     "hunterSigil",
@@ -2853,24 +2956,31 @@ test("combat power values only implemented legendary effects and computes contex
   for (const legendaryPowerId of activePowers) {
     const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
     const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
+    const implicitOnlyItem = { ...item, legendaryPowerId: null };
     assert.ok(
-      equipment.calculateEquipmentCombatPower(loadoutOf(item)) > emptyPower,
+      equipment.calculateEquipmentCombatPower(loadoutOf(item))
+        > equipment.calculateEquipmentCombatPower(loadoutOf(implicitOnlyItem)),
       `${legendaryPowerId} is implemented at runtime and must contribute power`,
     );
     assert.ok(
-      equipment.calculateGearPowerScore(item) > 1,
+      equipment.calculateGearPowerScore(item)
+        > equipment.calculateGearPowerScore(implicitOnlyItem),
       `${legendaryPowerId} must contribute to intrinsic item power too`,
     );
   }
   for (const legendaryPowerId of inactivePowers) {
     const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
     const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
+    const implicitOnlyItem = { ...item, legendaryPowerId: null };
     assert.equal(
       equipment.calculateEquipmentCombatPower(loadoutOf(item)),
-      emptyPower,
+      equipment.calculateEquipmentCombatPower(loadoutOf(implicitOnlyItem)),
       `${legendaryPowerId} must not claim power before its runtime behavior exists`,
     );
-    assert.equal(equipment.calculateGearPowerScore(item), 1);
+    assert.equal(
+      equipment.calculateGearPowerScore(item),
+      equipment.calculateGearPowerScore(implicitOnlyItem),
+    );
   }
 
   const equippedWeapon = makeItem({
@@ -2907,7 +3017,7 @@ test("combat power values only implemented legendary effects and computes contex
   assert.equal(currentLoadout.weapon, equippedWeapon, "comparison must not mutate the loadout");
 });
 
-test("enhancement power comes only from enhanced affixes and stale saves recompute derived values", async () => {
+test("enhancement power comes only from slot implicits and stale saves recompute derived values", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const emptyItem = {
     slot: "weapon",
@@ -2917,11 +3027,12 @@ test("enhancement power comes only from enhanced affixes and stale saves recompu
     legendaryPowerId: null,
     enhancement: 0,
   };
-  assert.equal(equipment.calculateGearPowerScore(emptyItem), 1);
-  assert.equal(
-    equipment.calculateGearPowerScore({ ...emptyItem, enhancement: 10 }),
-    1,
-    "level, rarity, and enhancement cannot invent combat power without an affix or active effect",
+  const implicitBasePower = equipment.calculateGearPowerScore(emptyItem);
+  assert.ok(implicitBasePower > 1, "every item must carry its slot's deterministic base option");
+  assert.ok(
+    equipment.calculateGearPowerScore({ ...emptyItem, enhancement: 10 })
+      > implicitBasePower,
+    "enhancement must create meaningful power through the implicit option alone",
   );
 
   const affix = {
@@ -2933,13 +3044,17 @@ test("enhancement power comes only from enhanced affixes and stale saves recompu
   const commonItem = {
     ...emptyItem,
     rarity: "common",
-    level: 1,
+    level: 100,
     affixes: [affix],
   };
-  const legendaryItem = { ...commonItem, rarity: "legendary" };
+  const legendaryItem = { ...commonItem, rarity: "legendary", level: 70 };
   const commonBasePower = equipment.calculateGearPowerScore(commonItem);
   const legendaryBasePower = equipment.calculateGearPowerScore(legendaryItem);
-  assert.equal(commonBasePower, legendaryBasePower);
+  assert.equal(
+    commonBasePower,
+    legendaryBasePower,
+    "equivalent rarity levels must share one +0 implicit anchor",
+  );
   const commonGain =
     equipment.calculateGearPowerScore({ ...commonItem, enhancement: 1 })
     - commonBasePower;
@@ -2949,7 +3064,15 @@ test("enhancement power comes only from enhanced affixes and stale saves recompu
   assert.ok(commonGain > 0);
   assert.ok(
     legendaryGain >= commonGain * 2,
-    "legendary +1 must convert its twice-as-large affix multiplier into real power",
+    "legendary +1 must convert its twice-as-large implicit multiplier into real power",
+  );
+  assert.equal(
+    equipment.getEnhancedGearAffixValue(
+      { rarity: "cosmic", enhancement: 10 },
+      affix,
+    ),
+    affix.value,
+    "additional options must not move even at cosmic +10",
   );
 
   const rolled = equipment.rollGear("stale-derived-power-save", {
@@ -3066,7 +3189,11 @@ test("saved equipment repairs derived quality and normalizes legacy affixes", as
       rarity: index === 0 ? "legendary" : "rare",
     });
     loadout[slot] = item;
-    for (const affix of item.affixes) expectedTotals[affix.stat] += affix.value;
+    const itemTotals = equipment.resolveGearItemStats(item);
+    for (const stat of equipment.GEAR_STAT_KEYS) {
+      expectedTotals[stat] += itemTotals[stat];
+      expectedTotals[stat] = Math.round(expectedTotals[stat] * 100) / 100;
+    }
   }
 
   const saved = JSON.parse(JSON.stringify(loadout));
@@ -3175,13 +3302,34 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   );
   for (const rarity of equipment.GEAR_RARITIES) {
     const rate = equipment.GEAR_ENHANCEMENT_EFFECT_PER_STAGE[rarity];
-    const actualAffixValue = equipment.getEnhancedGearAffixValue(
-      { rarity, enhancement: 1 },
-      { value: 100 },
+    assert.equal(
+      equipment.getEnhancedGearAffixValue(
+        { rarity, enhancement: 1 },
+        { value: 100 },
+      ),
+      100,
+      `${rarity} +1 must leave every additional option fixed`,
+    );
+    const equivalentLevel = 100 - equipment.GEAR_RARITY_LEVEL_EQUIVALENT[rarity];
+    const implicitItem = {
+      slot: "weapon",
+      level: equivalentLevel,
+      rarity,
+      enhancement: 0,
+    };
+    const baseImplicitValue = equipment.getGearImplicitBaseValue(implicitItem);
+    const enhancedImplicitValue = equipment.getEnhancedGearImplicitValue({
+      ...implicitItem,
+      enhancement: 1,
+    });
+    assert.equal(
+      enhancedImplicitValue,
+      Math.round(baseImplicitValue * (1 + rate) * 100) / 100,
+      `${rarity} +1 must apply its declared efficiency only to the implicit option`,
     );
     assert.ok(
-      Math.abs(actualAffixValue - 100 * (1 + rate)) < 1e-9,
-      `${rarity} +1 must apply its declared rarity efficiency to live affixes`,
+      enhancedImplicitValue > baseImplicitValue,
+      `${rarity} +1 needs a visible basic-option gain`,
     );
   }
   const baseItem = equipment.rollGear("enhancement-contract", {
@@ -3212,7 +3360,7 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   const commonAnchor = {
     slot: "armor",
     rarity: "common",
-    level: 1,
+    level: 100,
     affixes: [{
       stat: "damagePercent",
       value: 100,
@@ -3225,6 +3373,7 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   const legendaryAnchor = {
     ...commonAnchor,
     rarity: "legendary",
+    level: 70,
   };
   const commonAnchorPower = equipment.calculateGearPowerScore(commonAnchor);
   const legendaryAnchorPower = equipment.calculateGearPowerScore(legendaryAnchor);
@@ -3356,16 +3505,24 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   enhancedLoadout.armor = maxEnhanced;
   const baseTotals = equipment.aggregateEquipmentStats(baseLoadout);
   const enhancedTotals = equipment.aggregateEquipmentStats(enhancedLoadout);
-  for (const affix of baseItem.affixes) {
-    assert.ok(enhancedTotals[affix.stat] > baseTotals[affix.stat]);
+  const implicitStat = equipment.GEAR_IMPLICIT_OPTION_BY_SLOT[baseItem.slot].stat;
+  const implicitGain =
+    equipment.getEnhancedGearImplicitValue(plusTen)
+    - equipment.getEnhancedGearImplicitValue(baseItem);
+  for (const stat of equipment.GEAR_STAT_KEYS) {
+    const actualGain = Math.round((enhancedTotals[stat] - baseTotals[stat]) * 100) / 100;
+    const expectedGain = stat === implicitStat ? implicitGain : 0;
     assert.equal(
-      enhancedTotals[affix.stat],
-      Math.round(
-        baseTotals[affix.stat]
-          * equipment.getGearEnhancementMultiplier(baseItem.rarity, 10)
-          * 100,
-      ) / 100,
-      `${affix.stat} must use the same rarity-scaled multiplier as displayed power`,
+      actualGain,
+      expectedGain,
+      `${stat} must ${stat === implicitStat ? "receive only the implicit enhancement" : "remain fixed"}`,
+    );
+  }
+  for (const affix of baseItem.affixes) {
+    assert.equal(
+      equipment.getEnhancedGearAffixValue(plusTen, affix),
+      affix.value,
+      `${affix.stat} additional roll must remain its original value at +10`,
     );
   }
 });
@@ -3964,17 +4121,23 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   assert.match(
     overlay,
     /function GearAffixBreakdown[\s\S]{0,500}?getGearAffixDisplay\(affix, item\)/,
-    "all option rows must use the canonical base and enhancement display split",
+    "all additional-option rows must use the canonical fixed-roll display",
   );
   assert.match(
     overlay,
-    /<GearAffixBreakdown item=\{item\} affix=\{affix\} compact/,
-    "hover options must show their live enhancement-scaled values",
+    /function GearImplicitBreakdown[\s\S]{0,500}?getGearImplicitDisplay\(item\)/,
+    "the tooltip and workbench must share one canonical enhanced basic option",
   );
   assert.match(
     overlay,
-    /<GearAffixBreakdown item=\{selectedItem\} affix=\{affix\}/,
-    "workbench options must show their live enhancement-scaled values",
+    /이번 강화 기본 옵션 증가[\s\S]{0,500}?selectedImplicitDisplay\?\.totalLabel[\s\S]{0,200}?selectedImplicitDisplay\?\.nextStageGainLabel[\s\S]{0,300}?추가 옵션 \{selectedItem\.affixes\.length\}개는 획득 당시 수치로 유지됩니다/,
+    "enhancement preview must show only the implicit gain and explicitly freeze every roll",
+  );
+  assert.match(overlay, /추가 옵션 · 획득 시 고정 · 강화 영향 없음/);
+  assert.match(
+    source,
+    /const implicitDisplay = getGearImplicitDisplay\(item\);[\s\S]{0,180}?기본 옵션 증가[\s\S]{0,180}?추가 옵션 고정/,
+    "the success toast must report the same implicit-only gain contract",
   );
   assert.match(
     source,
@@ -4153,6 +4316,11 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
     overlay,
     /(?:function|const)\s+(?:Item|Gear)Tooltip[\s\S]{0,9000}?item\.affixes\.map/,
     "the tooltip must show every random affix rather than a shortened summary",
+  );
+  assert.match(
+    overlay,
+    /<GearImplicitBreakdown item=\{item\} compact \/>[\s\S]{0,1600}?<strong>추가 옵션<\/strong>/,
+    "the tooltip must visibly separate the enhanced basic option from fixed rolls",
   );
   assert.match(
     overlay,

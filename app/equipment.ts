@@ -417,6 +417,11 @@ export const GEAR_AFFIX_STATS = [
 
 export type GearAffixStat = (typeof GEAR_AFFIX_STATS)[number];
 
+/** All live equipment stats, including implicit-only weapon attack power. */
+export const GEAR_STAT_KEYS = ["attackPowerFlat", ...GEAR_AFFIX_STATS] as const;
+
+export type GearStat = (typeof GEAR_STAT_KEYS)[number];
+
 export type GearAffix = {
   stat: GearAffixStat;
   /** Positive magnitude. Reduction stats describe their subtraction in label. */
@@ -632,6 +637,33 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
   },
 };
 
+export type GearImplicitOptionDefinition = {
+  stat: GearStat;
+  label: string;
+  /** Canonical +0 magnitude when item level + rarity premium equals 100. */
+  valueAtTier100: number;
+};
+
+/**
+ * Every slot owns exactly one deterministic implicit option. These values are
+ * derived from slot/level/rarity rather than stored in saves, so legacy gear
+ * and normalized local/PVP profiles automatically use the current model.
+ */
+export const GEAR_IMPLICIT_OPTION_BY_SLOT: Readonly<
+  Record<EquipmentSlot, GearImplicitOptionDefinition>
+> = {
+  weapon: { stat: "attackPowerFlat", label: "기본 공격력", valueAtTier100: 4 },
+  offhand: { stat: "projectileSizePercent", label: "투사체 크기", valueAtTier100: 10 },
+  helm: { stat: "maxHpFlat", label: "최대 생명력", valueAtTier100: 30 },
+  shoulders: { stat: "projectileSpeedPercent", label: "투사체 속도", valueAtTier100: 12 },
+  armor: { stat: "damageReductionPercent", label: "받는 피해 감소", valueAtTier100: 4 },
+  gloves: { stat: "attackSpeedPercent", label: "공격 속도", valueAtTier100: 8 },
+  belt: { stat: "lifeOnHitFlat", label: "적중 회복", valueAtTier100: 1.5 },
+  legs: { stat: "dashCooldownPercent", label: "회피 재사용 효율", valueAtTier100: 8 },
+  boots: { stat: "moveSpeedPercent", label: "이동 속도", valueAtTier100: 8 },
+  relic: { stat: "critChancePercent", label: "치명타 확률", valueAtTier100: 4 },
+};
+
 export const LEGENDARY_POWER_IDS = [
   "crescentEcho",
   "mirrorAegis",
@@ -767,7 +799,7 @@ export type GearItem = {
 
 export type EquipmentLoadout = Record<EquipmentSlot, GearItem | null>;
 
-export type GearStatTotals = Record<GearAffixStat, number>;
+export type GearStatTotals = Record<GearStat, number>;
 
 export type GearSeed = number | string;
 
@@ -794,9 +826,9 @@ const GEAR_ENHANCEMENT_DESTROY_PERCENT = [
 ] as const;
 
 /**
- * Per-stage stat and power growth. Common gear preserves the original 7%
- * displayed-power growth (and receives the same live-stat growth), while
- * legendary gains exactly twice that and cosmic gains three times as much.
+ * Per-stage implicit-option growth. Random additional options never change.
+ * Legendary receives exactly twice the common per-stage efficiency, while
+ * cosmic receives three times as much, making risky high-tier upgrades matter.
  */
 export const GEAR_ENHANCEMENT_EFFECT_PER_STAGE: Readonly<
   Record<GearRarity, number>
@@ -1147,18 +1179,20 @@ export function formatGearNumericValue(value: number): string {
   });
 }
 
-/** Returns the exact live value of an affix after rarity-aware enhancement. */
+/**
+ * Additional options are fate-locked when the item drops. Keep this helper for
+ * callers and legacy integrations, but enhancement deliberately never changes
+ * the rolled value.
+ */
 export function getEnhancedGearAffixValue(
-  item: Pick<GearItem, "rarity" | "enhancement">,
+  _item: Pick<GearItem, "rarity" | "enhancement">,
   affix: Pick<GearAffix, "value">,
 ): number {
-  return (
-    affix.value *
-    getGearEnhancementMultiplier(item.rarity, item.enhancement)
-  );
+  void _item;
+  return affix.value;
 }
 
-/** Formats the same enhanced affix value that combat formulas consume. */
+/** Formats the fixed additional-option value that combat formulas consume. */
 export function formatEnhancedGearAffix(
   item: Pick<GearItem, "rarity" | "enhancement">,
   affix: Pick<GearAffix, "stat" | "value">,
@@ -1170,13 +1204,13 @@ export function formatEnhancedGearAffix(
 }
 
 export type GearAffixDisplay = {
-  /** Current live magnitude after all completed enhancement stages. */
+  /** Current fixed magnitude. */
   totalValue: number;
-  /** Unenhanced rolled magnitude stored in the save. */
+  /** Rolled magnitude stored in the save. */
   baseValue: number;
-  /** Current enhancement-only contribution. */
+  /** Always zero because additional options never enhance. */
   enhancementValue: number;
-  /** Contribution that the next successful stage would add. */
+  /** Always zero because additional options never enhance. */
   nextStageGainValue: number;
   totalLabel: string;
   baseLabel: string;
@@ -1190,11 +1224,14 @@ const roundGearDisplayValue = (value: number): number => {
 };
 
 const formatGearAffixContribution = (
-  stat: GearAffixStat,
+  stat: GearStat,
   value: number,
   percentPoint = false,
 ): string => {
-  const definition = GEAR_AFFIX_DEFINITIONS[stat];
+  const definition =
+    stat === "attackPowerFlat"
+      ? ({ unit: "flat", sign: "+" } as const)
+      : GEAR_AFFIX_DEFINITIONS[stat];
   const unit = definition.unit === "percent" ? (percentPoint ? "%p" : "%") : "";
   const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
   const sign = numericValue < 0.005 ? "+" : definition.sign;
@@ -1202,33 +1239,17 @@ const formatGearAffixContribution = (
 };
 
 /**
- * Gives tooltips one canonical view of the stored roll, accumulated
- * enhancement, and next-stage gain. Percentage enhancement deltas use `%p`
- * because they are added to the displayed option magnitude, not multiplied
- * into the player's final stat a second time.
+ * Gives every tooltip one canonical view of the fate-locked additional roll.
  */
 export function getGearAffixDisplay(
   affix: Pick<GearAffix, "stat" | "value">,
-  item: Pick<GearItem, "rarity" | "enhancement">,
+  _item: Pick<GearItem, "rarity" | "enhancement">,
 ): GearAffixDisplay {
+  void _item;
   const baseValue = roundGearDisplayValue(Math.abs(affix.value));
-  const totalValue = roundGearDisplayValue(
-    Math.abs(getEnhancedGearAffixValue(item, affix)),
-  );
-  const enhancementValue = roundGearDisplayValue(
-    Math.max(0, totalValue - baseValue),
-  );
-  const normalizedEnhancement = clamp(
-    Number.isFinite(item.enhancement) ? Math.floor(item.enhancement) : 0,
-    0,
-    MAX_GEAR_ENHANCEMENT,
-  );
-  const nextStageGainValue = roundGearDisplayValue(
-    normalizedEnhancement < MAX_GEAR_ENHANCEMENT
-      ? baseValue * GEAR_ENHANCEMENT_EFFECT_PER_STAGE[item.rarity]
-      : 0,
-  );
-  const percentPoint = GEAR_AFFIX_DEFINITIONS[affix.stat].unit === "percent";
+  const totalValue = baseValue;
+  const enhancementValue = 0;
+  const nextStageGainValue = 0;
 
   return {
     totalValue,
@@ -1236,20 +1257,9 @@ export function getGearAffixDisplay(
     enhancementValue,
     nextStageGainValue,
     totalLabel: formatGearAffix(affix.stat, totalValue),
-    baseLabel: `기본 ${formatGearAffixContribution(affix.stat, baseValue)}`,
-    enhancementLabel: `강화 ${formatGearAffixContribution(
-      affix.stat,
-      enhancementValue,
-      percentPoint,
-    )}`,
-    nextStageGainLabel:
-      normalizedEnhancement < MAX_GEAR_ENHANCEMENT
-        ? formatGearAffixContribution(
-            affix.stat,
-            nextStageGainValue,
-            percentPoint,
-          )
-        : "최대 강화",
+    baseLabel: `획득 수치 ${formatGearAffixContribution(affix.stat, baseValue)}`,
+    enhancementLabel: "강화 영향 없음",
+    nextStageGainLabel: "고정",
   };
 }
 
@@ -1312,6 +1322,99 @@ function affixValueForRollPercent(
   );
 }
 
+export type GearImplicitInput = Pick<
+  GearItem,
+  "slot" | "level" | "rarity" | "enhancement"
+>;
+
+export type GearImplicitDisplay = {
+  stat: GearStat;
+  label: string;
+  totalValue: number;
+  baseValue: number;
+  enhancementValue: number;
+  nextStageGainValue: number;
+  totalLabel: string;
+  baseLabel: string;
+  enhancementLabel: string;
+  nextStageGainLabel: string;
+};
+
+/**
+ * Rarity is expressed once as equivalent item levels. This makes common 100,
+ * magic 95, superior 90, rare 85, epic 80, legendary 70, mythic 55, and
+ * cosmic 40 share the exact same +0 implicit value.
+ */
+function gearImplicitTierGrowth(level: number, rarity: GearRarity): number {
+  const effectiveTier =
+    normalizedLevel(level) + GEAR_RARITY_LEVEL_EQUIVALENT[rarity];
+  return 0.25 + 0.75 * Math.pow(effectiveTier / 100, 0.72);
+}
+
+/** Deterministic +0 implicit value; never trusted from save or network data. */
+export function getGearImplicitBaseValue(item: GearImplicitInput): number {
+  const definition = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
+  return roundGearDisplayValue(
+    definition.valueAtTier100 * gearImplicitTierGrowth(item.level, item.rarity),
+  );
+}
+
+/** Exact live implicit value after the item's completed enhancement stages. */
+export function getEnhancedGearImplicitValue(item: GearImplicitInput): number {
+  return roundGearDisplayValue(
+    getGearImplicitBaseValue(item) *
+      getGearEnhancementMultiplier(item.rarity, item.enhancement),
+  );
+}
+
+/** Canonical implicit-option presentation shared by every equipment surface. */
+export function getGearImplicitDisplay(
+  item: GearImplicitInput,
+): GearImplicitDisplay {
+  const definition = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
+  const baseValue = getGearImplicitBaseValue(item);
+  const totalValue = getEnhancedGearImplicitValue(item);
+  const enhancementValue = roundGearDisplayValue(
+    Math.max(0, totalValue - baseValue),
+  );
+  const normalizedEnhancement = clamp(
+    Number.isFinite(item.enhancement) ? Math.floor(item.enhancement) : 0,
+    0,
+    MAX_GEAR_ENHANCEMENT,
+  );
+  const nextStageTotal =
+    normalizedEnhancement < MAX_GEAR_ENHANCEMENT
+      ? getEnhancedGearImplicitValue({
+          ...item,
+          enhancement: normalizedEnhancement + 1,
+        })
+      : totalValue;
+  const nextStageGainValue = roundGearDisplayValue(
+    Math.max(0, nextStageTotal - totalValue),
+  );
+  const percentPoint =
+    definition.stat !== "attackPowerFlat" &&
+    GEAR_AFFIX_DEFINITIONS[definition.stat].unit === "percent";
+  const formatContribution = (value: number, asPoint = false) =>
+    formatGearAffixContribution(definition.stat, value, asPoint);
+
+  return {
+    stat: definition.stat,
+    label: definition.label,
+    totalValue,
+    baseValue,
+    enhancementValue,
+    nextStageGainValue,
+    totalLabel: `${definition.label} ${formatContribution(totalValue)}`,
+    baseLabel: `+0 ${formatContribution(baseValue)}`,
+    enhancementLabel: `강화 ${formatContribution(enhancementValue, percentPoint)}`,
+    nextStageGainLabel:
+      normalizedEnhancement < MAX_GEAR_ENHANCEMENT
+        ? formatContribution(nextStageGainValue, percentPoint)
+        : "최대 강화",
+  };
+}
+
 function rollAffixValue(
   rng: () => number,
   stat: GearAffixStat,
@@ -1368,7 +1471,7 @@ function rollAffixes(
   return affixes;
 }
 
-type PowerScoreInput = Pick<
+export type PowerScoreInput = Pick<
   GearItem,
   | "slot"
   | "rarity"
@@ -1403,6 +1506,12 @@ export function calculateGearTierRating(
 }
 
 export const BASE_EQUIPMENT_COMBAT_POWER = 1000;
+
+/**
+ * Mirrors combat-balance.ts without importing it so this deterministic domain
+ * remains standalone for save workers and secure data-URL validation tests.
+ */
+export const EQUIPMENT_POWER_BASE_ATTACK_DAMAGE = 14;
 
 export type EquipmentCombatPowerBreakdown = {
   total: number;
@@ -1449,6 +1558,9 @@ export function calculateCombatPowerFromEquipmentStats(
   const positive = (value: number) =>
     Number.isFinite(value) ? Math.max(0, value) : 0;
 
+  const attackPowerFactor =
+    (EQUIPMENT_POWER_BASE_ATTACK_DAMAGE + positive(stats.attackPowerFlat)) /
+    EQUIPMENT_POWER_BASE_ATTACK_DAMAGE;
   const damageFactor = 1 + positive(stats.damagePercent) / 100;
   const attackSpeedFactor = 1 + positive(stats.attackSpeedPercent) / 100;
   const critChance = clamp(
@@ -1477,7 +1589,7 @@ export function calculateCombatPowerFromEquipmentStats(
   if (hasPower(powers, "riftStride")) procFactor *= 1.06;
 
   const normalDpsIndex =
-    damageFactor * attackSpeedFactor * critIndex * procFactor;
+    attackPowerFactor * damageFactor * attackSpeedFactor * critIndex * procFactor;
   const hunterEliteBonus = hasPower(powers, "hunterSigil")
     ? LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent
     : 0;
@@ -1550,13 +1662,26 @@ export function calculateCombatPowerFromEquipmentStats(
   };
 }
 
-const powerStatsForItem = (item: PowerScoreInput): GearStatTotals => {
+/**
+ * Single source of truth for both inventory power and live combat. The slot's
+ * implicit option receives enhancement; every rolled additional option stays
+ * at its original drop value forever.
+ */
+export function resolveGearItemStats(item: PowerScoreInput): GearStatTotals {
   const totals = createEmptyGearStatTotals();
+  const implicit = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
+  totals[implicit.stat] += getEnhancedGearImplicitValue(item);
   for (const affix of item.affixes) {
-    totals[affix.stat] += getEnhancedGearAffixValue(item, affix);
+    totals[affix.stat] += affix.value;
+  }
+  for (const stat of GEAR_STAT_KEYS) {
+    totals[stat] = roundGearDisplayValue(totals[stat]);
   }
   return totals;
-};
+}
+
+const powerStatsForItem = (item: PowerScoreInput): GearStatTotals =>
+  resolveGearItemStats(item);
 
 /**
  * Context-free inventory rating: the item's marginal contribution over an
@@ -1841,6 +1966,7 @@ export function normalizeEquipment(value: unknown): EquipmentLoadout {
 
 export function createEmptyGearStatTotals(): GearStatTotals {
   return {
+    attackPowerFlat: 0,
     damagePercent: 0,
     attackSpeedPercent: 0,
     projectileSpeedPercent: 0,
@@ -1859,7 +1985,7 @@ export function createEmptyGearStatTotals(): GearStatTotals {
   };
 }
 
-/** Aggregates all equipped affixes for direct application to combat formulas. */
+/** Aggregates enhanced implicits and fixed additional options for live combat. */
 export function aggregateEquipmentStats(
   equipment: EquipmentLoadout,
 ): GearStatTotals {
@@ -1867,11 +1993,12 @@ export function aggregateEquipmentStats(
   for (const slot of EQUIPMENT_SLOTS) {
     const item = equipment[slot];
     if (!item) continue;
-    for (const affix of item.affixes) {
-      totals[affix.stat] += getEnhancedGearAffixValue(item, affix);
+    const itemStats = resolveGearItemStats(item);
+    for (const stat of GEAR_STAT_KEYS) {
+      totals[stat] += itemStats[stat];
     }
   }
-  for (const stat of GEAR_AFFIX_STATS) {
+  for (const stat of GEAR_STAT_KEYS) {
     // Two decimals are enough for combat formulas and keep repeated HUD/save
     // projections stable without allowing floating-point drift to accumulate.
     totals[stat] = Math.round(totals[stat] * 100) / 100;
