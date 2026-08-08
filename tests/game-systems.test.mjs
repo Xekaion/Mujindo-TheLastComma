@@ -1681,7 +1681,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/time-stalker-walk.png", [1024, 1536]],
     ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
-    ["public/assets/walk/harin-equipped-v3.png", [1024, 1536]],
+    ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
     ["public/assets/effects/teleport-rift.png", [1024, 1024]],
     ["public/assets/effects/proofreader-telegraph.png", [1536, 1024]],
@@ -4846,45 +4846,304 @@ test("freshly spawned gear counts down a pickup delay before collection", async 
   );
 });
 
-test("equipped gear selects a frame-matched composite walk sheet instead of icon overlays", async () => {
-  const [source, overlay, css] = await Promise.all([
+test("Harin's rebuilt atlas retains 32 grounded and distinct gait poses", async () => {
+  const relativePath = "public/assets/walk/harin-neutral-walk-v4.png";
+  const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
+  assert.deepEqual([image.width, image.height], [1024, 1536]);
+  assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green-screen contamination`);
+
+  const cellWidth = image.width / 4;
+  const cellHeight = image.height / 8;
+  const groundBaselines = new Set();
+  for (let row = 0; row < 8; row += 1) {
+    const frameHashes = new Set();
+    for (let column = 0; column < 4; column += 1) {
+      const label = `Harin direction ${row} gait ${column}`;
+      assertAlphaCellGutter(image, column, row, 4, 8, label);
+      const metrics = alphaCellMetrics(image, column, row, 4, 8, label);
+      groundBaselines.add(cellHeight - 1 - metrics.bottom);
+      const hash = createHash("sha256");
+      for (let y = row * cellHeight; y < (row + 1) * cellHeight; y += 1) {
+        const start = (y * image.width + column * cellWidth) * 4;
+        const visibleRow = image.pixels.slice(start, start + cellWidth * 4);
+        for (let offset = 0; offset < visibleRow.length; offset += 4) {
+          if (visibleRow[offset + 3] > 8) continue;
+          visibleRow[offset] = 0;
+          visibleRow[offset + 1] = 0;
+          visibleRow[offset + 2] = 0;
+          visibleRow[offset + 3] = 0;
+        }
+        hash.update(visibleRow);
+      }
+      frameHashes.add(hash.digest("hex"));
+    }
+    assert.equal(frameHashes.size, 4, `Harin direction ${row} contains a duplicated walk frame`);
+  }
+  assert.equal(groundBaselines.size, 1, "all 32 gait poses must share one pixel-exact foot baseline");
+});
+
+test("shared character motion follows post-collision displacement and travelled distance", async () => {
+  const motion = await importTypeScriptModule("app/character-motion.ts");
+
+  assert.deepEqual([...motion.HARIN_WALK_ROW_BY_FACING], [0, 7, 6, 3, 4, 5, 2, 1]);
+  assert.equal(motion.CHARACTER_WALK_FRAME_COUNT, 4);
+  assert.equal(motion.CHARACTER_IDLE_FRAME, 0);
+  assert.equal(motion.characterSpriteRowForFacing(2), 6, "west must use the authored west row");
+  assert.equal(motion.characterSpriteRowForFacing(6), 2, "east must use the authored east row");
+  assert.equal(motion.characterSpriteRowForFacing(3), 3, "north-west must not mirror north-east");
+  assert.equal(motion.characterSpriteRowForFacing(5), 5, "north-east must not mirror north-west");
+  for (const [dx, dy, expectedFacing] of [
+    [0, 1, 0],
+    [-1, 1, 1],
+    [-1, 0, 2],
+    [-1, -1, 3],
+    [0, -1, 4],
+    [1, -1, 5],
+    [1, 0, 6],
+    [1, 1, 7],
+  ]) {
+    assert.equal(
+      motion.characterFacingForVector(dx, dy, 0),
+      expectedFacing,
+      `vector ${dx},${dy} must resolve to facing ${expectedFacing}`,
+    );
+  }
+
+  const blocked = motion.resolveCharacterMotion(0, 0, 6);
+  assert.equal(blocked.moving, false, "pushing into a wall must not play a walk cycle");
+  assert.equal(blocked.facing, 6, "a fully blocked step must retain the prior facing");
+  assert.equal(
+    motion.characterWalkFrameIndex(3.75, blocked.moving),
+    motion.CHARACTER_IDLE_FRAME,
+    "standing still must settle on the explicit idle frame",
+  );
+
+  const wallSlide = motion.resolveCharacterMotion(0, 12, 7);
+  assert.equal(wallSlide.moving, true);
+  assert.equal(wallSlide.facing, 0, "an axis slide must face its actual southward displacement");
+  assert.equal(wallSlide.distance, 12);
+  assert.equal(motion.resolveCharacterMotion(-8, 0, 6).facing, 2);
+  assert.equal(motion.resolveCharacterMotion(8, 0, 2).facing, 6);
+
+  const oneStep = motion.advanceCharacterWalkCycle(0, 48);
+  const splitStep = motion.advanceCharacterWalkCycle(
+    motion.advanceCharacterWalkCycle(0, 24),
+    24,
+  );
+  assert.equal(oneStep, splitStep, "walk phase must depend on distance, not update frequency");
+  assert.equal(motion.advanceCharacterWalkCycle(0, motion.CHARACTER_WALK_CYCLE_DISTANCE), 0);
+  assert.equal(motion.characterWalkFrameIndex(3.75, true), 3);
+});
+
+test("the paperdoll compositor consumes all ten transparent equipment cells with bounded caching", async () => {
+  const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
+  const [equipment, paperdoll, motion, paperdollSource] = await Promise.all([
+    importTypeScriptModule("app/equipment.ts"),
+    importTypeScriptModule("app/character-paperdoll.ts", {
+      "./equipment": equipmentUrl,
+    }),
+    importTypeScriptModule("app/character-motion.ts"),
+    readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
+  ]);
+
+  assert.equal(equipment.EQUIPMENT_SLOTS.length, 10);
+  assert.equal(paperdoll.PAPERDOLL_FRAME_COLUMNS, 4);
+  assert.equal(paperdoll.PAPERDOLL_DIRECTION_COUNT, 8);
+  assert.deepEqual(
+    [...paperdoll.PAPERDOLL_DIRECTION_ROWS],
+    [...motion.HARIN_WALK_ROW_BY_FACING],
+    "body and equipment layers must share one direction contract",
+  );
+
+  const worn = {};
+  for (const [column, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+    const variant = (column + 2) % equipment.GEAR_ICON_ROWS;
+    worn[slot] = {
+      slot,
+      rarity: equipment.GEAR_RARITIES[column % equipment.GEAR_RARITIES.length],
+      enhancement: column % (equipment.MAX_GEAR_ENHANCEMENT + 1),
+      iconIndex: variant * equipment.GEAR_ICON_COLUMNS + column,
+    };
+  }
+  const loadout = paperdoll.paperdollLoadoutFromEquipment(worn);
+  assert.equal(Object.keys(loadout).length, 10, "every equipped slot must reach the in-game renderer");
+  for (const [column, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+    const piece = loadout[slot];
+    assert.ok(piece, `${slot} is missing from the paperdoll loadout`);
+    assert.deepEqual(paperdoll.paperdollAtlasCell(slot, piece.variant), {
+      x: column * 280,
+      y: piece.variant * 280,
+      width: 280,
+      height: 280,
+    });
+  }
+  assert.equal(
+    paperdoll.paperdollGearMetaFromItem({ ...worn.weapon, iconIndex: worn.weapon.iconIndex + 1 }),
+    null,
+    "a slot may not crop a neighbouring atlas column",
+  );
+
+  const publicVariants = Object.fromEntries(
+    equipment.EQUIPMENT_SLOTS.map((slot, index) => [slot, index]),
+  );
+  const publicLoadout = paperdoll.paperdollLoadoutFromVisualGear(publicVariants);
+  assert.equal(Object.keys(publicLoadout).length, 10);
+  for (const [variant, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+    assert.deepEqual(publicLoadout[slot], {
+      slot,
+      variant,
+      rarity: "common",
+      enhancement: 0,
+    });
+  }
+  assert.deepEqual(
+    paperdoll.paperdollLoadoutFromVisualGear({
+      ...publicVariants,
+      helm: 10,
+      weapon: -1,
+      relic: "9",
+    }),
+    Object.fromEntries(
+      Object.entries(publicLoadout).filter(([slot]) => !["helm", "weapon", "relic"].includes(slot)),
+    ),
+    "untrusted hub variants outside 0..9 or with the wrong type must be dropped",
+  );
+
+  const rgba = new Uint8ClampedArray(6 * 5 * 4);
+  rgba[(1 * 6 + 2) * 4 + 3] = 255;
+  rgba[(3 * 6 + 4) * 4 + 3] = 255;
+  assert.deepEqual(paperdoll.computePaperdollOpaqueBounds(rgba, 6, 5), {
+    x: 2,
+    y: 1,
+    width: 3,
+    height: 3,
+  });
+  assert.equal(
+    paperdoll.computePaperdollOpaqueBounds(new Uint8ClampedArray(6 * 5 * 4), 6, 5),
+    null,
+    "fully transparent padding must not be drawn as a square",
+  );
+  assert.deepEqual(paperdoll.containPaperdollPart(200, 100, 50, 50), {
+    width: 50,
+    height: 25,
+  });
+
+  const sorted = paperdoll.sortPaperdollPieces(loadout, 6);
+  const layerRank = { back: 0, body: 1, front: 2 };
+  const layers = sorted.map((piece) =>
+    paperdoll.resolvePaperdollPartPlacement(piece.slot, 6, 2).layer
+  );
+  assert.deepEqual([...new Set(layers)], ["back", "body", "front"]);
+  assert.deepEqual(
+    layers.map((layer) => layerRank[layer]),
+    layers.map((layer) => layerRank[layer]).toSorted((left, right) => left - right),
+    "a frame must compose back gear, then body gear, then front gear",
+  );
+
+  const cache = new paperdoll.PaperdollLruCache(3);
+  cache.set("a", 1);
+  cache.set("b", 2);
+  cache.set("c", 3);
+  assert.equal(cache.get("a"), 1);
+  cache.set("d", 4);
+  assert.equal(cache.peek("b"), undefined, "the least-recently-used frame must be evicted");
+  assert.deepEqual(cache.keys(), ["c", "a", "d"]);
+  assert.equal(new paperdoll.PaperdollLruCache(10_000).capacity, 256);
+
+  assert.match(
+    paperdollSource,
+    /context\.drawImage\(\s*atlas,\s*cell\.x \+ trim\.x,\s*cell\.y \+ trim\.y,\s*trim\.width,\s*trim\.height,/,
+    "runtime gear must draw only the alpha-trimmed portion of its atlas cell",
+  );
+  const frameContents = paperdollSource.indexOf("function drawPaperdollFrameContents(");
+  const backPass = paperdollSource.indexOf('=== "back"', frameContents);
+  const bodyPass = paperdollSource.indexOf("const row = PAPERDOLL_DIRECTION_ROWS[direction];", backPass);
+  const frontPass = paperdollSource.indexOf('for (const layer of ["body", "front"]', bodyPass);
+  assert.ok(
+    frameContents >= 0 && backPass > frameContents && bodyPass > backPass && frontPass > bodyPass,
+    "the compositor must draw back gear, the body frame, then body/front gear",
+  );
+});
+
+test("expedition and plaza render the fitted paperdoll and preserve public gear appearance", async () => {
+  const [source, plaza, overlay, css] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
   ]);
+
+  for (const runtimeSource of [source, plaza]) {
+    assert.match(runtimeSource, /harin-neutral-walk-v4\.png/);
+    assert.match(runtimeSource, /drawPaperdollCharacter/);
+    assert.doesNotMatch(runtimeSource, /harin-equipped-v3\.png|walkHarinEquipped/);
+    assert.doesNotMatch(
+      runtimeSource,
+      /(?:HARIN|PLAYER)[A-Z_]*DIRECTION[A-Z_]*\s*=\s*\[\s*0,\s*7,\s*6,\s*3,\s*4,\s*5,\s*2,\s*1\s*\]/,
+      "direction-row ownership must stay in the shared character modules",
+    );
+  }
+  assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment\s*,?\s*\)/);
+  const expeditionMotionStart = source.indexOf("const previousPlayerX = player.x;");
+  const expeditionCollision = source.indexOf(
+    "constrainPlayerToWalkableFloor(player, doors);",
+    expeditionMotionStart,
+  );
+  const expeditionMotionResolve = source.indexOf(
+    "const playerMotion = resolveCharacterMotion(",
+    expeditionCollision,
+  );
+  assert.ok(
+    expeditionMotionStart >= 0 &&
+      expeditionCollision > expeditionMotionStart &&
+      expeditionMotionResolve > expeditionCollision,
+    "expedition motion must be sampled after wall collision correction",
+  );
+  assert.match(
+    source.slice(expeditionMotionStart, expeditionMotionResolve + 320),
+    /actualMoveX\s*=\s*player\.x\s*-\s*previousPlayerX;[\s\S]{0,120}?actualMoveY\s*=\s*player\.y\s*-\s*previousPlayerY;[\s\S]{0,160}?resolveCharacterMotion\(\s*actualMoveX,\s*actualMoveY/,
+  );
   assert.match(
     source,
-    /walkHarinEquipped\s*:\s*["']\/assets\/walk\/harin-equipped-v3\.png["']/,
-    "the equipped composite walk sheet must be preloaded",
+    /advanceCharacterWalkCycle\(\s*player\.walkCycle,\s*playerMotion\.distance/,
   );
-  assert.match(source, /hasEquippedGear\s*=\s*EQUIPMENT_SLOTS\.some\(\(slot\)\s*=>\s*player\.equipment\[slot\]\)/);
-  assert.match(
-    source,
-    /hasEquippedGear\s*&&\s*drawWalkSprite\(\s*images\.walkHarinEquipped,\s*HARIN_V2_DIRECTION_ROWS\[player\.facing\]\s*\?\?\s*player\.facing,\s*playerWalkFrame/,
-    "equipped and base sheets must consume the exact same mapped direction and walk frame",
+  assert.match(source, /characterWalkFrameIndex\(\s*player\.walkCycle,\s*player\.moving\s*,?\s*\)/);
+
+  const plazaMotionStart = plaza.indexOf("const previousPosition = positionRef.current;");
+  const plazaCollision = plaza.indexOf(
+    "positionRef.current = resolvePlazaMovement(",
+    plazaMotionStart,
   );
-  assert.match(
-    source,
-    /drawWalkSprite\(\s*images\.walkHarinEquipped,[\s\S]{0,420}?playerAlpha,\s*\)/,
-    "the authored equipped directions must be drawn directly without horizontal mirroring",
+  const plazaMotionResolve = plaza.indexOf(
+    "const motion = resolveCharacterMotion(",
+    plazaCollision,
   );
-  assert.match(
-    source,
-    /equippedHarinDrawn\s*\|\|\s*drawWalkSprite\(\s*images\.walkHarin,/,
-    "a missing or failed equipped sheet must fall back to the normal Harin sheet",
-  );
-  assert.doesNotMatch(
-    source,
-    /paperdollEquipment|paperdoll-equipment\.png|drawEquipmentOverlay|drawWearableLayer|harinWearables/,
-    "square item art must never be layered over the in-game character",
+  assert.ok(
+    plazaMotionStart >= 0 && plazaCollision > plazaMotionStart && plazaMotionResolve > plazaCollision,
+    "plaza motion must be sampled from the movement that survived plaza collision",
   );
   assert.match(
-    source,
-    /sourceWidth\s*=\s*image\.naturalWidth\s*\/\s*4;[\s\S]{0,140}?sourceHeight\s*=\s*sourceRowCrop\?\.height\s*\?\?\s*image\.naturalHeight\s*\/\s*8;/,
-    "the composite must follow the same four-frame by eight-direction walk contract",
+    plaza.slice(plazaMotionResolve, plazaMotionResolve + 480),
+    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,260}?advanceCharacterWalkCycle\(walkCycleRef\.current,\s*motion\.distance\)/,
+  );
+  assert.doesNotMatch(plaza, /Math\.floor\(time\s*\*\s*8\.5\)/);
+  assert.match(
+    plaza,
+    /gear:\s*player\.appearance\.gear/,
+    "remote public appearance gear must reach the paperdoll loadout",
+  );
+  assert.match(
+    plaza,
+    /gear:\s*localCharacter\.appearance\?\.gear/,
+    "the selected local character's public gear must reach the plaza paperdoll",
+  );
+  assert.match(
+    plaza,
+    /loadout:\s*paperdollLoadoutFromVisualGear\(player\.gear\)/,
+    "plaza renderers must convert public variants through the strict visual-gear allowlist",
   );
 
-  // Ground loot and inventory thumbnails still use the separate icon atlas.
+  // Ground loot and inventory thumbnails keep the same transparent source atlas.
   assert.match(css, /equipment-types-v4\.png/);
   assert.match(overlay, /backgroundImage:\s*["']url\(["']\/assets\/equipment\/equipment-types-v4\.png["']\)["']/);
   assert.match(overlay, /backgroundSize:\s*`\$\{GEAR_ICON_COLUMNS \* 100\}% \$\{GEAR_ICON_ROWS \* 100\}%`/);
@@ -4906,6 +5165,27 @@ test("equipped gear selects a frame-matched composite walk sheet instead of icon
     source,
     /sourceWidth\s*=\s*equipmentIcons\.naturalWidth\s*\/\s*GEAR_ICON_COLUMNS;[\s\S]{0,120}?sourceHeight\s*=\s*equipmentIcons\.naturalHeight\s*\/\s*GEAR_ICON_ROWS;/,
     "ground loot must crop the same ten-column by ten-row atlas as the UI",
+  );
+});
+
+test("PVP preserves the same grounded gait and authored sprite aspect", async () => {
+  const source = await readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8");
+  assert.match(source, /harin-neutral-walk-v4\.png/);
+  assert.doesNotMatch(source, /harin-walk-v2\.png|HARIN_DIRECTION_ROWS/);
+  assert.match(
+    source,
+    /resolveCharacterMotion\(\s*rendered\.x - previousRenderedX,\s*rendered\.y - previousRenderedY/,
+    "PVP animation must follow interpolated movement instead of a global clock",
+  );
+  assert.match(
+    source,
+    /advanceCharacterWalkCycle\(rendered\.walkCycle,\s*motion\.distance\)/,
+  );
+  assert.match(source, /characterWalkFrameIndex\(rendered\.walkCycle,\s*moving\)/);
+  assert.match(
+    source,
+    /rendered\.x - 78\.5,[\s\S]{0,80}?157,\s*118,/,
+    "the 256:192 source cell must not be horizontally squeezed in PVP",
   );
 });
 

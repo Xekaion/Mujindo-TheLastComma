@@ -16,9 +16,7 @@ import {
   PLAZA_WORLD_WIDTH,
   isPlazaWalkable,
   nearestPlazaPortal,
-  plazaFacingForVector,
   plazaPortalById,
-  plazaSpriteRowForFacing,
   resolvePlazaMovement,
   sanitizePlazaPoint,
   type PlazaPoint,
@@ -26,12 +24,23 @@ import {
   type PlazaPortalId,
 } from "./plaza-world";
 import {
+  CHARACTER_IDLE_FRAME,
+  advanceCharacterWalkCycle,
+  characterSpriteRowForFacing,
+  characterWalkFrameIndex,
+  resolveCharacterMotion,
+} from "./character-motion";
+import {
+  drawPaperdollCharacter,
+  paperdollLoadoutFromVisualGear,
+} from "./character-paperdoll";
+import {
   HUB_PLAYER_SPEED,
   normalizeHubDungeonFloor,
+  type HubAppearance,
   type HubCharacterSlot,
   type HubFacing,
   type HubPlayerSnapshot,
-  type HubSpriteKey,
 } from "./hub-protocol";
 // Keep optimistic movement aligned with the worker's authoritative budget.
 const PLAYER_SPEED = HUB_PLAYER_SPEED;
@@ -39,10 +48,13 @@ const MOVEMENT_SEND_INTERVAL_MS = 66;
 const CAMERA_LERP = 0.13;
 const PORTAL_PULSE_SECONDS = 2.4;
 const PLAZA_MAP_PATH = "/assets/maps/memory-plaza-v1.png";
+const EQUIPMENT_ATLAS_PATH = "/assets/equipment/equipment-types-v4.png";
 
 const SPRITE_PATHS: Record<string, string> = {
-  harin: "/assets/walk/harin-walk-v2.png",
-  "harin-equipped": "/assets/walk/harin-equipped-v3.png",
+  harin: "/assets/walk/harin-neutral-walk-v4.png",
+  // Preserve compatibility with existing plaza snapshots while rendering the
+  // same neutral body and composing their allowlisted gear separately.
+  "harin-equipped": "/assets/walk/harin-neutral-walk-v4.png",
 };
 
 export type PlazaCharacterIdentity = {
@@ -51,10 +63,7 @@ export type PlazaCharacterIdentity = {
   level: number;
   dungeonFloor: number;
   saveSlot: HubCharacterSlot;
-  appearance?: {
-    spriteKey?: HubSpriteKey;
-    equipped?: boolean;
-  };
+  appearance?: Partial<HubAppearance> & { equipped?: boolean };
 };
 
 export type PlazaRemotePlayer = HubPlayerSnapshot;
@@ -96,7 +105,9 @@ type DrawPlayer = {
   y: number;
   facing: number;
   moving: boolean;
+  walkCycle: number;
   spriteKey: string;
+  gear: HubAppearance["gear"] | undefined;
   local: boolean;
   stale: boolean;
 };
@@ -397,8 +408,8 @@ function drawPlazaDecor(context: CanvasRenderingContext2D, time: number) {
 function drawPlayer(
   context: CanvasRenderingContext2D,
   player: DrawPlayer,
-  image: HTMLImageElement | undefined,
-  time: number,
+  bodyImage: HTMLImageElement | undefined,
+  equipmentImage: HTMLImageElement | undefined,
   readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
 ) {
   const shadowWidth = player.local ? 34 : 30;
@@ -408,27 +419,49 @@ function drawPlayer(
   context.fill();
 
   const alpha = player.stale ? 0.44 : 1;
-  const frame = player.moving ? Math.floor(time * 8.5) % 4 : 1;
-  if (image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
-    const sourceWidth = image.naturalWidth / 4;
-    const sourceHeight = image.naturalHeight / 8;
-    const row = plazaSpriteRowForFacing(player.facing);
+  const frame = characterWalkFrameIndex(player.walkCycle, player.moving);
+  const paperdollDrawn = Boolean(
+    bodyImage?.complete &&
+      bodyImage.naturalWidth > 0 &&
+      drawPaperdollCharacter(context, {
+        bodyAtlas: bodyImage,
+        equipmentAtlas: equipmentImage,
+        loadout: paperdollLoadoutFromVisualGear(player.gear),
+        direction: player.facing,
+        frame,
+        x: player.x,
+        y: player.y + 8,
+        width: 171,
+        height: 128,
+        alpha,
+      }),
+  );
+  let fallbackBodyDrawn = false;
+  if (
+    !paperdollDrawn &&
+    bodyImage?.complete &&
+    bodyImage.naturalWidth > 0 &&
+    bodyImage.naturalHeight > 0
+  ) {
+    const sourceWidth = bodyImage.naturalWidth / 4;
+    const sourceHeight = bodyImage.naturalHeight / 8;
     context.save();
     context.globalAlpha = alpha;
-    context.imageSmoothingEnabled = true;
     context.drawImage(
-      image,
+      bodyImage,
       frame * sourceWidth,
-      row * sourceHeight,
+      characterSpriteRowForFacing(player.facing) * sourceHeight,
       sourceWidth,
       sourceHeight,
-      player.x - 59,
+      player.x - 85.5,
       player.y - 92,
-      118,
+      171,
       128,
     );
     context.restore();
-  } else {
+    fallbackBodyDrawn = true;
+  }
+  if (!paperdollDrawn && !fallbackBodyDrawn) {
     context.save();
     context.globalAlpha = alpha;
     context.fillStyle = player.local ? "#9b3f43" : "#3b6973";
@@ -485,6 +518,7 @@ export default function PlazaHub({
   const cameraRef = useRef<PlazaPoint>(sanitizePlazaPoint(initialPosition));
   const facingRef = useRef(4);
   const movingRef = useRef(false);
+  const walkCycleRef = useRef(CHARACTER_IDLE_FRAME);
   const pointerTargetRef = useRef<PlazaPoint | null>(null);
   const keysRef = useRef(new Set<string>());
   const touchDirectionRef = useRef<PlazaPoint>({ x: 0, y: 0 });
@@ -492,6 +526,7 @@ export default function PlazaHub({
   const spriteImagesRef = useRef(new Map<string, HTMLImageElement>());
   const remotePlayersRef = useRef(remotePlayers);
   const remoteRenderPointsRef = useRef(new Map<string, RemoteRenderPoint>());
+  const remoteWalkCyclesRef = useRef(new Map<string, number>());
   const previousTimeRef = useRef(0);
   const sendTimeRef = useRef(0);
   const sequenceRef = useRef(0);
@@ -505,6 +540,8 @@ export default function PlazaHub({
   const [notice, setNotice] = useState("광장 중앙에서 네 갈래의 기억이 이어집니다.");
   const characterSpriteKey = character.appearance?.spriteKey;
   const characterEquipped = character.appearance?.equipped;
+  const characterPalette = character.appearance?.palette;
+  const characterGear = character.appearance?.gear;
 
   const normalizedCharacter = useMemo(
     () => ({
@@ -513,15 +550,21 @@ export default function PlazaHub({
       level: clampLevel(character.level),
       dungeonFloor: normalizeHubDungeonFloor(character.dungeonFloor),
       saveSlot: character.saveSlot,
-      appearance: characterSpriteKey !== undefined || characterEquipped !== undefined
+      appearance: characterSpriteKey !== undefined ||
+        characterEquipped !== undefined ||
+        characterGear !== undefined
         ? {
             spriteKey: characterSpriteKey,
             equipped: characterEquipped,
+            palette: characterPalette,
+            gear: characterGear,
           }
         : undefined,
     }),
     [
       characterEquipped,
+      characterGear,
+      characterPalette,
       characterSpriteKey,
       character.characterId,
       character.displayName,
@@ -682,6 +725,7 @@ export default function PlazaHub({
   useEffect(() => {
     const requiredPaths = new Set<string>([
       PLAZA_MAP_PATH,
+      EQUIPMENT_ATLAS_PATH,
       spritePath(
         normalizedCharacter.appearance?.spriteKey,
         normalizedCharacter.appearance?.equipped,
@@ -809,14 +853,25 @@ export default function PlazaHub({
       if (magnitude > 0.01) {
         moveX /= Math.max(1, magnitude);
         moveY /= Math.max(1, magnitude);
-        facingRef.current = plazaFacingForVector(moveX, moveY, facingRef.current);
+        const previousPosition = positionRef.current;
         positionRef.current = resolvePlazaMovement(positionRef.current, {
           x: moveX * PLAYER_SPEED * dt,
           y: moveY * PLAYER_SPEED * dt,
         });
-        movingRef.current = true;
+        const motion = resolveCharacterMotion(
+          positionRef.current.x - previousPosition.x,
+          positionRef.current.y - previousPosition.y,
+          facingRef.current,
+          0.01,
+        );
+        facingRef.current = motion.facing;
+        movingRef.current = motion.moving;
+        walkCycleRef.current = motion.moving
+          ? advanceCharacterWalkCycle(walkCycleRef.current, motion.distance)
+          : CHARACTER_IDLE_FRAME;
       } else {
         movingRef.current = false;
+        walkCycleRef.current = CHARACTER_IDLE_FRAME;
       }
 
       const facing = normalizedFacing(facingRef.current) as HubFacing;
@@ -893,10 +948,24 @@ export default function PlazaHub({
       const remoteLerp = 1 - Math.exp(-dt * 11);
       const players: DrawPlayer[] = remotePlayersRef.current.map((player) => {
         const renderPoint = remoteRenderPointsRef.current.get(player.characterId);
+        const previousRenderX = renderPoint?.x ?? player.x;
+        const previousRenderY = renderPoint?.y ?? player.y;
         if (renderPoint) {
           renderPoint.x += (renderPoint.targetX - renderPoint.x) * remoteLerp;
           renderPoint.y += (renderPoint.targetY - renderPoint.y) * remoteLerp;
         }
+        const remoteMotion = resolveCharacterMotion(
+          (renderPoint?.x ?? player.x) - previousRenderX,
+          (renderPoint?.y ?? player.y) - previousRenderY,
+          player.facing,
+          0.01,
+        );
+        const previousWalkCycle =
+          remoteWalkCyclesRef.current.get(player.characterId) ?? CHARACTER_IDLE_FRAME;
+        const walkCycle = remoteMotion.moving
+          ? advanceCharacterWalkCycle(previousWalkCycle, remoteMotion.distance)
+          : CHARACTER_IDLE_FRAME;
+        remoteWalkCyclesRef.current.set(player.characterId, walkCycle);
         return {
           key: player.characterId,
           displayName: player.displayName,
@@ -904,9 +973,11 @@ export default function PlazaHub({
           dungeonFloor: player.dungeonFloor,
           x: renderPoint?.x ?? player.x,
           y: renderPoint?.y ?? player.y,
-          facing: player.facing,
-          moving: player.moving,
+          facing: remoteMotion.moving ? remoteMotion.facing : player.facing,
+          moving: remoteMotion.moving,
+          walkCycle,
           spriteKey: spritePath(player.appearance?.spriteKey),
+          gear: player.appearance.gear,
           local: false,
           stale: typeof player.updatedAt === "number" && currentTime - player.updatedAt > 10_000,
         };
@@ -921,10 +992,12 @@ export default function PlazaHub({
         y: positionRef.current.y,
         facing: facingRef.current,
         moving: movingRef.current,
+        walkCycle: walkCycleRef.current,
         spriteKey: spritePath(
           localCharacter.appearance?.spriteKey,
           localCharacter.appearance?.equipped,
         ),
+        gear: localCharacter.appearance?.gear,
         local: true,
         stale: false,
       });
@@ -934,7 +1007,7 @@ export default function PlazaHub({
           context,
           player,
           spriteImagesRef.current.get(player.spriteKey),
-          time,
+          spriteImagesRef.current.get(EQUIPMENT_ATLAS_PATH),
           readableCanvasFontSize,
         );
       }

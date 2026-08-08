@@ -328,6 +328,8 @@ export default function GameEntryFlow({
           appearance: {
             spriteKey: self?.appearance.spriteKey ?? hubAppearance.spriteKey,
             equipped: hubAppearance.spriteKey === "harin-equipped",
+            palette: self?.appearance.palette ?? hubAppearance.palette,
+            gear: self?.appearance.gear ?? hubAppearance.gear,
           },
         }}
         remotePlayers={hubSnapshot?.nearbyPlayers ?? []}

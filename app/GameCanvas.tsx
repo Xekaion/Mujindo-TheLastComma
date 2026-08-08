@@ -26,6 +26,17 @@ import {
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import {
+  CHARACTER_IDLE_FRAME,
+  advanceCharacterWalkCycle,
+  characterSpriteRowForFacing,
+  characterWalkFrameIndex,
+  resolveCharacterMotion,
+} from "./character-motion";
+import {
+  drawPaperdollCharacter,
+  paperdollLoadoutFromEquipment,
+} from "./character-paperdoll";
+import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
   calculateExpeditionEnemyCount,
@@ -1475,9 +1486,6 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
-// Harin v2 has an irregular authored row order: S, SE, E, NW, N, NE, W, SW.
-// Keep this correction local to the v2 sheet so legacy and enemy sprite sheets retain their mapping.
-const HARIN_V2_DIRECTION_ROWS = [0, 7, 6, 3, 4, 5, 2, 1] as const;
 const ROOM_DIRECTIONS = [
   [0, -1],
   [1, 0],
@@ -1656,7 +1664,7 @@ function makePlayer(): Player {
     endingVersion: 0,
     profession: null,
     facing: 6,
-    walkCycle: 1,
+    walkCycle: CHARACTER_IDLE_FRAME,
     moving: false,
     equipment: createEmptyEquipment(),
     inventory: [],
@@ -3876,8 +3884,7 @@ export default function GameCanvas({
     const saveCheck = window.setTimeout(refreshSaveSlots, 0);
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
-      walkHarin: "/assets/walk/harin-walk-v2.png",
-      walkHarinEquipped: "/assets/walk/harin-equipped-v3.png",
+      walkHarin: "/assets/walk/harin-neutral-walk-v4.png",
       walkHarinLegacy: "/assets/walk/harin-walk.png",
       walkWithered: "/assets/walk/withered-walk-v2.png",
       walkThreader: "/assets/walk/threader-walk.png",
@@ -5255,15 +5262,6 @@ export default function GameCanvas({
           }
         }
       }
-      player.moving = player.dashTime > 0 || rawMoveLength > 0;
-      if (player.moving) {
-        player.facing = directionRow(dx, dy, player.facing);
-        player.walkCycle =
-          (player.walkCycle + dt * (player.dashTime > 0 ? 16 : 8.5)) % 4;
-      } else {
-        player.walkCycle = 1;
-      }
-
       const doors = dungeonDoorAccess(
         world.roomX,
         world.roomY,
@@ -5312,7 +5310,22 @@ export default function GameCanvas({
       constrainPlayerToWalkableFloor(player, doors);
       const actualMoveX = player.x - previousPlayerX;
       const actualMoveY = player.y - previousPlayerY;
-      const actuallyMoved = Math.hypot(actualMoveX, actualMoveY) > 0.05;
+      const playerMotion = resolveCharacterMotion(
+        actualMoveX,
+        actualMoveY,
+        player.facing,
+        0.05,
+      );
+      player.moving = playerMotion.moving;
+      player.facing = playerMotion.facing;
+      player.walkCycle = playerMotion.moving
+        ? advanceCharacterWalkCycle(
+            player.walkCycle,
+            playerMotion.distance,
+            player.dashTime > 0 ? 220 : undefined,
+          )
+        : CHARACTER_IDLE_FRAME;
+      const actuallyMoved = playerMotion.moving;
       player.phantomMarchMoveTime = advanceContinuousMovement(
         player.phantomMarchMoveTime,
         dt,
@@ -8866,35 +8879,32 @@ export default function GameCanvas({
       context.fill();
       const playerAlpha =
         player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 ? 0.35 : 1;
-      const playerWalkFrame = player.moving ? player.walkCycle : 1;
+      const playerWalkFrame = characterWalkFrameIndex(
+        player.walkCycle,
+        player.moving,
+      );
       const playerSpriteY = player.y + 8;
-      const playerSpriteWidth = 118;
+      // Preserve the authored 256:192 cell aspect ratio. The former 118x128
+      // destination squeezed Harin horizontally and made every gait look wrong.
+      const playerSpriteWidth = 171;
       const playerSpriteHeight = 128;
-      const hasEquippedGear = EQUIPMENT_SLOTS.some((slot) => player.equipment[slot]);
-      const equippedHarinDrawn =
-        hasEquippedGear &&
-        drawWalkSprite(
-          images.walkHarinEquipped,
-          HARIN_V2_DIRECTION_ROWS[player.facing] ?? player.facing,
-          playerWalkFrame,
-          player.x,
-          playerSpriteY,
-          playerSpriteWidth,
-          playerSpriteHeight,
-          playerAlpha,
-        );
+      const playerPaperdollLoadout = paperdollLoadoutFromEquipment(
+        player.equipment,
+      );
       const playerDrawn =
-        equippedHarinDrawn ||
-        drawWalkSprite(
-          images.walkHarin,
-          HARIN_V2_DIRECTION_ROWS[player.facing] ?? player.facing,
-          playerWalkFrame,
-          player.x,
-          playerSpriteY,
-          playerSpriteWidth,
-          playerSpriteHeight,
-          playerAlpha,
-        ) ||
+        (images.walkHarin &&
+          drawPaperdollCharacter(context, {
+            bodyAtlas: images.walkHarin,
+            equipmentAtlas: images.equipmentIcons,
+            loadout: playerPaperdollLoadout,
+            direction: player.facing,
+            frame: playerWalkFrame,
+            x: player.x,
+            y: playerSpriteY,
+            width: playerSpriteWidth,
+            height: playerSpriteHeight,
+            alpha: playerAlpha,
+          })) ||
         drawWalkSprite(
           images.walkHarinLegacy,
           player.facing,
@@ -9364,11 +9374,14 @@ export default function GameCanvas({
       data-visited-rooms={hud.world.visitedCount}
       data-cleared-rooms={hud.world.clearedRoomCount}
       data-facing={DIRECTION_NAMES[hud.player.facing] ?? "남"}
-      data-harin-sprite-row={HARIN_V2_DIRECTION_ROWS[hud.player.facing] ?? hud.player.facing}
+      data-harin-sprite-row={characterSpriteRowForFacing(hud.player.facing)}
       data-player-x={Math.round(hud.player.x)}
       data-player-y={Math.round(hud.player.y)}
       data-player-moving={hud.player.moving}
-      data-walk-frame={positiveModulo(Math.floor(hud.player.walkCycle), 4)}
+      data-walk-frame={characterWalkFrameIndex(
+        hud.player.walkCycle,
+        hud.player.moving,
+      )}
       data-active-save-slot={activeSaveSlot}
       data-profession={hud.player.profession ?? "none"}
       data-active-effects={hud.world.activeEffects}

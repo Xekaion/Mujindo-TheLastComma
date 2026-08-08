@@ -35,6 +35,14 @@ import {
   normalizeEquipment,
 } from "../equipment";
 import { readActiveSaveSlot, readSaveSlot } from "../save-slots";
+import {
+  CHARACTER_IDLE_FRAME,
+  advanceCharacterWalkCycle,
+  characterFacingForVector,
+  characterSpriteRowForFacing,
+  characterWalkFrameIndex,
+  resolveCharacterMotion,
+} from "../character-motion";
 import "./pvp.css";
 
 type PvpArenaProps = {
@@ -44,7 +52,6 @@ type PvpArenaProps = {
 type MatchFoundMessage = Extract<RealtimeServerMessage, { type: "match_found" }>;
 type MatchResultMessage = Extract<RealtimeServerMessage, { type: "match_result" }>;
 
-const HARIN_DIRECTION_ROWS = [0, 7, 6, 3, 4, 5, 2, 1] as const;
 const ARENA_OBSTACLES = [
   { x: 510, y: 360, radius: 66 },
   { x: 770, y: 360, radius: 66 },
@@ -52,18 +59,6 @@ const ARENA_OBSTACLES = [
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
-
-const positiveModulo = (value: number, divisor: number) =>
-  ((value % divisor) + divisor) % divisor;
-
-function directionIndex(dx: number, dy: number, fallback: number): number {
-  if (Math.hypot(dx, dy) < 0.001) return fallback;
-  const sector = positiveModulo(
-    Math.round(Math.atan2(dy, dx) / (Math.PI / 4)),
-    8,
-  );
-  return [6, 7, 0, 1, 2, 3, 4, 5][sector];
-}
 
 const formatClock = (milliseconds: number) => {
   const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1_000));
@@ -297,8 +292,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     const background = new Image();
     const sprites = new Image();
     background.src = "/assets/maps/room-elite.webp";
-    sprites.src = "/assets/walk/harin-walk-v2.png";
-    const renderedPositions = new Map<string, { x: number; y: number; facing: number }>();
+    sprites.src = "/assets/walk/harin-neutral-walk-v4.png";
+    const renderedPositions = new Map<
+      string,
+      { x: number; y: number; facing: number; walkCycle: number }
+    >();
     let animationFrame = 0;
     let canvasCssScale = 1;
     const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
@@ -367,8 +365,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     };
 
-    const drawPlayer = (player: PvpPlayerSnapshot, timestamp: number) => {
-      const targetFacing = directionIndex(
+    const drawPlayer = (player: PvpPlayerSnapshot) => {
+      const targetFacing = characterFacingForVector(
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vx : player.aimX,
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vy : player.aimY,
         player.side === 0 ? 6 : 2,
@@ -377,14 +375,26 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
         x: player.x,
         y: player.y,
         facing: targetFacing,
+        walkCycle: CHARACTER_IDLE_FRAME,
       };
+      const previousRenderedX = rendered.x;
+      const previousRenderedY = rendered.y;
       rendered.x += (player.x - rendered.x) * 0.34;
       rendered.y += (player.y - rendered.y) * 0.34;
-      rendered.facing = targetFacing;
+      const motion = resolveCharacterMotion(
+        rendered.x - previousRenderedX,
+        rendered.y - previousRenderedY,
+        targetFacing,
+        0.01,
+      );
+      rendered.facing = motion.moving ? motion.facing : targetFacing;
+      rendered.walkCycle = motion.moving
+        ? advanceCharacterWalkCycle(rendered.walkCycle, motion.distance)
+        : CHARACTER_IDLE_FRAME;
       renderedPositions.set(player.id, rendered);
       const accent = player.side === 0 ? "#65d9ee" : "#ff667f";
-      const moving = Math.hypot(player.vx, player.vy) > 4;
-      const frame = moving ? Math.floor(timestamp / 115) % 4 : 1;
+      const moving = motion.moving;
+      const frame = characterWalkFrameIndex(rendered.walkCycle, moving);
       const alpha = player.respawnMs > 0 ? 0.3 : 1;
       context.save();
       context.globalAlpha = alpha;
@@ -405,7 +415,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       if (sprites.complete && sprites.naturalWidth > 0) {
         const sourceWidth = sprites.naturalWidth / 4;
         const sourceHeight = sprites.naturalHeight / 8;
-        const row = HARIN_DIRECTION_ROWS[targetFacing];
+        const row = characterSpriteRowForFacing(rendered.facing);
         context.shadowColor = accent;
         context.shadowBlur = 16;
         context.drawImage(
@@ -414,9 +424,9 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           row * sourceHeight,
           sourceWidth,
           sourceHeight,
-          rendered.x - 48,
+          rendered.x - 78.5,
           rendered.y - 79,
-          96,
+          157,
           118,
         );
       } else {
@@ -447,7 +457,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     };
 
-    const render = (timestamp: number) => {
+    const render = () => {
       drawBackground();
       const current = snapshotRef.current;
       if (current) {
@@ -472,7 +482,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           context.fill();
           context.restore();
         }
-        for (const player of current.players) drawPlayer(player, timestamp);
+        for (const player of current.players) drawPlayer(player);
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";
