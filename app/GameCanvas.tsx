@@ -157,11 +157,14 @@ import {
   getGearAffixDisplay,
   getGearSalvageAshBreakdown,
   getGearEnhancementRule,
+  isExpeditionStartingRoom,
   normalizeEquipment,
   normalizeGearItem,
   rollGear,
   rollGearDropLevel,
   rollGearDropRarity,
+  rollFirstRoomGuaranteedRarity,
+  shouldForceFirstRoomGearDrop,
   type EquipmentLoadout,
   type EquipmentSlot,
   type GearItem,
@@ -1724,6 +1727,7 @@ export default function GameCanvas({
   const inventoryFullToastRef = useRef(0);
   const lootVfxShowcaseSpawnedRef = useRef(false);
   const initialSaveSlotHandledRef = useRef(false);
+  const firstRoomGearDroppedRef = useRef(false);
 
   const [mode, setMode] = useState<GameMode>("menu");
   const [started, setStarted] = useState(false);
@@ -2394,6 +2398,15 @@ export default function GameCanvas({
       world.gearDrops = [];
       world.effects = [];
       world.transition = 0.55;
+      if (
+        isExpeditionStartingRoom({
+          clearedRoomCount: player.rooms,
+          roomX: x,
+          roomY: y,
+        })
+      ) {
+        firstRoomGearDroppedRef.current = false;
+      }
       inputRef.current.hasMoveTarget = false;
       player.shotCounter = 0;
       player.legendaryArmorReady = true;
@@ -3644,16 +3657,35 @@ export default function GameCanvas({
               GEAR_DROP_CHANCE_CAP[dropSource],
               sourceChance * (1 + gearFindPercent / 100),
             );
-      if (lootRoll < gearDropChance) {
+      const firstRoomDrop = isExpeditionStartingRoom({
+        clearedRoomCount: player.rooms,
+        roomX: world.roomX,
+        roomY: world.roomY,
+      });
+      const survivingEnemyCount = world.enemies.reduce(
+        (count, candidate) => count + (candidate.hp > 0 ? 1 : 0),
+        0,
+      );
+      const forcedFirstRoomDrop = shouldForceFirstRoomGearDrop({
+        clearedRoomCount: player.rooms,
+        roomX: world.roomX,
+        roomY: world.roomY,
+        roomHasDroppedGear: firstRoomGearDroppedRef.current,
+        survivingEnemyCount,
+      });
+      if (lootRoll < gearDropChance || forcedFirstRoomDrop) {
         const dropCount = isBossKind(enemy.kind) ? 2 : 1;
         for (let dropIndex = 0; dropIndex < dropCount; dropIndex += 1) {
           const rarityRoll = hash(world.seed, enemy.id, dropIndex, player.rooms + 331);
-          const forcedRarity = rollGearDropRarity(
+          const regularRarity = rollGearDropRarity(
             rarityRoll,
             dropSource,
             gearFindPercent,
             player.level,
           );
+          const forcedRarity = firstRoomDrop
+            ? rollFirstRoomGuaranteedRarity(rarityRoll)
+            : regularRarity;
           const dropSeed = `${world.seed}:${world.roomX}:${world.roomY}:${enemy.id}:${dropIndex}`;
           const dropLevel = rollGearDropLevel(
             dropSeed,
@@ -3675,6 +3707,7 @@ export default function GameCanvas({
             appearanceAge: 0,
           });
           spawnLootAwakening(dropX, dropY, item.rarity);
+          if (firstRoomDrop) firstRoomGearDroppedRef.current = true;
           if (item.rarity === "cosmic") {
             setToast(`${GEAR_RARITY_META[item.rarity].label} · ${item.displayName}`);
           } else if (item.rarity === "mythic") {

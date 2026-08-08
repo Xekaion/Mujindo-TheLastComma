@@ -2322,6 +2322,109 @@ test("character levels 1 through 19 use the exact onboarding rarity distribution
   );
 });
 
+test("the expedition starting room guarantees one drop with the exact six-tier table", async () => {
+  const [equipment, source] = await Promise.all([
+    importTypeScriptModule("app/equipment.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.deepEqual(equipment.FIRST_ROOM_GUARANTEED_RARITY_WEIGHTS, {
+    common: 0,
+    magic: 0,
+    superior: 40_000,
+    rare: 35_000,
+    epic: 22_000,
+    legendary: 2_000,
+    mythic: 998,
+    cosmic: 2,
+  });
+  assert.equal(
+    Object.values(equipment.FIRST_ROOM_GUARANTEED_RARITY_WEIGHTS).reduce(
+      (sum, weight) => sum + weight,
+      0,
+    ),
+    100_000,
+  );
+
+  for (const [roll, rarity] of [
+    [0, "superior"],
+    [0.4, "rare"],
+    [0.75, "epic"],
+    [0.97, "legendary"],
+    [0.99, "mythic"],
+    [0.99998, "cosmic"],
+  ]) {
+    assert.equal(equipment.rollFirstRoomGuaranteedRarity(roll), rarity);
+  }
+
+  const finalEnemyContext = {
+    clearedRoomCount: 0,
+    roomX: 0,
+    roomY: 0,
+    roomHasDroppedGear: false,
+    survivingEnemyCount: 0,
+  };
+  assert.equal(equipment.isExpeditionStartingRoom(finalEnemyContext), true);
+  assert.equal(equipment.shouldForceFirstRoomGearDrop(finalEnemyContext), true);
+  assert.equal(
+    equipment.shouldForceFirstRoomGearDrop({
+      ...finalEnemyContext,
+      survivingEnemyCount: 1,
+    }),
+    false,
+    "the fallback must wait for the last living enemy",
+  );
+  assert.equal(
+    equipment.shouldForceFirstRoomGearDrop({
+      ...finalEnemyContext,
+      roomHasDroppedGear: true,
+    }),
+    false,
+    "an earlier equipment drop must suppress the fallback",
+  );
+  assert.equal(
+    equipment.shouldForceFirstRoomGearDrop({
+      ...finalEnemyContext,
+      clearedRoomCount: 1,
+    }),
+    false,
+    "later rooms must keep their existing drop behavior",
+  );
+  assert.equal(
+    equipment.shouldForceFirstRoomGearDrop({
+      ...finalEnemyContext,
+      roomX: 1,
+    }),
+    false,
+    "only the origin room may receive the onboarding guarantee",
+  );
+
+  const killEnemy = source.match(
+    /const killEnemy = \(enemy: Enemy\) => \{([\s\S]*?)\n\s*const firePlayerWeapon = \(\) => \{/,
+  );
+  assert.ok(killEnemy, "the enemy drop flow must remain present");
+  assert.match(
+    killEnemy[1],
+    /const survivingEnemyCount = world\.enemies\.reduce\([\s\S]{0,220}?candidate\.hp > 0/,
+    "the guarantee must count living enemies after the current damage frame",
+  );
+  assert.match(
+    killEnemy[1],
+    /lootRoll < gearDropChance \|\| forcedFirstRoomDrop/,
+    "the last enemy fallback must join, not replace, ordinary drop rolls",
+  );
+  assert.match(
+    killEnemy[1],
+    /firstRoomDrop\s*\? rollFirstRoomGuaranteedRarity\(rarityRoll\)\s*:\s*regularRarity/,
+    "every starting-room equipment drop must use the requested rarity table",
+  );
+  assert.match(
+    killEnemy[1],
+    /if \(firstRoomDrop\) firstRoomGearDroppedRef\.current = true;/,
+    "a spawned item must permanently satisfy the current room's guarantee",
+  );
+});
+
 test("GameCanvas applies the exact restored source, scavenger, and gear-find drop formula", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   assert.match(

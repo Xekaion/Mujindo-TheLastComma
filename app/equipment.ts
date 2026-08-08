@@ -162,6 +162,57 @@ export const GEAR_EARLY_LEVEL_RARITY_WEIGHTS: Readonly<
 };
 
 /**
+ * Exact rarity table for equipment created in the expedition's starting room.
+ * The integer denominator is 100,000, preserving the requested 0.002% cosmic
+ * chance without allowing common or magic gear into the guaranteed reward.
+ */
+export const FIRST_ROOM_GUARANTEED_RARITY_WEIGHTS: Readonly<
+  Record<GearRarity, number>
+> = {
+  common: 0,
+  magic: 0,
+  superior: 40_000,
+  rare: 35_000,
+  epic: 22_000,
+  legendary: 2_000,
+  mythic: 998,
+  cosmic: 2,
+};
+
+type FirstRoomGearDropContext = {
+  clearedRoomCount: number;
+  roomX: number;
+  roomY: number;
+  roomHasDroppedGear: boolean;
+  survivingEnemyCount: number;
+};
+
+export function isExpeditionStartingRoom({
+  clearedRoomCount,
+  roomX,
+  roomY,
+}: Pick<
+  FirstRoomGearDropContext,
+  "clearedRoomCount" | "roomX" | "roomY"
+>): boolean {
+  return clearedRoomCount === 0 && roomX === 0 && roomY === 0;
+}
+
+/**
+ * Forces exactly one fallback drop when the final living enemy of the first
+ * room dies before that room has produced any equipment.
+ */
+export function shouldForceFirstRoomGearDrop(
+  context: FirstRoomGearDropContext,
+): boolean {
+  return (
+    isExpeditionStartingRoom(context) &&
+    !context.roomHasDroppedGear &&
+    context.survivingEnemyCount === 0
+  );
+}
+
+/**
  * Conditional rarity weights after an equipment drop has already occurred.
  * All rows sum to 95,000,000. With the unmodified 19% normal-enemy drop
  * chance, the shared top-end weights produce exact per-kill odds of 1/500
@@ -939,6 +990,10 @@ function rarityFromWeights(
     if (weightedRoll < 0) return rarity;
   }
   return "cosmic";
+}
+
+export function rollFirstRoomGuaranteedRarity(roll: number): GearRarity {
+  return rarityFromWeights(roll, FIRST_ROOM_GUARANTEED_RARITY_WEIGHTS);
 }
 
 /** One shared rarity-aware multiplier for displayed power and live affixes. */
