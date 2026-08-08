@@ -12,7 +12,9 @@ import {
 import "./game.css";
 import InventoryOverlay from "./InventoryOverlay";
 import ShopOverlay from "./ShopOverlay";
+import StatsOverlay from "./StatsOverlay";
 import { playGameSfx, playGearRaritySfx } from "./game-audio";
+import { calculatePlayerStatSnapshot } from "./player-stats";
 import {
   MAX_AUGMENT_STACKS,
   SIMPLE_AUGMENT_BONUSES,
@@ -1720,6 +1722,7 @@ export default function GameCanvas({
   const professionResumeRef = useRef<() => void>(() => undefined);
   const buildOpenRef = useRef(false);
   const inventoryOpenRef = useRef(false);
+  const statsOpenRef = useRef(false);
   const shopOpenRef = useRef(false);
   const shopReturnInventoryRef = useRef(false);
   const inventoryCapacityRef = useRef(BASE_INVENTORY_CAPACITY);
@@ -1748,6 +1751,7 @@ export default function GameCanvas({
   const [buildOpen, setBuildOpen] = useState(false);
   const [buildTab, setBuildTab] = useState<"build" | "gear">("build");
   const [inventoryOpen, setInventoryOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
   const [shopEntitlements, setShopEntitlements] = useState<ShopEntitlements>(() =>
     readShopEntitlements(null),
@@ -1836,6 +1840,16 @@ export default function GameCanvas({
     setInventoryOpen(next);
   }, []);
 
+  const setStatsScreenOpen = useCallback((next: boolean) => {
+    statsOpenRef.current = next;
+    if (next) {
+      keysRef.current.clear();
+      inputRef.current.dashQueued = false;
+      inputRef.current.hasMoveTarget = false;
+    }
+    setStatsOpen(next);
+  }, []);
+
   const setShopScreenOpen = useCallback((next: boolean) => {
     shopOpenRef.current = next;
     if (next) {
@@ -1877,6 +1891,7 @@ export default function GameCanvas({
       modeRef.current === "playing" &&
       !buildOpenRef.current &&
       !inventoryOpenRef.current &&
+      !statsOpenRef.current &&
       !shopOpenRef.current &&
       !gameConfirmationOpenRef.current,
     [],
@@ -1966,23 +1981,36 @@ export default function GameCanvas({
     setShopPreferredProductId(null);
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     setShopScreenOpen(true);
-  }, [setBuildPanelOpen, setInventoryScreenOpen, setShopScreenOpen]);
+  }, [
+    setBuildPanelOpen,
+    setInventoryScreenOpen,
+    setShopScreenOpen,
+    setStatsScreenOpen,
+  ]);
 
   const openShopFromInventory = useCallback(() => {
     shopReturnInventoryRef.current = true;
     setShopPreferredProductId(null);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     setShopScreenOpen(true);
-  }, [setInventoryScreenOpen, setShopScreenOpen]);
+  }, [setInventoryScreenOpen, setShopScreenOpen, setStatsScreenOpen]);
 
   const openWayfinderShop = useCallback(() => {
     shopReturnInventoryRef.current = false;
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     setShopPreferredProductId(MAP_TELEPORT_PRODUCT_ID);
     setShopScreenOpen(true);
-  }, [setBuildPanelOpen, setInventoryScreenOpen, setShopScreenOpen]);
+  }, [
+    setBuildPanelOpen,
+    setInventoryScreenOpen,
+    setShopScreenOpen,
+    setStatsScreenOpen,
+  ]);
 
   const closeShop = useCallback(() => {
     const shouldReturnToInventory =
@@ -2052,6 +2080,20 @@ export default function GameCanvas({
     });
   }, []);
 
+  const openStats = useCallback(() => {
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
+    setShopScreenOpen(false);
+    syncHud();
+    setStatsScreenOpen(true);
+  }, [
+    setBuildPanelOpen,
+    setInventoryScreenOpen,
+    setShopScreenOpen,
+    setStatsScreenOpen,
+    syncHud,
+  ]);
+
   const continueAfterEnding = useCallback(() => {
     pendingEndingRef.current = false;
     playerRef.current.endingSeen = true;
@@ -2085,8 +2127,14 @@ export default function GameCanvas({
     );
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     setGameMode("map");
-  }, [setBuildPanelOpen, setGameMode, setInventoryScreenOpen]);
+  }, [
+    setBuildPanelOpen,
+    setGameMode,
+    setInventoryScreenOpen,
+    setStatsScreenOpen,
+  ]);
 
   const showStory = useCallback(
     (
@@ -2774,6 +2822,7 @@ export default function GameCanvas({
       checkpointRef.current = { x: data.world.roomX, y: data.world.roomY };
       setBuildPanelOpen(false);
       setInventoryScreenOpen(false);
+      setStatsScreenOpen(false);
       setStarted(true);
       enterRoom(data.world.roomX, data.world.roomY, "left");
       setGameMode("playing");
@@ -2788,6 +2837,7 @@ export default function GameCanvas({
       setBuildPanelOpen,
       setGameMode,
       setInventoryScreenOpen,
+      setStatsScreenOpen,
     ],
   );
 
@@ -2814,6 +2864,7 @@ export default function GameCanvas({
     checkpointRef.current = null;
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     setStarted(true);
     enterRoom(0, 0, "left");
     showStory(
@@ -2829,6 +2880,7 @@ export default function GameCanvas({
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
+    setStatsScreenOpen,
     showStory,
   ]);
 
@@ -3170,6 +3222,7 @@ export default function GameCanvas({
     setGameMode("menu");
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
     shopReturnInventoryRef.current = false;
     setShopPreferredProductId(null);
     setShopScreenOpen(false);
@@ -3183,6 +3236,7 @@ export default function GameCanvas({
     setGameMode,
     setInventoryScreenOpen,
     setShopScreenOpen,
+    setStatsScreenOpen,
   ]);
 
   useEffect(() => {
@@ -3256,6 +3310,24 @@ export default function GameCanvas({
           "button, a, input, select, textarea, [contenteditable='true'], [tabindex]:not([tabindex='-1'])",
         ),
       );
+      if (statsOpenRef.current) {
+        if ((key === "escape" || key === "c") && !event.repeat) {
+          setStatsScreenOpen(false);
+        } else if (key === "b" && !event.repeat) {
+          setStatsScreenOpen(false);
+          setBuildTab("build");
+          setBuildPanelOpen(true);
+        } else if (key === "i" && !event.repeat) {
+          setStatsScreenOpen(false);
+          setInventoryScreenOpen(true);
+        } else if (key === "p" && !event.repeat) {
+          openShop();
+        } else if (key === "m" && !event.repeat) {
+          setStatsScreenOpen(false);
+          openMap();
+        }
+        return;
+      }
       if (isInteractive && key !== "escape") return;
       if (gameConfirmationOpenRef.current) {
         if (key === "escape" && !event.repeat) closeGameConfirmation();
@@ -3295,13 +3367,18 @@ export default function GameCanvas({
       if (key === "b" && modeRef.current === "playing" && !event.repeat) {
         const shouldOpen = !(buildOpenRef.current && buildTab === "build");
         setInventoryScreenOpen(false);
+        setStatsScreenOpen(false);
         setBuildTab("build");
         setBuildPanelOpen(shouldOpen);
       }
       if (key === "i" && modeRef.current === "playing" && !event.repeat) {
         const shouldOpen = !inventoryOpenRef.current;
         setBuildPanelOpen(false);
+        setStatsScreenOpen(false);
         setInventoryScreenOpen(shouldOpen);
+      }
+      if (key === "c" && modeRef.current === "playing" && !event.repeat) {
+        openStats();
       }
       if (key === "p" && modeRef.current === "playing" && !event.repeat) {
         openShop();
@@ -3313,6 +3390,7 @@ export default function GameCanvas({
       }
       if (key === "escape" && started && !event.repeat) {
         if (shopOpenRef.current) closeShop();
+        else if (statsOpenRef.current) setStatsScreenOpen(false);
         else if (inventoryOpenRef.current) setInventoryScreenOpen(false);
         else if (buildOpenRef.current) setBuildPanelOpen(false);
         else if (modeRef.current === "playing") setGameMode("paused");
@@ -3344,10 +3422,12 @@ export default function GameCanvas({
     menuStage,
     openMap,
     openShop,
+    openStats,
     isSimulationRunning,
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
+    setStatsScreenOpen,
     started,
   ]);
 
@@ -7626,14 +7706,23 @@ export default function GameCanvas({
     () => AUGMENTS.find((augment) => augment.id === hud.player.profession) ?? null,
     [hud.player.profession],
   );
-  const gearStats = useMemo(
-    () => aggregateEquipmentStats(hud.player.equipment),
-    [hud.player.equipment],
+  const playerStats = useMemo(
+    () =>
+      calculatePlayerStatSnapshot({
+        level: hud.player.level,
+        hp: hud.player.hp,
+        maxHp: hud.player.maxHp,
+        shield: hud.player.shield,
+        shotCounter: hud.player.shotCounter,
+        augments: hud.player.augments,
+        profession: hud.player.profession,
+        equipment: hud.player.equipment,
+        synergies,
+        legendaryArmorReady: hud.player.legendaryArmorReady,
+      }),
+    [hud.player, synergies],
   );
-  const equippedPower = useMemo(
-    () => calculateEquipmentCombatPower(hud.player.equipment),
-    [hud.player.equipment],
-  );
+  const equippedPower = playerStats.equipment.power.total;
   const selectedGear = useMemo(
     () => hud.player.inventory.find((item) => item.id === selectedGearId) ?? null,
     [hud.player.inventory, selectedGearId],
@@ -7648,52 +7737,38 @@ export default function GameCanvas({
     ? calculateEquipmentPowerDelta(hud.player.equipment, selectedGear)
     : 0;
   const buildMetrics = useMemo(() => {
-    const damageMultiplier =
-      ((BASE_PLAYER_ATTACK_DAMAGE + gearStats.attackPowerFlat) /
-        BASE_PLAYER_ATTACK_DAMAGE) *
-      (1 + powerRankOf(hud.player, "fang") * 0.18) *
-      (1 + powerRankOf(hud.player, "blood") * 0.14) *
-      (1 + powerRankOf(hud.player, "ember") * 0.08) *
-      (1 + powerRankOf(hud.player, "focus") * 0.025) *
-      (1 + powerRankOf(hud.player, "caliber") * 0.045) *
-      (1 + synergies.reduce((sum, synergy) => sum + synergy.tier * 0.06, 0)) *
-      (1 + gearStats.damagePercent / 100);
-    const missingHealthRatio = 1 - hud.player.hp / hud.player.maxHp;
-    const fireRate =
-      1.4 *
-      Math.pow(1 + powerRankOf(hud.player, "haste") * 0.14, 0.7) *
-      Math.pow(
-        1 + powerRankOf(hud.player, "frenzy") * missingHealthRatio * 0.12,
-        0.65,
-      ) *
-      (1 + gearStats.attackSpeedPercent / 100);
-    const critChance = clamp(
-      0.05 +
-        0.45 * (1 - Math.exp(-0.18 * powerRankOf(hud.player, "eye"))) +
-        gearStats.critChancePercent / 100,
-      0,
-      0.75,
-    );
     return [
-      { label: "피해 계수", value: `×${formatGearNumericValue(damageMultiplier)}` },
+      {
+        label: "현재 공격력",
+        value: formatGearNumericValue(playerStats.offense.normalProjectileDamage),
+      },
       {
         label: "발사 속도",
-        value: `${formatGearNumericValue(fireRate)}/초`,
+        value: `${formatGearNumericValue(playerStats.offense.renderedFireRate)}/초`,
       },
       {
         label: "투사체",
-        value: `${1 + powerRankOf(hud.player, "split")}발 · 크기 +${formatGearNumericValue(gearStats.projectileSizePercent)}%`,
+        value: `${playerStats.offense.renderedProjectileCount}발 · 지름 ${formatGearNumericValue(playerStats.projectile.diameter)}`,
       },
       {
         label: "치명타",
-        value: `${formatGearNumericValue(critChance * 100)}% · 피해 +${formatGearNumericValue(gearStats.critDamagePercent)}%`,
+        value: `${formatGearNumericValue(playerStats.offense.critChance * 100)}% · ×${formatGearNumericValue(playerStats.offense.critMultiplier)}`,
       },
       { label: "장비 전투력", value: equippedPower.toLocaleString("ko-KR") },
-      { label: "피해 감소", value: `${formatGearNumericValue(gearStats.damageReductionPercent)}%` },
-      { label: "정예·보스 피해", value: `+${formatGearNumericValue(gearStats.eliteDamagePercent)}%` },
-      { label: "장비 발견", value: `+${formatGearNumericValue(gearStats.gearFindPercent)}%` },
+      {
+        label: "현재 피해 감소",
+        value: `${formatGearNumericValue(playerStats.defense.currentDamageReduction * 100)}%`,
+      },
+      {
+        label: "정예·보스 피해",
+        value: `×${formatGearNumericValue(playerStats.offense.eliteMultiplier)}`,
+      },
+      {
+        label: "장비 발견",
+        value: `+${formatGearNumericValue(playerStats.utility.effectiveGearFindPercent)}%`,
+      },
     ];
-  }, [equippedPower, gearStats, hud.player, synergies]);
+  }, [equippedPower, playerStats]);
   const nearestLandmark = useMemo(() => {
     const landmarks = Object.entries(hud.world.rooms)
       .filter(([, room]) => room.kind === "shelter" || room.kind === "boss")
@@ -7948,6 +8023,7 @@ export default function GameCanvas({
       data-inventory-count={hud.player.inventory.length}
       data-inventory-capacity={inventoryCapacity}
       data-inventory-open={inventoryOpen}
+      data-stats-open={statsOpen}
       data-auto-salvage={hud.player.autoSalvageMaxRarity ?? "off"}
       data-shop-open={shopOpen}
       data-memory-ash={hud.player.memoryAsh}
@@ -8352,6 +8428,17 @@ export default function GameCanvas({
         equippedPower={equippedPower}
       />
 
+      <StatsOverlay
+        open={statsOpen && started && mode === "playing"}
+        snapshot={playerStats}
+        professionTitle={
+          hud.player.profession
+            ? (PROFESSION_TITLES[hud.player.profession] ?? "이름 없는 전문가")
+            : null
+        }
+        onClose={() => setStatsScreenOpen(false)}
+      />
+
       <ShopOverlay
         key={`game-shop-${shopPreferredProductId ?? "default"}`}
         open={shopOpen && started && mode === "playing"}
@@ -8372,11 +8459,18 @@ export default function GameCanvas({
         {hud.player.rooms === 0 && <span><kbd>SPACE</kbd> 회피</span>}
         <button type="button" onClick={openMap}><kbd>M</kbd> 지도</button>
         <button type="button" onClick={() => {
+          setInventoryScreenOpen(false);
+          setStatsScreenOpen(false);
           setBuildTab("build");
           setBuildPanelOpen(!(buildOpen && buildTab === "build"));
         }}><kbd>B</kbd> 빌드</button>
         <button type="button" onClick={() => {
+          if (statsOpen) setStatsScreenOpen(false);
+          else openStats();
+        }}><kbd>C</kbd> 능력치</button>
+        <button type="button" onClick={() => {
           setBuildPanelOpen(false);
+          setStatsScreenOpen(false);
           setInventoryScreenOpen(!inventoryOpen);
         }}><kbd>I</kbd> 장비 {hud.player.inventory.length}/{inventoryCapacity}</button>
         <button type="button" onClick={openShop}><kbd>P</kbd> 상점</button>
