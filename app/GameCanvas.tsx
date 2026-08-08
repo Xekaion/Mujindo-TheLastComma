@@ -26,6 +26,14 @@ import {
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import {
+  BASE_EXPEDITION_DIFFICULTY,
+  calculateExpeditionDifficulty,
+  calculateExpeditionEnemyCount,
+  expeditionEnemyHpMultiplier,
+  updateExpeditionPowerRating,
+  type ExpeditionDifficulty,
+} from "./expedition-difficulty";
+import {
   absorbTrackedShield,
   advanceContinuousMovement,
   advanceLegendaryCounter,
@@ -609,6 +617,7 @@ type Player = {
   level: number;
   rooms: number;
   kills: number;
+  expeditionPowerRating: number;
   augments: Record<string, number>;
   fireCooldown: number;
   invulnerable: number;
@@ -730,6 +739,7 @@ type World = {
   transition: number;
   clearHandled: boolean;
   activeBossKind: BossKind | null;
+  expeditionDifficulty: ExpeditionDifficulty;
 };
 
 type CartographyWorld = Pick<World, "roomX" | "roomY" | "rooms" | "visited">;
@@ -1507,6 +1517,7 @@ function makePlayer(): Player {
     level: 1,
     rooms: 0,
     kills: 0,
+    expeditionPowerRating: 1_000,
     augments: {},
     fireCooldown: 0,
     invulnerable: 0,
@@ -1605,6 +1616,7 @@ function makeWorld(seed: number): World {
     transition: 0,
     clearHandled: false,
     activeBossKind: null,
+    expeditionDifficulty: { ...BASE_EXPEDITION_DIFFICULTY },
   };
 }
 
@@ -1620,6 +1632,30 @@ function activeSynergies(player: Player) {
     ...synergy,
     tier: augmentTier(player, synergy.needs),
   }));
+}
+
+function calculatePlayerStatsForRuntime(player: Player) {
+  return calculatePlayerStatSnapshot({
+    level: player.level,
+    hp: player.hp,
+    maxHp: player.maxHp,
+    shield: player.shield,
+    shotCounter: player.shotCounter,
+    augments: player.augments,
+    profession: player.profession,
+    equipment: player.equipment,
+    synergies: activeSynergies(player),
+    legendaryArmorReady: player.legendaryArmorReady,
+    mirrorAegisHitCount: player.mirrorAegisHitCount,
+    mirrorAegisBarrierTime: player.mirrorAegisBarrierTime,
+    starfallMantleTime: player.starfallMantleTime,
+    bloodwovenCriticalHits: player.bloodwovenCriticalHits,
+    bloodwovenBurstReady: player.bloodwovenBurstReady,
+    ashboundPickupCount: player.ashboundPickupCount,
+    ashboundShieldRemaining: player.ashboundShieldRemaining,
+    ashboundShieldTime: player.ashboundShieldTime,
+    phantomMarchMoveTime: player.phantomMarchMoveTime,
+  });
 }
 
 /**
@@ -2417,7 +2453,12 @@ export default function GameCanvas({
       const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS];
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
       const eliteScale = elite ? 2.25 : 1;
-      const hp = hpBases[kind] * scale * eliteScale;
+      const difficultyTier = isBossKind(kind) ? "boss" : elite ? "elite" : "normal";
+      const combatHpScale = expeditionEnemyHpMultiplier(
+        worldRef.current.expeditionDifficulty,
+        difficultyTier,
+      );
+      const hp = hpBases[kind] * scale * eliteScale * combatHpScale;
       return {
         id: idRef.current++,
         kind,
@@ -2504,25 +2545,47 @@ export default function GameCanvas({
       const player = playerRef.current;
       const depth = player.rooms;
       const enemies: Enemy[] = [];
-      const baseCount = clamp(4 + Math.floor(2.15 * Math.sqrt(depth + 1)), 4, 16);
-      const count = kind === "horde" ? Math.ceil(baseCount * 1.55) : baseCount;
       const seedSalt = world.roomX * 41 + world.roomY * 73 + depth * 97;
       let marginSevererCount = 0;
 
       if (kind !== "boss") world.activeBossKind = null;
 
       if (kind === "shelter") {
+        world.expeditionDifficulty = { ...BASE_EXPEDITION_DIFFICULTY };
         world.enemies = [];
         return;
       }
+
+      const clearedBossRooms =
+        kind === "boss"
+          ? Object.values(world.rooms).filter(
+              (room) => room.kind === "boss" && room.cleared,
+            ).length
+          : 0;
+      const bossKind =
+        kind === "boss"
+          ? bossKindForProgress(player.endingVersion, clearedBossRooms)
+          : null;
+      const currentCombatPower = calculatePlayerStatsForRuntime(player).ratings.combatPower;
+      player.expeditionPowerRating = updateExpeditionPowerRating({
+        previousRating: player.expeditionPowerRating,
+        currentCombatPower,
+      });
+      world.expeditionDifficulty = calculateExpeditionDifficulty({
+        roomsCleared: depth,
+        combatPower: player.expeditionPowerRating,
+        suppressPowerScaling:
+          bossKind === BLANK_CARTOGRAPHER_KIND &&
+          player.endingVersion < FIRST_BOSS_ENDING_VERSION,
+      });
+      const count = calculateExpeditionEnemyCount({
+        roomsCleared: depth,
+        roomKind: kind,
+        difficulty: world.expeditionDifficulty,
+      });
+
       if (kind === "boss") {
-        const clearedBossRooms = Object.values(world.rooms).filter(
-          (room) => room.kind === "boss" && room.cleared,
-        ).length;
-        const bossKind = bossKindForProgress(
-          player.endingVersion,
-          clearedBossRooms,
-        );
+        if (bossKind === null) return;
         world.activeBossKind = bossKind;
         enemies.push(makeEnemy(bossKind, WIDTH / 2, 210, depth, true));
         world.enemies = enemies;
@@ -3008,6 +3071,11 @@ export default function GameCanvas({
         playerRef.current.nextXp,
         xpThreshold(playerRef.current.level),
       );
+      hydratedPlayer.expeditionPowerRating =
+        Number.isFinite(data.player.expeditionPowerRating) &&
+        data.player.expeditionPowerRating >= 1_000
+          ? Math.floor(data.player.expeditionPowerRating)
+          : calculatePlayerStatsForRuntime(hydratedPlayer).ratings.combatPower;
       const world = makeWorld(data.world.seed);
       world.rooms = data.world.rooms;
       world.visited = data.world.visited;
@@ -8484,29 +8552,8 @@ export default function GameCanvas({
     [hud.player.profession],
   );
   const playerStats = useMemo(
-    () =>
-      calculatePlayerStatSnapshot({
-        level: hud.player.level,
-        hp: hud.player.hp,
-        maxHp: hud.player.maxHp,
-        shield: hud.player.shield,
-        shotCounter: hud.player.shotCounter,
-        augments: hud.player.augments,
-        profession: hud.player.profession,
-        equipment: hud.player.equipment,
-        synergies,
-        legendaryArmorReady: hud.player.legendaryArmorReady,
-        mirrorAegisHitCount: hud.player.mirrorAegisHitCount,
-        mirrorAegisBarrierTime: hud.player.mirrorAegisBarrierTime,
-        starfallMantleTime: hud.player.starfallMantleTime,
-        bloodwovenCriticalHits: hud.player.bloodwovenCriticalHits,
-        bloodwovenBurstReady: hud.player.bloodwovenBurstReady,
-        ashboundPickupCount: hud.player.ashboundPickupCount,
-        ashboundShieldRemaining: hud.player.ashboundShieldRemaining,
-        ashboundShieldTime: hud.player.ashboundShieldTime,
-        phantomMarchMoveTime: hud.player.phantomMarchMoveTime,
-      }),
-    [hud.player, synergies],
+    () => calculatePlayerStatsForRuntime(hud.player),
+    [hud.player],
   );
   const equippedPower = playerStats.equipment.power.total;
   const selectedGear = useMemo(

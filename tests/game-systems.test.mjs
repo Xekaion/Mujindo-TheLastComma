@@ -805,7 +805,12 @@ test("the universal twenty-stack ceiling normalizes runtime choices and every sa
   );
   assert.match(
     source,
-    /augments: normalizeAugmentStacks\(data\.player\.augments\)[\s\S]{0,1600}?stableAugmentsRef\.current = normalizeAugmentStacks\(/,
+    /augments: normalizeAugmentStacks\(data\.player\.augments\)/,
+    "loading must normalize the volatile augment ledger",
+  );
+  assert.match(
+    source,
+    /stableAugmentsRef\.current = normalizeAugmentStacks\(/,
     "loading must normalize both volatile and shelter-stable augment ledgers",
   );
 });
@@ -1005,7 +1010,7 @@ test("the blank cartographer owns the first boss and its long ending can trigger
 
   assert.match(
     source,
-    /if \(kind === "boss"\) \{[\s\S]{0,420}?bossKindForProgress\([\s\S]{0,120}?player\.endingVersion,[\s\S]{0,120}?clearedBossRooms[\s\S]{0,160}?makeEnemy\(bossKind,/,
+    /const bossKind =[\s\S]{0,160}?kind === "boss"[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, clearedBossRooms\)[\s\S]{0,1000}?if \(kind === "boss"\) \{[\s\S]{0,180}?makeEnemy\(bossKind,/,
     "boss spawning must preserve the first boss while selecting the post-ending roster",
   );
   assert.match(
@@ -1090,7 +1095,11 @@ test("the blank cartographer deterministically cycles every inherited attack beh
     /if \(kind === "boss"\) \{([\s\S]*?)\n\s*\}\n\n\s*for \(let i = 0; i < count;/,
   );
   assert.ok(bossRoom, "the boss-room spawn branch must remain isolated");
-  assert.match(bossRoom[1], /const bossKind = bossKindForProgress\(/);
+  assert.match(
+    source,
+    /const bossKind =[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, clearedBossRooms\)/,
+  );
+  assert.match(bossRoom[1], /if \(bossKind === null\) return;/);
   assert.match(bossRoom[1], /makeEnemy\(bossKind,/);
   assert.equal(
     [...bossRoom[1].matchAll(/\bmakeEnemy\(/g)].length,
