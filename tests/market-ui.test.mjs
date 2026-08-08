@@ -77,16 +77,36 @@ test("market polling and write commands follow the authoritative protocol", asyn
 test("market equipment names show enhancement without mutating trade commands", async () => {
   const board = await readSource("app/market/MarketBoard.tsx");
 
-  assert.match(board, /import \{ formatGearDisplayName \} from "\.\.\/equipment"/);
+  assert.match(board, /import \{ formatGearDisplayName, normalizeGearEnhancement \} from "\.\.\/equipment"/);
   assert.match(
     board,
-    /market-listing-item[\s\S]{0,500}?formatGearDisplayName\(listing\.item\)/,
+    /function formatMarketGearName\(item: MarketVaultItem\)[\s\S]{0,180}?formatGearDisplayName\(item, \{ includeZero: true \}\)/,
+    "market names must show the exact enhancement stage from +0 onward",
+  );
+  assert.match(
+    board,
+    /market-listing-item[\s\S]{0,500}?formatMarketGearName\(listing\.item\)/,
     "auction rows must append the enhancement stage to the visible item name",
   );
   assert.match(
     board,
-    /market-vault-list[\s\S]{0,1200}?formatGearDisplayName\(item\)/,
+    /market-vault-list[\s\S]{0,1200}?formatMarketGearName\(item\)/,
     "vault rows must use the same display-only name formatter",
+  );
+  assert.match(
+    board,
+    /const enhancement = normalizeGearEnhancement\(item\.enhancement\)[\s\S]{0,500}?className="market-item-enhancement">\+\{enhancement\}<\/b>/,
+    "auction and vault icons must expose the normalized enhancement stage, including +0",
+  );
+  assert.match(
+    board,
+    /<ItemIcon item=\{listing\.item\} compact \/>[\s\S]{0,250}?formatMarketGearName\(listing\.item\)/,
+    "auction listings must show enhancement on both the icon and the item name",
+  );
+  assert.match(
+    board,
+    /<ItemIcon item=\{item\} compact \/>[\s\S]{0,250}?formatMarketGearName\(item\)/,
+    "sale vault entries must show enhancement on both the icon and the item name",
   );
   assert.match(
     board,

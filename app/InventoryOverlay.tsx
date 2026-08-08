@@ -280,7 +280,7 @@ function GearTooltip({
       )}
       <footer>
         {equipped ? "현재 장착 중" : comparisonItem ? `${formatGearDisplayName(comparisonItem)}와 비교` : "빈 슬롯과 비교"}
-        <span>클릭하여 선택 · 더블 클릭하여 장착</span>
+        <span>{equipped ? "클릭하여 선택 · 더블 클릭하여 장착 해제" : "클릭하여 선택 · 더블 클릭하여 장착"}</span>
       </footer>
     </div>
   );
@@ -479,6 +479,12 @@ export default function InventoryOverlay({
     onEquip(gearId);
   };
 
+  const unequipItem = (slot: EquipmentSlot) => {
+    setHoveredItem(null);
+    setHoveredItemIsEquipped(false);
+    onUnequip(slot);
+  };
+
   const toggleSalvageSelection = (gearId: string) => {
     setSelectedForSalvage((current) => {
       const next = new Set(current);
@@ -649,6 +655,9 @@ export default function InventoryOverlay({
                       key={slot}
                       className={`inventory-screen-equipment-card inventory-screen-equipment-card--${slot} ${item ? rarityClass(item) : "inventory-screen-equipment-card--empty"} ${selected ? "inventory-screen-item--selected" : ""}`}
                       onClick={() => item && onSelect(item.id)}
+                      onDoubleClick={() => {
+                        if (item && !salvageMode) unequipItem(slot);
+                      }}
                       onMouseEnter={(event) => item && showPointerTooltip(item, true, event)}
                       onMouseMove={(event) => item && showPointerTooltip(item, true, event)}
                       onMouseLeave={(event) => item && hidePointerTooltip(event)}
@@ -656,7 +665,7 @@ export default function InventoryOverlay({
                       onBlur={() => setHoveredItem(null)}
                       aria-label={
                         item
-                          ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${formatGearDisplayName(item)} 정보 보기`
+                          ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${formatGearDisplayName(item, { includeZero: true })} 정보 보기`
                           : `${EQUIPMENT_SLOT_LABELS[slot]} 슬롯 비어 있음`
                       }
                       aria-describedby={item && !salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
@@ -678,8 +687,11 @@ export default function InventoryOverlay({
                       <small className="inventory-screen-slot-label">
                         {slot === "offhand" ? "보조" : EQUIPMENT_SLOT_LABELS[slot]}
                       </small>
-                      {item && item.enhancement > 0 && (
-                        <strong className="inventory-screen-equipment-enhancement">
+                      {item && (
+                        <strong
+                          className="inventory-screen-equipment-enhancement"
+                          aria-label={`강화 +${item.enhancement}`}
+                        >
                           +{item.enhancement}
                         </strong>
                       )}
@@ -844,7 +856,7 @@ export default function InventoryOverlay({
                           <button
                             type="button"
                             className="inventory-screen-unequip-button"
-                            onClick={() => onUnequip(selectedItem.slot)}
+                            onClick={() => unequipItem(selectedItem.slot)}
                             aria-label={`${formatGearDisplayName(selectedItem)} 장착 해제`}
                           >
                             장착 해제
@@ -1070,8 +1082,8 @@ export default function InventoryOverlay({
                       onFocus={(event) => showFocusTooltip(item, false, event)}
                       onBlur={() => setHoveredItem(null)}
                       aria-label={salvageMode
-                        ? `${formatGearDisplayName(item)} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${formatGearDisplayName(item)}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
+                        ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
+                        : `${formatGearDisplayName(item, { includeZero: true })}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
                       aria-describedby={!salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageMode ? checkedForSalvage : selected}
                     >
@@ -1092,9 +1104,7 @@ export default function InventoryOverlay({
                       </span>
                       <span className="inventory-screen-grid-level">LV.{item.level}</span>
                       <span className="inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
-                      {item.enhancement > 0 && (
-                        <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
-                      )}
+                      <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
                       <small className="inventory-screen-grid-name">{formatGearDisplayName(item)}</small>
                       {overCapacity && (
                         <span className="inventory-screen-over-capacity-mark">초과 보관</span>
@@ -1112,7 +1122,7 @@ export default function InventoryOverlay({
         </div>
 
         <footer className="inventory-screen-footer">
-          <span>클릭: 선택 · 더블 클릭: 즉시 장착 · 장비 위에 커서: 전체 옵션</span>
+          <span>클릭: 선택 · 가방 더블 클릭: 장착 · 장착 장비 더블 클릭: 해제 · 장비 위에 커서: 전체 옵션</span>
           <span><kbd>I</kbd> 또는 <kbd>ESC</kbd> 닫기</span>
         </footer>
       </div>

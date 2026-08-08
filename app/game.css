@@ -9240,7 +9240,20 @@ button.equipment-slot-card:hover {
   z-index: 7;
   top: 5px;
   right: 5px;
+  min-width: 20px;
+  border: 1px solid color-mix(in srgb, var(--inventory-rarity) 72%, #efe0b7 28%);
+  border-radius: 2px;
+  padding: 2px 4px;
+  color: #fff3ce;
+  background: rgba(5, 7, 9, 0.9);
+  box-shadow:
+    0 0 8px color-mix(in srgb, var(--inventory-rarity) 42%, transparent),
+    inset 0 0 5px rgba(255, 244, 207, 0.08);
   font-size: clamp(9px, 1.8cqh, 12px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+  text-align: center;
+  pointer-events: none;
 }
 
 /* rarity-frames.png: one 320px square cell with a 304px painted border. */

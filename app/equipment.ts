@@ -1598,14 +1598,19 @@ export function formatCompactGearLabel(label: string): string {
     .replace(/(\d[\d,]*\.\d)0(?=%p?|$)/g, "$1");
 }
 
+export function normalizeGearEnhancement(value: number): number {
+  return Number.isSafeInteger(value)
+    ? clamp(value, 0, MAX_GEAR_ENHANCEMENT)
+    : 0;
+}
+
 /** Enhancement belongs to presentation, never the canonical rolled name. */
 export function formatGearDisplayName(
   item: Pick<GearItem, "displayName" | "enhancement">,
+  options: { includeZero?: boolean } = {},
 ): string {
-  const enhancement = Number.isSafeInteger(item.enhancement)
-    ? clamp(item.enhancement, 0, MAX_GEAR_ENHANCEMENT)
-    : 0;
-  return enhancement > 0
+  const enhancement = normalizeGearEnhancement(item.enhancement);
+  return enhancement > 0 || options.includeZero
     ? `${item.displayName} +${enhancement}`
     : item.displayName;
 }

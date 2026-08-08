@@ -249,6 +249,8 @@
 .market-item-icon::before { top: -2px; left: -2px; border-top: 1px solid; border-left: 1px solid; }
 .market-item-icon::after { right: -2px; bottom: -2px; border-right: 1px solid; border-bottom: 1px solid; }
 .market-item-icon i { position: absolute; inset: 5px; background-image: url("/assets/equipment/equipment-types-v4.png"); background-repeat: no-repeat; background-position: var(--icon-x) var(--icon-y); background-size: 1000% 1000%; filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.85)); }
+.market-item-enhancement { position: absolute; z-index: 4; top: 3px; right: 3px; min-width: 20px; padding: 2px 4px; border: 1px solid color-mix(in srgb, var(--rarity-color) 72%, #efe0b7 28%); color: #fff3ce; background: rgba(5, 7, 9, 0.9); box-shadow: 0 0 8px color-mix(in srgb, var(--rarity-color) 42%, transparent), inset 0 0 5px rgba(255, 244, 207, 0.08); font: 800 10px/1 Georgia, "Noto Serif KR", serif; text-align: center; text-shadow: 0 1px 2px #000, 0 0 5px var(--rarity-color); font-variant-numeric: tabular-nums; pointer-events: none; }
+.market-item-icon.is-compact .market-item-enhancement { top: 2px; right: 2px; min-width: 17px; padding: 2px 3px; font-size: 8px; }
 .market-item-icon--legendary, .market-item-icon--mythic, .market-item-icon--cosmic { box-shadow: inset 0 0 17px rgba(0, 0, 0, 0.7), 0 0 15px color-mix(in srgb, var(--rarity-color) 35%, transparent); }
 
 .market-vault { display: grid; grid-template-rows: auto auto minmax(150px, 1fr) auto; max-height: 660px; padding: 12px; border: 1px solid rgba(194, 156, 79, 0.18); background: linear-gradient(150deg, rgba(22, 20, 16, 0.79), rgba(4, 7, 9, 0.96)); }

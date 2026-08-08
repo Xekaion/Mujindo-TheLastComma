@@ -2811,6 +2811,16 @@ test("gear text separates enhanced implicit options from fate-locked additional 
     "무진도 파편",
   );
   assert.equal(
+    equipment.formatGearDisplayName(
+      { displayName: "무진도 파편", enhancement: 0 },
+      { includeZero: true },
+    ),
+    "무진도 파편 +0",
+  );
+  assert.equal(equipment.normalizeGearEnhancement(999), 10);
+  assert.equal(equipment.normalizeGearEnhancement(-7), 0);
+  assert.equal(equipment.normalizeGearEnhancement(Number.NaN), 0);
+  assert.equal(
     equipment.formatGearAffix("damagePercent", 12.345),
     `${equipment.GEAR_AFFIX_DEFINITIONS.damagePercent.name} +12.35%`,
   );
@@ -4130,7 +4140,7 @@ test("I opens the centered inventory overlay and equipped-slot clicks drive its 
   );
   assert.match(
     overlay,
-    /const selectedItem = selectedInventoryItem \?\? selectedEquippedItem;[\s\S]{0,12000}?className={`inventory-screen-details/,
+    /const selectedItem = selectedInventoryItem \?\? selectedEquippedItem;[\s\S]{0,13000}?className={`inventory-screen-details/,
     "equipped and backpack items must feed the same detail view",
   );
 });
@@ -4186,8 +4196,23 @@ test("equipped gear can be safely unequipped without overflowing the backpack or
   assert.match(overlay, /onUnequip:\s*\(slot:\s*EquipmentSlot\)\s*=>\s*void;/);
   assert.match(
     overlay,
-    /selectedIsEquipped[\s\S]{0,400}?className=["']inventory-screen-unequip-button["'][\s\S]{0,220}?onClick=\{\(\) => onUnequip\(selectedItem\.slot\)\}/,
+    /selectedIsEquipped[\s\S]{0,400}?className=["']inventory-screen-unequip-button["'][\s\S]{0,220}?onClick=\{\(\) => unequipItem\(selectedItem\.slot\)\}/,
     "only the selected equipped item should expose the unequip action",
+  );
+  assert.match(
+    overlay,
+    /const unequipItem\s*=\s*\(slot:\s*EquipmentSlot\)\s*=>\s*\{\s*setHoveredItem\(null\);\s*setHoveredItemIsEquipped\(false\);\s*onUnequip\(slot\);\s*\}/,
+    "every inventory unequip gesture must reuse one tooltip-safe callback",
+  );
+  assert.match(
+    overlay,
+    /inventory-screen-equipment-card[\s\S]{0,700}?onDoubleClick=\{\(\) => \{\s*if \(item && !salvageMode\) unequipItem\(slot\);\s*\}\}/,
+    "double-clicking equipped gear must use the safe runtime unequip path outside salvage mode",
+  );
+  assert.match(
+    overlay,
+    /equipped \? ["']클릭하여 선택 · 더블 클릭하여 장착 해제["'] : ["']클릭하여 선택 · 더블 클릭하여 장착["']/,
+    "the item tooltip must explain the correct double-click action for its source",
   );
   assert.match(
     source,
@@ -4552,13 +4577,23 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   );
   assert.match(
     overlay,
-    /item\.enhancement > 0[\s\S]{0,180}?inventory-screen-enhancement-badge/,
-    "icon-first backpack cards must retain a compact stage marker for enhanced items",
+    /<strong className="inventory-screen-enhancement-badge">\+\{item\.enhancement\}<\/strong>/,
+    "icon-first backpack cards must retain a compact stage marker from +0 onward",
   );
   assert.match(
     overlay,
-    /item && item\.enhancement > 0[\s\S]{0,180}?inventory-screen-equipment-enhancement/,
-    "paperdoll cards must retain a compact stage marker for enhanced items",
+    /\{item && \([\s\S]{0,180}?inventory-screen-equipment-enhancement/,
+    "paperdoll cards must retain a compact stage marker from +0 onward",
+  );
+  assert.match(
+    overlay,
+    /inventory-screen-equipment-enhancement[\s\S]{0,120}?aria-label=\{`강화 \+\$\{item\.enhancement\}`\}[\s\S]{0,100}?\+\{item\.enhancement\}/,
+    "the equipped icon marker must expose the same enhancement stage visually and accessibly",
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-equipment-enhancement\s*\{[\s\S]{0,500}?min-width:\s*20px;[\s\S]{0,280}?background:\s*rgba\(5, 7, 9, 0\.9\);/,
+    "the equipped enhancement marker must stay legible above bright rarity effects",
   );
   assert.doesNotMatch(
     overlay,
