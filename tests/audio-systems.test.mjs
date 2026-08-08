@@ -64,7 +64,7 @@ test("the owner-supplied main BGM is preserved byte-for-byte", async () => {
 
 test("every generated SFX is valid, audible, unclipped stereo PCM", async () => {
   const filenames = (await readdir(sfxRoot)).filter((file) => file.endsWith(".wav")).sort();
-  assert.equal(filenames.length, 25);
+  assert.equal(filenames.length, 26);
   let totalBytes = 0;
 
   for (const filename of filenames) {
@@ -72,7 +72,8 @@ test("every generated SFX is valid, audible, unclipped stereo PCM", async () => 
     totalBytes += bytes.length;
     const wav = parsePcmWav(bytes, filename);
     const duration = wav.frames / wav.sampleRate;
-    assert.ok(duration >= 0.18 && duration <= 1.7, `${filename}: duration ${duration}`);
+    const maximumDuration = filename === "profession-ascend.wav" ? 2.4 : 1.7;
+    assert.ok(duration >= 0.18 && duration <= maximumDuration, `${filename}: duration ${duration}`);
 
     let peak = 0;
     let sum = 0;
@@ -105,6 +106,33 @@ test("every generated SFX is valid, audible, unclipped stereo PCM", async () => 
   assert.ok(totalBytes < 4_000_000, `SFX pack is too large: ${totalBytes}`);
 });
 
+test("profession awakening rupture is synchronized to the visual impact", async () => {
+  const bytes = await readFile(path.join(sfxRoot, "profession-ascend.wav"));
+  const wav = parsePcmWav(bytes, "profession-ascend.wav");
+  assert.ok(Math.abs(wav.frames / wav.sampleRate - 2.36) < 1 / wav.sampleRate);
+  const windowFrames = Math.round(wav.sampleRate * 0.04);
+  const strideFrames = Math.round(windowFrames / 2);
+  let loudestStartFrame = 0;
+  let loudestEnergy = -1;
+  for (let startFrame = 0; startFrame + windowFrames <= wav.frames; startFrame += strideFrames) {
+    let energy = 0;
+    for (let frame = startFrame; frame < startFrame + windowFrames; frame += 1) {
+      const left = wav.pcm.readInt16LE(frame * 4);
+      const right = wav.pcm.readInt16LE(frame * 4 + 2);
+      energy += left * left + right * right;
+    }
+    if (energy > loudestEnergy) {
+      loudestEnergy = energy;
+      loudestStartFrame = startFrame;
+    }
+  }
+  const ruptureTime = loudestStartFrame / wav.sampleRate;
+  assert.ok(
+    ruptureTime >= 1.38 && ruptureTime <= 1.5,
+    `profession rupture drifted away from the 1.42s visual impact: ${ruptureTime}`,
+  );
+});
+
 test("the manifest is complete, unique, SSR-safe, and performance bounded", async () => {
   const [engine, provider, layout, game, generator] = await Promise.all([
     readFile(path.join(root, "app", "game-audio.ts"), "utf8"),
@@ -116,7 +144,7 @@ test("the manifest is complete, unique, SSR-safe, and performance bounded", asyn
 
   const manifestPaths = [...engine.matchAll(/path:\s*"(\/assets\/audio\/sfx\/[^"]+\.wav)"/g)]
     .map((match) => match[1]);
-  assert.equal(manifestPaths.length, 25);
+  assert.equal(manifestPaths.length, 26);
   assert.equal(new Set(manifestPaths).size, manifestPaths.length);
   for (const publicPath of manifestPaths) {
     const filePath = path.join(root, "public", ...publicPath.split("/").filter(Boolean));
@@ -150,6 +178,7 @@ test("the manifest is complete, unique, SSR-safe, and performance bounded", asyn
     "enemyTeleport",
     "timeRift",
     "memoryPickup",
+    "professionAscend",
     "roomClear",
     "bossAppear",
     "enhanceSuccess",
@@ -165,4 +194,5 @@ test("the manifest is complete, unique, SSR-safe, and performance bounded", asyn
   assert.doesNotMatch(game, /new Audio\(|new AudioContext/);
   assert.match(generator, /random\.Random\(seed\)/);
   assert.match(generator, /SOUNDS = \{/);
+  assert.match(generator, /"profession-ascend\.wav": profession_ascend/);
 });

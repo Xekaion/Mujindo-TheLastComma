@@ -284,6 +284,21 @@ type Augment = {
   tags: string[];
 };
 
+type ProfessionCeremony = {
+  augment: Augment;
+  title: string;
+  rawRank: number;
+};
+
+const PROFESSION_CEREMONY_DURATION_MS = 3_900;
+const PROFESSION_CEREMONY_REDUCED_MOTION_MS = 950;
+const PROFESSION_CEREMONY_PARTICLES = Array.from({ length: 24 }, (_, index) => ({
+  angle: `${index * 137.508}deg`,
+  distance: `${38 + (index % 8) * 7}vmin`,
+  delay: `${(index % 9) * 31}ms`,
+  scale: `${0.58 + (index % 5) * 0.16}`,
+}));
+
 type GameConfirmation = {
   eyebrow: string;
   title: string;
@@ -2072,6 +2087,8 @@ export default function GameCanvas({
   } | null>(null);
   const pendingEndingRef = useRef(false);
   const professionResumeRef = useRef<() => void>(() => undefined);
+  const professionCeremonyActiveRef = useRef(false);
+  const professionCeremonyDialogRef = useRef<HTMLDivElement | null>(null);
   const buildOpenRef = useRef(false);
   const inventoryOpenRef = useRef(false);
   const statsOpenRef = useRef(false);
@@ -2093,6 +2110,9 @@ export default function GameCanvas({
   );
   const [choices, setChoices] = useState<Augment[]>([]);
   const [professionCandidate, setProfessionCandidate] = useState<Augment | null>(null);
+  const [professionCeremony, setProfessionCeremony] =
+    useState<ProfessionCeremony | null>(null);
+  const [professionCeremonyReady, setProfessionCeremonyReady] = useState(false);
   const [story, setStory] = useState({
     eyebrow: "서장",
     title: "끝을 찾는 자",
@@ -3141,7 +3161,43 @@ export default function GameCanvas({
 
   const openProfessionChoice = useCallback(
     (augment: Augment, resume: () => void = () => setGameMode("playing")) => {
-      if (!isProfessionEligible(playerRef.current.augments, augment.id)) return;
+      if (
+        professionCeremonyActiveRef.current ||
+        !isProfessionEligible(playerRef.current.augments, augment.id)
+      ) {
+        return;
+      }
+      setProfessionCeremonyReady(false);
+      let ceremonyImage = imagesRef.current.professionAscension;
+      if (!ceremonyImage || (ceremonyImage.complete && ceremonyImage.naturalWidth === 0)) {
+        ceremonyImage = new Image();
+        imagesRef.current.professionAscension = ceremonyImage;
+      }
+      const markCeremonyReady = () => setProfessionCeremonyReady(true);
+      const canDecodeCeremonyImage = typeof ceremonyImage.decode === "function";
+      if (!canDecodeCeremonyImage) {
+        ceremonyImage.addEventListener("load", markCeremonyReady, { once: true });
+      }
+      ceremonyImage.addEventListener(
+        "error",
+        () => {
+          setProfessionCeremonyReady(true);
+          setToast("전직 문장을 불러오지 못해 광휘 연출로 진행합니다.");
+        },
+        { once: true },
+      );
+      if (!ceremonyImage.src) {
+        ceremonyImage.src = "/assets/effects/profession-ascension-sigil-v1.png";
+      }
+      if (canDecodeCeremonyImage) {
+        void ceremonyImage.decode().then(markCeremonyReady).catch(() => {
+          if (ceremonyImage.complete && ceremonyImage.naturalWidth > 0) {
+            markCeremonyReady();
+          }
+        });
+      } else if (ceremonyImage.complete && ceremonyImage.naturalWidth > 0) {
+        markCeremonyReady();
+      }
       setBuildPanelOpen(false);
       setProfessionCandidate(augment);
       professionResumeRef.current = resume;
@@ -3151,23 +3207,75 @@ export default function GameCanvas({
   );
 
   const closeProfessionChoice = useCallback(() => {
+    if (professionCeremonyActiveRef.current) return;
     setProfessionCandidate(null);
-    professionResumeRef.current();
+    const resume = professionResumeRef.current;
+    professionResumeRef.current = () => undefined;
+    resume();
   }, []);
 
   const confirmProfession = useCallback(() => {
-    if (!professionCandidate) return;
+    if (
+      !professionCandidate ||
+      !professionCeremonyReady ||
+      professionCeremonyActiveRef.current
+    ) {
+      return;
+    }
+    professionCeremonyActiveRef.current = true;
     const player = playerRef.current;
     player.profession = professionCandidate.id;
-    playGameSfx("lootLegendary", { playbackRate: 1.08, gain: 0.9 });
     const rawRank = rankOf(player, professionCandidate.id);
+    setProfessionCeremony({
+      augment: professionCandidate,
+      title: PROFESSION_TITLES[professionCandidate.id],
+      rawRank,
+    });
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    playGameSfx(reducedMotion ? "enhanceSuccess" : "professionAscend", {
+      priority: 10,
+      gain: reducedMotion ? 0.82 : 1,
+    });
     setToast(
       `${PROFESSION_TITLES[professionCandidate.id]} 전직 완료 · ${professionCandidate.name} ${rawRank}스택 효과가 ${100 + PROFESSION_BONUS_PERCENT}%로 증폭됩니다.`,
     );
-    setProfessionCandidate(null);
     syncHud();
-    professionResumeRef.current();
-  }, [professionCandidate, syncHud]);
+  }, [professionCandidate, professionCeremonyReady, syncHud]);
+
+  useEffect(() => {
+    if (!professionCeremony) return;
+    professionCeremonyActiveRef.current = true;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const completionDelay = reducedMotion
+      ? PROFESSION_CEREMONY_REDUCED_MOTION_MS
+      : PROFESSION_CEREMONY_DURATION_MS;
+    const focusFrame = window.requestAnimationFrame(() => {
+      professionCeremonyDialogRef.current?.focus({ preventScroll: true });
+    });
+    const impactTimer = reducedMotion
+      ? null
+      : window.setTimeout(() => {
+          playGameSfx("lootLegendary", {
+            playbackRate: 1.14,
+            gain: 0.76,
+            priority: 10,
+          });
+        }, 1_520);
+    const completionTimer = window.setTimeout(() => {
+      professionCeremonyActiveRef.current = false;
+      setProfessionCeremony(null);
+      setProfessionCandidate(null);
+      const resume = professionResumeRef.current;
+      professionResumeRef.current = () => undefined;
+      resume();
+    }, completionDelay);
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      if (impactTimer !== null) window.clearTimeout(impactTimer);
+      window.clearTimeout(completionTimer);
+    };
+  }, [professionCeremony]);
 
   const chooseAugment = useCallback(
     (augment: Augment) => {
@@ -3801,6 +3909,11 @@ export default function GameCanvas({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (professionCeremonyActiveRef.current) {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+      }
       const key = event.key.toLowerCase();
       const target = event.target as HTMLElement | null;
       const isInteractive = Boolean(
@@ -8829,12 +8942,14 @@ export default function GameCanvas({
     const loop = (now: number) => {
       const dt = Math.min(0.034, (now - last) / 1000);
       last = now;
-      spawnLocalLootVfxShowcase();
-      if (isSimulationRunning()) update(dt);
-      draw();
-      if (now - lastHudUpdateRef.current > 110) {
-        lastHudUpdateRef.current = now;
-        syncHud();
+      if (!professionCeremonyActiveRef.current) {
+        spawnLocalLootVfxShowcase();
+        if (isSimulationRunning()) update(dt);
+        draw();
+        if (now - lastHudUpdateRef.current > 110) {
+          lastHudUpdateRef.current = now;
+          syncHud();
+        }
       }
       frame = requestAnimationFrame(loop);
     };
@@ -9806,7 +9921,7 @@ export default function GameCanvas({
         </div>
       )}
 
-      {mode === "profession" && professionCandidate && (
+      {mode === "profession" && professionCandidate && !professionCeremony && (
         <div className="modal-layer profession-layer">
           <section
             className="profession-modal"
@@ -9837,13 +9952,86 @@ export default function GameCanvas({
               <div><small>전문 효율</small><strong>{100 + PROFESSION_BONUS_PERCENT}%</strong></div>
             </div>
             <div className="modal-actions">
-              <button className="primary-button compact" onClick={confirmProfession}>
-                {hud.player.profession ? "이 직업으로 전향" : "전직한다"}
+              <button
+                className="primary-button compact"
+                data-audio-cue="none"
+                disabled={!professionCeremonyReady}
+                aria-busy={!professionCeremonyReady}
+                onClick={confirmProfession}
+              >
+                {!professionCeremonyReady
+                  ? "전직 문장 준비 중…"
+                  : hud.player.profession
+                    ? "이 직업으로 전향"
+                    : "전직한다"}
               </button>
               <button className="text-button" onClick={closeProfessionChoice}>
                 나중에 결정
               </button>
             </div>
+          </section>
+        </div>
+      )}
+
+      {mode === "profession" && professionCeremony && (
+        <div
+          ref={professionCeremonyDialogRef}
+          className="profession-ceremony"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="profession-ceremony-title"
+          aria-describedby="profession-ceremony-result"
+          tabIndex={-1}
+          style={
+            {
+              "--profession-color": professionCeremony.augment.color,
+              "--profession-ceremony-duration": `${PROFESSION_CEREMONY_DURATION_MS}ms`,
+            } as CSSProperties
+          }
+        >
+          <div className="profession-ceremony-visuals" aria-hidden="true">
+            <span className="profession-ceremony-veil" />
+            <span className="profession-ceremony-rays profession-ceremony-rays--outer" />
+            <span className="profession-ceremony-rays profession-ceremony-rays--inner" />
+            <span className="profession-ceremony-pillar profession-ceremony-pillar--left" />
+            <span className="profession-ceremony-pillar profession-ceremony-pillar--right" />
+            <div className="profession-ceremony-sigil-stage">
+              <span className="profession-ceremony-sigil profession-ceremony-sigil--echo" />
+              <span className="profession-ceremony-sigil profession-ceremony-sigil--main" />
+              <span className="profession-ceremony-orbit profession-ceremony-orbit--outer" />
+              <span className="profession-ceremony-orbit profession-ceremony-orbit--inner" />
+              <span className="profession-ceremony-core" />
+              <div className="profession-ceremony-emblem">
+                <AugmentIcon icon={professionCeremony.augment.icon} size={136} />
+              </div>
+              <div className="profession-ceremony-particles">
+                {PROFESSION_CEREMONY_PARTICLES.map((particle, index) => (
+                  <i
+                    key={index}
+                    style={
+                      {
+                        "--particle-angle": particle.angle,
+                        "--particle-distance": particle.distance,
+                        "--particle-delay": particle.delay,
+                        "--particle-scale": particle.scale,
+                      } as CSSProperties
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+            <span className="profession-ceremony-impact" />
+            <span className="profession-ceremony-shockwave profession-ceremony-shockwave--one" />
+            <span className="profession-ceremony-shockwave profession-ceremony-shockwave--two" />
+          </div>
+          <section className="profession-ceremony-revelation" aria-live="assertive">
+            <p>MEMORY AWAKENING · AUGMENT MASTERY</p>
+            <span>전직 완료</span>
+            <h2 id="profession-ceremony-title">{professionCeremony.title}</h2>
+            <strong>{professionCeremony.augment.name}의 기억이 완전히 각성했습니다</strong>
+            <small id="profession-ceremony-result">
+              실제 {professionCeremony.rawRank}스택 · 전투 효율 {100 + PROFESSION_BONUS_PERCENT}%
+            </small>
           </section>
         </div>
       )}

@@ -63,11 +63,15 @@ test("keeps the gated game shell, save system, profession system, and assets wir
   assert.match(game, /mode === "profession"/);
   assert.match(css, /\.save-slot-grid/);
   assert.match(css, /\.profession-modal/);
+  assert.match(game, /className="profession-ceremony"/);
+  assert.match(css, /profession-ascension-sigil-v1\.png/);
 
   await Promise.all([
     access(new URL("../public/assets/walk/withered-walk-v2.png", import.meta.url)),
     access(new URL("../public/assets/effects/summon-rift.png", import.meta.url)),
     access(new URL("../public/assets/effects/teleport-rift.png", import.meta.url)),
+    access(new URL("../public/assets/effects/profession-ascension-sigil-v1.png", import.meta.url)),
+    access(new URL("../public/assets/audio/sfx/profession-ascend.wav", import.meta.url)),
     access(new URL("../public/favicon.png", import.meta.url)),
   ]);
 });

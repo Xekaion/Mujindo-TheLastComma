@@ -204,6 +204,16 @@ export const GAME_AUDIO_CUES = {
     maxLatencyMs: 1400,
     bus: "sfx",
   },
+  professionAscend: {
+    path: "/assets/audio/sfx/profession-ascend.wav",
+    gain: 0.82,
+    cooldownMs: 1800,
+    maxVoices: 1,
+    priority: 10,
+    rateVariance: 0,
+    maxLatencyMs: 2500,
+    bus: "sfx",
+  },
   roomClear: {
     path: "/assets/audio/sfx/room-clear.wav",
     gain: 0.57,

@@ -1344,6 +1344,13 @@
   font-style: normal;
 }
 
+.profession-modal .primary-button:disabled {
+  opacity: 0.56;
+  cursor: wait;
+  filter: saturate(0.45);
+  box-shadow: inset 0 0 18px color-mix(in srgb, var(--profession-color) 10%, transparent);
+}
+
 .primary-button.compact {
   display: inline-flex;
   min-width: 180px;
@@ -11514,5 +11521,613 @@ button.equipment-slot-card:hover {
   .inventory-screen-detail-identity {
     min-height: 68px;
     overflow: visible;
+  }
+}
+
+/* Profession ascension ceremony V1 -------------------------------------
+   Full-viewport compositing keeps the authored sigil and energy outside
+   the clipped profession modal. Motion is transform/opacity driven so the
+   paused game canvas can devote its compositor budget to the ceremony. */
+.profession-ceremony {
+  --profession-ceremony-gold: #f6d88d;
+  position: absolute;
+  z-index: 340;
+  inset: 0;
+  overflow: hidden;
+  isolation: isolate;
+  background: #020305;
+  color: #fff4d2;
+  cursor: wait;
+  outline: none;
+  user-select: none;
+  animation: profession-ceremony-arrive var(--profession-ceremony-duration) linear both;
+}
+
+.profession-ceremony-visuals,
+.profession-ceremony-veil,
+.profession-ceremony-impact,
+.profession-ceremony-rays,
+.profession-ceremony-pillar,
+.profession-ceremony-shockwave {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.profession-ceremony-visuals {
+  z-index: 0;
+  overflow: hidden;
+}
+
+.profession-ceremony-veil {
+  z-index: -2;
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--profession-color) 26%, transparent) 0 8%, transparent 38%),
+    radial-gradient(circle at 50% 48%, rgba(103, 11, 19, 0.28), transparent 56%),
+    linear-gradient(180deg, rgba(1, 2, 4, 0.91), rgba(3, 2, 4, 0.97));
+  animation: profession-ceremony-veil var(--profession-ceremony-duration) ease both;
+}
+
+.profession-ceremony-veil::before,
+.profession-ceremony-veil::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+}
+
+.profession-ceremony-veil::before {
+  opacity: 0.72;
+  background:
+    linear-gradient(90deg, transparent 0 49.8%, rgba(255, 237, 187, 0.16) 50%, transparent 50.2%),
+    repeating-linear-gradient(0deg, transparent 0 4px, rgba(255, 255, 255, 0.014) 5px);
+  animation: profession-ceremony-scan 1.2s linear 0.25s both;
+}
+
+.profession-ceremony-veil::after {
+  background: radial-gradient(ellipse at center, transparent 20%, rgba(0, 0, 0, 0.12) 48%, rgba(0, 0, 0, 0.9) 100%);
+}
+
+.profession-ceremony-rays {
+  inset: auto;
+  top: 43%;
+  left: 50%;
+  width: min(126vmax, 1500px);
+  height: min(126vmax, 1500px);
+  border-radius: 50%;
+  opacity: 0;
+  background: repeating-conic-gradient(
+    from 4deg,
+    transparent 0 5.2deg,
+    color-mix(in srgb, var(--profession-color) 78%, #fff) 5.4deg 5.85deg,
+    transparent 6.1deg 11.25deg
+  );
+  -webkit-mask-image: radial-gradient(circle, transparent 0 12%, #000 23% 58%, transparent 78%);
+  mask-image: radial-gradient(circle, transparent 0 12%, #000 23% 58%, transparent 78%);
+  transform: translate(-50%, -50%) scale(0.34) rotate(-28deg);
+  will-change: transform, opacity;
+}
+
+.profession-ceremony-rays--outer {
+  animation: profession-ceremony-rays-outer 2.7s cubic-bezier(0.12, 0.72, 0.17, 1) 0.52s both;
+}
+
+.profession-ceremony-rays--inner {
+  width: min(88vmax, 1050px);
+  height: min(88vmax, 1050px);
+  background: repeating-conic-gradient(
+    from -2deg,
+    transparent 0 10deg,
+    rgba(255, 246, 217, 0.86) 10.4deg 10.8deg,
+    transparent 11.2deg 22.5deg
+  );
+  animation: profession-ceremony-rays-inner 2.5s cubic-bezier(0.16, 0.8, 0.19, 1) 0.76s both;
+}
+
+.profession-ceremony-pillar {
+  --profession-pillar-rotation: 0deg;
+  z-index: -1;
+  top: -20%;
+  bottom: -20%;
+  left: 50%;
+  width: min(19vw, 260px);
+  inset-inline-end: auto;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--profession-color) 38%, transparent) 22%,
+    rgba(255, 248, 221, 0.94) 49%,
+    color-mix(in srgb, var(--profession-color) 48%, transparent) 78%,
+    transparent
+  );
+  filter: blur(7px);
+  transform: translateX(-50%) rotate(var(--profession-pillar-rotation)) scaleX(0.04);
+  will-change: transform, opacity;
+  animation: profession-ceremony-pillar 1.72s cubic-bezier(0.17, 0.83, 0.28, 1) 1.03s both;
+}
+
+.profession-ceremony-pillar--left {
+  --profession-pillar-rotation: -8deg;
+  margin-left: min(-24vw, -190px);
+}
+
+.profession-ceremony-pillar--right {
+  --profession-pillar-rotation: 8deg;
+  margin-left: max(24vw, 190px);
+}
+
+.profession-ceremony-sigil-stage {
+  position: absolute;
+  z-index: 2;
+  top: 43%;
+  left: 50%;
+  width: min(78vmin, 820px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  contain: layout style;
+}
+
+.profession-ceremony-sigil {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: url("/assets/effects/profession-ascension-sigil-v1.png") center / contain no-repeat;
+  filter:
+    drop-shadow(0 0 7px rgba(255, 235, 176, 0.95))
+    drop-shadow(0 0 24px color-mix(in srgb, var(--profession-color) 82%, transparent));
+  transform: scale(0.18) rotate(-32deg);
+  will-change: transform, opacity;
+}
+
+.profession-ceremony-sigil--main {
+  animation: profession-ceremony-sigil-main 3.16s cubic-bezier(0.14, 0.78, 0.18, 1) 0.32s both;
+}
+
+.profession-ceremony-sigil--echo {
+  filter:
+    saturate(1.35)
+    hue-rotate(16deg)
+    drop-shadow(0 0 28px color-mix(in srgb, var(--profession-color) 92%, transparent));
+  mix-blend-mode: screen;
+  animation: profession-ceremony-sigil-echo 2.2s cubic-bezier(0.17, 0.74, 0.19, 1) 1.21s both;
+}
+
+.profession-ceremony-orbit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border: 1px solid color-mix(in srgb, var(--profession-color) 75%, #fff1c7);
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow:
+    0 0 14px color-mix(in srgb, var(--profession-color) 55%, transparent),
+    inset 0 0 14px color-mix(in srgb, var(--profession-color) 42%, transparent);
+  transform: translate(-50%, -50%) scale(0.25);
+  will-change: transform, opacity;
+}
+
+.profession-ceremony-orbit::before,
+.profession-ceremony-orbit::after {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff1bd;
+  background: var(--profession-color);
+  box-shadow: 0 0 18px 5px var(--profession-color);
+  content: "";
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.profession-ceremony-orbit::before { left: 0; }
+.profession-ceremony-orbit::after { left: 100%; }
+
+.profession-ceremony-orbit--outer {
+  width: 71%;
+  height: 71%;
+  animation: profession-ceremony-orbit-outer 2.72s cubic-bezier(0.18, 0.77, 0.17, 1) 0.72s both;
+}
+
+.profession-ceremony-orbit--inner {
+  width: 46%;
+  height: 46%;
+  border-style: dashed;
+  animation: profession-ceremony-orbit-inner 2.5s cubic-bezier(0.18, 0.77, 0.17, 1) 0.9s both;
+}
+
+.profession-ceremony-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 34%;
+  height: 34%;
+  border-radius: 50%;
+  opacity: 0;
+  background:
+    radial-gradient(circle, #fff 0 7%, #fff5c5 8% 16%, color-mix(in srgb, var(--profession-color) 82%, #fff) 26%, transparent 66%);
+  box-shadow:
+    0 0 30px 8px rgba(255, 249, 215, 0.62),
+    0 0 86px 25px color-mix(in srgb, var(--profession-color) 62%, transparent);
+  transform: translate(-50%, -50%) scale(0.05);
+  will-change: transform, opacity;
+  animation: profession-ceremony-core 2.18s cubic-bezier(0.14, 0.84, 0.21, 1) 0.94s both;
+}
+
+.profession-ceremony-emblem {
+  position: absolute;
+  z-index: 6;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: clamp(148px, 16vmin, 172px);
+  height: clamp(148px, 16vmin, 172px);
+  place-items: center;
+  border: 1px solid rgba(255, 241, 189, 0.92);
+  border-radius: 50%;
+  opacity: 0;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--profession-color) 42%, #15100c), rgba(5, 7, 10, 0.96) 70%);
+  box-shadow:
+    inset 0 0 34px color-mix(in srgb, var(--profession-color) 38%, transparent),
+    0 0 0 6px rgba(255, 230, 164, 0.07),
+    0 0 42px 10px color-mix(in srgb, var(--profession-color) 54%, transparent);
+  transform: translate(-50%, -50%) scale(0.08) rotate(-22deg);
+  will-change: transform, opacity;
+  animation: profession-ceremony-emblem-awaken 2.25s cubic-bezier(0.12, 0.85, 0.16, 1) 1.13s both;
+}
+
+.profession-ceremony-emblem::before,
+.profession-ceremony-emblem::after {
+  position: absolute;
+  border: 1px solid color-mix(in srgb, var(--profession-color) 66%, #fff7d7);
+  border-radius: 50%;
+  content: "";
+}
+
+.profession-ceremony-emblem::before { inset: -12px; border-style: dashed; }
+.profession-ceremony-emblem::after { inset: 7px; opacity: 0.45; }
+
+.profession-ceremony-emblem .augment-icon {
+  filter: saturate(1.18) contrast(1.08) drop-shadow(0 0 10px var(--profession-color));
+}
+
+.profession-ceremony-particles {
+  position: absolute;
+  z-index: 7;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.profession-ceremony-particles i {
+  position: absolute;
+  top: -3px;
+  left: -2px;
+  display: block;
+  width: 4px;
+  height: clamp(10px, 1.8vmin, 20px);
+  border-radius: 999px;
+  opacity: 0;
+  background: linear-gradient(#fff, var(--profession-ceremony-gold), var(--profession-color), transparent);
+  box-shadow:
+    0 0 7px #fff,
+    0 0 16px var(--profession-color);
+  transform: rotate(var(--particle-angle)) translateY(0) scale(var(--particle-scale));
+  transform-origin: 50% 3px;
+  will-change: transform, opacity;
+  animation: profession-ceremony-particle-burst 1.42s cubic-bezier(0.08, 0.72, 0.1, 1) calc(1.43s + var(--particle-delay)) both;
+}
+
+.profession-ceremony-impact {
+  z-index: 8;
+  opacity: 0;
+  background: radial-gradient(circle at 50% 43%, #fff 0 2%, rgba(255, 250, 226, 0.9) 5%, color-mix(in srgb, var(--profession-color) 58%, transparent) 22%, transparent 62%);
+  mix-blend-mode: screen;
+  will-change: opacity;
+  animation: profession-ceremony-impact 690ms ease-out 1.42s both;
+}
+
+.profession-ceremony-shockwave {
+  inset: auto;
+  z-index: 5;
+  top: 43%;
+  left: 50%;
+  width: 20vmin;
+  height: 20vmin;
+  border: clamp(1px, 0.25vmin, 3px) solid rgba(255, 246, 207, 0.92);
+  border-radius: 50%;
+  opacity: 0;
+  box-shadow:
+    0 0 18px var(--profession-color),
+    inset 0 0 14px var(--profession-color);
+  transform: translate(-50%, -50%) scale(0.25);
+  will-change: transform, opacity;
+}
+
+.profession-ceremony-shockwave--one {
+  animation: profession-ceremony-shockwave 1.24s cubic-bezier(0.08, 0.68, 0.12, 1) 1.47s both;
+}
+
+.profession-ceremony-shockwave--two {
+  animation: profession-ceremony-shockwave 1.46s cubic-bezier(0.08, 0.68, 0.12, 1) 1.62s both;
+}
+
+.profession-ceremony-revelation {
+  position: absolute;
+  z-index: 12;
+  right: 5vw;
+  bottom: clamp(32px, 8vh, 100px);
+  left: 5vw;
+  display: grid;
+  justify-items: center;
+  text-align: center;
+  opacity: 0;
+  transform: translateY(42px) scale(0.92);
+  will-change: transform, opacity;
+  animation: profession-ceremony-revelation 1.95s cubic-bezier(0.12, 0.81, 0.16, 1) 1.68s both;
+}
+
+.profession-ceremony-revelation::before,
+.profession-ceremony-revelation::after {
+  position: absolute;
+  top: 51%;
+  width: min(25vw, 330px);
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--profession-ceremony-gold));
+  box-shadow: 0 0 12px var(--profession-color);
+  content: "";
+}
+
+.profession-ceremony-revelation::before { right: calc(50% + min(25vw, 280px)); }
+.profession-ceremony-revelation::after { left: calc(50% + min(25vw, 280px)); transform: scaleX(-1); }
+
+.profession-ceremony-revelation > p {
+  margin: 0 0 8px;
+  color: color-mix(in srgb, var(--profession-color) 60%, #ffe5a1);
+  font-family: Georgia, serif;
+  font-size: clamp(9px, 1vw, 13px);
+  font-weight: 700;
+  letter-spacing: 0.34em;
+  text-shadow: 0 0 12px var(--profession-color);
+}
+
+.profession-ceremony-revelation > span {
+  display: block;
+  margin-bottom: 1px;
+  color: #fff0bd;
+  font-size: clamp(13px, 1.5vw, 20px);
+  font-weight: 800;
+  letter-spacing: 0.62em;
+  text-indent: 0.62em;
+  text-shadow:
+    0 0 8px #fff,
+    0 0 24px var(--profession-color);
+}
+
+.profession-ceremony-revelation h2 {
+  margin: 0;
+  color: #fff7df;
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(42px, 7vw, 94px);
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  line-height: 1.08;
+  text-shadow:
+    0 2px 0 #5b321d,
+    0 0 10px #fff2bb,
+    0 0 28px var(--profession-color),
+    0 10px 38px rgba(0, 0, 0, 0.95);
+}
+
+.profession-ceremony-revelation > strong {
+  margin-top: 8px;
+  color: rgba(255, 238, 199, 0.88);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: clamp(12px, 1.45vw, 19px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+}
+
+.profession-ceremony-revelation > small {
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 231, 178, 0.34);
+  padding: 8px 24px 0;
+  color: rgba(228, 215, 185, 0.72);
+  font-size: clamp(10px, 1vw, 13px);
+  letter-spacing: 0.08em;
+}
+
+@keyframes profession-ceremony-arrive {
+  0% { opacity: 0; }
+  5%, 91% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes profession-ceremony-veil {
+  0% { opacity: 0.5; }
+  36% { opacity: 0.76; }
+  44% { opacity: 1; }
+  58%, 100% { opacity: 0.9; }
+}
+
+@keyframes profession-ceremony-scan {
+  0% { opacity: 0; transform: translateY(-28%); }
+  32% { opacity: 0.72; }
+  100% { opacity: 0; transform: translateY(28%); }
+}
+
+@keyframes profession-ceremony-rays-outer {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.34) rotate(-28deg); }
+  32% { opacity: 0.34; }
+  48% { opacity: 0.92; transform: translate(-50%, -50%) scale(0.82) rotate(10deg); }
+  100% { opacity: 0.17; transform: translate(-50%, -50%) scale(1.12) rotate(36deg); }
+}
+
+@keyframes profession-ceremony-rays-inner {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.2) rotate(36deg); }
+  43% { opacity: 0.86; }
+  100% { opacity: 0.12; transform: translate(-50%, -50%) scale(1.04) rotate(-18deg); }
+}
+
+@keyframes profession-ceremony-pillar {
+  0% { opacity: 0; transform: translateX(-50%) rotate(var(--profession-pillar-rotation)) scaleX(0.04); }
+  32% { opacity: 0.72; }
+  54% { opacity: 1; transform: translateX(-50%) rotate(var(--profession-pillar-rotation)) scaleX(1); }
+  100% { opacity: 0; transform: translateX(-50%) rotate(var(--profession-pillar-rotation)) scaleX(1.8); }
+}
+
+@keyframes profession-ceremony-sigil-main {
+  0% { opacity: 0; transform: scale(0.18) rotate(-32deg); }
+  27% { opacity: 0.92; }
+  43% { opacity: 1; transform: scale(0.76) rotate(-7deg); }
+  55% { transform: scale(1.04) rotate(2deg); }
+  100% { opacity: 0.96; transform: scale(0.98) rotate(8deg); }
+}
+
+@keyframes profession-ceremony-sigil-echo {
+  0% { opacity: 0; transform: scale(0.35) rotate(18deg); }
+  28% { opacity: 0.74; }
+  100% { opacity: 0; transform: scale(1.48) rotate(-18deg); }
+}
+
+@keyframes profession-ceremony-orbit-outer {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25) rotate(-80deg); }
+  38% { opacity: 0.92; }
+  100% { opacity: 0.52; transform: translate(-50%, -50%) scale(1) rotate(28deg); }
+}
+
+@keyframes profession-ceremony-orbit-inner {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.16) rotate(80deg); }
+  44% { opacity: 0.82; }
+  100% { opacity: 0.42; transform: translate(-50%, -50%) scale(1) rotate(-42deg); }
+}
+
+@keyframes profession-ceremony-core {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.05); }
+  32% { opacity: 0.7; }
+  47% { opacity: 1; transform: translate(-50%, -50%) scale(1.36); }
+  68% { transform: translate(-50%, -50%) scale(0.82); }
+  100% { opacity: 0.52; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes profession-ceremony-emblem-awaken {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.08) rotate(-22deg); }
+  24% { opacity: 0.55; }
+  47% { opacity: 1; transform: translate(-50%, -50%) scale(1.24) rotate(4deg); }
+  64% { transform: translate(-50%, -50%) scale(0.92) rotate(-2deg); }
+  100% { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0); }
+}
+
+@keyframes profession-ceremony-particle-burst {
+  0%, 9% { opacity: 0; transform: rotate(var(--particle-angle)) translateY(0) scale(0.1); }
+  22% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(var(--particle-angle)) translateY(var(--particle-distance)) scale(var(--particle-scale)); }
+}
+
+@keyframes profession-ceremony-impact {
+  0% { opacity: 0; }
+  13% { opacity: 0.96; }
+  39% { opacity: 0.28; }
+  100% { opacity: 0; }
+}
+
+@keyframes profession-ceremony-shockwave {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.25); }
+  13% { opacity: 0.92; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(6.8); }
+}
+
+@keyframes profession-ceremony-revelation {
+  0% { opacity: 0; transform: translateY(42px) scale(0.92); filter: blur(7px); }
+  28% { opacity: 1; filter: blur(0); }
+  50% { transform: translateY(0) scale(1.035); }
+  100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+@media (max-width: 720px), (max-height: 650px) {
+  .profession-ceremony-sigil-stage {
+    top: 39%;
+    width: min(72vmin, 560px);
+  }
+
+  .profession-ceremony-rays,
+  .profession-ceremony-shockwave {
+    top: 39%;
+  }
+
+  .profession-ceremony-revelation {
+    right: 18px;
+    bottom: max(20px, env(safe-area-inset-bottom));
+    left: 18px;
+  }
+
+  .profession-ceremony-revelation::before,
+  .profession-ceremony-revelation::after {
+    display: none;
+  }
+
+  .profession-ceremony-revelation h2 {
+    font-size: clamp(34px, 11vw, 62px);
+    letter-spacing: 0.04em;
+  }
+
+  .profession-ceremony-revelation > strong {
+    max-width: 92vw;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profession-ceremony {
+    opacity: 1;
+    animation: none;
+  }
+
+  .profession-ceremony-veil {
+    opacity: 1;
+    animation: none;
+  }
+
+  .profession-ceremony-veil::before,
+  .profession-ceremony-rays,
+  .profession-ceremony-pillar,
+  .profession-ceremony-sigil--echo,
+  .profession-ceremony-particles,
+  .profession-ceremony-impact,
+  .profession-ceremony-shockwave {
+    display: none;
+    animation: none;
+  }
+
+  .profession-ceremony-sigil--main {
+    opacity: 1;
+    transform: scale(0.9) rotate(0);
+    animation: none;
+  }
+
+  .profession-ceremony-orbit,
+  .profession-ceremony-core,
+  .profession-ceremony-emblem,
+  .profession-ceremony-revelation {
+    opacity: 1;
+    animation: none;
+  }
+
+  .profession-ceremony-orbit--outer,
+  .profession-ceremony-orbit--inner {
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+
+  .profession-ceremony-core {
+    transform: translate(-50%, -50%) scale(0.82);
+  }
+
+  .profession-ceremony-emblem {
+    transform: translate(-50%, -50%) scale(1) rotate(0);
+  }
+
+  .profession-ceremony-revelation {
+    transform: none;
   }
 }

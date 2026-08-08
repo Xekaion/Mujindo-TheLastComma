@@ -339,6 +339,25 @@ def loot_legendary() -> tuple[list[float], list[float]]:
     return sound
 
 
+def profession_ascend() -> tuple[list[float], list[float]]:
+    """Three-act class awakening: seal charge, rupture, and coronation chord."""
+    sound = track(2.36)
+    add_tone(sound, start=0, duration=1.78, frequency=46, end_frequency=86, gain=0.42, kind="soft-square", decay=0.42, vibrato_hz=4.2, vibrato_depth=0.018)
+    add_tone(sound, start=0.02, duration=1.44, frequency=93, end_frequency=372, gain=0.26, pan=-0.32, kind="saw", decay=0.55, vibrato_hz=7.0, vibrato_depth=0.012)
+    add_tone(sound, start=0.06, duration=1.38, frequency=139.5, end_frequency=558, gain=0.22, pan=0.34, kind="triangle", decay=0.5)
+    for index, frequency in enumerate((261.63, 329.63, 392.0, 523.25, 659.25, 783.99)):
+        add_tone(sound, start=0.32 + index * 0.135, duration=0.72, frequency=frequency, end_frequency=frequency * 1.11, gain=0.16, pan=-0.72 + index * 0.29, kind="triangle", decay=1.35)
+    add_noise(sound, seed=410, start=0.02, duration=1.25, gain=0.17, highpass=0.62, smoothing=0.25, decay=0.9)
+    add_tone(sound, start=1.42, duration=0.82, frequency=118, end_frequency=31, gain=0.72, kind="soft-square", decay=2.5)
+    add_noise(sound, seed=411, start=1.42, duration=0.48, gain=0.58, smoothing=0.045, decay=3.6)
+    add_noise(sound, seed=412, start=1.43, duration=0.72, gain=0.24, highpass=0.92, smoothing=0.72, decay=2.7)
+    for index, frequency in enumerate((392.0, 523.25, 659.25, 783.99, 1046.5)):
+        add_tone(sound, start=1.46 + index * 0.052, duration=0.66, frequency=frequency, end_frequency=frequency * 1.025, gain=0.21, pan=-0.6 + index * 0.3, kind="sine", decay=1.45, vibrato_hz=5.1, vibrato_depth=0.006)
+    add_echo(sound, 0.105, 0.24, 0.82)
+    add_echo(sound, 0.21, 0.13, 0.62)
+    return sound
+
+
 def room_clear() -> tuple[list[float], list[float]]:
     sound = track(1.05)
     for index, frequency in enumerate((392, 523.25, 783.99)):
@@ -423,6 +442,7 @@ SOUNDS = {
     "loot-drop.wav": loot_drop,
     "loot-rare.wav": loot_rare,
     "loot-legendary.wav": loot_legendary,
+    "profession-ascend.wav": profession_ascend,
     "room-clear.wav": room_clear,
     "boss-appear.wav": boss_appear,
     "enhance-success.wav": enhance_success,

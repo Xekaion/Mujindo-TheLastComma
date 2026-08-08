@@ -505,6 +505,110 @@ test("20-stack professions unlock across the fifty-augment catalog", async () =>
   );
 });
 
+test("profession confirmation stays paused for one guarded cinematic before resuming", async () => {
+  const [source, css] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
+  const confirmStart = source.indexOf("const confirmProfession = useCallback");
+  const ceremonyEffectStart = source.indexOf("useEffect(() => {", confirmStart);
+  const chooseStart = source.indexOf("const chooseAugment = useCallback", ceremonyEffectStart);
+  assert.ok(confirmStart >= 0 && ceremonyEffectStart > confirmStart && chooseStart > ceremonyEffectStart);
+  const confirmation = source.slice(confirmStart, ceremonyEffectStart);
+  const ceremonyEffect = source.slice(ceremonyEffectStart, chooseStart);
+  const completionStart = ceremonyEffect.indexOf("const completionTimer");
+  const completionEnd = ceremonyEffect.indexOf("}, completionDelay)", completionStart);
+  assert.ok(completionStart >= 0 && completionEnd > completionStart);
+  const completion = ceremonyEffect.slice(completionStart, completionEnd);
+
+  assert.match(confirmation, /professionCeremonyActiveRef\.current/);
+  assert.match(confirmation, /!professionCeremonyReady/);
+  assert.match(confirmation, /setProfessionCeremony\(\{/);
+  assert.ok(
+    confirmation.indexOf("player.profession = professionCandidate.id") <
+      confirmation.indexOf("setProfessionCeremony({"),
+    "the profession must be applied before its cinematic snapshot is shown",
+  );
+  assert.match(confirmation, /reducedMotion \? "enhanceSuccess" : "professionAscend"/);
+  assert.doesNotMatch(confirmation, /setProfessionCandidate\(null\)/);
+  assert.doesNotMatch(confirmation, /professionResumeRef\.current\(\)/);
+  assert.doesNotMatch(confirmation, /\bresume\(\);/);
+  assert.match(ceremonyEffect, /PROFESSION_CEREMONY_DURATION_MS/);
+  assert.match(ceremonyEffect, /prefers-reduced-motion: reduce/);
+  assert.match(ceremonyEffect, /requestAnimationFrame\(\(\) => \{[\s\S]{0,100}?professionCeremonyDialogRef\.current\?\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(ceremonyEffect, /cancelAnimationFrame\(focusFrame\)/);
+  assert.match(ceremonyEffect, /impactTimer !== null\) window\.clearTimeout\(impactTimer\)/);
+  assert.match(ceremonyEffect, /window\.clearTimeout\(completionTimer\)/);
+  assert.doesNotMatch(ceremonyEffect.slice(ceremonyEffect.indexOf("return () =>")), /professionCeremonyActiveRef\.current = false/);
+  assert.match(completion, /professionCeremonyActiveRef\.current = false/);
+  assert.match(completion, /setProfessionCeremony\(null\)[\s\S]{0,90}?setProfessionCandidate\(null\)/);
+  assert.ok(
+    completion.indexOf("setProfessionCandidate(null)") <
+      completion.indexOf("professionResumeRef.current = () => undefined") &&
+      completion.indexOf("professionResumeRef.current = () => undefined") <
+      completion.indexOf("resume();"),
+    "completion must clear state, consume the callback, and then resume exactly once",
+  );
+  assert.equal((ceremonyEffect.match(/\bresume\(\);/g) ?? []).length, 1);
+  assert.match(source, /professionCeremonyActiveRef\.current \|\|[\s\S]{0,120}?isProfessionEligible/);
+  assert.match(source, /if \(professionCeremonyActiveRef\.current\) \{[\s\S]{0,100}?event\.preventDefault\(\);[\s\S]{0,100}?event\.stopPropagation\(\);/);
+  assert.match(source, /if \(!professionCeremonyActiveRef\.current\) \{[\s\S]{0,160}?draw\(\);/);
+  assert.match(source, /mode === "profession" && professionCandidate && !professionCeremony/);
+  assert.match(source, /className="profession-ceremony"[\s\S]{0,180}?role="dialog"[\s\S]{0,120}?aria-modal="true"/);
+  assert.match(source, /ref=\{professionCeremonyDialogRef\}[\s\S]{0,220}?aria-describedby="profession-ceremony-result"[\s\S]{0,80}?tabIndex=\{-1\}/);
+  assert.match(source, /className="profession-ceremony-visuals" aria-hidden="true"/);
+  assert.match(source, /className="profession-ceremony-revelation" aria-live="assertive"/);
+  assert.match(source, /data-audio-cue="none"[\s\S]{0,220}?onClick=\{confirmProfession\}/);
+  assert.match(source, /disabled=\{!professionCeremonyReady\}[\s\S]{0,80}?aria-busy=\{!professionCeremonyReady\}/);
+  assert.match(source, /PROFESSION_CEREMONY_PARTICLES = Array\.from\(\{ length: 24 \}/);
+  assert.match(source, /"--profession-ceremony-duration": `\$\{PROFESSION_CEREMONY_DURATION_MS\}ms`/);
+  assert.match(css, /Profession ascension ceremony V1/);
+  assert.match(css, /\.profession-ceremony\s*\{[^}]*z-index:\s*340;[^}]*overflow:\s*hidden;/);
+  assert.match(css, /animation:\s*profession-ceremony-arrive var\(--profession-ceremony-duration\)/);
+  for (const selector of ["profession-ceremony-rays", "profession-ceremony-shockwave"]) {
+    const blocks = [...css.matchAll(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, "g"))];
+    const block = blocks.find((candidate) =>
+      candidate[1].includes("inset: auto") && candidate[1].includes("top: 43%"));
+    assert.ok(block, `${selector} CSS is missing`);
+    assert.ok(block[1].indexOf("inset: auto") < block[1].indexOf("top: 43%"), `${selector} inset must not override its center`);
+    assert.ok(block[1].indexOf("top: 43%") < block[1].indexOf("left: 50%"), `${selector} must keep a centered origin`);
+  }
+  assert.match(css, /@keyframes profession-ceremony-pillar[\s\S]{0,520}?rotate\(var\(--profession-pillar-rotation\)\)/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.profession-ceremony-sigil--main[\s\S]*?animation:\s*none;/);
+});
+
+test("profession ascension sigil is transparent, crop-safe, and runtime-wired", async () => {
+  const assetPath = "public/assets/effects/profession-ascension-sigil-v1.png";
+  const [source, css, png] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, assetPath)),
+  ]);
+  const image = decodeRgbaPng(png, assetPath);
+  assert.deepEqual([image.width, image.height], [1254, 1254]);
+  assert.ok(png.length <= 2_500_000, `profession sigil exceeds its 2.5 MB budget: ${png.length}`);
+
+  let visiblePixels = 0;
+  let transparentPixels = 0;
+  for (let index = 0; index < image.pixels.length; index += 4) {
+    const alpha = image.pixels[index + 3];
+    if (alpha > 16) visiblePixels += 1;
+    if (alpha === 0) transparentPixels += 1;
+  }
+  const metrics = alphaCellMetrics(image, 0, 0, 1, 1, "profession ascension sigil");
+  assert.ok(visiblePixels > 250_000, "the ascension seal must remain legible after scaling");
+  assert.ok(transparentPixels / (image.width * image.height) > 0.35, "the seal needs a transparent compositing field");
+  assert.ok(Math.min(metrics.left, metrics.right, metrics.top, metrics.bottom) >= 16, "the seal needs crop-safe outer padding");
+  assert.equal(countGreenChromaPixels(image), 0, "the keyed seal must not retain green spill");
+  for (const [x, y] of [[0, 0], [image.width - 1, 0], [0, image.height - 1], [image.width - 1, image.height - 1]]) {
+    assert.equal(image.pixels[(y * image.width + x) * 4 + 3], 0, `corner ${x},${y} must be transparent`);
+  }
+  assert.match(source, /const canDecodeCeremonyImage = typeof ceremonyImage\.decode === "function"/);
+  assert.match(source, /if \(!canDecodeCeremonyImage\) \{[\s\S]{0,120}?ceremonyImage\.addEventListener\("load", markCeremonyReady/);
+  assert.match(source, /if \(canDecodeCeremonyImage\) \{[\s\S]{0,120}?ceremonyImage\.decode\(\)\.then\(markCeremonyReady\)/);
+  assert.match(css, /background:\s*url\("\/assets\/effects\/profession-ascension-sigil-v1\.png"\) center \/ contain no-repeat/);
+});
+
 test("twenty new augments are unique, profession-ready, and wired into combat", async () => {
   const newAugmentIds = [
     "focus",
