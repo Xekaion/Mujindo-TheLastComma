@@ -2938,20 +2938,7 @@ test("combat power values only implemented legendary effects and computes contex
     for (const item of items) loadout[item.slot] = item;
     return loadout;
   };
-  const activePowers = [
-    "crescentEcho",
-    "hunterSigil",
-    "lastMemory",
-    "riftStride",
-    "commaResonance",
-  ];
-  const inactivePowers = [
-    "mirrorAegis",
-    "starfallMantle",
-    "bloodwovenGrip",
-    "ashboundGirdle",
-    "phantomMarch",
-  ];
+  const activePowers = equipment.LEGENDARY_POWER_IDS;
 
   for (const legendaryPowerId of activePowers) {
     const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
@@ -2968,21 +2955,6 @@ test("combat power values only implemented legendary effects and computes contex
       `${legendaryPowerId} must contribute to intrinsic item power too`,
     );
   }
-  for (const legendaryPowerId of inactivePowers) {
-    const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
-    const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
-    const implicitOnlyItem = { ...item, legendaryPowerId: null };
-    assert.equal(
-      equipment.calculateEquipmentCombatPower(loadoutOf(item)),
-      equipment.calculateEquipmentCombatPower(loadoutOf(implicitOnlyItem)),
-      `${legendaryPowerId} must not claim power before its runtime behavior exists`,
-    );
-    assert.equal(
-      equipment.calculateGearPowerScore(item),
-      equipment.calculateGearPowerScore(implicitOnlyItem),
-    );
-  }
-
   const equippedWeapon = makeItem({
     slot: "weapon",
     stat: "damagePercent",

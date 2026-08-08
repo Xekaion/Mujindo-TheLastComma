@@ -60,6 +60,18 @@ const nearlyEqual = (actual, expected, epsilon = 1e-9) => {
   );
 };
 
+const dormantLegendaryRuntime = {
+  mirrorAegisHitCount: 0,
+  mirrorAegisBarrierTime: 0,
+  starfallMantleTime: 0,
+  bloodwovenCriticalHits: 0,
+  bloodwovenBurstReady: false,
+  ashboundPickupCount: 0,
+  ashboundShieldRemaining: 0,
+  ashboundShieldTime: 0,
+  phantomMarchMoveTime: 0,
+};
+
 test("the character sheet baseline matches the live combat constants exactly", async () => {
   const { playerStats, equipment } = await loadPlayerStatsModules();
   const snapshot = playerStats.calculatePlayerStatSnapshot({
@@ -73,6 +85,7 @@ test("the character sheet baseline matches the live combat constants exactly", a
     equipment: equipment.createEmptyEquipment(),
     synergies: [],
     legendaryArmorReady: true,
+    ...dormantLegendaryRuntime,
   });
 
   assert.equal(snapshot.offense.baseAttack, 14);
@@ -155,6 +168,7 @@ test("the character sheet preserves caps, overflow throughput, and live conditio
       { name: "혈침 순환", tier: 1 },
     ],
     legendaryArmorReady: true,
+    ...dormantLegendaryRuntime,
   });
 
   assert.equal(snapshot.offense.theoreticalProjectileCount, 31);
@@ -182,6 +196,86 @@ test("the character sheet preserves caps, overflow throughput, and live conditio
   assert.ok(snapshot.sustain.roomClearHeal > 0);
   assert.equal(snapshot.utility.normalGearDropChance >= 0.35, true);
   assert.ok(snapshot.specials.some((special) => special.id === "overcharge"));
+});
+
+test("five new legendary powers expose live progress and conditional sheet multipliers", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const loadout = equipment.createEmptyEquipment();
+  for (const slot of ["offhand", "shoulders", "gloves", "belt", "legs"]) {
+    loadout[slot] = equipment.rollGear(`stats-new-power-${slot}`, {
+      level: 70,
+      slot,
+      rarity: "legendary",
+    });
+  }
+  const activeRuntime = {
+    mirrorAegisHitCount: 11,
+    mirrorAegisBarrierTime: 1.5,
+    starfallMantleTime: 2.5,
+    bloodwovenCriticalHits: 5,
+    bloodwovenBurstReady: true,
+    ashboundPickupCount: 11,
+    ashboundShieldRemaining: 8,
+    ashboundShieldTime: 4.25,
+    phantomMarchMoveTime: 3.2,
+  };
+  const makeSnapshot = (runtime) =>
+    playerStats.calculatePlayerStatSnapshot({
+      level: 70,
+      hp: 100,
+      maxHp: 100,
+      shield: runtime.ashboundShieldRemaining,
+      shotCounter: 0,
+      augments: {},
+      profession: null,
+      equipment: loadout,
+      synergies: [],
+      legendaryArmorReady: true,
+      ...runtime,
+    });
+  const inactive = makeSnapshot({
+    ...activeRuntime,
+    mirrorAegisBarrierTime: 0,
+    starfallMantleTime: 0,
+    bloodwovenBurstReady: false,
+    ashboundShieldRemaining: 0,
+    ashboundShieldTime: 0,
+    phantomMarchMoveTime: 0,
+  });
+  const active = makeSnapshot(activeRuntime);
+
+  nearlyEqual(
+    active.offense.normalProjectileDamage,
+    inactive.offense.normalProjectileDamage * 1.2,
+  );
+  nearlyEqual(
+    active.defense.currentIncomingMultiplier,
+    inactive.defense.currentIncomingMultiplier * 0.9,
+  );
+  nearlyEqual(active.mobility.moveSpeed, inactive.mobility.moveSpeed * 1.12);
+  assert.equal(active.resources.ashboundPickupCount, 11);
+  assert.equal(active.resources.ashboundShieldRemaining, 8);
+  assert.equal(active.resources.ashboundShieldTime, 4.25);
+  for (const powerId of [
+    "mirrorAegis",
+    "starfallMantle",
+    "bloodwovenGrip",
+    "ashboundGirdle",
+    "phantomMarch",
+  ]) {
+    assert.ok(
+      active.specials.some((special) => special.id === powerId),
+      `${powerId} must expose its live status in the character sheet`,
+    );
+  }
+  assert.match(
+    active.specials.find((special) => special.id === "mirrorAegis").value,
+    /1\.50/,
+  );
+  assert.match(
+    active.specials.find((special) => special.id === "bloodwovenGrip").condition,
+    /준비 완료/,
+  );
 });
 
 test("the detailed stats dialog is keyboard-safe, mutually exclusive, and complete", async () => {

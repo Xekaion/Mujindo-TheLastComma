@@ -25,6 +25,13 @@ import {
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import {
+  absorbTrackedShield,
+  advanceContinuousMovement,
+  advanceLegendaryCounter,
+  refreshTrackedShield,
+  removeTrackedShield,
+} from "./legendary-runtime";
+import {
   MARGIN_SEVERER_ACTIVE_SECONDS,
   MARGIN_SEVERER_DAMAGE_MULTIPLIER,
   MARGIN_SEVERER_HIT_HALF_WIDTH,
@@ -229,6 +236,7 @@ type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
 type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
 type ProjectileAffinity =
   | "arcane"
+  | "blood"
   | "ember"
   | "storm"
   | "frost"
@@ -346,6 +354,10 @@ type Projectile = {
   returning?: boolean;
   returnMultiplier?: number;
   homing?: number;
+  /** One id shared by every primary projectile in a single basic-attack volley. */
+  criticalVolleyId?: number;
+  /** Only primary critical volleys may advance 피로 짠 손아귀. */
+  bloodwovenEligible?: boolean;
 };
 
 type MemoryOrb = {
@@ -371,6 +383,12 @@ type CombatEffectKind =
   | "playerImpact"
   | "hostileImpact"
   | "chainArc"
+  | "mirrorBlock"
+  | "mirrorWave"
+  | "starfallBurst"
+  | "bloodwovenBurst"
+  | "ashboundShield"
+  | "phantomTrail"
   | "timeRiftTelegraph"
   | "timeRiftBurst";
 type EffectKind = BehaviorEffectKind | LootEffectKind | CombatEffectKind;
@@ -608,6 +626,17 @@ type Player = {
   memoryPickupCounter: number;
   legendaryArmorReady: boolean;
   riftTrailCooldown: number;
+  mirrorAegisHitCount: number;
+  mirrorAegisBarrierTime: number;
+  starfallMantleTime: number;
+  bloodwovenCriticalHits: number;
+  bloodwovenBurstReady: boolean;
+  bloodwovenLastCountedVolley: number;
+  ashboundPickupCount: number;
+  ashboundShieldRemaining: number;
+  ashboundShieldTime: number;
+  phantomMarchMoveTime: number;
+  phantomMarchTrailCooldown: number;
 };
 
 function pointInsideWalkableFloor(x: number, y: number) {
@@ -1387,6 +1416,67 @@ const hasLegendaryPower = (player: Player, powerId: keyof typeof LEGENDARY_POWER
     (slot) => player.equipment[slot]?.legendaryPowerId === powerId,
   );
 
+const LEGENDARY_RUNTIME = {
+  mirrorHits: LEGENDARY_POWERS.mirrorAegis.parameters.everyHits,
+  mirrorBarrierSeconds:
+    LEGENDARY_POWERS.mirrorAegis.parameters.barrierDurationSeconds,
+  mirrorDamageMultiplier: LEGENDARY_POWERS.mirrorAegis.parameters.damageMultiplier,
+  starfallSeconds: LEGENDARY_POWERS.starfallMantle.parameters.durationSeconds,
+  starfallDamageMultiplier:
+    1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100,
+  starfallIncomingMultiplier:
+    1 - LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent / 100,
+  bloodwovenCriticalHits:
+    LEGENDARY_POWERS.bloodwovenGrip.parameters.everyCriticalHits,
+  bloodwovenProjectileCount:
+    LEGENDARY_POWERS.bloodwovenGrip.parameters.projectileCount,
+  bloodwovenDamageMultiplier:
+    LEGENDARY_POWERS.bloodwovenGrip.parameters.damageMultiplier,
+  ashboundPickups: LEGENDARY_POWERS.ashboundGirdle.parameters.everyPickups,
+  ashboundShieldRatio:
+    LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio,
+  ashboundSeconds: LEGENDARY_POWERS.ashboundGirdle.parameters.durationSeconds,
+  phantomActivationSeconds:
+    LEGENDARY_POWERS.phantomMarch.parameters.activationSeconds,
+  phantomMoveMultiplier:
+    1 + LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent / 100,
+  phantomTrailDamageMultiplier:
+    LEGENDARY_POWERS.phantomMarch.parameters.trailDamageMultiplier,
+} as const;
+
+const legendaryAttackMultiplier = (player: Player) =>
+  hasLegendaryPower(player, "starfallMantle") && player.starfallMantleTime > 0
+    ? LEGENDARY_RUNTIME.starfallDamageMultiplier
+    : 1;
+
+const clearAshboundShield = (player: Player) => {
+  const next = removeTrackedShield(player.shield, player.ashboundShieldRemaining);
+  player.shield = next.shield;
+  player.ashboundShieldRemaining = next.trackedShield;
+  player.ashboundShieldTime = 0;
+};
+
+const reconcileLegendaryRuntime = (player: Player) => {
+  if (!hasLegendaryPower(player, "mirrorAegis")) {
+    player.mirrorAegisHitCount = 0;
+    player.mirrorAegisBarrierTime = 0;
+  }
+  if (!hasLegendaryPower(player, "starfallMantle")) player.starfallMantleTime = 0;
+  if (!hasLegendaryPower(player, "bloodwovenGrip")) {
+    player.bloodwovenCriticalHits = 0;
+    player.bloodwovenBurstReady = false;
+    player.bloodwovenLastCountedVolley = -1;
+  }
+  if (!hasLegendaryPower(player, "ashboundGirdle")) {
+    clearAshboundShield(player);
+    player.ashboundPickupCount = 0;
+  }
+  if (!hasLegendaryPower(player, "phantomMarch")) {
+    player.phantomMarchMoveTime = 0;
+    player.phantomMarchTrailCooldown = 0;
+  }
+};
+
 function directionRow(dx: number, dy: number, fallback = 0) {
   if (Math.hypot(dx, dy) < 0.001) return fallback;
   const sector = positiveModulo(Math.round(Math.atan2(dy, dx) / (Math.PI / 4)), 8);
@@ -1434,6 +1524,61 @@ function makePlayer(): Player {
     memoryPickupCounter: 0,
     legendaryArmorReady: true,
     riftTrailCooldown: 0,
+    mirrorAegisHitCount: 0,
+    mirrorAegisBarrierTime: 0,
+    starfallMantleTime: 0,
+    bloodwovenCriticalHits: 0,
+    bloodwovenBurstReady: false,
+    bloodwovenLastCountedVolley: -1,
+    ashboundPickupCount: 0,
+    ashboundShieldRemaining: 0,
+    ashboundShieldTime: 0,
+    phantomMarchMoveTime: 0,
+    phantomMarchTrailCooldown: 0,
+  };
+}
+
+function normalizeLegendaryRuntimeFromSave(
+  saved: Partial<Player>,
+): Pick<
+  Player,
+  | "mirrorAegisHitCount"
+  | "mirrorAegisBarrierTime"
+  | "starfallMantleTime"
+  | "bloodwovenCriticalHits"
+  | "bloodwovenBurstReady"
+  | "bloodwovenLastCountedVolley"
+  | "ashboundPickupCount"
+  | "ashboundShieldRemaining"
+  | "ashboundShieldTime"
+  | "phantomMarchMoveTime"
+  | "phantomMarchTrailCooldown"
+> {
+  const normalizedCounter = (value: number | undefined, threshold: number) =>
+    Number.isFinite(value)
+      ? clamp(Math.floor(value ?? 0), 0, Math.max(0, threshold - 1))
+      : 0;
+  return {
+    mirrorAegisHitCount: normalizedCounter(
+      saved.mirrorAegisHitCount,
+      LEGENDARY_RUNTIME.mirrorHits,
+    ),
+    mirrorAegisBarrierTime: 0,
+    starfallMantleTime: 0,
+    bloodwovenCriticalHits: normalizedCounter(
+      saved.bloodwovenCriticalHits,
+      LEGENDARY_RUNTIME.bloodwovenCriticalHits,
+    ),
+    bloodwovenBurstReady: saved.bloodwovenBurstReady === true,
+    bloodwovenLastCountedVolley: -1,
+    ashboundPickupCount: normalizedCounter(
+      saved.ashboundPickupCount,
+      LEGENDARY_RUNTIME.ashboundPickups,
+    ),
+    ashboundShieldRemaining: 0,
+    ashboundShieldTime: 0,
+    phantomMarchMoveTime: 0,
+    phantomMarchTrailCooldown: 0,
   };
 }
 
@@ -2154,6 +2299,11 @@ export default function GameCanvas({
     const player = playerRef.current;
     const world = worldRef.current;
     player.hp = player.maxHp;
+    clearAshboundShield(player);
+    player.mirrorAegisBarrierTime = 0;
+    player.starfallMantleTime = 0;
+    player.phantomMarchMoveTime = 0;
+    player.phantomMarchTrailCooldown = 0;
     player.shield =
       10 + powerRankOf(player, "glass") * 9 + powerRankOf(player, "ward") * 5;
     stableAugmentsRef.current = normalizeAugmentStacks(player.augments);
@@ -2793,7 +2943,9 @@ export default function GameCanvas({
           ? Math.max(0, Math.floor(data.player.memoryPickupCounter))
           : 0,
         legendaryArmorReady: true,
+        ...normalizeLegendaryRuntimeFromSave(data.player),
       };
+      reconcileLegendaryRuntime(playerRef.current);
       const hydratedPlayer = playerRef.current;
       const baseMaxHp = rankOf(hydratedPlayer, "blood") > 0 ? 85 : 100;
       hydratedPlayer.maxHp = Math.max(
@@ -2925,6 +3077,7 @@ export default function GameCanvas({
       player.equipment[item.slot] = item;
       player.inventory.splice(itemIndex, 1);
       if (replaced) player.inventory.push(replaced);
+      reconcileLegendaryRuntime(player);
       playGameSfx("lootDrop", { playbackRate: 1.12, gain: 0.84 });
       const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const maxHpDelta = nextMaxHp - previousMaxHp;
@@ -2954,6 +3107,7 @@ export default function GameCanvas({
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       player.equipment[slot] = null;
       player.inventory.push(item);
+      reconcileLegendaryRuntime(player);
       playGameSfx("uiBack", { gain: 0.9 });
       const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const maxHpDelta = nextMaxHp - previousMaxHp;
@@ -3141,7 +3295,10 @@ export default function GameCanvas({
       } else if (roll < rule.successPercent + rule.destroyPercent) {
         playGameSfx("enhanceDestroy", { priority: 9 });
         if (inventoryIndex >= 0) player.inventory.splice(inventoryIndex, 1);
-        else if (equippedSlot) player.equipment[equippedSlot] = null;
+        else if (equippedSlot) {
+          player.equipment[equippedSlot] = null;
+          reconcileLegendaryRuntime(player);
+        }
         setSelectedGearId(null);
         setToast(`강화 파괴 · ${item.displayName}이 기억의 재로 흩어졌습니다.`);
       } else {
@@ -3467,12 +3624,58 @@ export default function GameCanvas({
           ? [requestedLootVfxRarity]
           : [];
 
+    const spawnLegendaryEffect = (
+      kind:
+        | "mirrorBlock"
+        | "mirrorWave"
+        | "starfallBurst"
+        | "bloodwovenBurst"
+        | "ashboundShield"
+        | "phantomTrail",
+      x: number,
+      y: number,
+      duration: number,
+      size: number,
+      color: string,
+      angle = 0,
+    ) => {
+      const world = worldRef.current;
+      const activeLegendaryEffects = world.effects.reduce(
+        (count, effect) =>
+          count +
+          (effect.kind === "mirrorBlock" ||
+          effect.kind === "mirrorWave" ||
+          effect.kind === "starfallBurst" ||
+          effect.kind === "bloodwovenBurst" ||
+          effect.kind === "ashboundShield" ||
+          effect.kind === "phantomTrail"
+            ? 1
+            : 0),
+        0,
+      );
+      if (activeLegendaryEffects >= 28) return;
+      world.effects.push({
+        id: idRef.current++,
+        kind,
+        x,
+        y,
+        life: duration,
+        duration,
+        size,
+        color,
+        angle,
+      });
+    };
+
     const damagePlayer = (amount: number) => {
       const player = playerRef.current;
       if (player.invulnerable > 0 || player.dashTime > 0) return;
       let mitigated = Math.min(amount, player.maxHp * 0.4);
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       mitigated *= 1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
+      if (hasLegendaryPower(player, "starfallMantle") && player.starfallMantleTime > 0) {
+        mitigated *= LEGENDARY_RUNTIME.starfallIncomingMultiplier;
+      }
       mitigated *= simpleDefenseDamageMultiplier(powerRankOf(player, "defense"));
       const armorRank = powerRankOf(player, "armor");
       mitigated /= Math.pow(1 + armorRank * 0.1, 0.62);
@@ -3486,11 +3689,46 @@ export default function GameCanvas({
       }
       const impact = mitigated;
       if (player.shield > 0) {
-        const absorbed = Math.min(player.shield, mitigated);
-        player.shield -= absorbed;
-        amount = mitigated - absorbed;
+        const shieldHit = absorbTrackedShield(
+          player.shield,
+          player.ashboundShieldRemaining,
+          mitigated,
+        );
+        player.shield = shieldHit.shield;
+        player.ashboundShieldRemaining = shieldHit.trackedShield;
+        amount = shieldHit.damageAfterShield;
       } else {
         amount = mitigated;
+      }
+      if (hasLegendaryPower(player, "mirrorAegis")) {
+        const mirrorCounter = advanceLegendaryCounter(
+          player.mirrorAegisHitCount,
+          LEGENDARY_RUNTIME.mirrorHits,
+        );
+        player.mirrorAegisHitCount = mirrorCounter.count;
+        if (mirrorCounter.triggered) {
+          player.mirrorAegisBarrierTime = LEGENDARY_RUNTIME.mirrorBarrierSeconds;
+          const waveDamage =
+            (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
+            (1 + equipmentStats.damagePercent / 100) *
+            LEGENDARY_RUNTIME.mirrorDamageMultiplier *
+            legendaryAttackMultiplier(player);
+          for (const enemy of worldRef.current.enemies) {
+            if (distance(player.x, player.y, enemy.x, enemy.y) <= 190 + enemy.radius) {
+              enemy.hp -= waveDamage;
+            }
+          }
+          spawnLegendaryEffect(
+            "mirrorWave",
+            player.x,
+            player.y,
+            0.62,
+            210,
+            "#8df7ff",
+          );
+          playGameSfx("playerCrit", { playbackRate: 0.78, gain: 1.08 });
+          setToast("전설 · 거울 심장이 열려 2초간 적 투사체를 반사합니다.");
+        }
       }
       if (
         player.hp - amount <= 0 &&
@@ -3724,6 +3962,7 @@ export default function GameCanvas({
     const killEnemy = (enemy: Enemy) => {
       const player = playerRef.current;
       const world = worldRef.current;
+      reconcileLegendaryRuntime(player);
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       const projectileSizeMultiplier =
         (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
@@ -3864,7 +4103,8 @@ export default function GameCanvas({
         );
         const burst =
           (12 + oil * 7 + powerRankOf(player, "ember") * 4) *
-          (1 + (conflagration?.tier ?? 0) * 0.25);
+          (1 + (conflagration?.tier ?? 0) * 0.25) *
+          legendaryAttackMultiplier(player);
         spawnCombatEffect(
           "playerImpact",
           enemy.x,
@@ -3906,7 +4146,7 @@ export default function GameCanvas({
             vx: Math.cos(angle) * shardSpeed,
             vy: Math.sin(angle) * shardSpeed,
             radius: (3.5 + Math.min(3, shrapnelRank * 0.25)) * projectileSizeMultiplier,
-            damage: 5 + shrapnelRank * 2.4,
+            damage: (5 + shrapnelRank * 2.4) * legendaryAttackMultiplier(player),
             life: shardLife,
             pierce: Math.floor(shrapnelRank / 5),
             hostile: false,
@@ -3954,6 +4194,9 @@ export default function GameCanvas({
       }
       if (!target) target = world.enemies[0];
       const baseAngle = Math.atan2(target.y - player.y, target.x - player.x);
+      const bloodwovenBurst =
+        hasLegendaryPower(player, "bloodwovenGrip") && player.bloodwovenBurstReady;
+      if (bloodwovenBurst) player.bloodwovenBurstReady = false;
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       const projectileSizeMultiplier =
         (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
@@ -4043,7 +4286,8 @@ export default function GameCanvas({
         (1 + synergyPower) *
         (1 + equipmentStats.damagePercent / 100) *
         overflowCount *
-        overflowRate;
+        overflowRate *
+        legendaryAttackMultiplier(player);
       const eyeRank = powerRankOf(player, "eye");
       const critChance = clamp(
         0.05 +
@@ -4052,10 +4296,12 @@ export default function GameCanvas({
         0,
         0.75,
       );
-      if (Math.random() < critChance) {
+      const isCritical = Math.random() < critChance;
+      if (isCritical) {
         damage *= 1.7 + eyeRank * 0.1 + equipmentStats.critDamagePercent / 100;
         playGameSfx("playerCrit", { playbackRate: overcharged ? 0.92 : 1 });
       }
+      const criticalVolleyId = isCritical ? idRef.current++ : undefined;
       const spread = Math.min(0.62, visibleCount * 0.07);
       const projectileSpeed =
         660 *
@@ -4117,6 +4363,9 @@ export default function GameCanvas({
           returnMultiplier: 0.45 + returnRank * 0.1,
           homing:
             homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
+          criticalVolleyId,
+          bloodwovenEligible:
+            isCritical && hasLegendaryPower(player, "bloodwovenGrip"),
         });
         if (echoShot) {
           const echoProjectileLife =
@@ -4147,6 +4396,48 @@ export default function GameCanvas({
               homingRank > 0 ? Math.min(10, 1.8 + homingRank * 0.55) : undefined,
           });
         }
+      }
+      if (bloodwovenBurst) {
+        const burstCount = LEGENDARY_RUNTIME.bloodwovenProjectileCount;
+        const burstSpread = 0.34;
+        for (let index = 0; index < burstCount; index += 1) {
+          const angle =
+            baseAngle +
+            (burstCount === 1
+              ? 0
+              : -burstSpread / 2 + (burstSpread * index) / (burstCount - 1));
+          world.projectiles.push({
+            id: idRef.current++,
+            x: player.x,
+            y: player.y - 8,
+            vx: Math.cos(angle) * projectileSpeed * 1.04,
+            vy: Math.sin(angle) * projectileSpeed * 1.04,
+            radius: 5.5 * projectileSizeMultiplier,
+            damage: damage * LEGENDARY_RUNTIME.bloodwovenDamageMultiplier,
+            life: projectileLife,
+            pierce: Math.max(0, Math.floor(powerRankOf(player, "pierce") / 2)),
+            hostile: false,
+            color: "#ff5f8f",
+            affinity: "blood",
+            age: 0,
+            maxLife: projectileLife,
+            previousX: player.x,
+            previousY: player.y - 8,
+            hit: new Set<number>(),
+            homing:
+              homingRank > 0 ? Math.min(9, 1.6 + homingRank * 0.48) : undefined,
+          });
+        }
+        spawnLegendaryEffect(
+          "bloodwovenBurst",
+          player.x,
+          player.y - 8,
+          0.42,
+          82,
+          "#ff477f",
+          baseAngle,
+        );
+        playGameSfx("playerCrit", { playbackRate: 0.72, gain: 1.12 });
       }
       if (
         hasLegendaryPower(player, "crescentEcho") &&
@@ -4280,6 +4571,16 @@ export default function GameCanvas({
       player.dashCooldown = Math.max(0, player.dashCooldown - dt);
       player.dashTime = Math.max(0, player.dashTime - dt);
       player.riftTrailCooldown = Math.max(0, player.riftTrailCooldown - dt);
+      player.mirrorAegisBarrierTime = Math.max(0, player.mirrorAegisBarrierTime - dt);
+      player.starfallMantleTime = Math.max(0, player.starfallMantleTime - dt);
+      player.phantomMarchTrailCooldown = Math.max(
+        0,
+        player.phantomMarchTrailCooldown - dt,
+      );
+      if (player.ashboundShieldTime > 0) {
+        player.ashboundShieldTime = Math.max(0, player.ashboundShieldTime - dt);
+        if (player.ashboundShieldTime === 0) clearAshboundShield(player);
+      }
       const regenerationRank = powerRankOf(player, "regeneration");
       if (regenerationRank > 0 && player.hp > 0) {
         player.hp = Math.min(player.maxHp, player.hp + regenerationRank * 0.14 * dt);
@@ -4307,6 +4608,9 @@ export default function GameCanvas({
       const moveLength = rawMoveLength || 1;
       moveX /= moveLength;
       moveY /= moveLength;
+      const phantomMarchActive =
+        hasLegendaryPower(player, "phantomMarch") &&
+        player.phantomMarchMoveTime >= LEGENDARY_RUNTIME.phantomActivationSeconds;
       const boots = powerRankOf(player, "boots");
       const momentumRank = powerRankOf(player, "momentum");
       const reflexRank = powerRankOf(player, "reflex");
@@ -4318,7 +4622,8 @@ export default function GameCanvas({
           powerRankOf(player, "sprint"),
           SIMPLE_AUGMENT_BONUSES.sprintMoveSpeedPerRank,
         ) *
-        (1 + equipmentStats.moveSpeedPercent / 100);
+        (1 + equipmentStats.moveSpeedPercent / 100) *
+        (phantomMarchActive ? LEGENDARY_RUNTIME.phantomMoveMultiplier : 1);
 
       if (inputRef.current.dashQueued && player.dashCooldown <= 0) {
         inputRef.current.dashQueued = false;
@@ -4337,6 +4642,18 @@ export default function GameCanvas({
             (1 + equipmentStats.dashCooldownPercent / 100) *
             (hasLegendaryPower(player, "riftStride") ? 1.3 : 1));
         if (hasLegendaryPower(player, "riftStride")) player.riftTrailCooldown = 0;
+        if (hasLegendaryPower(player, "starfallMantle")) {
+          player.starfallMantleTime = LEGENDARY_RUNTIME.starfallSeconds;
+          spawnLegendaryEffect(
+            "starfallBurst",
+            player.x,
+            player.y,
+            0.54,
+            118,
+            "#f8d98a",
+          );
+          playGameSfx("playerDash", { playbackRate: 1.28, gain: 0.7 });
+        }
         const voidRank = powerRankOf(player, "void");
         if (voidRank > 0) {
           const comet = activeSynergies(player).find(
@@ -4345,7 +4662,9 @@ export default function GameCanvas({
           for (const enemy of world.enemies) {
             if (distance(player.x, player.y, enemy.x, enemy.y) < 125) {
               enemy.hp -=
-                (8 + voidRank * 5) * (1 + (comet?.tier ?? 0) * 0.28);
+                (8 + voidRank * 5) *
+                (1 + (comet?.tier ?? 0) * 0.28) *
+                legendaryAttackMultiplier(player);
               if (comet) enemy.slow = Math.max(enemy.slow, 0.8);
             }
           }
@@ -4360,6 +4679,8 @@ export default function GameCanvas({
           : moveSpeed;
       const dx = player.dashTime > 0 ? player.dashX : moveX;
       const dy = player.dashTime > 0 ? player.dashY : moveY;
+      const previousPlayerX = player.x;
+      const previousPlayerY = player.y;
       player.x += dx * speed * dt;
       player.y += dy * speed * dt;
       if (
@@ -4371,7 +4692,8 @@ export default function GameCanvas({
         const riftDamage =
           (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
           (1 + equipmentStats.damagePercent / 100) *
-          0.4;
+          0.4 *
+          legendaryAttackMultiplier(player);
         spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
         for (const enemy of world.enemies) {
           if (distance(player.x, player.y, enemy.x, enemy.y) < 72) {
@@ -4414,6 +4736,44 @@ export default function GameCanvas({
         }
       }
       constrainPlayerToWalkableFloor(player, doorOpen);
+      const actualMoveX = player.x - previousPlayerX;
+      const actualMoveY = player.y - previousPlayerY;
+      const actuallyMoved = Math.hypot(actualMoveX, actualMoveY) > 0.05;
+      player.phantomMarchMoveTime = advanceContinuousMovement(
+        player.phantomMarchMoveTime,
+        dt,
+        hasLegendaryPower(player, "phantomMarch") && actuallyMoved,
+        LEGENDARY_RUNTIME.phantomActivationSeconds,
+      );
+      const phantomMarchNowActive =
+        hasLegendaryPower(player, "phantomMarch") &&
+        player.phantomMarchMoveTime >= LEGENDARY_RUNTIME.phantomActivationSeconds;
+      if (
+        phantomMarchNowActive &&
+        actuallyMoved &&
+        player.phantomMarchTrailCooldown <= 0
+      ) {
+        player.phantomMarchTrailCooldown = 0.4;
+        const trailDamage =
+          (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
+          (1 + equipmentStats.damagePercent / 100) *
+          LEGENDARY_RUNTIME.phantomTrailDamageMultiplier *
+          legendaryAttackMultiplier(player);
+        spawnLegendaryEffect(
+          "phantomTrail",
+          previousPlayerX,
+          previousPlayerY + 8,
+          0.95,
+          74,
+          "#a68cff",
+          Math.atan2(actualMoveY, actualMoveX),
+        );
+        for (const enemy of world.enemies) {
+          if (distance(previousPlayerX, previousPlayerY, enemy.x, enemy.y) < 54) {
+            enemy.hp -= trailDamage;
+          }
+        }
+      }
 
       if (player.fireCooldown <= 0) firePlayerWeapon();
 
@@ -4425,7 +4785,7 @@ export default function GameCanvas({
         if (enemy.patternTimer !== undefined) enemy.patternTimer -= dt;
         if (enemy.poisonTime > 0) {
           enemy.poisonTime -= dt;
-          enemy.hp -= enemy.poisonDamage * dt;
+          enemy.hp -= enemy.poisonDamage * dt * legendaryAttackMultiplier(player);
         }
         const angle = Math.atan2(player.y - enemy.y, player.x - enemy.x);
         const d = distance(player.x, player.y, enemy.x, enemy.y);
@@ -4912,7 +5272,7 @@ export default function GameCanvas({
               enemy.patternHit = false;
               enemy.moving = false;
               playGameSfx(
-                nextPattern === "chapterBurst" ? "timeRift" : "enemyCharge",
+                nextPattern === "chapterTurn" ? "timeRift" : "enemyCharge",
                 { playbackRate: 0.86, gain: 1.16, priority: 8 },
               );
 
@@ -5410,7 +5770,7 @@ export default function GameCanvas({
             const ox = player.x + Math.cos(angle) * (62 + orbitRank * 2);
             const oy = player.y + Math.sin(angle) * (44 + orbitRank * 1.4);
             if (distance(ox, oy, enemy.x, enemy.y) < enemy.radius + 13) {
-              enemy.hp -= 7 + orbitRank * 3;
+              enemy.hp -= (7 + orbitRank * 3) * legendaryAttackMultiplier(player);
               enemy.orbitalCooldown = 0.24;
               break;
             }
@@ -5502,6 +5862,9 @@ export default function GameCanvas({
           continue;
         }
         if (projectile.hostile) {
+          const mirrorBarrierActive =
+            hasLegendaryPower(player, "mirrorAegis") &&
+            player.mirrorAegisBarrierTime > 0;
           if (
             distanceToSegment(
               player.x,
@@ -5511,19 +5874,32 @@ export default function GameCanvas({
               projectile.x,
               projectile.y,
             ) <
-            projectile.radius + player.radius
+            projectile.radius + player.radius + (mirrorBarrierActive ? 24 : 0)
           ) {
             projectile.life = 0;
-            spawnCombatEffect(
-              "hostileImpact",
-              projectile.x,
-              projectile.y,
-              0.34,
-              projectile.radius * 6,
-              projectile.color,
-              Math.atan2(projectile.vy, projectile.vx),
-            );
-            damagePlayer(projectile.damage);
+            if (mirrorBarrierActive) {
+              spawnLegendaryEffect(
+                "mirrorBlock",
+                projectile.x,
+                projectile.y,
+                0.3,
+                Math.max(42, projectile.radius * 7),
+                "#aefaff",
+                Math.atan2(projectile.vy, projectile.vx),
+              );
+              playGameSfx("playerImpact", { playbackRate: 1.42, gain: 0.48 });
+            } else {
+              spawnCombatEffect(
+                "hostileImpact",
+                projectile.x,
+                projectile.y,
+                0.34,
+                projectile.radius * 6,
+                projectile.color,
+                Math.atan2(projectile.vy, projectile.vx),
+              );
+              damagePlayer(projectile.damage);
+            }
           }
           continue;
         }
@@ -5541,6 +5917,37 @@ export default function GameCanvas({
             projectile.radius + enemy.radius * 0.72
           ) {
             projectile.hit.add(enemy.id);
+            if (
+              projectile.bloodwovenEligible &&
+              projectile.criticalVolleyId !== undefined &&
+              projectile.criticalVolleyId !== player.bloodwovenLastCountedVolley &&
+              hasLegendaryPower(player, "bloodwovenGrip")
+            ) {
+              player.bloodwovenLastCountedVolley = projectile.criticalVolleyId;
+              for (const sibling of world.projectiles) {
+                if (sibling.criticalVolleyId === projectile.criticalVolleyId) {
+                  sibling.bloodwovenEligible = false;
+                }
+              }
+              const bloodwovenCounter = advanceLegendaryCounter(
+                player.bloodwovenCriticalHits,
+                LEGENDARY_RUNTIME.bloodwovenCriticalHits,
+              );
+              player.bloodwovenCriticalHits = bloodwovenCounter.count;
+              if (bloodwovenCounter.triggered) {
+                player.bloodwovenBurstReady = true;
+                spawnLegendaryEffect(
+                  "bloodwovenBurst",
+                  enemy.x,
+                  enemy.y,
+                  0.46,
+                  88,
+                  "#ff477f",
+                );
+                playGameSfx("playerCrit", { playbackRate: 0.82, gain: 1.04 });
+                setToast("전설 · 피로 짠 손아귀가 충전되어 다음 기본 공격이 증식합니다.");
+              }
+            }
             let hitDamage = projectile.damage;
             const giantbaneRank = powerRankOf(player, "giantbane");
             if (enemy.elite || isBossKind(enemy.kind)) {
@@ -5704,6 +6111,34 @@ export default function GameCanvas({
           });
           gainXp(Math.abs(orb.value));
           player.memoryPickupCounter += 1;
+          if (hasLegendaryPower(player, "ashboundGirdle")) {
+            const ashboundCounter = advanceLegendaryCounter(
+              player.ashboundPickupCount,
+              LEGENDARY_RUNTIME.ashboundPickups,
+            );
+            player.ashboundPickupCount = ashboundCounter.count;
+            if (ashboundCounter.triggered) {
+              const refreshedShield = refreshTrackedShield(
+                player.shield,
+                player.ashboundShieldRemaining,
+                player.maxHp,
+                LEGENDARY_RUNTIME.ashboundShieldRatio,
+              );
+              player.shield = refreshedShield.shield;
+              player.ashboundShieldRemaining = refreshedShield.trackedShield;
+              player.ashboundShieldTime = LEGENDARY_RUNTIME.ashboundSeconds;
+              spawnLegendaryEffect(
+                "ashboundShield",
+                player.x,
+                player.y,
+                0.72,
+                112,
+                "#e7b268",
+              );
+              playGameSfx("memoryPickup", { playbackRate: 0.7, gain: 1.12 });
+              setToast("전설 · 기억의 재가 엮여 최대 생명력 8%의 방벽이 생성됩니다.");
+            }
+          }
           if (
             hasLegendaryPower(player, "commaResonance") &&
             player.memoryPickupCounter % 8 === 0
@@ -5711,7 +6146,8 @@ export default function GameCanvas({
             const resonanceDamage =
               (BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat) *
               (1 + equipmentStats.damagePercent / 100) *
-              0.75;
+              0.75 *
+              legendaryAttackMultiplier(player);
             spawnCombatEffect("muzzle", player.x, player.y, 0.46, 78, "#f0b86e");
             const resonanceSpeed =
               520 *
@@ -6608,6 +7044,162 @@ export default function GameCanvas({
         return true;
       }
 
+      if (effect.kind === "phantomTrail") {
+        const trailFade = Math.pow(1 - progress, 1.65) * 0.7;
+        context.translate(effect.x, effect.y);
+        context.rotate((effect.angle ?? 0) + Math.PI / 2);
+        context.globalAlpha = trailFade;
+        context.shadowColor = color;
+        context.shadowBlur = 22;
+        const trailGradient = context.createRadialGradient(0, 0, 2, 0, 0, effect.size * 0.5);
+        trailGradient.addColorStop(0, colorWithAlpha(color, 0.6));
+        trailGradient.addColorStop(0.45, colorWithAlpha(color, 0.22));
+        trailGradient.addColorStop(1, colorWithAlpha(color, 0));
+        context.fillStyle = trailGradient;
+        context.beginPath();
+        context.ellipse(0, 0, effect.size * 0.34, effect.size * 0.58, 0, 0, Math.PI * 2);
+        context.fill();
+        context.strokeStyle = colorWithAlpha("#eee7ff", 0.72);
+        context.lineWidth = 1.6;
+        for (const side of [-1, 1]) {
+          context.beginPath();
+          context.moveTo(side * effect.size * 0.12, -effect.size * 0.34);
+          context.quadraticCurveTo(
+            side * effect.size * 0.3,
+            0,
+            side * effect.size * 0.08,
+            effect.size * 0.42,
+          );
+          context.stroke();
+        }
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "mirrorWave" || effect.kind === "mirrorBlock") {
+        const waveRadius =
+          effect.kind === "mirrorWave"
+            ? effect.size * (0.12 + progress * 0.48)
+            : effect.size * (0.22 + progress * 0.24);
+        context.translate(effect.x, effect.y);
+        context.rotate(effect.angle ?? 0);
+        context.globalAlpha = fade;
+        context.shadowColor = color;
+        context.shadowBlur = effect.kind === "mirrorWave" ? 28 : 16;
+        for (let ring = 0; ring < (effect.kind === "mirrorWave" ? 3 : 2); ring += 1) {
+          context.strokeStyle =
+            ring === 0 ? "rgba(245,255,255,.96)" : colorWithAlpha(color, 0.82 - ring * 0.18);
+          context.lineWidth = Math.max(1.4, 4.4 - ring * 1.25);
+          context.beginPath();
+          context.arc(0, 0, waveRadius * (1 - ring * 0.13), 0, Math.PI * 2);
+          context.stroke();
+        }
+        const shardCount = effect.kind === "mirrorWave" ? 12 : 6;
+        context.fillStyle = "rgba(235,255,255,.92)";
+        for (let shard = 0; shard < shardCount; shard += 1) {
+          context.save();
+          context.rotate((Math.PI * 2 * shard) / shardCount + clock * 0.7);
+          context.beginPath();
+          context.moveTo(waveRadius * 0.82, 0);
+          context.lineTo(waveRadius * 1.12, 3);
+          context.lineTo(waveRadius * 1.03, -3);
+          context.closePath();
+          context.fill();
+          context.restore();
+        }
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "starfallBurst") {
+        context.translate(effect.x, effect.y);
+        context.globalAlpha = fade;
+        context.shadowColor = color;
+        context.shadowBlur = 24;
+        const starRadius = effect.size * (0.18 + progress * 0.38);
+        for (let star = 0; star < 10; star += 1) {
+          const angle = (Math.PI * 2 * star) / 10 - clock * 0.8;
+          const x = Math.cos(angle) * starRadius;
+          const y = Math.sin(angle) * starRadius * 0.72;
+          const size = 3 + (star % 3) * 1.7;
+          context.save();
+          context.translate(x, y);
+          context.rotate(angle + progress * 1.5);
+          context.fillStyle = star % 2 === 0 ? "#fff8d6" : color;
+          context.beginPath();
+          context.moveTo(0, -size * 1.8);
+          context.lineTo(size * 0.42, -size * 0.42);
+          context.lineTo(size * 1.8, 0);
+          context.lineTo(size * 0.42, size * 0.42);
+          context.lineTo(0, size * 1.8);
+          context.lineTo(-size * 0.42, size * 0.42);
+          context.lineTo(-size * 1.8, 0);
+          context.lineTo(-size * 0.42, -size * 0.42);
+          context.closePath();
+          context.fill();
+          context.restore();
+        }
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "bloodwovenBurst") {
+        context.translate(effect.x, effect.y);
+        context.rotate(effect.angle ?? 0);
+        context.globalAlpha = fade;
+        context.shadowColor = color;
+        context.shadowBlur = 24;
+        context.strokeStyle = color;
+        context.lineWidth = 3.2;
+        for (const offset of [-0.22, 0, 0.22]) {
+          context.save();
+          context.rotate(offset);
+          context.beginPath();
+          context.moveTo(-effect.size * 0.22, 0);
+          context.quadraticCurveTo(
+            effect.size * 0.12,
+            -effect.size * 0.2,
+            effect.size * (0.44 + progress * 0.32),
+            0,
+          );
+          context.stroke();
+          context.restore();
+        }
+        context.restore();
+        return true;
+      }
+
+      if (effect.kind === "ashboundShield") {
+        context.translate(effect.x, effect.y);
+        context.globalAlpha = fade;
+        context.shadowColor = color;
+        context.shadowBlur = 22;
+        const ashRadius = effect.size * (0.2 + progress * 0.32);
+        context.strokeStyle = color;
+        context.lineWidth = 3;
+        context.beginPath();
+        context.arc(0, 0, ashRadius, clock * 0.55, clock * 0.55 + Math.PI * 1.48);
+        context.stroke();
+        context.strokeStyle = "rgba(255,229,178,.72)";
+        context.lineWidth = 1.5;
+        context.beginPath();
+        context.arc(0, 0, ashRadius * 0.82, -clock * 0.7, -clock * 0.7 + Math.PI * 1.32);
+        context.stroke();
+        for (let mote = 0; mote < 9; mote += 1) {
+          const angle = (Math.PI * 2 * mote) / 9 + clock * (mote % 2 ? -0.7 : 0.5);
+          const distanceFromCenter = ashRadius * (0.74 + (mote % 3) * 0.12);
+          context.fillStyle = mote % 2 ? "#6f5a4a" : "#f2ca83";
+          context.fillRect(
+            Math.cos(angle) * distanceFromCenter - 1.5,
+            Math.sin(angle) * distanceFromCenter - 1.5,
+            3,
+            3,
+          );
+        }
+        context.restore();
+        return true;
+      }
+
       context.translate(effect.x, effect.y);
       context.rotate(effect.angle ?? 0);
       const radius = effect.size * (0.28 + progress * 0.72);
@@ -6716,6 +7308,15 @@ export default function GameCanvas({
             context.arc(sparkX, sparkY, Math.max(1, radius * (0.22 - spark * 0.035)), 0, Math.PI * 2);
             context.fill();
           }
+        } else if (projectile.affinity === "blood" && !dense) {
+          context.fillStyle = colorWithAlpha("#ffb0c8", alpha * 0.8);
+          for (let drop = 0; drop < 3; drop += 1) {
+            const dropX = -tailLength * (0.2 + drop * 0.24);
+            const dropY = Math.sin(clock * 12 + projectile.id + drop * 2.4) * radius;
+            context.beginPath();
+            context.arc(dropX, dropY, Math.max(1, radius * (0.25 - drop * 0.035)), 0, Math.PI * 2);
+            context.fill();
+          }
         } else if (projectile.affinity === "poison" && !dense) {
           context.fillStyle = colorWithAlpha("#c8ff9a", alpha * 0.48);
           for (let bubble = 0; bubble < 2; bubble += 1) {
@@ -6781,7 +7382,15 @@ export default function GameCanvas({
         context.shadowBlur = overloaded ? 8 : 18;
         context.fillStyle = projectile.color;
         context.beginPath();
-        if (projectile.affinity === "poison") {
+        if (projectile.affinity === "blood") {
+          context.moveTo(radius * 2.15, 0);
+          context.lineTo(-radius * 0.2, radius * 1.2);
+          context.lineTo(-radius * 1.55, radius * 0.5);
+          context.lineTo(-radius * 0.82, 0);
+          context.lineTo(-radius * 1.55, -radius * 0.5);
+          context.lineTo(-radius * 0.2, -radius * 1.2);
+          context.closePath();
+        } else if (projectile.affinity === "poison") {
           context.arc(0, 0, radius * 1.08 * pulse, 0, Math.PI * 2);
         } else if (projectile.affinity === "ember") {
           context.moveTo(radius * 2.1, 0);
@@ -6809,6 +7418,13 @@ export default function GameCanvas({
             context.lineTo(-radius * 1.5, shard * radius * 1.45);
             context.stroke();
           }
+        }
+        if (projectile.affinity === "blood" && !dense) {
+          context.strokeStyle = colorWithAlpha("#ffd4e1", 0.86 * alpha);
+          context.lineWidth = 1.3;
+          context.beginPath();
+          context.arc(-radius * 0.35, 0, radius * 1.55 * pulse, -0.92, 0.92);
+          context.stroke();
         }
         if (projectile.affinity === "echo" || projectile.returning) {
           context.strokeStyle = colorWithAlpha("#e2c7ff", 0.72 * alpha);
@@ -7621,10 +8237,60 @@ export default function GameCanvas({
       }
       if (player.shield > 0) {
         context.beginPath();
-        context.strokeStyle = "rgba(116,220,203,.8)";
-        context.lineWidth = 2;
-        context.arc(player.x, player.y, 34, 0, Math.PI * 2);
+        context.strokeStyle =
+          player.ashboundShieldTime > 0
+            ? "rgba(236,181,104,.94)"
+            : "rgba(116,220,203,.8)";
+        context.lineWidth = player.ashboundShieldTime > 0 ? 3 : 2;
+        context.arc(player.x, player.y, player.ashboundShieldTime > 0 ? 38 : 34, 0, Math.PI * 2);
         context.stroke();
+      }
+      if (player.mirrorAegisBarrierTime > 0) {
+        context.save();
+        context.globalCompositeOperation = "lighter";
+        context.strokeStyle = "rgba(174,250,255,.94)";
+        context.shadowColor = "#8df7ff";
+        context.shadowBlur = 18;
+        context.lineWidth = 2.4;
+        context.beginPath();
+        context.arc(
+          player.x,
+          player.y,
+          46,
+          ambientTime * 0.8,
+          ambientTime * 0.8 + Math.PI * 1.55,
+        );
+        context.stroke();
+        context.strokeStyle = "rgba(235,255,255,.72)";
+        context.lineWidth = 1.3;
+        context.beginPath();
+        context.arc(
+          player.x,
+          player.y,
+          41,
+          -ambientTime,
+          -ambientTime + Math.PI * 1.4,
+        );
+        context.stroke();
+        context.restore();
+      }
+      if (player.starfallMantleTime > 0) {
+        context.save();
+        context.globalCompositeOperation = "lighter";
+        context.fillStyle = "#ffeaa6";
+        context.shadowColor = "#f8d98a";
+        context.shadowBlur = 12;
+        for (let star = 0; star < 6; star += 1) {
+          const angle = ambientTime * 1.7 + (Math.PI * 2 * star) / 6;
+          const radius = 43 + Math.sin(ambientTime * 3 + star) * 3;
+          context.fillRect(
+            player.x + Math.cos(angle) * radius - 1.5,
+            player.y + Math.sin(angle) * radius * 0.7 - 1.5,
+            3,
+            3,
+          );
+        }
+        context.restore();
       }
 
       if (!world.roomCleared && world.enemies.length) {
@@ -7719,6 +8385,15 @@ export default function GameCanvas({
         equipment: hud.player.equipment,
         synergies,
         legendaryArmorReady: hud.player.legendaryArmorReady,
+        mirrorAegisHitCount: hud.player.mirrorAegisHitCount,
+        mirrorAegisBarrierTime: hud.player.mirrorAegisBarrierTime,
+        starfallMantleTime: hud.player.starfallMantleTime,
+        bloodwovenCriticalHits: hud.player.bloodwovenCriticalHits,
+        bloodwovenBurstReady: hud.player.bloodwovenBurstReady,
+        ashboundPickupCount: hud.player.ashboundPickupCount,
+        ashboundShieldRemaining: hud.player.ashboundShieldRemaining,
+        ashboundShieldTime: hud.player.ashboundShieldTime,
+        phantomMarchMoveTime: hud.player.phantomMarchMoveTime,
       }),
     [hud.player, synergies],
   );

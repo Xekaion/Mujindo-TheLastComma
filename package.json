@@ -9,7 +9,7 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/game-systems.test.mjs tests/pvp-systems.test.mjs tests/market-systems.test.mjs tests/market-ui.test.mjs tests/character-entry.test.mjs tests/plaza-world.test.mjs tests/hub-systems.test.mjs tests/town-flow.test.mjs tests/audio-systems.test.mjs tests/player-stats.test.mjs",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs tests/game-systems.test.mjs tests/pvp-systems.test.mjs tests/market-systems.test.mjs tests/market-ui.test.mjs tests/character-entry.test.mjs tests/plaza-world.test.mjs tests/hub-systems.test.mjs tests/town-flow.test.mjs tests/audio-systems.test.mjs tests/player-stats.test.mjs tests/legendary-runtime.test.mjs",
     "test:pvp": "node --test tests/pvp-systems.test.mjs",
     "test:market": "node --test tests/market-systems.test.mjs tests/market-ui.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern tmp",

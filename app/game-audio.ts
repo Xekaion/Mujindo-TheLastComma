@@ -1,3 +1,5 @@
+import type { GearRarity } from "./equipment";
+
 export const GAME_AUDIO_SETTINGS_KEY = "mujindo:last-comma:audio-v1";
 export const MAIN_BGM_URL = "/assets/audio/music/the-last-comma.mp3";
 
@@ -609,9 +611,9 @@ export const playGameSfx = (
 ): void => getGameAudio().play(cue, options);
 
 export const playGearRaritySfx = (
-  rarity: "common" | "magic" | "advanced" | "rare" | "epic" | "legendary" | "mythic" | "cosmic",
+  rarity: GearRarity,
 ): void => {
-  if (rarity === "common" || rarity === "magic" || rarity === "advanced") {
+  if (rarity === "common" || rarity === "magic" || rarity === "superior") {
     playGameSfx("lootDrop", {
       playbackRate: rarity === "common" ? 0.92 : rarity === "magic" ? 1 : 1.07,
       gain: rarity === "common" ? 0.78 : rarity === "magic" ? 0.9 : 1,

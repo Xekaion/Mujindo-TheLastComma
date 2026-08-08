@@ -10,6 +10,7 @@ import {
   GEAR_DROP_CHANCE_CAP,
   GEAR_DROP_SCAVENGER_CHANCE_CAP,
   GEAR_DROP_SCAVENGER_CHANCE_PER_RANK,
+  LEGENDARY_POWERS,
   aggregateEquipmentStats,
   calculateEquipmentCombatPowerBreakdown,
   equippedLegendaryPowers,
@@ -36,6 +37,15 @@ export type PlayerStatsInput = {
   equipment: EquipmentLoadout;
   synergies: readonly ActivePlayerSynergy[];
   legendaryArmorReady: boolean;
+  mirrorAegisHitCount: number;
+  mirrorAegisBarrierTime: number;
+  starfallMantleTime: number;
+  bloodwovenCriticalHits: number;
+  bloodwovenBurstReady: boolean;
+  ashboundPickupCount: number;
+  ashboundShieldRemaining: number;
+  ashboundShieldTime: number;
+  phantomMarchMoveTime: number;
 };
 
 export type PlayerSpecialStat = {
@@ -69,6 +79,9 @@ export type PlayerStatSnapshot = {
     shield: number;
     roomEntryShield: number;
     conquestShieldCap: number;
+    ashboundPickupCount: number;
+    ashboundShieldRemaining: number;
+    ashboundShieldTime: number;
   };
   offense: {
     baseAttack: number;
@@ -181,6 +194,14 @@ export function calculatePlayerStatSnapshot(
   const equipmentPowers = equippedLegendaryPowers(input.equipment);
   const equipmentPower = calculateEquipmentCombatPowerBreakdown(input.equipment);
   const powerSet = new Set(equipmentPowers);
+  const starfallMantleTime = safePositive(input.starfallMantleTime);
+  const starfallMantleActive =
+    powerSet.has("starfallMantle") && starfallMantleTime > 0;
+  const phantomMarchMoveTime = safePositive(input.phantomMarchMoveTime);
+  const phantomMarchActive =
+    powerSet.has("phantomMarch") &&
+    phantomMarchMoveTime >=
+      LEGENDARY_POWERS.phantomMarch.parameters.activationSeconds;
   const rank = (id: string) =>
     effectiveAugmentRank(input.augments, input.profession, id);
   const synergyPower = input.synergies.reduce(
@@ -228,6 +249,9 @@ export function calculatePlayerStatSnapshot(
     ) *
     (1 + synergyPower) *
     (1 + equipmentStats.damagePercent / 100) *
+    (starfallMantleActive
+      ? 1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100
+      : 1) *
     projectileOverflowFactor *
     fireRateOverflowFactor;
   const eyeRank = rank("eye");
@@ -301,7 +325,11 @@ export function calculatePlayerStatSnapshot(
   const alwaysIncomingMultiplier =
     gearIncomingMultiplier *
     simpleDefenseDamageMultiplier(rank("defense")) /
-    Math.pow(1 + rank("armor") * 0.1, 0.62);
+    Math.pow(1 + rank("armor") * 0.1, 0.62) *
+    (starfallMantleActive
+      ? 1 -
+        LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent / 100
+      : 1);
   const lowHpIncomingMultiplier =
     alwaysIncomingMultiplier /
     Math.pow(1 + rank("resolve") * 0.14, 0.6);
@@ -352,7 +380,10 @@ export function calculatePlayerStatSnapshot(
       rank("sprint"),
       SIMPLE_AUGMENT_BONUSES.sprintMoveSpeedPerRank,
     ) *
-    (1 + equipmentStats.moveSpeedPercent / 100);
+    (1 + equipmentStats.moveSpeedPercent / 100) *
+    (phantomMarchActive
+      ? 1 + LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent / 100
+      : 1);
   const dashDuration = 0.17 + 0.075 * (1 - Math.exp(-0.12 * reflexRank));
   const dashSpeed = 900 * Math.pow(1 + reflexRank * 0.05, 0.4);
   const dashCooldown =
@@ -443,6 +474,83 @@ export function calculatePlayerStatSnapshot(
       condition: "전설 무기",
     });
   }
+  if (powerSet.has("mirrorAegis")) {
+    const power = LEGENDARY_POWERS.mirrorAegis;
+    const barrierTime = safePositive(input.mirrorAegisBarrierTime);
+    const hitCount =
+      Math.floor(safePositive(input.mirrorAegisHitCount)) %
+      power.parameters.everyHits;
+    specials.push({
+      id: power.id,
+      label: power.name,
+      value:
+        barrierTime > 0
+          ? `방벽 ${barrierTime.toFixed(2)}초 · 반사파 ${Math.round(power.parameters.damageMultiplier * 100)}%`
+          : `피격 ${hitCount}/${power.parameters.everyHits}`,
+      condition:
+        barrierTime > 0
+          ? "적 투사체 차단 중"
+          : `${power.parameters.everyHits - hitCount}회 피격 후 발동`,
+    });
+  }
+  if (powerSet.has("starfallMantle")) {
+    const power = LEGENDARY_POWERS.starfallMantle;
+    specials.push({
+      id: power.id,
+      label: power.name,
+      value: starfallMantleActive
+        ? `주는 피해 +${power.parameters.damagePercent}% · 받는 피해 -${power.parameters.damageReductionPercent}% · ${starfallMantleTime.toFixed(2)}초`
+        : `주는 피해 +${power.parameters.damagePercent}% · 받는 피해 -${power.parameters.damageReductionPercent}%`,
+      condition: starfallMantleActive ? "별무리 활성" : "회피 직후 발동",
+    });
+  }
+  if (powerSet.has("bloodwovenGrip")) {
+    const power = LEGENDARY_POWERS.bloodwovenGrip;
+    const criticalHits =
+      Math.floor(safePositive(input.bloodwovenCriticalHits)) %
+      power.parameters.everyCriticalHits;
+    specials.push({
+      id: power.id,
+      label: power.name,
+      value: input.bloodwovenBurstReady
+        ? `다음 기본 공격: ${power.parameters.projectileCount}발 × ${Math.round(power.parameters.damageMultiplier * 100)}%`
+        : `치명타 ${criticalHits}/${power.parameters.everyCriticalHits}`,
+      condition: input.bloodwovenBurstReady
+        ? "혈직조 탄환 준비 완료"
+        : `${power.parameters.everyCriticalHits - criticalHits}회 치명타 후 준비`,
+    });
+  }
+  if (powerSet.has("ashboundGirdle")) {
+    const power = LEGENDARY_POWERS.ashboundGirdle;
+    const pickupCount =
+      Math.floor(safePositive(input.ashboundPickupCount)) %
+      power.parameters.everyPickups;
+    const shieldRemaining = safePositive(input.ashboundShieldRemaining);
+    const shieldTime = safePositive(input.ashboundShieldTime);
+    specials.push({
+      id: power.id,
+      label: power.name,
+      value:
+        shieldRemaining > 0 && shieldTime > 0
+          ? `보호막 ${shieldRemaining.toFixed(2)} · ${shieldTime.toFixed(2)}초`
+          : `기억 조각 ${pickupCount}/${power.parameters.everyPickups}`,
+      condition:
+        shieldRemaining > 0 && shieldTime > 0
+          ? `최대 생명력의 ${Math.round(power.parameters.shieldMaxHpRatio * 100)}% 보호막 활성`
+          : `${power.parameters.everyPickups - pickupCount}개 획득 후 발동`,
+    });
+  }
+  if (powerSet.has("phantomMarch")) {
+    const power = LEGENDARY_POWERS.phantomMarch;
+    specials.push({
+      id: power.id,
+      label: power.name,
+      value: phantomMarchActive
+        ? `이동 +${power.parameters.moveSpeedPercent}% · 잔영 피해 ${Math.round(power.parameters.trailDamageMultiplier * 100)}%`
+        : `연속 이동 ${Math.min(phantomMarchMoveTime, power.parameters.activationSeconds).toFixed(2)}/${power.parameters.activationSeconds.toFixed(2)}초`,
+      condition: phantomMarchActive ? "망각의 행진 활성" : "계속 이동하면 발동",
+    });
+  }
   if (powerSet.has("commaResonance")) {
     specials.push({
       id: "commaResonance",
@@ -489,6 +597,11 @@ export function calculatePlayerStatSnapshot(
       shield,
       roomEntryShield,
       conquestShieldCap,
+      ashboundPickupCount: Math.floor(
+        safePositive(input.ashboundPickupCount),
+      ),
+      ashboundShieldRemaining: safePositive(input.ashboundShieldRemaining),
+      ashboundShieldTime: safePositive(input.ashboundShieldTime),
     },
     offense: {
       baseAttack,

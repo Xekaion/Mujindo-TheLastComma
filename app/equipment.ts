@@ -716,7 +716,7 @@ export const LEGENDARY_POWERS: Readonly<
     id: "starfallMantle",
     slot: "shoulders",
     name: "별무리의 추락",
-    description: "회피 직후 4초 동안 공격력이 20% 증가하고 받는 피해가 10% 감소합니다.",
+    description: "회피 직후 4초 동안 주는 피해가 20% 증가하고 받는 피해가 10% 감소합니다.",
     parameters: { durationSeconds: 4, damagePercent: 20, damageReductionPercent: 10 },
   },
   lastMemory: {
@@ -1587,6 +1587,36 @@ export function calculateCombatPowerFromEquipmentStats(
   // Rift Stride's damaging trail is active in combat in addition to its dash
   // cooldown effect; model its conservative average uptime separately.
   if (hasPower(powers, "riftStride")) procFactor *= 1.06;
+  if (hasPower(powers, "mirrorAegis")) {
+    const power = LEGENDARY_POWERS.mirrorAegis.parameters;
+    // Damage is returned only after the hit counter completes. The 0.2
+    // reference contact rate keeps the inventory score conservative.
+    procFactor *=
+      1 +
+      (power.damageMultiplier / Math.max(1, power.everyHits)) * 0.2;
+  }
+  if (hasPower(powers, "starfallMantle")) {
+    const power = LEGENDARY_POWERS.starfallMantle.parameters;
+    // A quarter-uptime reference avoids valuing a dash-triggered window as
+    // though it were permanently active.
+    procFactor *= 1 + (power.damagePercent / 100) * 0.25;
+  }
+  if (hasPower(powers, "bloodwovenGrip")) {
+    const power = LEGENDARY_POWERS.bloodwovenGrip.parameters;
+    // Six critical attacks arm one bonus volley. The capped live critical
+    // chance preserves the intended multiplicative item synergy.
+    procFactor *=
+      1 +
+      critChance *
+        ((power.projectileCount * power.damageMultiplier) /
+          Math.max(1, power.everyCriticalHits));
+  }
+  if (hasPower(powers, "phantomMarch")) {
+    const power = LEGENDARY_POWERS.phantomMarch.parameters;
+    // Trail contact depends on pathing, so only a conservative reference
+    // fraction of its nominal damage is used by the context-free score.
+    procFactor *= 1 + power.trailDamageMultiplier * 0.05;
+  }
 
   const normalDpsIndex =
     attackPowerFactor * damageFactor * attackSpeedFactor * critIndex * procFactor;
@@ -1615,19 +1645,50 @@ export function calculateCombatPowerFromEquipmentStats(
   const lastMemoryFactor = hasPower(powers, "lastMemory")
     ? 1 + LEGENDARY_POWERS.lastMemory.parameters.restoreMaxHpRatio
     : 1;
+  const mirrorBarrierFactor = hasPower(powers, "mirrorAegis")
+    ? 1 +
+      Math.min(
+        0.08,
+        (LEGENDARY_POWERS.mirrorAegis.parameters.barrierDurationSeconds /
+          Math.max(1, LEGENDARY_POWERS.mirrorAegis.parameters.everyHits)) *
+          0.3,
+      )
+    : 1;
+  const starfallDefenseFactor = hasPower(powers, "starfallMantle")
+    ? 1 +
+      (LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent /
+        100) *
+        0.25
+    : 1;
+  const ashboundDefenseFactor = hasPower(powers, "ashboundGirdle")
+    ? 1 +
+      LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.35
+    : 1;
   const defenseIndex =
     (maxHp / 100 / Math.max(0.01, 1 - damageReduction)) *
-    lastMemoryFactor;
+    lastMemoryFactor *
+    mirrorBarrierFactor *
+    starfallDefenseFactor *
+    ashboundDefenseFactor;
 
   const healPerHit = Math.min(1.5, positive(stats.lifeOnHitFlat) * 0.08);
   const referenceHitsPerSecond = attackSpeedFactor * 1.4 * 0.65;
+  const ashboundSustainFactor = hasPower(powers, "ashboundGirdle")
+    ? 1 +
+      LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.25
+    : 1;
   const sustainIndex =
-    1 + Math.min(1, (healPerHit * referenceHitsPerSecond * 10) / maxHp);
+    (1 + Math.min(1, (healPerHit * referenceHitsPerSecond * 10) / maxHp)) *
+    ashboundSustainFactor;
 
   const riftDashBonus = hasPower(powers, "riftStride")
     ? LEGENDARY_POWERS.riftStride.parameters.dashCooldownPercent
     : 0;
-  const moveFactor = 1 + positive(stats.moveSpeedPercent) / 100;
+  const phantomMoveSpeedBonus = hasPower(powers, "phantomMarch")
+    ? LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent * 0.5
+    : 0;
+  const moveFactor =
+    1 + (positive(stats.moveSpeedPercent) + phantomMoveSpeedBonus) / 100;
   const dashFactor =
     1 + (positive(stats.dashCooldownPercent) + riftDashBonus) / 100;
   const mobilityIndex = Math.sqrt(moveFactor) * Math.pow(dashFactor, 0.18);
