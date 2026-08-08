@@ -2796,6 +2796,20 @@ test("gear text separates enhanced implicit options from fate-locked additional 
   assert.equal(equipment.formatGearNumericValue(12.345), "12.35");
   assert.equal(equipment.formatGearNumericValue(-12.345), "-12.35");
   assert.equal(equipment.formatGearNumericValue(-0.001), "0.00");
+  assert.equal(equipment.formatCompactGearLabel("치명타 확률 +3.00%"), "치명타 확률 +3%");
+  assert.equal(equipment.formatCompactGearLabel("공격 속도 +3.50%"), "공격 속도 +3.5%");
+  assert.equal(equipment.formatCompactGearLabel("기본 공격력 +3.25"), "기본 공격력 +3.25");
+  assert.equal(
+    equipment.formatGearDisplayName({
+      displayName: "끝나지 않은 쉼표 · 무진도 파편",
+      enhancement: 5,
+    }),
+    "끝나지 않은 쉼표 · 무진도 파편 +5",
+  );
+  assert.equal(
+    equipment.formatGearDisplayName({ displayName: "무진도 파편", enhancement: 0 }),
+    "무진도 파편",
+  );
   assert.equal(
     equipment.formatGearAffix("damagePercent", 12.345),
     `${equipment.GEAR_AFFIX_DEFINITIONS.damagePercent.name} +12.35%`,
@@ -4308,24 +4322,45 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     overlay,
-    /function GearAffixBreakdown[\s\S]{0,500}?getGearAffixDisplay\(affix, item\)/,
-    "all additional-option rows must use the canonical fixed-roll display",
+    /function GearAffixBreakdown[\s\S]{0,500}?getGearAffixDisplay\(affix, item\)[\s\S]{0,220}?formatCompactGearLabel\(display\.totalLabel\)[\s\S]{0,300}?<strong>\{optionLabel\}<\/strong>/,
+    "each rolled option must render only its compact canonical total on one line",
   );
   assert.match(
     overlay,
-    /function GearImplicitBreakdown[\s\S]{0,500}?getGearImplicitDisplay\(item\)/,
-    "the tooltip and workbench must share one canonical enhanced basic option",
+    /function GearImplicitBreakdown[\s\S]{0,500}?getGearImplicitDisplay\(item\)[\s\S]{0,220}?formatCompactGearLabel\(display\.totalLabel\)[\s\S]{0,300}?<strong>\{optionLabel\}<\/strong>/,
+    "the implicit option must render only its compact enhanced total on one line",
   );
   assert.match(
     overlay,
-    /이번 강화 기본 옵션 증가[\s\S]{0,500}?selectedImplicitDisplay\?\.totalLabel[\s\S]{0,200}?selectedImplicitDisplay\?\.nextStageGainLabel[\s\S]{0,300}?추가 옵션 \{selectedItem\.affixes\.length\}개는 획득 당시 수치로 유지됩니다/,
-    "enhancement preview must show only the implicit gain and explicitly freeze every roll",
+    /이번 단계 증가[\s\S]{0,400}?formatCompactGearLabel\(selectedImplicitDisplay\.totalLabel\)[\s\S]{0,180}?formatCompactGearLabel\(selectedImplicitDisplay\.nextStageGainLabel\)/,
+    "the enhancement action may retain a compact next-stage preview without restoring tooltip breakdown copy",
   );
-  assert.match(overlay, /추가 옵션 · 획득 시 고정 · 강화 영향 없음/);
+  for (const removedCopy of [
+    "추가 옵션",
+    "획득 시 고정",
+    "획득 시 확정",
+    "강화 영향 없음",
+  ]) {
+    assert.doesNotMatch(
+      overlay,
+      new RegExp(removedCopy),
+      `${removedCopy} classification copy must stay out of the simplified equipment UI`,
+    );
+  }
+  assert.doesNotMatch(
+    overlay,
+    /(?:display|selectedImplicitDisplay)\??\.(?:baseLabel|enhancementLabel)/,
+    "the UI must not split current option totals back into base and enhancement contributions",
+  );
   assert.match(
     source,
-    /const implicitDisplay = getGearImplicitDisplay\(item\);[\s\S]{0,180}?기본 옵션 증가[\s\S]{0,180}?추가 옵션 고정/,
-    "the success toast must report the same implicit-only gain contract",
+    /const optionGainSummary = `\$\{implicitDisplay\.label\} \$\{formatCompactGearLabel\(implicitDisplay\.nextStageGainLabel\)\}`/,
+    "enhancement messaging must use the same compact option label without category copy",
+  );
+  assert.match(
+    source,
+    /강화 성공 · \$\{formatGearDisplayName\(enhancedItem\)\}/,
+    "enhancement messaging must append the stage through the display-only name helper",
   );
   assert.match(
     source,
@@ -4507,8 +4542,28 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   );
   assert.match(
     overlay,
-    /<GearImplicitBreakdown item=\{item\} compact \/>[\s\S]{0,1600}?<strong>추가 옵션<\/strong>/,
-    "the tooltip must visibly separate the enhanced basic option from fixed rolls",
+    /<h4>\{formatGearDisplayName\(item\)\}<\/h4>[\s\S]{0,900}?<GearImplicitBreakdown item=\{item\} compact \/>[\s\S]{0,900}?item\.affixes\.map/,
+    "the tooltip must show the display-only enhanced name followed by compact option rows",
+  );
+  assert.match(
+    overlay,
+    /inventory-screen-grid-name">\{formatGearDisplayName\(item\)\}<\/small>/,
+    "backpack cards must append enhancement through the same display-only helper",
+  );
+  assert.match(
+    overlay,
+    /item\.enhancement > 0[\s\S]{0,180}?inventory-screen-enhancement-badge/,
+    "icon-first backpack cards must retain a compact stage marker for enhanced items",
+  );
+  assert.match(
+    overlay,
+    /item && item\.enhancement > 0[\s\S]{0,180}?inventory-screen-equipment-enhancement/,
+    "paperdoll cards must retain a compact stage marker for enhanced items",
+  );
+  assert.doesNotMatch(
+    overlay,
+    /<h4>\{item\.displayName\}|inventory-screen-grid-name">\{item\.displayName\}/,
+    "visible equipment titles must not bypass the enhancement-aware display helper",
   );
   assert.match(
     overlay,

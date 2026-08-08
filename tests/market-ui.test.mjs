@@ -74,6 +74,32 @@ test("market polling and write commands follow the authoritative protocol", asyn
   assert.match(board, /Steam 승인 거래를 서버에서 검증했습니다/);
 });
 
+test("market equipment names show enhancement without mutating trade commands", async () => {
+  const board = await readSource("app/market/MarketBoard.tsx");
+
+  assert.match(board, /import \{ formatGearDisplayName \} from "\.\.\/equipment"/);
+  assert.match(
+    board,
+    /market-listing-item[\s\S]{0,500}?formatGearDisplayName\(listing\.item\)/,
+    "auction rows must append the enhancement stage to the visible item name",
+  );
+  assert.match(
+    board,
+    /market-vault-list[\s\S]{0,1200}?formatGearDisplayName\(item\)/,
+    "vault rows must use the same display-only name formatter",
+  );
+  assert.match(
+    board,
+    /\{ action: "list_item", itemId: confirmation\.item\.itemId, priceAsh: confirmation\.priceAsh,[\s\S]{0,180}?expectedItemVersion: confirmation\.item\.version \}/,
+    "listing writes must remain ID/version based instead of persisting a formatted name",
+  );
+  assert.doesNotMatch(
+    board,
+    /\{ action: "list_item"[^}]*displayName/,
+    "presentation-only enhancement suffixes must never enter the trade command payload",
+  );
+});
+
 test("trade UI never offers local save uploads and gates live writes", async () => {
   const [client, board] = await Promise.all([
     readSource("app/economy-client.ts"),

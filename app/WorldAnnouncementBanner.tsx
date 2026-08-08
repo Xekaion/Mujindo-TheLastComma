@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { formatGearDisplayName } from "./equipment";
 import { getRealtimeClient } from "./realtime-client";
 import type { WorldLootAnnouncement } from "./pvp-protocol";
 
@@ -62,13 +63,17 @@ export default function WorldAnnouncementBanner({
   }, [suggestedName]);
 
   if (!current) return null;
+  const itemDisplayName = formatGearDisplayName({
+    displayName: current.itemName,
+    enhancement: current.enhancement,
+  });
 
   return (
     <aside
       className={`world-announcement is-${current.rarity}`}
       role="status"
       aria-live="polite"
-      aria-label={`${current.playerName}님이 ${current.itemName}을 획득했습니다`}
+      aria-label={`${current.playerName}님이 ${itemDisplayName}을 획득했습니다`}
     >
       <span className="world-announcement-flare" aria-hidden="true" />
       <span className="world-announcement-rarity">
@@ -76,11 +81,10 @@ export default function WorldAnnouncementBanner({
       </span>
       <p>
         <strong>{current.playerName}</strong>님이
-        <b>{current.itemName}</b>을 획득하셨습니다
+        <b>{itemDisplayName}</b>을 획득하셨습니다
       </p>
       <small>
         LV.{current.itemLevel}
-        {current.enhancement > 0 ? ` · +${current.enhancement}` : ""}
         <i aria-hidden="true">WORLD</i>
       </small>
     </aside>

@@ -170,6 +170,8 @@ import {
   calculateEquipmentPowerDelta,
   calculateGearPowerScore,
   createEmptyEquipment,
+  formatCompactGearLabel,
+  formatGearDisplayName,
   formatGearNumericValue,
   gearIconCell,
   getGearAffixDisplay,
@@ -3230,7 +3232,7 @@ export default function GameCanvas({
       player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
       player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
       setSelectedGearId(item.id);
-      setToast(`${item.displayName} 장착 해제 · 가방으로 이동`);
+      setToast(`${formatGearDisplayName(item)} 장착 해제 · 가방으로 이동`);
       syncHud();
     },
     [syncHud],
@@ -3248,7 +3250,7 @@ export default function GameCanvas({
       playGameSfx("salvage");
       setSelectedGearId(null);
       setToast(
-        `${item.displayName}을 분해해 기억의 재 ${ashBreakdown.total.toLocaleString("ko-KR")}개를 얻었습니다.${ashBreakdown.enhancementRefund > 0 ? ` · 강화 비용 ${ashBreakdown.enhancementRefund.toLocaleString("ko-KR")}개 전액 환급(100% 성공 기준)` : ""}`,
+        `${formatGearDisplayName(item)}을 분해해 기억의 재 ${ashBreakdown.total.toLocaleString("ko-KR")}개를 얻었습니다.${ashBreakdown.enhancementRefund > 0 ? ` · 강화 비용 ${ashBreakdown.enhancementRefund.toLocaleString("ko-KR")}개 전액 환급(100% 성공 기준)` : ""}`,
       );
       syncHud();
     },
@@ -3377,7 +3379,7 @@ export default function GameCanvas({
       if (!item) return;
       const rule = getGearEnhancementRule(item);
       if (!rule) {
-        setToast(`${item.displayName}은 이미 최대 +10 강화입니다.`);
+        setToast(`${formatGearDisplayName(item)}은 이미 최대 +10 강화입니다.`);
         return;
       }
       if (player.memoryAsh < rule.ashCost) {
@@ -3388,7 +3390,7 @@ export default function GameCanvas({
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const previousEquipmentPower = calculateEquipmentCombatPower(player.equipment);
       const implicitDisplay = getGearImplicitDisplay(item);
-      const optionGainSummary = `기본 옵션 증가 · ${implicitDisplay.label} ${implicitDisplay.nextStageGainLabel} · 추가 옵션 고정`;
+      const optionGainSummary = `${implicitDisplay.label} ${formatCompactGearLabel(implicitDisplay.nextStageGainLabel)}`;
       player.memoryAsh -= rule.ashCost;
       const roll = Math.random() * 100;
       if (roll < rule.successPercent) {
@@ -3406,7 +3408,7 @@ export default function GameCanvas({
           : enhancedItem.powerScore - item.powerScore;
         const powerGainLabel = equippedSlot ? "장착 전투력" : "아이템 전투력";
         setToast(
-          `강화 성공 · ${enhancedItem.displayName} +${enhancedItem.enhancement} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
+          `강화 성공 · ${formatGearDisplayName(enhancedItem)} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
         );
       } else if (roll < rule.successPercent + rule.destroyPercent) {
         playGameSfx("enhanceDestroy", { priority: 9 });
@@ -3416,11 +3418,11 @@ export default function GameCanvas({
           reconcileLegendaryRuntime(player);
         }
         setSelectedGearId(null);
-        setToast(`강화 파괴 · ${item.displayName}이 기억의 재로 흩어졌습니다.`);
+        setToast(`강화 파괴 · ${formatGearDisplayName(item)}이 기억의 재로 흩어졌습니다.`);
       } else {
         playGameSfx("enhanceFail");
         setToast(
-          `강화 실패 · ${item.displayName} +${item.enhancement} 유지 · 기억의 재 ${rule.ashCost} 소모`,
+          `강화 실패 · ${formatGearDisplayName(item)} 유지 · 기억의 재 ${rule.ashCost} 소모`,
         );
       }
 
@@ -3447,7 +3449,7 @@ export default function GameCanvas({
       if (!item) return;
       const rule = getGearEnhancementRule(item);
       if (!rule) {
-        setToast(`${item.displayName}은 이미 최대 +10 강화입니다.`);
+        setToast(`${formatGearDisplayName(item)}은 이미 최대 +10 강화입니다.`);
         return;
       }
       if (player.memoryAsh < rule.ashCost) {
@@ -3467,7 +3469,7 @@ export default function GameCanvas({
         : previewItem.powerScore - item.powerScore;
       const powerGainLabel = equippedSlot ? "장착 종합 전투력" : "아이템 전투력";
       const implicitDisplay = getGearImplicitDisplay(item);
-      const optionGainSummary = `기본 옵션 ${implicitDisplay.label} ${implicitDisplay.nextStageGainLabel} · 추가 옵션은 변하지 않음`;
+      const optionGainSummary = `${implicitDisplay.label} ${formatCompactGearLabel(implicitDisplay.nextStageGainLabel)}`;
       if (rule.destroyPercent <= 0) {
         performGearEnhancement(itemId);
         return;
@@ -3476,7 +3478,7 @@ export default function GameCanvas({
       requestGameConfirmation(
         {
           eyebrow: "FORGE WARNING",
-          title: `${item.displayName} +${item.enhancement} → +${rule.target}`,
+          title: `${formatGearDisplayName(item)} → +${rule.target}`,
           body: `이번 강화 증가분: ${optionGainSummary} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain}. 실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
           confirmLabel: "강화 시도",
           tone: "danger",
@@ -4188,14 +4190,14 @@ export default function GameCanvas({
           spawnLootAwakening(dropX, dropY, item.rarity);
           if (firstRoomDrop) firstRoomGearDroppedRef.current = true;
           if (item.rarity === "cosmic") {
-            setToast(`${GEAR_RARITY_META[item.rarity].label} · ${item.displayName}`);
+            setToast(`${GEAR_RARITY_META[item.rarity].label} · ${formatGearDisplayName(item)}`);
           } else if (item.rarity === "mythic") {
-            setToast(`신화 장비 강림 · ${item.displayName}`);
+            setToast(`신화 장비 강림 · ${formatGearDisplayName(item)}`);
           } else if (item.rarity === "legendary") {
-            setToast(`전설 장비 발견 · ${item.displayName}`);
+            setToast(`전설 장비 발견 · ${formatGearDisplayName(item)}`);
           } else if (item.rarity === "epic") {
             setToast(
-              `${GEAR_RARITY_META[item.rarity].label} 장비 발견 · ${item.displayName}`,
+              `${GEAR_RARITY_META[item.rarity].label} 장비 발견 · ${formatGearDisplayName(item)}`,
             );
           }
         }
@@ -6421,7 +6423,7 @@ export default function GameCanvas({
         setSelectedGearId(drop.item.id);
         setLootNotice(cloneGearItem(drop.item));
         setToast(
-          `${GEAR_RARITY_META[drop.item.rarity].label} 획득 · ${drop.item.displayName} (I 장비)`,
+          `${GEAR_RARITY_META[drop.item.rarity].label} 획득 · ${formatGearDisplayName(drop.item)} (I 장비)`,
         );
       }
       if (collectedGear.size > 0) {
@@ -8072,10 +8074,11 @@ export default function GameCanvas({
           context.font = "700 10px sans-serif";
           context.textAlign = "center";
           context.fillStyle = rarity.color;
+          const itemDisplayName = formatGearDisplayName(drop.item);
           const groundLabel =
-            drop.item.displayName.length > 19
-            ? `${drop.item.displayName.slice(0, 18)}…`
-            : drop.item.displayName;
+            itemDisplayName.length > 19
+            ? `${itemDisplayName.slice(0, 18)}…`
+            : itemDisplayName;
           context.fillText(groundLabel, drop.x, drop.y + 28);
         }
         context.restore();
@@ -9132,10 +9135,10 @@ export default function GameCanvas({
                       {item ? <GearIcon item={item} size={43} /> : <span className="gear-empty-icon">＋</span>}
                       <div>
                         <small>{EQUIPMENT_SLOT_LABELS[slot]}</small>
-                        <strong>{item?.displayName ?? "비어 있음"}</strong>
+                        <strong>{item ? formatGearDisplayName(item) : "비어 있음"}</strong>
                         <span>
                           {item
-                            ? `전투력 ${item.powerScore} · 추가 옵션 품질 ${item.qualityScore}%`
+                            ? `전투력 ${item.powerScore} · 품질 ${item.qualityScore}%`
                             : "전리품을 장착하세요"}
                         </span>
                       </div>
@@ -9162,7 +9165,7 @@ export default function GameCanvas({
                     >
                       <GearIcon item={item} size={42} />
                       <div>
-                        <strong>{item.displayName}</strong>
+                        <strong>{formatGearDisplayName(item)}</strong>
                         <small>LV.{item.level} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
                         <span>전투력 {item.powerScore} · 품질 {item.qualityScore}%</span>
                       </div>
@@ -9175,7 +9178,7 @@ export default function GameCanvas({
                   <div className="gear-comparison-heading">
                     <div>
                       <small>{GEAR_RARITY_META[selectedGear.rarity].label} · {EQUIPMENT_SLOT_LABELS[selectedGear.slot]}</small>
-                      <h4>{selectedGear.displayName}</h4>
+                      <h4>{formatGearDisplayName(selectedGear)}</h4>
                     </div>
                     <span
                       className={`gear-power-delta ${selectedPowerDelta < 0 ? "is-negative" : ""}`}
@@ -9185,19 +9188,13 @@ export default function GameCanvas({
                     </span>
                   </div>
                   <p>
-                    현재 장착: {selectedGearComparison?.displayName ?? "없음"}
+                    현재 장착: {selectedGearComparison ? formatGearDisplayName(selectedGearComparison) : "없음"}
                   </p>
                   <div className="gear-implicit-line">
-                    <span>
-                      <small>기본 옵션 · 강화 적용</small>
-                      <b>{selectedGearImplicit.totalLabel}</b>
-                    </span>
-                    <em>
-                      {selectedGearImplicit.baseLabel} · {selectedGearImplicit.enhancementLabel}
-                    </em>
+                    <b>{formatCompactGearLabel(selectedGearImplicit.totalLabel)}</b>
                   </div>
-                  <div className="gear-quality-line" aria-label={`추가 옵션 품질 ${selectedGear.qualityScore}%`}>
-                    <span>추가 옵션 품질</span>
+                  <div className="gear-quality-line" aria-label={`장비 품질 ${selectedGear.qualityScore}%`}>
+                    <span>품질</span>
                     <span className="gear-quality-meter" aria-hidden="true">
                       <i
                         className="gear-quality-fill"
@@ -9206,21 +9203,12 @@ export default function GameCanvas({
                     </span>
                     <b className="gear-quality-value">{selectedGear.qualityScore}%</b>
                   </div>
-                  <div className="gear-option-group-heading">
-                    <strong>추가 옵션</strong>
-                    <span>획득 시 확정 · 강화 영향 없음</span>
-                  </div>
                   <div className="gear-item-affixes">
                     {selectedGear.affixes.map((affix) => {
                       const display = getGearAffixDisplay(affix, selectedGear);
                       return (
                         <span key={affix.stat}>
-                          <span className="gear-affix-display-copy">
-                            <b>{display.totalLabel}</b>
-                            <br />
-                            <small>획득 시 고정 · 강화 영향 없음</small>
-                          </span>
-                          <em>품질 {affix.rollPercent}/100</em>
+                          <b>{formatCompactGearLabel(display.totalLabel)}</b>
                         </span>
                       );
                     })}
@@ -9343,7 +9331,7 @@ export default function GameCanvas({
           </span>
           <div>
             <small>{GEAR_RARITY_META[lootNotice.rarity].label} 장비 획득</small>
-            <strong>{lootNotice.displayName}</strong>
+            <strong>{formatGearDisplayName(lootNotice)}</strong>
             <span>전투력 {lootNotice.powerScore} · 품질 {lootNotice.qualityScore}% · I에서 비교</span>
           </div>
         </div>

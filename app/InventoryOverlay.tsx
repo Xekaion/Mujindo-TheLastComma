@@ -20,6 +20,8 @@ import {
   LEGENDARY_POWERS,
   MAX_GEAR_ENHANCEMENT,
   calculateEquipmentPowerDelta,
+  formatCompactGearLabel,
+  formatGearDisplayName,
   gearIconCell,
   getGearAffixDisplay,
   getGearImplicitDisplay,
@@ -124,7 +126,7 @@ function GearIcon({ item, size = 64 }: { item: GearItem; size?: number }) {
       className="inventory-screen-gear-icon"
       style={style}
       role="img"
-      aria-label={`${item.displayName} 장비 아이콘`}
+      aria-label={`${formatGearDisplayName(item)} 장비 아이콘`}
     />
   );
 }
@@ -180,18 +182,14 @@ function GearAffixBreakdown({
   compact?: boolean;
 }) {
   const display = getGearAffixDisplay(affix, item);
+  const optionLabel = formatCompactGearLabel(display.totalLabel);
 
   return (
-    <div className={compact ? "inventory-screen-affix-breakdown inventory-screen-affix-breakdown--compact" : "inventory-screen-affix-breakdown"}>
-      <span className="inventory-screen-affix-values">
-        <strong>{display.totalLabel}</strong>
-        <small>
-          추가 옵션 · 획득 시 고정 · 강화 영향 없음
-        </small>
-      </span>
-      <em aria-label={`추가 옵션 품질 백분위 ${affix.rollPercent}점`}>
-        품질 {affix.rollPercent}/100
-      </em>
+    <div
+      className={compact ? "inventory-screen-affix-breakdown inventory-screen-affix-breakdown--compact" : "inventory-screen-affix-breakdown"}
+      aria-label={optionLabel}
+    >
+      <strong>{optionLabel}</strong>
     </div>
   );
 }
@@ -204,22 +202,14 @@ function GearImplicitBreakdown({
   compact?: boolean;
 }) {
   const display = getGearImplicitDisplay(item);
+  const optionLabel = formatCompactGearLabel(display.totalLabel);
 
   return (
     <section
       className={`inventory-screen-implicit-option${compact ? " inventory-screen-implicit-option--compact" : ""}`}
-      aria-label={`기본 옵션 ${display.totalLabel}`}
+      aria-label={optionLabel}
     >
-      <header>
-        <span>기본 옵션</span>
-        <em>강화 적용</em>
-      </header>
-      <strong>{display.totalLabel}</strong>
-      <small>
-        {display.baseLabel}
-        <i aria-hidden="true">·</i>
-        {display.enhancementLabel}
-      </small>
+      <strong>{optionLabel}</strong>
     </section>
   );
 }
@@ -255,10 +245,8 @@ function GearTooltip({
         <small>
           {GEAR_RARITY_META[item.rarity].label} · {EQUIPMENT_SLOT_LABELS[item.slot]}
         </small>
-        <h4>{item.displayName}</h4>
-        <span>
-          아이템 레벨 {item.level} <b>+{item.enhancement}</b>
-        </span>
+        <h4>{formatGearDisplayName(item)}</h4>
+        <span>아이템 레벨 {item.level}</span>
       </div>
       <div className="inventory-screen-tooltip-power">
         <span>전투력</span>
@@ -271,17 +259,13 @@ function GearTooltip({
       </div>
       <GearImplicitBreakdown item={item} compact />
       <div className="inventory-screen-tooltip-quality">
-        <span>추가 옵션 품질 백분위</span>
+        <span>품질</span>
         <i aria-hidden="true">
           <b style={{ width: `${item.qualityScore}%` }} />
         </i>
-        <strong aria-label={`추가 옵션 품질 백분위 ${item.qualityScore}점`}>
+        <strong aria-label={`장비 품질 ${item.qualityScore}점`}>
           품질 {item.qualityScore}/100
         </strong>
-      </div>
-      <div className="inventory-screen-option-group-label">
-        <strong>추가 옵션</strong>
-        <span>획득 시 확정 · 강화로 변경되지 않음</span>
       </div>
       <div className="inventory-screen-tooltip-affixes">
         {item.affixes.map((affix) => (
@@ -295,7 +279,7 @@ function GearTooltip({
         </div>
       )}
       <footer>
-        {equipped ? "현재 장착 중" : comparisonItem ? `${comparisonItem.displayName}와 비교` : "빈 슬롯과 비교"}
+        {equipped ? "현재 장착 중" : comparisonItem ? `${formatGearDisplayName(comparisonItem)}와 비교` : "빈 슬롯과 비교"}
         <span>클릭하여 선택 · 더블 클릭하여 장착</span>
       </footer>
     </div>
@@ -672,7 +656,7 @@ export default function InventoryOverlay({
                       onBlur={() => setHoveredItem(null)}
                       aria-label={
                         item
-                          ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${item.displayName} +${item.enhancement} 정보 보기`
+                          ? `${EQUIPMENT_SLOT_LABELS[slot]} 장착품 ${formatGearDisplayName(item)} 정보 보기`
                           : `${EQUIPMENT_SLOT_LABELS[slot]} 슬롯 비어 있음`
                       }
                       aria-describedby={item && !salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
@@ -694,7 +678,7 @@ export default function InventoryOverlay({
                       <small className="inventory-screen-slot-label">
                         {slot === "offhand" ? "보조" : EQUIPMENT_SLOT_LABELS[slot]}
                       </small>
-                      {item && (
+                      {item && item.enhancement > 0 && (
                         <strong className="inventory-screen-equipment-enhancement">
                           +{item.enhancement}
                         </strong>
@@ -725,7 +709,7 @@ export default function InventoryOverlay({
                       <small className="inventory-screen-detail-rarity">
                         {GEAR_RARITY_META[selectedItem.rarity].label} · {EQUIPMENT_SLOT_LABELS[selectedItem.slot]}
                       </small>
-                      <h4>{selectedItem.displayName} +{selectedItem.enhancement}</h4>
+                      <h4>{formatGearDisplayName(selectedItem)}</h4>
                       <span>
                         LV.{selectedItem.level} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
                       </span>
@@ -741,15 +725,15 @@ export default function InventoryOverlay({
                     <div className="inventory-screen-detail-stats">
                       {!selectedIsEquipped && (
                         <div className="inventory-screen-comparison">
-                          <span>{comparisonItem ? comparisonItem.displayName : "빈 슬롯"} 대비</span>
+                          <span>{comparisonItem ? formatGearDisplayName(comparisonItem) : "빈 슬롯"} 대비</span>
                           <strong className={powerDeltaClass(powerDelta)}>
                             {formatPowerDelta(powerDelta)} 전투력
                           </strong>
                         </div>
                       )}
                       <GearImplicitBreakdown item={selectedItem} />
-                      <div className="inventory-screen-quality" aria-label={`추가 옵션 품질 백분위 ${selectedItem.qualityScore}점`}>
-                        <span>추가 옵션 품질 백분위</span>
+                      <div className="inventory-screen-quality" aria-label={`장비 품질 ${selectedItem.qualityScore}점`}>
+                        <span>품질</span>
                         <span className="inventory-screen-quality-track" aria-hidden="true">
                           <i
                             className="inventory-screen-quality-fill"
@@ -757,10 +741,6 @@ export default function InventoryOverlay({
                           />
                         </span>
                         <b>품질 {selectedItem.qualityScore}/100</b>
-                      </div>
-                      <div className="inventory-screen-option-group-label inventory-screen-option-group-label--detail">
-                        <strong>추가 옵션</strong>
-                        <span>드랍 당시 품질로 확정 · 강화 영향 없음</span>
                       </div>
                       <div className="inventory-screen-affixes">
                         {selectedItem.affixes.map((affix) => (
@@ -802,16 +782,13 @@ export default function InventoryOverlay({
                               </em>
                             </div>
                             <div className="inventory-screen-enhancement-affix-gains">
-                              <strong>이번 강화 기본 옵션 증가</strong>
+                              <strong>이번 단계 증가</strong>
                               <ul>
                                 <li>
-                                  <span>{selectedImplicitDisplay?.totalLabel}</span>
-                                  <em>{selectedImplicitDisplay?.nextStageGainLabel}</em>
+                                  <span>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.totalLabel) : ""}</span>
+                                  <em>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.nextStageGainLabel) : ""}</em>
                                 </li>
                               </ul>
-                              <small>
-                                추가 옵션 {selectedItem.affixes.length}개는 획득 당시 수치로 유지됩니다.
-                              </small>
                             </div>
                             <dl className="inventory-screen-enhancement-rates">
                               <div className="inventory-screen-enhancement-rate--cost">
@@ -856,9 +833,7 @@ export default function InventoryOverlay({
                         ) : (
                           <div className="inventory-screen-enhancement-max">
                             <strong>최대 강화 +{MAX_GEAR_ENHANCEMENT}</strong>
-                            <span>
-                              {GEAR_RARITY_META[selectedItem.rarity].label} 등급은 단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}%가 추가됩니다. 기본 옵션은 최대 효율이 적용되었고 추가 옵션은 획득 당시 수치로 고정됩니다.
-                            </span>
+                            <span>모든 강화 단계가 적용되었습니다.</span>
                           </div>
                         )}
                       </section>
@@ -870,7 +845,7 @@ export default function InventoryOverlay({
                             type="button"
                             className="inventory-screen-unequip-button"
                             onClick={() => onUnequip(selectedItem.slot)}
-                            aria-label={`${selectedItem.displayName} 장착 해제`}
+                            aria-label={`${formatGearDisplayName(selectedItem)} 장착 해제`}
                           >
                             장착 해제
                           </button>
@@ -1095,8 +1070,8 @@ export default function InventoryOverlay({
                       onFocus={(event) => showFocusTooltip(item, false, event)}
                       onBlur={() => setHoveredItem(null)}
                       aria-label={salvageMode
-                        ? `${item.displayName} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${item.displayName} +${item.enhancement}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 추가 옵션 품질 백분위 ${item.qualityScore}점`}
+                        ? `${formatGearDisplayName(item)} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
+                        : `${formatGearDisplayName(item)}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
                       aria-describedby={!salvageMode && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageMode ? checkedForSalvage : selected}
                     >
@@ -1117,8 +1092,10 @@ export default function InventoryOverlay({
                       </span>
                       <span className="inventory-screen-grid-level">LV.{item.level}</span>
                       <span className="inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
-                      <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
-                      <small className="inventory-screen-grid-name">{item.displayName}</small>
+                      {item.enhancement > 0 && (
+                        <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
+                      )}
+                      <small className="inventory-screen-grid-name">{formatGearDisplayName(item)}</small>
                       {overCapacity && (
                         <span className="inventory-screen-over-capacity-mark">초과 보관</span>
                       )}

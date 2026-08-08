@@ -393,7 +393,10 @@ test("D1 and the arena wire saved build profiles into adaptive HP, damage caps, 
 });
 
 test("world announcement fires only after the item is actually stored", async () => {
-  const game = await readSource("app/GameCanvas.tsx");
+  const [game, banner] = await Promise.all([
+    readSource("app/GameCanvas.tsx"),
+    readSource("app/WorldAnnouncementBanner.tsx"),
+  ]);
   const bagFullIndex = game.indexOf("player.inventory.length >= inventoryCapacityRef.current");
   const pickupIndex = game.indexOf("player.inventory.push(cloneGearItem(drop.item));");
   const announcementIndex = game.indexOf("getRealtimeClient().announceLoot", pickupIndex);
@@ -403,6 +406,26 @@ test("world announcement fires only after the item is actually stored", async ()
   assert.match(
     game.slice(pickupIndex, announcementIndex + 150),
     /drop\.item\.rarity === "mythic"[\s\S]*drop\.item\.rarity === "cosmic"/,
+  );
+  assert.match(
+    game.slice(announcementIndex, announcementIndex + 500),
+    /itemName: drop\.item\.displayName[\s\S]{0,220}?enhancement: drop\.item\.enhancement/,
+    "the sender must keep the canonical item name separate from its enhancement stage",
+  );
+  assert.doesNotMatch(
+    game.slice(announcementIndex, announcementIndex + 500),
+    /itemName: formatGearDisplayName/,
+    "the sender must not bake a second enhancement suffix into the protocol payload",
+  );
+  assert.match(
+    banner,
+    /const itemDisplayName = formatGearDisplayName\(\{[\s\S]{0,160}?displayName: current\.itemName,[\s\S]{0,100}?enhancement: current\.enhancement/,
+    "the receiver must compose the player-facing name exactly once",
+  );
+  assert.doesNotMatch(
+    banner,
+    /current\.enhancement > 0 \? ` · \+\$\{current\.enhancement\}`/,
+    "the banner must not render a duplicate standalone enhancement suffix",
   );
 });
 

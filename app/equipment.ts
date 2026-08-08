@@ -1588,6 +1588,29 @@ export function formatGearNumericValue(value: number): string {
 }
 
 /**
+ * Keeps equipment copy compact while preserving up to two decimal places.
+ * Domain values remain two-decimal strings for calculations and tests; only
+ * redundant trailing zeroes are removed from player-facing option lines.
+ */
+export function formatCompactGearLabel(label: string): string {
+  return label
+    .replace(/(\d[\d,]*)\.00(?=%p?|$)/g, "$1")
+    .replace(/(\d[\d,]*\.\d)0(?=%p?|$)/g, "$1");
+}
+
+/** Enhancement belongs to presentation, never the canonical rolled name. */
+export function formatGearDisplayName(
+  item: Pick<GearItem, "displayName" | "enhancement">,
+): string {
+  const enhancement = Number.isSafeInteger(item.enhancement)
+    ? clamp(item.enhancement, 0, MAX_GEAR_ENHANCEMENT)
+    : 0;
+  return enhancement > 0
+    ? `${item.displayName} +${enhancement}`
+    : item.displayName;
+}
+
+/**
  * Additional options are fate-locked when the item drops. Keep this helper for
  * callers and legacy integrations, but enhancement deliberately never changes
  * the rolled value.
