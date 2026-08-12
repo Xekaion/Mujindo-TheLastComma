@@ -23,7 +23,7 @@ test("character selection enters the shared plaza before every service", async (
   assert.match(canvas, /onReturnToPlaza\?\.\(\)/);
 });
 
-test("the plaza binds selected save visuals and allowlisted floor claims to presence", async () => {
+test("the plaza binds selected save visuals and keeps floor claims inside character profiles", async () => {
   const [flow, plaza] = await Promise.all([
     source("app/GameEntryFlow.tsx"),
     source("app/PlazaHub.tsx"),
@@ -41,8 +41,45 @@ test("the plaza binds selected save visuals and allowlisted floor claims to pres
   assert.match(flow, /localAuthoritativePosition=/);
   assert.match(flow, /getMemoryPlazaClient\(\)\.setMoveIntent/);
   assert.doesNotMatch(flow, /setMoveIntent\(\{[^}]*\b(?:x|y|speed|teleport)\s*:/s);
-  assert.match(plaza, /지하 \$\{player\.dungeonFloor\}층/);
-  assert.match(plaza, /지하 \{normalizedCharacter\.dungeonFloor\}층/);
+  assert.match(plaza, /`\$\{player\.displayName\} · LV\.\$\{player\.level\}`/);
+  const drawPlayerBlock = plaza.slice(
+    plaza.indexOf("function drawPlayer("),
+    plaza.indexOf("function connectionLabel("),
+  );
+  assert.doesNotMatch(drawPlayerBlock, /dungeonFloor|기록 심도|지하/);
+  assert.match(plaza, /onContextMenu=\{handleCanvasContextMenu\}/);
+  assert.match(plaza, /onPlayerInspectRef\.current\?\.\(player\)/);
+});
+
+test("right-click character inspection publishes only canonical equipped gear", async () => {
+  const [flow, profile, protocol, server] = await Promise.all([
+    source("app/GameEntryFlow.tsx"),
+    source("app/PlazaCharacterProfile.tsx"),
+    source("app/hub-protocol.ts"),
+    source("worker/hub-d1.ts"),
+  ]);
+
+  assert.match(flow, /hubPublicEquipmentFromLoadout\(equipment\)/);
+  assert.match(flow, /publicEquipment,/);
+  assert.match(flow, /inspectCharacterProfile\(player\.characterId\)/);
+  assert.match(flow, /onPlayerInspect=\{inspectRemoteCharacter\}/);
+  assert.match(flow, /onSelfInspect=\{inspectSelfCharacter\}/);
+  assert.match(flow, /<PlazaCharacterProfile/);
+  assert.match(profile, /지하 \{dungeonFloor\.toLocaleString\("ko-KR"\)\}층/);
+  assert.match(profile, /EQUIPMENT_SLOTS\.map\(\(slot\) =>/);
+  assert.match(profile, /InventoryPaperdollFigure equipment=\{equipment\}/);
+  assert.match(profile, /role="dialog"/);
+  assert.match(profile, /aria-modal="true"/);
+  assert.match(protocol, /type HubPublicGearItem = \{/);
+  assert.doesNotMatch(
+    protocol.slice(
+      protocol.indexOf("export type HubPublicGearItem"),
+      protocol.indexOf("export type HubPublicEquipment"),
+    ),
+    /\bid:|trade|owner|account/,
+  );
+  assert.match(server, /route === "\/api\/hub\/profile"/);
+  assert.match(server, /HUB_NEARBY_RADIUS \* HUB_NEARBY_RADIUS/);
 });
 
 test("duel and exchange return to the already selected town character", async () => {
@@ -83,7 +120,7 @@ test("the town caravan reuses the account entitlement safety contract", async ()
   assert.doesNotMatch(caravan, /window\.(?:alert|confirm)\(/);
   assert.match(shop, /panelRef/);
   assert.match(shop, /event\.key !== "Tab"/);
-  assert.match(flow, /paused=\{shopOpen \|\| inventoryOpen\}/);
+  assert.match(flow, /paused=\{shopOpen \|\| inventoryOpen \|\| profileState !== null\}/);
   assert.match(plaza, /pausedRef\.current/);
   assert.match(plaza, /inert=\{paused\}/);
 });
@@ -131,7 +168,7 @@ test("I opens a read-only inventory for the selected plaza character", async () 
   assert.match(plaza, /<kbd>I<\/kbd>/);
   assert.match(flow, /onInventoryOpen=\{openInventory\}/);
   assert.match(flow, /const openInventory = useCallback\([\s\S]{0,180}?setInventoryOpen\(true\)/);
-  assert.match(flow, /paused=\{shopOpen \|\| inventoryOpen\}/);
+  assert.match(flow, /paused=\{shopOpen \|\| inventoryOpen \|\| profileState !== null\}/);
 });
 
 test("plaza inventory keyboard handling is repeat-safe, shop-safe, and bubble-phase", async () => {

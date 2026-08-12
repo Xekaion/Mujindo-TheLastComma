@@ -7,6 +7,16 @@ import {
   type PlazaPortalDefinition,
   type PlazaPortalId,
 } from "./plaza-world";
+import {
+  EQUIPMENT_SLOTS,
+  normalizeEquipment,
+  normalizeGearItem,
+  type EquipmentLoadout,
+  type EquipmentSlot,
+  type GearAffixStat,
+  type GearItem,
+  type GearRarity,
+} from "./equipment";
 
 /**
  * Shared protocol for the multiplayer Memory Plaza.
@@ -69,6 +79,42 @@ export type HubAppearance = {
   spriteKey: HubSpriteKey;
   palette: HubPalette;
   gear: HubVisualGear;
+};
+
+/**
+ * Strictly allowlisted equipment data that another plaza player may inspect.
+ * Identity, derived power, trade state, and formatted copy never cross the
+ * public-profile boundary.
+ */
+export type HubPublicGearAffix = {
+  stat: GearAffixStat;
+  value: number;
+  rollPercent: number;
+};
+
+export type HubPublicGearItem = {
+  slot: EquipmentSlot;
+  rarity: GearRarity;
+  level: number;
+  baseName: string;
+  enhancement: number;
+  affixes: HubPublicGearAffix[];
+};
+
+export type HubPublicEquipment = Record<EquipmentSlot, HubPublicGearItem | null>;
+
+export type HubCharacterProfile = {
+  characterId: string;
+  displayName: string;
+  level: number;
+  dungeonFloor: number;
+  publicEquipment: HubPublicEquipment;
+  updatedAt: number;
+};
+
+export type HubStoredAppearanceEnvelope = {
+  appearance: HubAppearance;
+  publicEquipment: HubPublicEquipment;
 };
 
 export type HubMoveIntent = {
@@ -146,6 +192,7 @@ export type HubSessionRequest = {
   /** Allowlisted public profile claim; the plaza server only clamps it. */
   dungeonFloor: number;
   appearance: HubAppearance;
+  publicEquipment: HubPublicEquipment;
   arrival: HubArrival;
 };
 
@@ -154,6 +201,12 @@ export type HubAppearanceRequest = {
   level: number;
   /** Null only for rolling-upgrade clients that predate the public claim. */
   dungeonFloor: number | null;
+  /** Null means a rolling-upgrade client omitted the field; preserve storage. */
+  publicEquipment: HubPublicEquipment | null;
+};
+
+export type HubCharacterProfileRequest = {
+  characterId: string;
 };
 
 type UnknownRecord = Record<string, unknown>;
@@ -183,6 +236,9 @@ const emptyVisualGear = (): HubVisualGear => ({
   offhand: null,
   relic: null,
 });
+
+export const createEmptyHubPublicEquipment = (): HubPublicEquipment =>
+  Object.fromEntries(EQUIPMENT_SLOTS.map((slot) => [slot, null])) as HubPublicEquipment;
 
 export const DEFAULT_HUB_APPEARANCE: Readonly<HubAppearance> = {
   spriteKey: "harin",
@@ -215,6 +271,97 @@ export function normalizeHubAppearance(value: unknown): HubAppearance {
   };
 }
 
+function publicGearFromCanonical(item: GearItem): HubPublicGearItem {
+  return {
+    slot: item.slot,
+    rarity: item.rarity,
+    level: item.level,
+    baseName: item.baseName,
+    enhancement: item.enhancement,
+    affixes: item.affixes.map(({ stat, value, rollPercent }) => ({
+      stat,
+      value,
+      rollPercent,
+    })),
+  };
+}
+
+function canonicalGearFromPublic(
+  value: unknown,
+  expectedSlot: EquipmentSlot,
+): GearItem | null {
+  if (!isRecord(value) || value.slot !== expectedSlot) return null;
+  // The canonical equipment normalizer validates slot/rarity/base, affix pool,
+  // roll percentile, enhancement bounds, and level. All omitted derived fields
+  // are regenerated, while every unknown public field is discarded.
+  return normalizeGearItem({
+    id: `hub-public-${expectedSlot}`,
+    slot: value.slot,
+    rarity: value.rarity,
+    level: value.level,
+    baseName: value.baseName,
+    enhancement: value.enhancement,
+    affixes: value.affixes,
+  });
+}
+
+export function normalizeHubPublicGearItem(
+  value: unknown,
+  expectedSlot: EquipmentSlot,
+): HubPublicGearItem | null {
+  const canonical = canonicalGearFromPublic(value, expectedSlot);
+  return canonical ? publicGearFromCanonical(canonical) : null;
+}
+
+/** Normalizes all ten slots and drops malformed, mismatched, or unknown data. */
+export function normalizeHubPublicEquipment(value: unknown): HubPublicEquipment {
+  const raw = isRecord(value) ? value : {};
+  const equipment = createEmptyHubPublicEquipment();
+  for (const slot of EQUIPMENT_SLOTS) {
+    equipment[slot] = normalizeHubPublicGearItem(raw[slot], slot);
+  }
+  return equipment;
+}
+
+export function hubPublicEquipmentFromLoadout(value: unknown): HubPublicEquipment {
+  const loadout = normalizeEquipment(value);
+  const equipment = createEmptyHubPublicEquipment();
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = loadout[slot];
+    equipment[slot] = item ? publicGearFromCanonical(item) : null;
+  }
+  return equipment;
+}
+
+export function hubPublicEquipmentToLoadout(value: unknown): EquipmentLoadout {
+  const publicEquipment = normalizeHubPublicEquipment(value);
+  const loadout = Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => [
+      slot,
+      publicEquipment[slot]
+        ? canonicalGearFromPublic(publicEquipment[slot], slot)
+        : null,
+    ]),
+  ) as EquipmentLoadout;
+  return normalizeEquipment(loadout);
+}
+
+/** Reads both the new envelope and the legacy raw HubAppearance JSON shape. */
+export function normalizeHubStoredAppearanceEnvelope(
+  value: unknown,
+): HubStoredAppearanceEnvelope {
+  if (isRecord(value) && "appearance" in value) {
+    return {
+      appearance: normalizeHubAppearance(value.appearance),
+      publicEquipment: normalizeHubPublicEquipment(value.publicEquipment),
+    };
+  }
+  return {
+    appearance: normalizeHubAppearance(value),
+    publicEquipment: createEmptyHubPublicEquipment(),
+  };
+}
+
 export function normalizeHubLevel(value: unknown): number {
   if (!isFiniteNumber(value)) return 1;
   return Math.max(1, Math.min(HUB_MAX_LEVEL, Math.floor(value)));
@@ -237,6 +384,41 @@ export function normalizeHubDisplayName(value: unknown): string {
     .trim()
     .slice(0, 18);
   return normalized || "방랑자";
+}
+
+const HUB_CHARACTER_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isHubCharacterId(value: unknown): value is string {
+  return typeof value === "string" && HUB_CHARACTER_ID_PATTERN.test(value);
+}
+
+export function parseHubCharacterProfileRequest(
+  value: unknown,
+): HubCharacterProfileRequest | null {
+  if (!isRecord(value) || !isHubCharacterId(value.characterId)) return null;
+  return { characterId: value.characterId.toLowerCase() };
+}
+
+export function parseHubCharacterProfile(value: unknown): HubCharacterProfile | null {
+  if (
+    !isRecord(value) ||
+    !isHubCharacterId(value.characterId) ||
+    typeof value.displayName !== "string" ||
+    !isFiniteNumber(value.level) ||
+    !isFiniteNumber(value.dungeonFloor) ||
+    !isFiniteNumber(value.updatedAt)
+  ) {
+    return null;
+  }
+  return {
+    characterId: value.characterId.toLowerCase(),
+    displayName: normalizeHubDisplayName(value.displayName),
+    level: normalizeHubLevel(value.level),
+    dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
+    publicEquipment: normalizeHubPublicEquipment(value.publicEquipment),
+    updatedAt: Math.max(0, Math.floor(value.updatedAt)),
+  };
 }
 
 export function isHubCharacterSlot(value: unknown): value is HubCharacterSlot {
@@ -288,6 +470,7 @@ export function parseHubSessionRequest(value: unknown): HubSessionRequest | null
     level: normalizeHubLevel(value.level),
     dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
     appearance: normalizeHubAppearance(value.appearance),
+    publicEquipment: normalizeHubPublicEquipment(value.publicEquipment),
     arrival,
   };
 }
@@ -301,5 +484,9 @@ export function parseHubAppearanceRequest(value: unknown): HubAppearanceRequest 
       value.dungeonFloor === undefined
         ? null
         : normalizeHubDungeonFloor(value.dungeonFloor),
+    publicEquipment:
+      value.publicEquipment === undefined
+        ? null
+        : normalizeHubPublicEquipment(value.publicEquipment),
   };
 }

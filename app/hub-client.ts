@@ -14,13 +14,17 @@ import {
   normalizeHubDisplayName,
   normalizeHubDungeonFloor,
   normalizeHubLevel,
+  normalizeHubPublicEquipment,
+  parseHubCharacterProfile,
   parseHubMoveIntent,
   type HubAppearance,
   type HubArrival,
+  type HubCharacterProfile,
   type HubCharacterSlot,
   type HubFacing,
   type HubMoveIntent,
   type HubPlayerSnapshot,
+  type HubPublicEquipment,
   type HubSnapshot,
 } from "./hub-protocol";
 
@@ -37,6 +41,7 @@ export type HubClientConfig = {
   level: number;
   dungeonFloor: number;
   appearance?: Partial<HubAppearance> | null;
+  publicEquipment?: HubPublicEquipment | null;
   arrival?: HubArrival;
   /** Local two-client smoke testing only; ignored away from localhost. */
   developmentUser?: "A" | "B";
@@ -97,6 +102,9 @@ function normalizedConfig(value: HubClientConfig): HubClientConfig {
     level: normalizeHubLevel(value.level),
     dungeonFloor: normalizeHubDungeonFloor(value.dungeonFloor),
     appearance: normalizeHubAppearance(value.appearance),
+    ...(value.publicEquipment !== undefined
+      ? { publicEquipment: normalizeHubPublicEquipment(value.publicEquipment) }
+      : {}),
     arrival: value.arrival ?? "center",
     ...(value.developmentUser ? { developmentUser: value.developmentUser } : {}),
   };
@@ -199,6 +207,7 @@ export class MemoryPlazaClient {
   private snapshot: HubSnapshot | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private controller: AbortController | null = null;
+  private profileController: AbortController | null = null;
   private requestActive = false;
   private reconnectAttempt = 0;
   private generation = 0;
@@ -253,10 +262,14 @@ export class MemoryPlazaClient {
     appearance: unknown,
     level: unknown,
     dungeonFloor: unknown = this.config?.dungeonFloor,
+    publicEquipment: unknown = this.config?.publicEquipment,
   ): Promise<void> {
     if (!this.token) return;
     const generation = this.generation;
     try {
+      const normalizedPublicEquipment = publicEquipment === undefined
+        ? undefined
+        : normalizeHubPublicEquipment(publicEquipment);
       const payload = await this.requestJson(
         "/api/hub/appearance",
         "PATCH",
@@ -264,6 +277,9 @@ export class MemoryPlazaClient {
           appearance: normalizeHubAppearance(appearance),
           level: normalizeHubLevel(level),
           dungeonFloor: normalizeHubDungeonFloor(dungeonFloor),
+          ...(normalizedPublicEquipment === undefined
+            ? {}
+            : { publicEquipment: normalizedPublicEquipment }),
         },
         this.token,
       );
@@ -274,12 +290,51 @@ export class MemoryPlazaClient {
     }
   }
 
+  async inspectCharacterProfile(characterId: string): Promise<HubCharacterProfile> {
+    if (!this.token) throw new HubRequestError("invalid_hub_session", false);
+    this.profileController?.abort();
+    const controller = new AbortController();
+    this.profileController = controller;
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    try {
+      const response = await fetch("/api/hub/profile", {
+        method: "POST",
+        headers: requestHeaders(this.developmentUser, this.token),
+        credentials: "same-origin",
+        body: JSON.stringify({ characterId }),
+        signal: controller.signal,
+      });
+      const payload = await response.json().catch(() => null);
+      if (response.status === 401) throw new HubSessionExpiredError();
+      if (!response.ok) {
+        const code = isRecord(payload) && typeof payload.error === "string"
+          ? payload.error
+          : `hub_http_${response.status}`;
+        const retryable =
+          response.status === 408 ||
+          response.status === 425 ||
+          response.status === 429 ||
+          response.status >= 500 ||
+          (isRecord(payload) && payload.retryable === true);
+        throw new HubRequestError(code, retryable);
+      }
+      const profile = parseHubCharacterProfile(payload);
+      if (!profile) throw new HubRequestError("invalid_hub_profile", false);
+      return profile;
+    } finally {
+      clearTimeout(timeout);
+      if (this.profileController === controller) this.profileController = null;
+    }
+  }
+
   leave(notifyServer = true): void {
     const token = this.token;
     const developmentUser = this.developmentUser;
     this.generation += 1;
     this.controller?.abort();
     this.controller = null;
+    this.profileController?.abort();
+    this.profileController = null;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     this.requestActive = false;
@@ -322,6 +377,7 @@ export class MemoryPlazaClient {
         level: this.config.level,
         dungeonFloor: this.config.dungeonFloor,
         appearance: normalizeHubAppearance(this.config.appearance),
+        publicEquipment: normalizeHubPublicEquipment(this.config.publicEquipment),
         arrival: this.config.arrival,
       },
     );

@@ -14,7 +14,9 @@ import {
   HUB_ZONE_ID,
   normalizeHubAppearance,
   normalizeHubDungeonFloor,
+  normalizeHubStoredAppearanceEnvelope,
   parseHubAppearanceRequest,
+  parseHubCharacterProfileRequest,
   parseHubMoveIntent,
   parseHubSessionRequest,
   type HubAppearance,
@@ -41,6 +43,7 @@ type SessionRow = {
   level: number;
   dungeon_floor: number;
   appearance_json: string;
+  zone: string;
   x: number;
   y: number;
   facing: number;
@@ -69,7 +72,7 @@ type NearbyRow = Pick<
   | "updated_at"
 >;
 
-const MAX_BODY_BYTES = 8 * 1_024;
+const MAX_BODY_BYTES = 24 * 1_024;
 const MAX_MOVE_STEP_MS = 250;
 const STALE_SESSION_RETENTION_MS = 60_000;
 const MAX_NEARBY_PLAYERS = 48;
@@ -306,9 +309,17 @@ async function pruneStaleSessions(db: D1Database, now: number): Promise<void> {
 
 function parseAppearanceJson(value: string): HubAppearance {
   try {
-    return normalizeHubAppearance(JSON.parse(value) as unknown);
+    return normalizeHubStoredAppearanceEnvelope(JSON.parse(value) as unknown).appearance;
   } catch {
     return normalizeHubAppearance(DEFAULT_HUB_APPEARANCE);
+  }
+}
+
+function parseStoredAppearanceJson(value: string) {
+  try {
+    return normalizeHubStoredAppearanceEnvelope(JSON.parse(value) as unknown);
+  } catch {
+    return normalizeHubStoredAppearanceEnvelope(DEFAULT_HUB_APPEARANCE);
   }
 }
 
@@ -432,7 +443,10 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   // only through the cryptographically random bearer token returned below.
   const accountId = authenticatedAccountId ?? `guest:${crypto.randomUUID()}`;
 
-  const appearanceJson = JSON.stringify(parsed.appearance);
+  const appearanceJson = JSON.stringify({
+    appearance: parsed.appearance,
+    publicEquipment: parsed.publicEquipment,
+  });
   const generatedCharacterId = crypto.randomUUID();
   const character = await db.prepare(`INSERT INTO hub_character_slots
       (account_id,slot,public_character_id,level,dungeon_floor,appearance_json,created_at,updated_at)
@@ -579,7 +593,11 @@ async function updateAppearance(request: Request, db: D1Database): Promise<Respo
   const dungeonFloor = normalizeHubDungeonFloor(
     parsed.dungeonFloor ?? row.dungeon_floor,
   );
-  const appearanceJson = JSON.stringify(parsed.appearance);
+  const stored = parseStoredAppearanceJson(row.appearance_json);
+  const appearanceJson = JSON.stringify({
+    appearance: parsed.appearance,
+    publicEquipment: parsed.publicEquipment ?? stored.publicEquipment,
+  });
   await db.batch([
     db.prepare(`UPDATE hub_character_slots SET level=?,dungeon_floor=?,appearance_json=?,updated_at=?
       WHERE account_id=? AND slot=?`)
@@ -590,6 +608,48 @@ async function updateAppearance(request: Request, db: D1Database): Promise<Respo
   ]);
   const current = await sessionByToken(db, request);
   return json(await snapshotEnvelope(db, current, now));
+}
+
+async function inspectCharacterProfile(request: Request, db: D1Database): Promise<Response> {
+  const parsed = parseHubCharacterProfileRequest(await readJson(request));
+  if (!parsed) {
+    throw new HubProblem(400, "invalid_character_id", "A valid plaza character is required.");
+  }
+  const self = await sessionByToken(db, request);
+  await enforceRateLimit(db, self.account_id, "profile", 24, 60_000, 10_000);
+  const now = Date.now();
+  const target = await db.prepare(`SELECT * FROM hub_sessions
+    WHERE public_character_id=? AND zone=? AND last_seen_at>=? AND expires_at>?
+      AND x BETWEEN ? AND ? AND y BETWEEN ? AND ?
+    LIMIT 1`)
+    .bind(
+      parsed.characterId,
+      self.zone,
+      now - HUB_ONLINE_WINDOW_MS,
+      now,
+      self.x - HUB_NEARBY_RADIUS,
+      self.x + HUB_NEARBY_RADIUS,
+      self.y - HUB_NEARBY_RADIUS,
+      self.y + HUB_NEARBY_RADIUS,
+    )
+    .first<SessionRow>();
+  if (!target) {
+    throw new HubProblem(404, "character_not_available", "That character is not available nearby.");
+  }
+  const dx = target.x - self.x;
+  const dy = target.y - self.y;
+  if (dx * dx + dy * dy > HUB_NEARBY_RADIUS * HUB_NEARBY_RADIUS) {
+    throw new HubProblem(404, "character_not_available", "That character is not available nearby.");
+  }
+  const stored = parseStoredAppearanceJson(target.appearance_json);
+  return json({
+    characterId: target.public_character_id,
+    displayName: target.display_name,
+    level: clamp(Math.floor(target.level), 1, 999),
+    dungeonFloor: normalizeHubDungeonFloor(target.dungeon_floor),
+    publicEquipment: stored.publicEquipment,
+    updatedAt: target.updated_at,
+  });
 }
 
 async function leaveSession(request: Request, db: D1Database): Promise<Response> {
@@ -644,6 +704,9 @@ async function dispatchHubRequest(
   if (route === "/api/hub/appearance") {
     return request.method === "PATCH" ? updateAppearance(request, db) : methodNotAllowed("PATCH");
   }
+  if (route === "/api/hub/profile") {
+    return request.method === "POST" ? inspectCharacterProfile(request, db) : methodNotAllowed("POST");
+  }
   if (route === "/api/hub/leave") {
     return request.method === "POST" ? leaveSession(request, db) : methodNotAllowed("POST");
   }
@@ -662,6 +725,7 @@ export async function handleHubRequest(request: Request, env: HubD1Env): Promise
       "/api/hub/sync",
       "/api/hub/heartbeat",
       "/api/hub/appearance",
+      "/api/hub/profile",
       "/api/hub/leave",
       "/api/hub/health",
     ].includes(route);

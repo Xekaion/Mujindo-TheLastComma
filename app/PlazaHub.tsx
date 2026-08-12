@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import "./plaza.css";
@@ -37,6 +38,10 @@ import {
   paperdollLoadoutFromVisualGear,
 } from "./character-paperdoll";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
+import {
+  canvasClientPointToWorld,
+  pickPlazaInspectablePlayer,
+} from "./plaza-player-inspection";
 import {
   HUB_PLAYER_SPEED,
   normalizeHubDungeonFloor,
@@ -93,6 +98,8 @@ export type PlazaHubProps = {
   paused?: boolean;
   onMoveIntent?: (intent: PlazaMoveIntent) => void;
   onPortalActivate?: (portal: PlazaPortalDefinition) => void;
+  onPlayerInspect?: (player: PlazaRemotePlayer) => void;
+  onSelfInspect?: () => void;
   onInventoryOpen?: () => void;
   onExitToCharacterSelect?: () => void;
 };
@@ -101,7 +108,6 @@ type DrawPlayer = {
   key: string;
   displayName: string;
   level: number;
-  dungeonFloor: number;
   x: number;
   y: number;
   facing: number;
@@ -480,15 +486,10 @@ function drawPlayer(
     ? `700 ${readableCanvasFontSize(14, 11)}px sans-serif`
     : `600 ${readableCanvasFontSize(13, 11)}px sans-serif`;
   context.fillText(
-    `${player.displayName} · 기록 심도 지하 ${player.dungeonFloor}층 · LV.${player.level}`,
+    `${player.displayName} · LV.${player.level}`,
     player.x,
     player.y - 105,
   );
-  if (player.local) {
-    context.fillStyle = "#71e4d5";
-    context.font = `700 ${readableCanvasFontSize(9, 11)}px sans-serif`;
-    context.fillText("현재 캐릭터", player.x, player.y - 121);
-  }
   context.restore();
 }
 
@@ -509,6 +510,8 @@ export default function PlazaHub({
   paused = false,
   onMoveIntent,
   onPortalActivate,
+  onPlayerInspect,
+  onSelfInspect,
   onInventoryOpen,
   onExitToCharacterSelect,
 }: PlazaHubProps) {
@@ -518,7 +521,7 @@ export default function PlazaHub({
   const cameraRef = useRef<PlazaPoint>(sanitizePlazaPoint(initialPosition));
   const facingRef = useRef(4);
   const movingRef = useRef(false);
-  const walkCycleRef = useRef(CHARACTER_IDLE_FRAME);
+  const walkCycleRef = useRef<number>(CHARACTER_IDLE_FRAME);
   const pointerTargetRef = useRef<PlazaPoint | null>(null);
   const keysRef = useRef(new Set<string>());
   const touchDirectionRef = useRef<PlazaPoint>({ x: 0, y: 0 });
@@ -527,6 +530,7 @@ export default function PlazaHub({
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const paperdollPathSignatureRef = useRef("");
   const remotePlayersRef = useRef(remotePlayers);
+  const inspectableRemotePlayersRef = useRef<readonly PlazaRemotePlayer[]>([]);
   const remoteRenderPointsRef = useRef(new Map<string, RemoteRenderPoint>());
   const remoteWalkCyclesRef = useRef(new Map<string, number>());
   const previousTimeRef = useRef(0);
@@ -536,6 +540,7 @@ export default function PlazaHub({
   const nearPortalIdRef = useRef<PlazaPortalId | null>(null);
   const guidedPortalIdRef = useRef<PlazaPortalId | null>(null);
   const onMoveIntentRef = useRef(onMoveIntent);
+  const onPlayerInspectRef = useRef(onPlayerInspect);
   const pausedRef = useRef(paused);
   const [nearPortalId, setNearPortalId] = useState<PlazaPortalId | null>(null);
   const [guidedPortalId, setGuidedPortalId] = useState<PlazaPortalId | null>(null);
@@ -589,6 +594,10 @@ export default function PlazaHub({
     onMoveIntentRef.current = onMoveIntent;
     lastSentIntentRef.current = null;
   }, [onMoveIntent]);
+
+  useEffect(() => {
+    onPlayerInspectRef.current = onPlayerInspect;
+  }, [onPlayerInspect]);
 
   useEffect(() => {
     pausedRef.current = paused;
@@ -821,6 +830,7 @@ export default function PlazaHub({
         cameraRef.current,
         viewportRef.current,
       );
+      inspectableRemotePlayersRef.current = renderableRemotePlayers;
       detailedRemotePlayerIds = new Set(
         renderableRemotePlayers
           .slice(0, PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT)
@@ -1014,7 +1024,6 @@ export default function PlazaHub({
           key: player.characterId,
           displayName: player.displayName,
           level: player.level,
-          dungeonFloor: player.dungeonFloor,
           x: renderPoint?.x ?? player.x,
           y: renderPoint?.y ?? player.y,
           facing: remoteMotion.moving ? remoteMotion.facing : player.facing,
@@ -1032,7 +1041,6 @@ export default function PlazaHub({
         key: localCharacter.characterId,
         displayName: localCharacter.displayName,
         level: localCharacter.level,
-        dungeonFloor: localCharacter.dungeonFloor,
         x: positionRef.current.x,
         y: positionRef.current.y,
         facing: facingRef.current,
@@ -1109,6 +1117,41 @@ export default function PlazaHub({
     canvas.focus({ preventScroll: true });
   }, []);
 
+  const handleCanvasContextMenu = useCallback(
+    (event: ReactMouseEvent<HTMLCanvasElement>) => {
+      event.preventDefault();
+      if (pausedRef.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const worldPoint = canvasClientPointToWorld(
+        event.clientX,
+        event.clientY,
+        canvas.getBoundingClientRect(),
+        viewportRef.current,
+        cameraRef.current,
+      );
+      const inspectablePlayers = inspectableRemotePlayersRef.current.map((player) => {
+        const rendered = remoteRenderPointsRef.current.get(player.characterId);
+        return {
+          ...player,
+          x: rendered?.x ?? player.x,
+          y: rendered?.y ?? player.y,
+        };
+      });
+      const player = pickPlazaInspectablePlayer(inspectablePlayers, worldPoint);
+      if (!player) {
+        setNotice("다른 기록자를 우클릭하면 캐릭터 정보를 확인할 수 있습니다.");
+        return;
+      }
+      pointerTargetRef.current = null;
+      setGuidedPortalId(null);
+      setNotice(`${player.displayName}의 공개 기록을 펼쳤습니다.`);
+      canvas.focus({ preventScroll: true });
+      onPlayerInspectRef.current?.(player);
+    },
+    [],
+  );
+
   const setTouchDirection = useCallback((x: number, y: number) => {
     if (pausedRef.current) return;
     pointerTargetRef.current = null;
@@ -1137,8 +1180,9 @@ export default function PlazaHub({
         ref={canvasRef}
         className="plaza-hub-canvas"
         tabIndex={0}
-        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 E 또는 Enter로 가까운 포탈을 이용합니다. 바닥을 누르면 해당 위치로 이동합니다."
+        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 E 또는 Enter로 가까운 포탈을 이용합니다. 바닥을 누르면 이동하고 다른 플레이어를 우클릭하면 캐릭터 정보를 확인합니다."
         onPointerDown={handleCanvasPointer}
+        onContextMenu={handleCanvasContextMenu}
       />
 
       <header className="plaza-hub-header" aria-label="현재 광장 정보">
@@ -1159,9 +1203,12 @@ export default function PlazaHub({
       <section className="plaza-character-plate" aria-label="선택한 캐릭터">
         <small>RECORD 0{normalizedCharacter.saveSlot}</small>
         <strong>{normalizedCharacter.displayName}</strong>
-        <span title="현재는 클라이언트 저장 기록 기준입니다.">
-          LV.{normalizedCharacter.level} · 기록 심도 지하 {normalizedCharacter.dungeonFloor}층
-        </span>
+        <span>LV.{normalizedCharacter.level}</span>
+        {onSelfInspect ? (
+          <button type="button" onClick={onSelfInspect}>
+            캐릭터 정보
+          </button>
+        ) : null}
         {onInventoryOpen ? (
           <button
             type="button"

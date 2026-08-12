@@ -27,12 +27,18 @@ const dataModule = (source) =>
 async function importPlazaModules() {
   const plazaSource = await readSource("app/plaza-world.ts");
   const plazaUrl = dataModule(transpile(plazaSource, "app/plaza-world.ts"));
+  const equipmentUrl = dataModule(
+    transpile(await readSource("app/equipment.ts"), "app/equipment.ts"),
+  );
   const protocolSource = transpile(
     await readSource("app/hub-protocol.ts"),
     "app/hub-protocol.ts",
-  ).replace(/from\s+["']\.\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`);
+  )
+    .replace(/from\s+["']\.\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`)
+    .replace(/from\s+["']\.\/equipment["']/, `from ${JSON.stringify(equipmentUrl)}`);
   return {
     plaza: await import(plazaUrl),
+    equipment: await import(equipmentUrl),
     protocol: await import(dataModule(protocolSource)),
   };
 }
@@ -40,10 +46,15 @@ async function importPlazaModules() {
 async function importHubServer() {
   const plazaSource = await readSource("app/plaza-world.ts");
   const plazaUrl = dataModule(transpile(plazaSource, "app/plaza-world.ts"));
+  const equipmentUrl = dataModule(
+    transpile(await readSource("app/equipment.ts"), "app/equipment.ts"),
+  );
   const protocolSource = transpile(
     await readSource("app/hub-protocol.ts"),
     "app/hub-protocol.ts",
-  ).replace(/from\s+["']\.\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`);
+  )
+    .replace(/from\s+["']\.\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`)
+    .replace(/from\s+["']\.\/equipment["']/, `from ${JSON.stringify(equipmentUrl)}`);
   const protocolUrl = dataModule(protocolSource);
   const serverSource = transpile(
     await readSource("worker/hub-d1.ts"),
@@ -184,6 +195,46 @@ test("hub protocol strips coordinate authority and allowlists every visual field
   }
 });
 
+test("public plaza equipment is canonical, ten-slot, and strips private gear fields", async () => {
+  const { equipment, protocol } = await importPlazaModules();
+  const weapon = equipment.rollGear("hub-public-weapon", {
+    slot: "weapon",
+    rarity: "legendary",
+    level: 72,
+  });
+  weapon.enhancement = 5;
+  const loadout = equipment.createEmptyEquipment();
+  loadout.weapon = weapon;
+  const publicEquipment = protocol.hubPublicEquipmentFromLoadout(loadout);
+  assert.deepEqual(Object.keys(publicEquipment).sort(), [...equipment.EQUIPMENT_SLOTS].sort());
+  assert.deepEqual(Object.keys(publicEquipment.weapon).sort(), [
+    "affixes", "baseName", "enhancement", "level", "rarity", "slot",
+  ]);
+  assert.equal("id" in publicEquipment.weapon, false);
+  assert.equal("powerScore" in publicEquipment.weapon, false);
+  assert.equal("displayName" in publicEquipment.weapon, false);
+  assert.equal("label" in publicEquipment.weapon.affixes[0], false);
+
+  const forged = structuredClone(publicEquipment);
+  forged.weapon.id = "leaked-private-id";
+  forged.weapon.affixes[0].label = "attacker copy";
+  forged.weapon.css = "position:fixed";
+  const normalized = protocol.normalizeHubPublicEquipment(forged);
+  assert.equal("id" in normalized.weapon, false);
+  assert.equal("css" in normalized.weapon, false);
+  assert.equal("label" in normalized.weapon.affixes[0], false);
+  assert.equal(protocol.hubPublicEquipmentToLoadout(normalized).weapon.enhancement, 5);
+
+  forged.weapon.baseName = "not-a-real-weapon";
+  assert.equal(protocol.normalizeHubPublicEquipment(forged).weapon, null);
+  const legacy = protocol.normalizeHubStoredAppearanceEnvelope({
+    spriteKey: "harin-equipped",
+    gear: { weapon: 4 },
+  });
+  assert.equal(legacy.appearance.gear.weapon, 4);
+  assert.equal(legacy.publicEquipment.weapon, null);
+});
+
 test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale sessions", async () => {
   const [entry, economy, server, client] = await Promise.all([
     readSource("worker/index.ts"),
@@ -191,7 +242,7 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
     readSource("worker/hub-d1.ts"),
     readSource("app/hub-client.ts"),
   ]);
-  for (const route of ["session", "sync", "heartbeat", "appearance", "leave", "health"]) {
+  for (const route of ["session", "sync", "heartbeat", "appearance", "profile", "leave", "health"]) {
     assert.ok(server.includes(`/api/hub/${route}`), `missing hub route ${route}`);
   }
   assert.match(entry, /headers\.delete\("x-mujindo-hub-auth-mode"\)/);
@@ -216,6 +267,8 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
   assert.doesNotMatch(server, /row\.account_id[^\n]*playerId|account_id:\s*row\.account_id/);
   assert.match(client, /sendsClientPosition:\s*false/);
   assert.match(client, /persistsBearerToken:\s*false/);
+  assert.match(client, /inspectCharacterProfile\(characterId: string\): Promise<HubCharacterProfile>/);
+  assert.match(client, /profileController: AbortController \| null = null/);
   assert.match(client, /class HubRequestError extends Error/);
   assert.match(client, /if \(!retryable\) \{[\s\S]{0,100}?this\.setState\("offline"\)/);
   assert.match(client, /characterSlot:\s*this\.config\.characterSlot/);
@@ -224,12 +277,15 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
 });
 
 test("guest A/B sessions share snapshots while forged coordinates never reach storage", async () => {
-  const { handleHubRequest } = await importHubServer();
+  const [{ handleHubRequest }, { equipment, protocol }] = await Promise.all([
+    importHubServer(),
+    importPlazaModules(),
+  ]);
   const db = new D1DatabaseAdapter();
   const env = { DB: db };
-  const makeRequest = (route, body, token) =>
+  const makeRequest = (route, body, token, method = "POST") =>
     new Request(`https://game.local/api/hub/${route}`, {
-      method: "POST",
+      method,
       headers: {
         origin: "https://game.local",
         "content-type": "application/json",
@@ -238,6 +294,13 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
       },
       body: JSON.stringify(body),
     });
+  const publicLoadout = equipment.createEmptyEquipment();
+  publicLoadout.weapon = equipment.rollGear("profile-visible-weapon", {
+    slot: "weapon",
+    rarity: "legendary",
+    level: 72,
+  });
+  const publicEquipment = protocol.hubPublicEquipmentFromLoadout(publicLoadout);
 
   const responseA = await handleHubRequest(
     makeRequest("session", {
@@ -246,6 +309,7 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
       level: 20,
       dungeonFloor: 17,
       appearance: { spriteKey: "harin" },
+      publicEquipment,
     }),
     env,
   );
@@ -255,6 +319,7 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   assert.equal(sessionA.self.characterSlot, 1);
   assert.equal(sessionA.self.dungeonFloor, 17);
   assert.equal("accountId" in sessionA.self, false);
+  assert.equal("publicEquipment" in sessionA.self, false);
 
   const responseB = await handleHubRequest(
     makeRequest("session", {
@@ -272,6 +337,59 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   assert.equal(
     sessionB.nearbyPlayers.find((player) => player.displayName === "A").dungeonFloor,
     17,
+  );
+  assert.equal(
+    "publicEquipment" in sessionB.nearbyPlayers.find((player) => player.displayName === "A"),
+    false,
+    "exact gear must stay out of high-frequency presence snapshots",
+  );
+
+  const profileResponse = await handleHubRequest(
+    makeRequest(
+      "profile",
+      { characterId: sessionA.self.characterId },
+      sessionB.token,
+    ),
+    env,
+  );
+  assert.equal(profileResponse.status, 200);
+  const profile = await profileResponse.json();
+  assert.deepEqual(Object.keys(profile).sort(), [
+    "characterId", "displayName", "dungeonFloor", "level", "publicEquipment", "updatedAt",
+  ]);
+  assert.equal(profile.characterId, sessionA.self.characterId);
+  assert.equal(profile.dungeonFloor, 17);
+  assert.equal(Object.keys(profile.publicEquipment).length, 10);
+  assert.equal(profile.publicEquipment.weapon.rarity, "legendary");
+  assert.equal("id" in profile.publicEquipment.weapon, false);
+  assert.equal("accountId" in profile, false);
+  assert.equal("x" in profile, false);
+
+  const invalidProfile = await handleHubRequest(
+    makeRequest("profile", { characterId: "not-a-uuid" }, sessionB.token),
+    env,
+  );
+  assert.equal(invalidProfile.status, 400);
+
+  const legacyAppearancePatch = await handleHubRequest(
+    makeRequest(
+      "appearance",
+      { appearance: { spriteKey: "harin-equipped" }, level: 21, dungeonFloor: 18 },
+      sessionA.token,
+      "PATCH",
+    ),
+    env,
+  );
+  assert.equal(legacyAppearancePatch.status, 200);
+  const preservedProfileResponse = await handleHubRequest(
+    makeRequest("profile", { characterId: sessionA.self.characterId }, sessionB.token),
+    env,
+  );
+  assert.equal(preservedProfileResponse.status, 200);
+  assert.equal(
+    (await preservedProfileResponse.json()).publicEquipment.weapon.rarity,
+    "legendary",
+    "a rolling-upgrade appearance PATCH must preserve stored public equipment",
   );
 
   const beforeX = sessionA.self.x;

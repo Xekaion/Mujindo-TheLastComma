@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CharacterEntryGate, {
   type CharacterEntrySelection,
 } from "./CharacterEntryGate";
 import GameCanvas from "./GameCanvas";
 import InventoryOverlay from "./InventoryOverlay";
+import PlazaCharacterProfile from "./PlazaCharacterProfile";
 import PlazaHub from "./PlazaHub";
 import TownCaravanOverlay from "./TownCaravanOverlay";
 import {
@@ -20,8 +21,11 @@ import {
 } from "./hub-client";
 import {
   HUB_PALETTES,
+  hubPublicEquipmentFromLoadout,
   type HubAppearance,
   type HubArrival,
+  type HubCharacterProfile,
+  type HubPlayerSnapshot,
   type HubSnapshot,
 } from "./hub-protocol";
 import {
@@ -38,12 +42,31 @@ type GameEntryFlowProps = {
 };
 
 type EntryView = "plaza" | "expedition";
+type PlazaProfileState = {
+  profile: HubCharacterProfile | null;
+  loading: boolean;
+  error: string | null;
+};
 const TOWN_RETURN_SESSION_KEY = "mujindo:town-return-slot:v1";
 
 const connectionForPlaza = (
   state: HubConnectionState,
 ): "offline" | "connecting" | "online" | "reconnecting" =>
   state === "idle" ? "offline" : state;
+
+function publicProfileErrorMessage(error: unknown): string {
+  const code = error instanceof Error ? error.message : "";
+  if (code === "character_not_available") {
+    return "상대가 광장을 떠났거나 캐릭터 정보 확인 거리 밖으로 이동했습니다.";
+  }
+  if (code === "rate_limited") {
+    return "캐릭터 정보를 너무 자주 확인했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (code === "invalid_hub_session") {
+    return "광장 연결이 갱신되고 있습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  return "공개 기록을 불러오지 못했습니다. 상대가 광장에 있는지 확인해 주세요.";
+}
 
 /**
  * The selected local save controls PvE progress and visuals. Multiplayer only
@@ -66,7 +89,10 @@ export default function GameEntryFlow({
   const [hubConnection, setHubConnection] =
     useState<HubConnectionState>("idle");
   const [hubSnapshot, setHubSnapshot] = useState<HubSnapshot | null>(null);
+  const [profileState, setProfileState] = useState<PlazaProfileState | null>(null);
   const [saveRevision, setSaveRevision] = useState(0);
+  const profileRequestIdRef = useRef(0);
+  const lastInspectedPlayerRef = useRef<HubPlayerSnapshot | null>(null);
 
   useEffect(() => {
     if (!returnToTown || selection !== null) return;
@@ -91,6 +117,9 @@ export default function GameEntryFlow({
     setArrival("center");
     setShopOpen(false);
     setInventoryOpen(false);
+    setProfileState(null);
+    profileRequestIdRef.current += 1;
+    lastInspectedPlayerRef.current = null;
     setSelectedGearId(null);
     setInventoryCapacity(inventoryCapacityFor(readShopEntitlements()));
   }, []);
@@ -124,6 +153,10 @@ export default function GameEntryFlow({
   );
   const equippedPower = useMemo(
     () => calculateEquipmentCombatPower(equipment),
+    [equipment],
+  );
+  const publicEquipment = useMemo(
+    () => hubPublicEquipmentFromLoadout(equipment),
     [equipment],
   );
 
@@ -165,6 +198,7 @@ export default function GameEntryFlow({
       level,
       dungeonFloor,
       appearance: hubAppearance,
+      publicEquipment,
       arrival,
     });
     return () => {
@@ -173,7 +207,7 @@ export default function GameEntryFlow({
       setHubSnapshot(null);
       setHubConnection("offline");
     };
-  }, [arrival, displayName, dungeonFloor, hubAppearance, level, selection, view]);
+  }, [arrival, displayName, dungeonFloor, hubAppearance, level, publicEquipment, selection, view]);
 
   const moveInPlaza = useCallback((intent: {
     moveX: number;
@@ -238,10 +272,42 @@ export default function GameEntryFlow({
   }, [rememberTownReturn, selection]);
 
   const openInventory = useCallback(() => {
-    if (shopOpen) return;
+    if (shopOpen || profileState !== null) return;
     setInventoryCapacity(inventoryCapacityFor(readShopEntitlements()));
     setInventoryOpen(true);
-  }, [shopOpen]);
+  }, [profileState, shopOpen]);
+
+  const closeCharacterProfile = useCallback(() => {
+    profileRequestIdRef.current += 1;
+    lastInspectedPlayerRef.current = null;
+    setProfileState(null);
+  }, []);
+
+  const inspectRemoteCharacter = useCallback((player: HubPlayerSnapshot) => {
+    const requestId = profileRequestIdRef.current + 1;
+    profileRequestIdRef.current = requestId;
+    lastInspectedPlayerRef.current = player;
+    setProfileState({ profile: null, loading: true, error: null });
+    void getMemoryPlazaClient()
+      .inspectCharacterProfile(player.characterId)
+      .then((profile) => {
+        if (profileRequestIdRef.current !== requestId) return;
+        setProfileState({ profile, loading: false, error: null });
+      })
+      .catch((error: unknown) => {
+        if (profileRequestIdRef.current !== requestId) return;
+        setProfileState({
+          profile: null,
+          loading: false,
+          error: publicProfileErrorMessage(error),
+        });
+      });
+  }, []);
+
+  const retryRemoteCharacterProfile = useCallback(() => {
+    const player = lastInspectedPlayerRef.current;
+    if (player) inspectRemoteCharacter(player);
+  }, [inspectRemoteCharacter]);
 
   const openShopFromInventory = useCallback(() => {
     setInventoryOpen(false);
@@ -253,7 +319,7 @@ export default function GameEntryFlow({
     if (!selection || view !== "plaza") return undefined;
 
     const handlePlazaInventoryKey = (event: KeyboardEvent) => {
-      if (event.repeat || shopOpen) return;
+      if (event.repeat || shopOpen || profileState !== null) return;
       const target = event.target as HTMLElement | null;
       if (target?.closest("input, select, textarea, [contenteditable='true']")) {
         return;
@@ -274,11 +340,14 @@ export default function GameEntryFlow({
 
     window.addEventListener("keydown", handlePlazaInventoryKey);
     return () => window.removeEventListener("keydown", handlePlazaInventoryKey);
-  }, [inventoryOpen, selection, shopOpen, view]);
+  }, [inventoryOpen, profileState, selection, shopOpen, view]);
 
   const returnToCharacterSelect = useCallback(() => {
     setShopOpen(false);
     setInventoryOpen(false);
+    setProfileState(null);
+    profileRequestIdRef.current += 1;
+    lastInspectedPlayerRef.current = null;
     setSelectedGearId(null);
     setHubSnapshot(null);
     setSelection(null);
@@ -311,6 +380,22 @@ export default function GameEntryFlow({
   }
 
   const self = hubSnapshot?.self;
+  const inspectSelfCharacter = () => {
+    profileRequestIdRef.current += 1;
+    lastInspectedPlayerRef.current = null;
+    setProfileState({
+      profile: {
+        characterId: self?.characterId ?? `local-character-slot-${selection.slot}`,
+        displayName: self?.displayName ?? displayName,
+        level: self?.level ?? level,
+        dungeonFloor: self?.dungeonFloor ?? dungeonFloor,
+        publicEquipment,
+        updatedAt: self?.updatedAt ?? Date.now(),
+      },
+      loading: false,
+      error: null,
+    });
+  };
   return (
     <div
       className="game-entry-flow"
@@ -336,12 +421,24 @@ export default function GameEntryFlow({
         onlineCount={hubSnapshot?.online ?? 1}
         localAuthoritativePosition={self ? { x: self.x, y: self.y } : null}
         connectionState={connectionForPlaza(hubConnection)}
-        paused={shopOpen || inventoryOpen}
+        paused={shopOpen || inventoryOpen || profileState !== null}
         onMoveIntent={moveInPlaza}
         onPortalActivate={activatePortal}
+        onPlayerInspect={inspectRemoteCharacter}
+        onSelfInspect={inspectSelfCharacter}
         onInventoryOpen={openInventory}
         onExitToCharacterSelect={returnToCharacterSelect}
       />
+      {profileState && (
+        <PlazaCharacterProfile
+          open
+          profile={profileState.profile}
+          loading={profileState.loading}
+          error={profileState.error}
+          onClose={closeCharacterProfile}
+          onRetry={profileState.error ? retryRemoteCharacterProfile : undefined}
+        />
+      )}
       {inventoryOpen && (
         <InventoryOverlay
           open

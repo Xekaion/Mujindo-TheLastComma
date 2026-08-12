@@ -85,11 +85,16 @@ test("the shared plaza canvas keeps character labels readable without frame-time
   );
   assert.match(
     source,
-    /readableCanvasFontSize\(9, 11\).*?sans-serif[\s\S]{0,120}?context\.fillText\("현재 캐릭터"/,
+    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,220}?context\.fillText\([\s\S]{0,100}?`\$\{player\.displayName\} · LV\.\$\{player\.level\}`/,
   );
-  assert.match(
-    source,
-    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,220}?context\.fillText\([\s\S]{0,100}?`\$\{player\.displayName\} · 기록 심도 지하 \$\{player\.dungeonFloor\}층 · LV\.\$\{player\.level\}`/,
+  const drawPlayerBlock = source.slice(
+    source.indexOf("function drawPlayer("),
+    source.indexOf("function connectionLabel("),
+  );
+  assert.doesNotMatch(
+    drawPlayerBlock,
+    /dungeonFloor|기록 심도|지하|현재 캐릭터/,
+    "plaza overhead labels must contain only the nickname and level",
   );
   assert.match(
     source,
