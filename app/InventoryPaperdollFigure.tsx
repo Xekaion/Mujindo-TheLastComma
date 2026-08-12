@@ -31,6 +31,8 @@ export type InventoryPaperdollFigureProps = Readonly<{
 const PORTRAIT_DIRECTION = 0;
 const PORTRAIT_IDLE_FRAME = 1;
 const PORTRAIT_LOAD_POLL_MS = 40;
+const PORTRAIT_LOAD_POLL_MAX_MS = 1_000;
+const PORTRAIT_LOAD_TIMEOUT_MS = 36_000;
 const MAX_PORTRAIT_DPR = 2;
 
 function arePortraitSourcesReady(
@@ -129,6 +131,8 @@ export default function InventoryPaperdollFigure({
     let cancelled = false;
     let pollTimer: number | undefined;
     let pulseTimer: number | undefined;
+    let pollDelay = PORTRAIT_LOAD_POLL_MS;
+    const loadDeadline = Date.now() + PORTRAIT_LOAD_TIMEOUT_MS;
     const requiredPaths = [PAPERDOLL_BODY_PATH, ...layerPaths];
     imageStore.reconcile(requiredPaths);
 
@@ -191,7 +195,9 @@ export default function InventoryPaperdollFigure({
 
     const pollUntilReady = () => {
       if (cancelled || drawLoadedPortrait()) return;
-      pollTimer = window.setTimeout(pollUntilReady, PORTRAIT_LOAD_POLL_MS);
+      if (Date.now() >= loadDeadline) return;
+      pollTimer = window.setTimeout(pollUntilReady, pollDelay);
+      pollDelay = Math.min(PORTRAIT_LOAD_POLL_MAX_MS, pollDelay * 2);
     };
     pollUntilReady();
 

@@ -7207,6 +7207,10 @@ test("the inventory paperdoll figure preserves its authored silhouette and gener
   assert.match(portrait, /drawPaperdollCharacter\(context,/);
   assert.match(portrait, /PORTRAIT_DIRECTION\s*=\s*0/);
   assert.match(portrait, /PORTRAIT_IDLE_FRAME\s*=\s*1/);
+  assert.match(portrait, /PORTRAIT_LOAD_POLL_MAX_MS\s*=\s*1_000/);
+  assert.match(portrait, /PORTRAIT_LOAD_TIMEOUT_MS\s*=\s*36_000/);
+  assert.match(portrait, /Date\.now\(\)\s*>=\s*loadDeadline/);
+  assert.match(portrait, /Math\.min\(PORTRAIT_LOAD_POLL_MAX_MS,\s*pollDelay\s*\*\s*2\)/);
   assert.match(portrait, /role="img"[\s\S]{0,120}?aria-label=\{portraitLabel\}/);
   assert.match(
     portrait,
