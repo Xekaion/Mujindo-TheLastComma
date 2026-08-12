@@ -1537,6 +1537,79 @@ export function canEquipGearAtLevel(
   return normalizedPlayerLevel >= getGearRequiredLevel(itemOrLevel);
 }
 
+export type EquipmentLevelReconciliation = Readonly<{
+  /** Canonical items that remain equipped after applying the shared -20 rule. */
+  equipment: EquipmentLoadout;
+  /** Canonical backpack items followed by any level-locked equipped items. */
+  inventory: GearItem[];
+  /** Items moved out of equipment, in stable equipment-slot order. */
+  unequipped: readonly GearItem[];
+  /** True when invalid or duplicate saved gear was discarded while repairing. */
+  repaired: boolean;
+}>;
+
+/**
+ * Canonical save/vault boundary for the equip-level contract.
+ *
+ * The runtime equip button is not the only way equipment enters a character:
+ * old local saves, plaza/PVP projections, and eventually server-vault restores
+ * all hydrate parsed JSON.  This helper therefore normalizes both collections,
+ * removes duplicate identities, and moves every item that the character can no
+ * longer wear back to the backpack.  No item is deleted merely because the
+ * current paid capacity is smaller than the recovered inventory.
+ */
+export function reconcileEquipmentLevelRequirements(
+  playerLevel: unknown,
+  equipmentValue: unknown,
+  inventoryValue: unknown,
+): EquipmentLevelReconciliation {
+  const normalizedEquipment = normalizeEquipment(equipmentValue);
+  const equipment = createEmptyEquipment();
+  const inventory: GearItem[] = [];
+  const unequipped: GearItem[] = [];
+  const seenIds = new Set<string>();
+  let repaired = false;
+
+  for (const slot of EQUIPMENT_SLOTS) {
+    const item = normalizedEquipment[slot];
+    if (!item) {
+      if (isRecord(equipmentValue) && equipmentValue[slot] != null) repaired = true;
+      continue;
+    }
+    if (seenIds.has(item.id)) {
+      repaired = true;
+      continue;
+    }
+    seenIds.add(item.id);
+    if (canEquipGearAtLevel(
+      typeof playerLevel === "number" ? playerLevel : Number.NaN,
+      item,
+    )) {
+      equipment[slot] = item;
+    } else {
+      unequipped.push(item);
+      repaired = true;
+    }
+  }
+
+  if (Array.isArray(inventoryValue)) {
+    for (const value of inventoryValue) {
+      const item = normalizeGearItem(value);
+      if (!item || seenIds.has(item.id)) {
+        repaired = true;
+        continue;
+      }
+      seenIds.add(item.id);
+      inventory.push(item);
+    }
+  } else if (inventoryValue !== undefined && inventoryValue !== null) {
+    repaired = true;
+  }
+
+  inventory.push(...unequipped);
+  return { equipment, inventory, unequipped, repaired };
+}
+
 function rarityFromWeights(
   roll: number,
   weights: Readonly<Record<GearRarity, number>>,

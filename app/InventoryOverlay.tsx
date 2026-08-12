@@ -584,6 +584,8 @@ export default function InventoryOverlay({
 
   const equipItem = (gearId: string) => {
     if (readOnly) return;
+    const item = inventory.find((candidate) => candidate.id === gearId);
+    if (!item || !canEquipGearAtLevel(playerLevel, item)) return;
     setHoveredItem(null);
     onEquip(gearId);
   };

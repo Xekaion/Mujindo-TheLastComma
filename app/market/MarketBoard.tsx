@@ -12,7 +12,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import Link from "next/link";
-import { formatGearDisplayName, normalizeGearEnhancement } from "../equipment";
+import {
+  formatGearDisplayName,
+  getGearRequiredLevel,
+  normalizeGearEnhancement,
+} from "../equipment";
 import {
   ECONOMY_POLL_INTERVAL_MS,
   MARKET_RARITIES,
@@ -191,6 +195,10 @@ function ItemIcon({ item, compact = false }: { item: MarketVaultItem; compact?: 
 
 function formatMarketGearName(item: MarketVaultItem): string {
   return formatGearDisplayName(item, { includeZero: true });
+}
+
+function formatMarketGearLevel(item: MarketVaultItem): string {
+  return `아이템 LV.${item.level} · 착용 LV.${getGearRequiredLevel(item)}`;
 }
 
 function BalanceCard({
@@ -731,7 +739,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                   <header><span>장비 정보</span><span>판매자</span><span>남은 시간</span><span>판매가</span><span>거래</span></header>
                   {listings.length === 0 ? <EmptyState title="조건에 맞는 매물이 없습니다" body="검색 조건을 바꾸거나 다음 실시간 갱신을 기다려 주세요." /> : listings.map((listing) => (
                     <article key={listing.listingId} className={`market-listing is-${listing.item.rarity}`} style={{ "--rarity-color": RARITY_COLORS[listing.item.rarity] } as CSSProperties}>
-                      <div className="market-listing-item"><ItemIcon item={listing.item} compact /><div><small>LV.{listing.item.level} · {SLOT_LABELS[listing.item.slot]}</small><strong>{formatMarketGearName(listing.item)}</strong><span>{RARITY_LABELS[listing.item.rarity]} · 전투력 {formatEconomyAmount(listing.item.powerScore)} · 품질 {listing.item.qualityScore}</span></div></div>
+                      <div className="market-listing-item"><ItemIcon item={listing.item} compact /><div><small>{formatMarketGearLevel(listing.item)} · {SLOT_LABELS[listing.item.slot]}</small><strong>{formatMarketGearName(listing.item)}</strong><span>{RARITY_LABELS[listing.item.rarity]} · 전투력 {formatEconomyAmount(listing.item.powerScore)} · 품질 {listing.item.qualityScore}</span></div></div>
                       <div className="market-listing-seller"><small>판매자</small><strong>{listing.sellerName}</strong><span>{listing.mine ? "내 매물" : "서버 인증"}</span></div>
                       <div className="market-listing-time"><small>만료까지</small><strong>{remainingLabel(listing.expiresAt)}</strong><span>{formatDate(listing.listedAt)} 등록</span></div>
                       <div className="market-listing-price"><small>기억의 재</small><strong><i>✦</i>{formatEconomyAmount(listing.priceAsh)}</strong><span>고정가</span></div>
@@ -744,7 +752,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                   <div className="market-local-warning"><span aria-hidden="true">!</span><p><strong>기존 로컬 자산 거래 불가</strong>로컬 저장 파일·인벤토리·기억의 재는 업로드할 수 없습니다. 서버에서 발급하고 서명한 금고 장비만 거래됩니다.</p></div>
                   <div className="market-vault-list">
                     {snapshot.vaultItems.filter((item) => item.tradeState === "available").length === 0 ? <EmptyState title="판매 가능한 장비가 없습니다" body="온라인 원정에서 서버 금고 장비를 획득하면 이곳에 나타납니다." /> : snapshot.vaultItems.filter((item) => item.tradeState === "available").map((item) => (
-                      <button key={item.vaultItemId} type="button" className={selectedVaultItemId === item.vaultItemId ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[item.rarity] } as CSSProperties} aria-pressed={selectedVaultItemId === item.vaultItemId} onClick={() => setSelectedVaultItemId(item.vaultItemId)}><ItemIcon item={item} compact /><span><small>LV.{item.level} · {RARITY_LABELS[item.rarity]}</small><strong>{formatMarketGearName(item)}</strong><em>전투력 {formatEconomyAmount(item.powerScore)}</em></span><i aria-hidden="true">›</i></button>
+                      <button key={item.vaultItemId} type="button" className={selectedVaultItemId === item.vaultItemId ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[item.rarity] } as CSSProperties} aria-pressed={selectedVaultItemId === item.vaultItemId} onClick={() => setSelectedVaultItemId(item.vaultItemId)}><ItemIcon item={item} compact /><span><small>{formatMarketGearLevel(item)} · {RARITY_LABELS[item.rarity]}</small><strong>{formatMarketGearName(item)}</strong><em>전투력 {formatEconomyAmount(item.powerScore)}</em></span><i aria-hidden="true">›</i></button>
                     ))}
                   </div>
                   <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedVaultItem && price > 0 && tradeEnabled) openConfirmation({ kind: "sell", item: selectedVaultItem, priceAsh: price }); }}>
@@ -858,9 +866,9 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
 function getConfirmationCopy(confirmation: Confirmation): { title: string; body: string; confirmLabel: string; rows: Array<[string, string]> } {
   switch (confirmation.kind) {
-    case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 서버 금고로 이동하고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["장비", `LV.${confirmation.listing.item.level} ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
+    case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 서버 금고로 이동하고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["장비", `${formatMarketGearLevel(confirmation.listing.item)} · ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
     case "cancel-listing": return { title: "판매 등록을 취소할까요?", body: "아직 체결되지 않은 매물만 취소할 수 있으며 장비는 서버 금고로 반환됩니다.", confirmLabel: "등록 취소", rows: [["장비", formatMarketGearName(confirmation.listing.item)], ["등록가", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`]] };
-    case "sell": return { title: `${formatMarketGearName(confirmation.item)}을 판매할까요?`, body: "등록되는 순간 장비는 거래 보관 상태가 되며 원정이나 다른 거래에 사용할 수 없습니다.", confirmLabel: "판매 등록", rows: [["판매 가격", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`], ["장비 전투력", formatEconomyAmount(confirmation.item.powerScore)], ["등급", RARITY_LABELS[confirmation.item.rarity]]] };
+    case "sell": return { title: `${formatMarketGearName(confirmation.item)}을 판매할까요?`, body: "등록되는 순간 장비는 거래 보관 상태가 되며 원정이나 다른 거래에 사용할 수 없습니다.", confirmLabel: "판매 등록", rows: [["판매 가격", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`], ["착용 조건", formatMarketGearLevel(confirmation.item)], ["장비 전투력", formatEconomyAmount(confirmation.item.powerScore)], ["등급", RARITY_LABELS[confirmation.item.rarity]]] };
     case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며 상대 주문과 가격이 맞으면 자동 체결됩니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
     case "fill-order": return { title: "이 호가를 즉시 체결할까요?", body: "서버가 남은 수량과 가격을 다시 확인한 뒤 가능한 수량만 원자적으로 체결합니다.", confirmLabel: "즉시 체결", rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
     case "cancel-order": return { title: "미체결 주문을 취소할까요?", body: "이미 체결된 수량은 되돌릴 수 없으며 미체결분의 거래 보관 재화만 반환됩니다.", confirmLabel: "주문 취소", rows: [["잔여 금괴", `▰ ${formatEconomyAmount(confirmation.order.remainingGold)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };

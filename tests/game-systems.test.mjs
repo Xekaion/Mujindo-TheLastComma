@@ -1460,7 +1460,10 @@ test("the Final Binder is a post-ending boss with three telegraphed arena patter
   assert.match(source, /["']종언의 제본사["']/);
   assert.match(source, /walkFinalBinder:\s*["']\/assets\/walk\/final-binder-walk-v1\.png["']/);
   assert.match(source, /finalBinderPatterns:\s*["']\/assets\/effects\/final-binder-patterns-v1\.png["']/);
-  assert.match(source, /const boss = world\.enemies\.find\(\(enemy\) => isBossKind\(enemy\.kind\)\);/);
+  assert.match(
+    source,
+    /let boss: Enemy \| undefined;[\s\S]{0,500}?if \(!boss && isBossKind\(enemy\.kind\)\) boss = enemy;/,
+  );
   assert.match(source, /const dropCount = isBossKind\(enemy\.kind\) \? 2 : 1;/);
 
   const controller = source.match(
@@ -1539,7 +1542,7 @@ test("each shelter heals and saves only on its first coordinate visit", async ()
   assert.match(source, /const saveAtShelter[\s\S]{0,180}?player\.hp = player\.maxHp;/);
   assert.match(
     source,
-    /const savedDungeon = normalizeSavedDungeonWorld\(data\.world\);[\s\S]{0,1200}?enterRoom\(savedDungeon\.roomX, savedDungeon\.roomY, "left"\);\s*setGameMode\("playing"\);\s*setToast\(`\$\{slot\}번 슬롯 · 고정된 기억에서 원정을 재개했습니다\.`\);/,
+    /const savedDungeon = normalizeSavedDungeonWorld\(data\.world\);[\s\S]{0,1800}?enterRoom\(savedDungeon\.roomX, savedDungeon\.roomY, "left"\);\s*setGameMode\("playing"\);[\s\S]{0,1100}?setToast\(`\$\{slot\}번 슬롯 · 고정된 기억에서 원정을 재개했습니다\.`\);/,
     "loading a checkpoint must not pretend to activate its already-spent shelter again",
   );
   assert.match(source, /새 쉼터에 처음 닿을 때만 장비와 빌드가 함께 저장됩니다/);
@@ -2123,7 +2126,7 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   );
   const floorDrawIndex = source.indexOf("drawMarginSeverLine(images.marginSeverLine, enemy)");
   const projectileTrailIndex = source.indexOf(
-    'drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "trail")',
+    'drawProjectileVfx(projectile, ambientTime, projectileCount, "trail")',
     floorDrawIndex,
   );
   const actorDrawIndex = source.indexOf("const sortedEnemies = [...world.enemies]", floorDrawIndex);
@@ -3621,6 +3624,130 @@ test("equipment requires character level equal to item level minus twenty", asyn
   assert.equal(equipment.canEquipGearAtLevel(50, levelSeventyGear), true);
 });
 
+test("save hydration unequips level-locked gear without deleting it", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const lockedShoulders = equipment.rollGear("level-repair-locked", {
+    level: 90,
+    slot: "shoulders",
+    rarity: "mythic",
+  });
+  const wearableWeapon = equipment.rollGear("level-repair-wearable", {
+    level: 64,
+    slot: "weapon",
+    rarity: "legendary",
+  });
+  const backpackBoots = equipment.rollGear("level-repair-backpack", {
+    level: 80,
+    slot: "boots",
+    rarity: "rare",
+  });
+  const savedEquipment = equipment.createEmptyEquipment();
+  savedEquipment.shoulders = lockedShoulders;
+  savedEquipment.weapon = wearableWeapon;
+
+  const repaired = equipment.reconcileEquipmentLevelRequirements(
+    45,
+    savedEquipment,
+    [backpackBoots],
+  );
+  assert.equal(repaired.equipment.weapon?.id, wearableWeapon.id);
+  assert.equal(repaired.equipment.shoulders, null);
+  assert.deepEqual(
+    repaired.inventory.map((item) => item.id),
+    [backpackBoots.id, lockedShoulders.id],
+  );
+  assert.deepEqual(repaired.unequipped.map((item) => item.id), [lockedShoulders.id]);
+  assert.equal(repaired.repaired, true);
+
+  const fullBackpack = Array.from({ length: 20 }, (_, index) =>
+    equipment.rollGear(`level-repair-full-${index}`, {
+      level: 40,
+      rarity: "common",
+    }),
+  );
+  const capacityIndependent = equipment.reconcileEquipmentLevelRequirements(
+    45,
+    savedEquipment,
+    fullBackpack,
+  );
+  assert.equal(
+    capacityIndependent.inventory.length,
+    fullBackpack.length + 1,
+    "restore must preserve locked gear even when the paid backpack capacity is already full",
+  );
+  assert.equal(capacityIndependent.inventory.at(-1)?.id, lockedShoulders.id);
+});
+
+test("equip-level reconciliation safely normalizes invalid player levels", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const highGear = equipment.rollGear("level-repair-invalid-player", {
+    level: 70,
+    slot: "helm",
+    rarity: "legendary",
+  });
+  const savedEquipment = equipment.createEmptyEquipment();
+  savedEquipment.helm = highGear;
+  for (const invalidLevel of [Number.NaN, Number.POSITIVE_INFINITY, "70", null]) {
+    const repaired = equipment.reconcileEquipmentLevelRequirements(
+      invalidLevel,
+      savedEquipment,
+      [],
+    );
+    assert.equal(repaired.equipment.helm, null);
+    assert.equal(repaired.inventory[0]?.id, highGear.id);
+  }
+});
+
+test("save hydration strips duplicate gear identities and remains idempotent", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const weapon = equipment.rollGear("level-repair-duplicate", {
+    level: 55,
+    slot: "weapon",
+    rarity: "epic",
+  });
+  const savedEquipment = equipment.createEmptyEquipment();
+  savedEquipment.weapon = weapon;
+  const duplicateBackpackItem = structuredClone(weapon);
+
+  const repaired = equipment.reconcileEquipmentLevelRequirements(
+    50,
+    savedEquipment,
+    [duplicateBackpackItem],
+  );
+  assert.equal(repaired.equipment.weapon?.id, weapon.id);
+  assert.deepEqual(repaired.inventory, []);
+  assert.equal(repaired.repaired, true);
+
+  const repeated = equipment.reconcileEquipmentLevelRequirements(
+    50,
+    repaired.equipment,
+    repaired.inventory,
+  );
+  assert.deepEqual(repeated.equipment, repaired.equipment);
+  assert.deepEqual(repeated.inventory, repaired.inventory);
+  assert.equal(repeated.repaired, false);
+});
+
+test("save hydration rejects gear stored under the wrong equipment slot", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const weapon = equipment.rollGear("level-repair-wrong-slot", {
+    level: 50,
+    slot: "weapon",
+    rarity: "rare",
+  });
+  const malformedLoadout = equipment.createEmptyEquipment();
+  malformedLoadout.helm = weapon;
+  const repaired = equipment.reconcileEquipmentLevelRequirements(
+    50,
+    malformedLoadout,
+    [],
+  );
+  assert.equal(repaired.equipment.helm, null);
+  assert.equal(repaired.equipment.weapon, null);
+  assert.deepEqual(repaired.inventory, []);
+  assert.equal(repaired.repaired, true);
+});
+
 test("every equip gesture is protected by the shared level requirement", async () => {
   const [source, overlay, town] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
@@ -3643,8 +3770,23 @@ test("every equip gesture is protected by the shared level requirement", async (
   assert.match(overlay, /playerLevel: number;/);
   assert.match(overlay, /아이템 LV\.\{selectedItem\.level\} · 착용 LV\.\{selectedRequiredLevel\}/);
   assert.match(overlay, /disabled=\{selectedLevelLocked\}/);
+  assert.match(
+    overlay,
+    /const item = inventory\.find\(\(candidate\) => candidate\.id === gearId\);[\s\S]{0,120}?if \(!item \|\| !canEquipGearAtLevel\(playerLevel, item\)\) return;/,
+    "the overlay wrapper must reject locked gear even if an enabled-looking gesture is synthesized",
+  );
   assert.match(source, /playerLevel=\{hud\.player\.level\}/);
   assert.match(town, /playerLevel=\{level\}/);
+  assert.match(
+    source,
+    /reconcileEquipmentLevelRequirements\(\s*data\.player\.level,\s*data\.player\.equipment,\s*data\.player\.inventory,?\s*\)/,
+    "save restoration must apply the same equip gate before combat stats hydrate",
+  );
+  assert.match(
+    source,
+    /gearReconciliation\.repaired[\s\S]{0,500}?writeSaveSlot\(slot,[\s\S]{0,500}?equipment: cloneEquipment\(normalizedEquipment\)[\s\S]{0,200}?inventory: normalizedInventory\.map\(cloneGearItem\)/,
+    "repaired equipment must be persisted immediately instead of resurrecting on reload",
+  );
 });
 
 test("equipment rolls twenty-eight real affix types from twenty-option slot pools deterministically", async () => {
@@ -4859,8 +5001,8 @@ test("corrected augment icons, memory pickups, and layered projectile VFX stay w
     /#78e3cd/i,
     "the legacy teal circle must not be drawn behind or after memory-fragment sprites",
   );
-  assert.match(source, /drawProjectileVfx\(projectile, ambientTime, world\.projectiles\.length, "trail"\)/);
-  assert.match(source, /drawProjectileVfx\(projectile, ambientTime, world\.projectiles\.length, "core"\)/);
+  assert.match(source, /shouldDrawProjectileTrail\([\s\S]{0,180}?drawProjectileVfx\(projectile, ambientTime, projectileCount, "trail"\)/);
+  assert.match(source, /drawProjectileVfx\(projectile, ambientTime, projectileCount, "core"\)/);
   assert.match(source, /spawnCombatEffect\(\s*"chainArc"/);
   assert.match(source, /distanceToSegment\(/);
   for (const affinity of ["arcane", "ember", "storm", "frost", "poison", "echo", "enemy", "witch", "boss"]) {
@@ -4963,9 +5105,10 @@ test("enemy loot, inventory, equipment comparison, and save restoration remain i
     /(?:equipment\[[^\]]+\]|equipment\.[a-z]+)\s*=/,
     "the equip action must update a loadout slot",
   );
-  assert.ok(
-    [...source.matchAll(/\bnormalizeEquipment\b/g)].length >= 2,
-    "normalizeEquipment must be imported and applied while restoring a save",
+  assert.match(
+    source,
+    /reconcileEquipmentLevelRequirements\(\s*data\.player\.level,\s*data\.player\.equipment,\s*data\.player\.inventory,?\s*\)/,
+    "save restore must normalize gear and apply the equip-level gate",
   );
 });
 
@@ -5713,7 +5856,8 @@ test("expedition and plaza render independent fitted layers and preserve public 
   assert.match(paperdollSource, /paperdoll\/v2/);
   assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
-  assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment/);
+  assert.match(source, /getEquipmentRuntimeCache\(player\.equipment\)[\s\S]{0,120}?\.loadout/);
+  assert.match(source, /paperdollLoadoutFromEquipment\(equipment\)/);
   assert.match(source, /createPaperdollEquipmentSignature/);
   assert.match(source, /paperdollImagesRef\.current\.reconcile\(paths\)/);
   assert.match(source, /paperdollImagesRef\.current\.imageMap\(\)/);
@@ -5821,7 +5965,8 @@ test("PVP preserves grounded gait and renders only the local save through the sh
   );
   assert.match(source, /PAPERDOLL_BODY_PATH/);
   assert.match(source, /createBrowserPaperdollImageStore/);
-  assert.match(source, /paperdollLoadoutFromEquipment\(\s*normalizeEquipment\(save\.player\.equipment\)/);
+  assert.match(source, /reconcileEquipmentLevelRequirements\(\s*save\.player\.level,\s*save\.player\.equipment,\s*save\.player\.inventory/);
+  assert.match(source, /paperdollLoadoutFromEquipment\(gear\.equipment\)/);
   assert.match(source, /paperdollLayerPathsForLoadout\(localPaperdollLoadout\)/);
   assert.match(source, /drawPaperdollCharacterDirect\(context, \{/);
   assert.match(
@@ -5986,7 +6131,7 @@ test("inventory clears a tooltip before moving its item to equipment", async () 
   const overlay = await readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8");
   assert.match(
     overlay,
-    /const equipItem\s*=\s*\(gearId:\s*string\)\s*=>\s*\{\s*if \(readOnly\) return;\s*setHoveredItem\(null\);\s*onEquip\(gearId\);\s*\}/,
+    /const equipItem\s*=\s*\(gearId:\s*string\)\s*=>\s*\{\s*if \(readOnly\) return;[\s\S]{0,260}?setHoveredItem\(null\);\s*onEquip\(gearId\);\s*\}/,
   );
   assert.match(
     overlay,

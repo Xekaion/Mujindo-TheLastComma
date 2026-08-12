@@ -324,7 +324,7 @@ test("D1 and the arena wire saved build profiles into adaptive HP, damage caps, 
 
   assert.match(
     arena,
-    /const save = readSaveSlot\(readActiveSaveSlot\(\)\);[\s\S]{0,300}?level: save\.player\.level,[\s\S]{0,300}?calculateEquipmentCombatPower\(\s*normalizeEquipment\(save\.player\.equipment\),?\s*\)[\s\S]{0,300}?augmentStacks: Object\.values\(save\.player\.augments\)\.reduce/,
+    /const save = readSaveSlot\(readActiveSaveSlot\(\)\);[\s\S]{0,400}?reconcileEquipmentLevelRequirements\(\s*save\.player\.level,\s*save\.player\.equipment,\s*save\.player\.inventory,?\s*\)[\s\S]{0,300}?level: save\.player\.level,[\s\S]{0,300}?calculateEquipmentCombatPower\(gear\.equipment\)[\s\S]{0,300}?augmentStacks: Object\.values\(save\.player\.augments\)\.reduce/,
     "the queue profile must be rebuilt from the active save's level, equipment, and capped augments",
   );
   assert.match(arena, /getRealtimeClient\(\)\.joinQueue\(buildProfile\)/);

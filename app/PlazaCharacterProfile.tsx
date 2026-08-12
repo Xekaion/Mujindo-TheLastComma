@@ -21,6 +21,8 @@ import {
   gearIconCell,
   getGearAffixDisplay,
   getGearImplicitDisplay,
+  getGearRequiredLevel,
+  reconcileEquipmentLevelRequirements,
   type EquipmentLoadout,
   type EquipmentSlot,
   type GearItem,
@@ -42,7 +44,12 @@ export type PlazaCharacterProfileProps = Readonly<{
 }>;
 
 function profileEquipment(profile: HubCharacterProfile | null): EquipmentLoadout {
-  return hubPublicEquipmentToLoadout(profile?.publicEquipment);
+  const publicLoadout = hubPublicEquipmentToLoadout(profile?.publicEquipment);
+  return reconcileEquipmentLevelRequirements(
+    profile?.level ?? 1,
+    publicLoadout,
+    [],
+  ).equipment;
 }
 
 function rarityClass(item: GearItem) {
@@ -147,7 +154,9 @@ function SelectedEquipmentDetail({ item }: { item: GearItem | null }) {
             {GEAR_RARITY_META[item.rarity].label} · {EQUIPMENT_SLOT_LABELS[item.slot]}
           </small>
           <h3>{formatGearDisplayName(item, { includeZero: true })}</h3>
-          <span>아이템 LV.{item.level} · 품질 {item.qualityScore}/100</span>
+          <span>
+            아이템 LV.{item.level} · 착용 LV.{getGearRequiredLevel(item)} · 품질 {item.qualityScore}/100
+          </span>
         </div>
       </div>
 

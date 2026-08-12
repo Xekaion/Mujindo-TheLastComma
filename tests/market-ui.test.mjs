@@ -103,11 +103,16 @@ test("market polling and write commands follow the authoritative protocol", asyn
 test("market equipment names show enhancement without mutating trade commands", async () => {
   const board = await readSource("app/market/MarketBoard.tsx");
 
-  assert.match(board, /import \{ formatGearDisplayName, normalizeGearEnhancement \} from "\.\.\/equipment"/);
+  assert.match(board, /formatGearDisplayName,[\s\S]{0,80}?getGearRequiredLevel,[\s\S]{0,80}?normalizeGearEnhancement/);
   assert.match(
     board,
     /function formatMarketGearName\(item: MarketVaultItem\)[\s\S]{0,180}?formatGearDisplayName\(item, \{ includeZero: true \}\)/,
     "market names must show the exact enhancement stage from +0 onward",
+  );
+  assert.match(
+    board,
+    /function formatMarketGearLevel\(item: MarketVaultItem\)[\s\S]{0,160}?getGearRequiredLevel\(item\)/,
+    "auction rows and confirmations must expose the shared -20 equip requirement",
   );
   assert.match(
     board,

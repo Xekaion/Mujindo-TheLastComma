@@ -11,9 +11,7 @@ import PlazaHub from "./PlazaHub";
 import TownCaravanOverlay from "./TownCaravanOverlay";
 import {
   calculateEquipmentCombatPower,
-  normalizeEquipment,
-  normalizeGearItem,
-  type GearItem,
+  reconcileEquipmentLevelRequirements,
 } from "./equipment";
 import {
   getMemoryPlazaClient,
@@ -134,19 +132,16 @@ export default function GameEntryFlow({
     return readSaveSlot(selection.slot);
   }, [saveRevision, selection]);
 
-  const equipment = useMemo(
-    () => normalizeEquipment(savedCharacter?.player.equipment),
+  const reconciledGear = useMemo(
+    () => reconcileEquipmentLevelRequirements(
+      savedCharacter?.player.level ?? 1,
+      savedCharacter?.player.equipment,
+      savedCharacter?.player.inventory,
+    ),
     [savedCharacter],
   );
-  const inventory = useMemo(
-    () =>
-      Array.isArray(savedCharacter?.player.inventory)
-        ? savedCharacter.player.inventory
-            .map((item) => normalizeGearItem(item))
-            .filter((item): item is GearItem => item !== null)
-        : [],
-    [savedCharacter],
-  );
+  const equipment = reconciledGear.equipment;
+  const inventory = reconciledGear.inventory;
   const memoryAsh = Math.max(
     0,
     Math.floor(Number(savedCharacter?.player.memoryAsh) || 0),

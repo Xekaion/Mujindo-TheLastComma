@@ -49,6 +49,14 @@ import {
   resolveEquippedRarityVfxPlan,
 } from "./equipped-rarity-vfx";
 import {
+  compactArrayInPlace,
+  compactPositiveFieldInPlace,
+  findNearestAliveEntity,
+  findNearestUnhitAliveEntity,
+  shouldDrawProjectileTrail,
+  sweptCircleMayOverlap,
+} from "./runtime-performance";
+import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
   calculateExpeditionEnemyCount,
@@ -252,8 +260,7 @@ import {
   getGearSalvageAshBreakdown,
   getGearEnhancementRule,
   isExpeditionStartingRoom,
-  normalizeEquipment,
-  normalizeGearItem,
+  reconcileEquipmentLevelRequirements,
   rollGear,
   rollGearDropLevel,
   rollGearDropRarity,
@@ -311,6 +318,9 @@ const ROOM_DOOR_DRAW_WIDTH = 224;
 const ROOM_DOOR_DRAW_HEIGHT = 148;
 const ROOM_DOOR_CLOSE_REVEAL_TRANSITION = 0.24;
 const ROOM_DOOR_ASSET_PATH = "/assets/effects/room-portcullis-v1.png";
+const EMPTY_EQUIPMENT_RUNTIME_STATS = aggregateEquipmentStats(
+  createEmptyEquipment(),
+);
 type DoorSide = "west" | "east" | "north" | "south";
 const ROOM_DOOR_PLACEMENTS: ReadonlyArray<{
   side: DoorSide;
@@ -2168,6 +2178,34 @@ export default function GameCanvas({
   >({});
   const stairRoomArtLastUsedRef = useRef(new Map<RoomStairArtKey, number>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const equipmentRuntimeCacheRef = useRef<{
+    equipment: EquipmentLoadout | null;
+    equipmentItems: readonly (GearItem | null)[];
+    signature: string;
+    stats: GearStatTotals;
+    loadout: ReturnType<typeof paperdollLoadoutFromEquipment>;
+  }>({
+    equipment: null,
+    equipmentItems: [],
+    signature: "",
+    stats: EMPTY_EQUIPMENT_RUNTIME_STATS,
+    loadout: {},
+  });
+  const hudGearSnapshotRef = useRef<{
+    equipment: EquipmentLoadout | null;
+    inventory: GearItem[] | null;
+    equipmentItems: readonly (GearItem | null)[];
+    inventoryItems: readonly GearItem[];
+    equipmentSnapshot: EquipmentLoadout;
+    inventorySnapshot: GearItem[];
+  }>({
+    equipment: null,
+    inventory: null,
+    equipmentItems: [],
+    inventoryItems: [],
+    equipmentSnapshot: createEmptyEquipment(),
+    inventorySnapshot: [],
+  });
   const equippedRarityVfxPlanRef = useRef<{
     signature: string;
     plan: ReturnType<typeof resolveEquippedRarityVfxPlan>;
@@ -2203,6 +2241,29 @@ export default function GameCanvas({
   const lootVfxShowcaseSpawnedRef = useRef(false);
   const initialSaveSlotHandledRef = useRef(false);
   const firstRoomGearDroppedRef = useRef(false);
+
+  const getEquipmentRuntimeCache = useCallback((equipment: EquipmentLoadout) => {
+    const cached = equipmentRuntimeCacheRef.current;
+    if (cached.equipment === equipment) {
+      let unchanged = cached.equipmentItems.length === EQUIPMENT_SLOTS.length;
+      for (let index = 0; unchanged && index < EQUIPMENT_SLOTS.length; index += 1) {
+        unchanged =
+          cached.equipmentItems[index] === equipment[EQUIPMENT_SLOTS[index]];
+      }
+      if (unchanged) return cached;
+    }
+    const equipmentItems = EQUIPMENT_SLOTS.map((slot) => equipment[slot]);
+    const loadout = paperdollLoadoutFromEquipment(equipment);
+    const next = {
+      equipment,
+      equipmentItems,
+      signature: createPaperdollGearSignature(loadout),
+      stats: aggregateEquipmentStats(equipment),
+      loadout,
+    };
+    equipmentRuntimeCacheRef.current = next;
+    return next;
+  }, []);
 
   const [mode, setMode] = useState<GameMode>("menu");
   const [started, setStarted] = useState(false);
@@ -2510,6 +2571,36 @@ export default function GameCanvas({
   const syncHud = useCallback(() => {
     const player = playerRef.current;
     const world = worldRef.current;
+    const gearSnapshotCache = hudGearSnapshotRef.current;
+    let equipmentChanged = gearSnapshotCache.equipment !== player.equipment;
+    for (
+      let index = 0;
+      !equipmentChanged && index < EQUIPMENT_SLOTS.length;
+      index += 1
+    ) {
+      equipmentChanged =
+        gearSnapshotCache.equipmentItems[index] !==
+        player.equipment[EQUIPMENT_SLOTS[index]];
+    }
+    if (equipmentChanged) {
+      const currentEquipmentItems = EQUIPMENT_SLOTS.map(
+        (slot) => player.equipment[slot],
+      );
+      gearSnapshotCache.equipment = player.equipment;
+      gearSnapshotCache.equipmentItems = currentEquipmentItems;
+      gearSnapshotCache.equipmentSnapshot = cloneEquipment(player.equipment);
+    }
+    if (
+      gearSnapshotCache.inventory !== player.inventory ||
+      player.inventory.length !== gearSnapshotCache.inventoryItems.length ||
+      !player.inventory.every(
+        (item, index) => gearSnapshotCache.inventoryItems[index] === item,
+      )
+    ) {
+      gearSnapshotCache.inventory = player.inventory;
+      gearSnapshotCache.inventoryItems = [...player.inventory];
+      gearSnapshotCache.inventorySnapshot = player.inventory.map(cloneGearItem);
+    }
     const nearbyRooms: Record<string, RoomRecord> = {};
     const nearbyVisited: string[] = [];
     for (let y = world.roomY - 5; y <= world.roomY + 5; y += 1) {
@@ -2519,13 +2610,37 @@ export default function GameCanvas({
         if (world.visitedLookup[key]) nearbyVisited.push(key);
       }
     }
-    const boss = world.enemies.find((enemy) => isBossKind(enemy.kind));
+    let boss: Enemy | undefined;
+    let playerProjectileCount = 0;
+    let hostileProjectileCount = 0;
+    let proofreaderEnemyCount = 0;
+    let proofreaderWindupCount = 0;
+    for (const enemy of world.enemies) {
+      if (!boss && isBossKind(enemy.kind)) boss = enemy;
+      if (enemy.kind !== 6) continue;
+      proofreaderEnemyCount += 1;
+      if (enemy.patternPhase === "windup") proofreaderWindupCount += 1;
+    }
+    for (const projectile of world.projectiles) {
+      if (projectile.hostile) hostileProjectileCount += 1;
+      else playerProjectileCount += 1;
+    }
+    let combatEffectCount = 0;
+    for (const effect of world.effects) {
+      if (
+        effect.kind !== "summon" &&
+        effect.kind !== "teleport" &&
+        effect.kind !== "lootAwakening"
+      ) {
+        combatEffectCount += 1;
+      }
+    }
     setHud({
       player: {
         ...player,
         augments: { ...player.augments },
-        equipment: cloneEquipment(player.equipment),
-        inventory: player.inventory.map(cloneGearItem),
+        equipment: gearSnapshotCache.equipmentSnapshot,
+        inventory: gearSnapshotCache.inventorySnapshot,
       },
       stableAugments: { ...stableAugmentsRef.current },
       world: {
@@ -2550,21 +2665,14 @@ export default function GameCanvas({
         binderPattern: boss?.binderPattern ?? null,
         binderPhase: boss?.binderPhase ?? null,
         activeEffects: world.effects.length,
-        playerProjectiles: world.projectiles.filter((projectile) => !projectile.hostile).length,
-        hostileProjectiles: world.projectiles.filter((projectile) => projectile.hostile).length,
-        combatEffects: world.effects.filter(
-          (effect) =>
-            effect.kind !== "summon" &&
-            effect.kind !== "teleport" &&
-            effect.kind !== "lootAwakening",
-        ).length,
+        playerProjectiles: playerProjectileCount,
+        hostileProjectiles: hostileProjectileCount,
+        combatEffects: combatEffectCount,
         summonEffects: world.effectCounts.summon,
         teleportEffects: world.effectCounts.teleport,
         gearDrops: world.gearDrops.length,
-        proofreaderEnemies: world.enemies.filter((enemy) => enemy.kind === 6).length,
-        proofreaderWindups: world.enemies.filter(
-          (enemy) => enemy.kind === 6 && enemy.patternPhase === "windup",
-        ).length,
+        proofreaderEnemies: proofreaderEnemyCount,
+        proofreaderWindups: proofreaderWindupCount,
         staircaseRevealed:
           world.roomCleared &&
           world.visitedLookup[keyOf(world.roomX, world.roomY)] === true &&
@@ -3471,12 +3579,13 @@ export default function GameCanvas({
       pendingEndingRef.current = false;
       setEndingChapterIndex(0);
       const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
-      const normalizedEquipment = normalizeEquipment(data.player.equipment);
-      const normalizedInventory = Array.isArray(data.player.inventory)
-        ? data.player.inventory
-            .map((item) => normalizeGearItem(item))
-            .filter((item): item is GearItem => item !== null)
-        : [];
+      const gearReconciliation = reconcileEquipmentLevelRequirements(
+        data.player.level,
+        data.player.equipment,
+        data.player.inventory,
+      );
+      const normalizedEquipment = gearReconciliation.equipment;
+      const normalizedInventory = gearReconciliation.inventory;
       const savedMaxHp = Number.isFinite(data.player.maxHp)
         ? Math.max(1, data.player.maxHp)
         : 100;
@@ -3567,6 +3676,25 @@ export default function GameCanvas({
       setStarted(true);
       enterRoom(savedDungeon.roomX, savedDungeon.roomY, "left");
       setGameMode("playing");
+      if (gearReconciliation.repaired) {
+        // Persist canonical collections immediately so a crash before the next
+        // shelter save cannot resurrect malformed or level-locked equipment.
+        writeSaveSlot(slot, {
+          ...data,
+          player: {
+            ...data.player,
+            equipment: cloneEquipment(normalizedEquipment),
+            inventory: normalizedInventory.map(cloneGearItem),
+          },
+        });
+        refreshSaveSlots();
+      }
+      if (gearReconciliation.unequipped.length > 0) {
+        setToast(
+          `세이브 복원 · 요구 레벨 미달 장비 ${gearReconciliation.unequipped.length}개를 가방으로 이동했습니다.`,
+        );
+        return true;
+      }
       setToast(`${slot}번 슬롯 · 고정된 기억에서 원정을 재개했습니다.`);
       return true;
     },
@@ -4229,6 +4357,17 @@ export default function GameCanvas({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
+    const roomVignette = context.createRadialGradient(
+      WIDTH / 2,
+      HEIGHT / 2,
+      180,
+      WIDTH / 2,
+      HEIGHT / 2,
+      735,
+    );
+    roomVignette.addColorStop(0, "rgba(0,0,0,0)");
+    roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
+    roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
     let frame = 0;
     let last = performance.now();
     let canvasCssScale = 1;
@@ -4308,7 +4447,7 @@ export default function GameCanvas({
       const player = playerRef.current;
       if (player.invulnerable > 0 || player.dashTime > 0) return;
       let mitigated = Math.min(amount, player.maxHp * 0.4);
-      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      const equipmentStats = getEquipmentRuntimeCache(player.equipment).stats;
       mitigated *= 1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
       mitigated *= 1 - Math.min(0.3, equipmentStats.cosmicAegisPercent / 100);
       if (hasLegendaryPower(player, "starfallMantle") && player.starfallMantleTime > 0) {
@@ -4606,7 +4745,7 @@ export default function GameCanvas({
       const player = playerRef.current;
       const world = worldRef.current;
       reconcileLegendaryRuntime(player);
-      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      const equipmentStats = getEquipmentRuntimeCache(player.equipment).stats;
       const projectileSizeMultiplier =
         (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
         simpleAugmentMultiplier(
@@ -4863,7 +5002,7 @@ export default function GameCanvas({
       const bloodwovenBurst =
         hasLegendaryPower(player, "bloodwovenGrip") && player.bloodwovenBurstReady;
       if (bloodwovenBurst) player.bloodwovenBurstReady = false;
-      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      const equipmentStats = getEquipmentRuntimeCache(player.equipment).stats;
       const projectileSizeMultiplier =
         (1 + Math.min(150, equipmentStats.projectileSizePercent) / 100) *
         simpleAugmentMultiplier(
@@ -5238,7 +5377,9 @@ export default function GameCanvas({
       if (!isSimulationRunning()) return;
       const player = playerRef.current;
       const world = worldRef.current;
-      const equipmentStats = aggregateEquipmentStats(player.equipment);
+      // Equipment changes only on explicit inventory/forge actions. Keep the
+      // aggregate and cosmetic loadout stable across the 60 FPS loop.
+      const equipmentStats = getEquipmentRuntimeCache(player.equipment).stats;
       world.transition = Math.max(0, world.transition - dt);
       // Keep the raised gate behind the first half of the room-crossfade, then
       // visibly slam it down as the new room is revealed. Collision is already
@@ -5250,9 +5391,9 @@ export default function GameCanvas({
         world.doorMotion = advanceRoomDoorMotion(world.doorMotion, dt);
       }
       for (const effect of world.doorEffects) effect.life -= dt;
-      world.doorEffects = world.doorEffects.filter((effect) => effect.life > 0);
+      compactPositiveFieldInPlace(world.doorEffects, "life");
       for (const effect of world.effects) effect.life -= dt;
-      world.effects = world.effects.filter((effect) => effect.life > 0);
+      compactPositiveFieldInPlace(world.effects, "life");
       for (const drop of world.gearDrops) {
         drop.pickupDelay = Math.max(0, drop.pickupDelay - dt);
         const revealDuration = EQUIPMENT_RARITY_VFX[drop.item.rarity].awakeningDuration;
@@ -6665,16 +6806,12 @@ export default function GameCanvas({
           }
         }
         if (!projectile.hostile && !projectile.returning && projectile.homing) {
-          let homingTarget: Enemy | undefined;
-          let homingDistance = Infinity;
-          for (const enemy of world.enemies) {
-            if (enemy.hp <= 0 || projectile.hit.has(enemy.id)) continue;
-            const candidateDistance = distance(projectile.x, projectile.y, enemy.x, enemy.y);
-            if (candidateDistance < homingDistance) {
-              homingTarget = enemy;
-              homingDistance = candidateDistance;
-            }
-          }
+          const homingTarget = findNearestUnhitAliveEntity(
+            world.enemies,
+            projectile.x,
+            projectile.y,
+            projectile.hit,
+          );
           if (homingTarget) {
             const speed = Math.hypot(projectile.vx, projectile.vy);
             const currentAngle = Math.atan2(projectile.vy, projectile.vx);
@@ -6760,6 +6897,20 @@ export default function GameCanvas({
         if (!projectile.returning && projectile.outboundSpent) continue;
         for (const enemy of world.enemies) {
           if (enemy.hp <= 0 || projectile.hit.has(enemy.id)) continue;
+          const collisionRadius = projectile.radius + enemy.radius * 0.72;
+          if (
+            !sweptCircleMayOverlap(
+              projectile.previousX,
+              projectile.previousY,
+              projectile.x,
+              projectile.y,
+              enemy.x,
+              enemy.y,
+              collisionRadius,
+            )
+          ) {
+            continue;
+          }
           if (
             distanceToSegment(
               enemy.x,
@@ -6769,7 +6920,7 @@ export default function GameCanvas({
               projectile.x,
               projectile.y,
             ) <
-            projectile.radius + enemy.radius * 0.72
+            collisionRadius
           ) {
             projectile.hit.add(enemy.id);
             if (
@@ -6845,14 +6996,14 @@ export default function GameCanvas({
             }
             const storm = powerRankOf(player, "storm");
             if (storm > 0 && Math.random() < 1 - Math.pow(0.8, storm)) {
-              const next = world.enemies
-                .filter((other) => other.id !== enemy.id && other.hp > 0)
-                .sort(
-                  (a, b) =>
-                    distance(enemy.x, enemy.y, a.x, a.y) -
-                    distance(enemy.x, enemy.y, b.x, b.y),
-              )[0];
-              if (next && distance(enemy.x, enemy.y, next.x, next.y) < 260) {
+              const next = findNearestAliveEntity(
+                world.enemies,
+                enemy.x,
+                enemy.y,
+                enemy.id,
+                260,
+              );
+              if (next) {
                 const plagueStorm = activeSynergies(player).find(
                   (synergy) => synergy.name === "역병 폭풍",
                 );
@@ -6886,14 +7037,14 @@ export default function GameCanvas({
             }
             const ricochetRank = powerRankOf(player, "ricochet");
             if (ricochetRank > 0 && Math.random() < 1 - Math.pow(0.88, ricochetRank)) {
-              const next = world.enemies
-                .filter((other) => other.id !== enemy.id && other.hp > 0)
-                .sort(
-                  (a, b) =>
-                    distance(enemy.x, enemy.y, a.x, a.y) -
-                    distance(enemy.x, enemy.y, b.x, b.y),
-                )[0];
-              if (next && distance(enemy.x, enemy.y, next.x, next.y) < 230) {
+              const next = findNearestAliveEntity(
+                world.enemies,
+                enemy.x,
+                enemy.y,
+                enemy.id,
+                230,
+              );
+              if (next) {
                 const boneEcho = activeSynergies(player).find(
                   (synergy) => synergy.name === "백골 메아리",
                 );
@@ -6930,7 +7081,8 @@ export default function GameCanvas({
           }
         }
       }
-      world.projectiles = world.projectiles.filter(
+      compactArrayInPlace(
+        world.projectiles,
         (projectile) =>
           projectile.life > 0 &&
           projectile.x > -80 &&
@@ -6939,9 +7091,11 @@ export default function GameCanvas({
           projectile.y < HEIGHT + 80,
       );
 
+      // Snapshot first: kill callbacks can splash damage, and newly killed
+      // enemies must remain for the next tick just as in the original logic.
       const dead = world.enemies.filter((enemy) => enemy.hp <= 0);
       for (const enemy of dead) killEnemy(enemy);
-      world.enemies = world.enemies.filter((enemy) => enemy.hp > 0);
+      compactArrayInPlace(world.enemies, (enemy) => enemy.hp > 0);
 
       const collectionRangeMultiplier = simpleAugmentMultiplier(
         powerRankOf(player, "collection"),
@@ -8519,18 +8673,7 @@ export default function GameCanvas({
       context.fillRect(0, 0, WIDTH, HEIGHT);
       context.restore();
 
-      const vignette = context.createRadialGradient(
-        WIDTH / 2,
-        HEIGHT / 2,
-        180,
-        WIDTH / 2,
-        HEIGHT / 2,
-        735,
-      );
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(0.68, "rgba(0,0,0,.04)");
-      vignette.addColorStop(1, "rgba(0,0,0,.54)");
-      context.fillStyle = vignette;
+      context.fillStyle = roomVignette;
       context.fillRect(0, 0, WIDTH, HEIGHT);
 
       const ambientTime = performance.now() / 1000;
@@ -8918,8 +9061,17 @@ export default function GameCanvas({
         }
       }
 
+      const projectileCount = world.projectiles.length;
       for (const projectile of world.projectiles) {
-        drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "trail");
+        if (
+          shouldDrawProjectileTrail(
+            projectile.id,
+            projectile.hostile,
+            projectileCount,
+          )
+        ) {
+          drawProjectileVfx(projectile, ambientTime, projectileCount, "trail");
+        }
       }
 
       for (const enemy of world.enemies) {
@@ -9116,7 +9268,7 @@ export default function GameCanvas({
       }
 
       for (const projectile of world.projectiles) {
-        drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "core");
+        drawProjectileVfx(projectile, ambientTime, projectileCount, "core");
       }
       for (const effect of world.doorEffects) {
         if (effect.kind !== "timeRiftTelegraph") {
@@ -9166,12 +9318,9 @@ export default function GameCanvas({
       // destination squeezed Harin horizontally and made every gait look wrong.
       const playerSpriteWidth = 171;
       const playerSpriteHeight = 128;
-      const playerPaperdollLoadout = paperdollLoadoutFromEquipment(
-        player.equipment,
-      );
-      const playerPaperdollSignature = createPaperdollGearSignature(
-        playerPaperdollLoadout,
-      );
+      const equipmentRuntime = getEquipmentRuntimeCache(player.equipment);
+      const playerPaperdollLoadout = equipmentRuntime.loadout;
+      const playerPaperdollSignature = equipmentRuntime.signature;
       if (equippedRarityVfxPlanRef.current.signature !== playerPaperdollSignature) {
         equippedRarityVfxPlanRef.current = {
           signature: playerPaperdollSignature,
@@ -9328,6 +9477,7 @@ export default function GameCanvas({
     };
   }, [
     gainXp,
+    getEquipmentRuntimeCache,
     isSimulationRunning,
     makeEnemy,
     setGameMode,

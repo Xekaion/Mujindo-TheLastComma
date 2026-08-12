@@ -30,7 +30,10 @@ test("the plaza binds selected save visuals and keeps floor claims inside charac
   ]);
 
   assert.match(flow, /readSaveSlot\(selection\.slot\)/);
-  assert.match(flow, /normalizeEquipment\(savedCharacter\?\.player\.equipment\)/);
+  assert.match(
+    flow,
+    /reconcileEquipmentLevelRequirements\(\s*savedCharacter\?\.player\.level \?\? 1,\s*savedCharacter\?\.player\.equipment,\s*savedCharacter\?\.player\.inventory/,
+  );
   assert.match(flow, /client\.enter\(\{/);
   assert.match(flow, /characterSlot: selection\.slot/);
   assert.match(flow, /savedCharacter\?\.world\?\.dungeonFloor/);
@@ -68,6 +71,8 @@ test("right-click character inspection publishes only canonical equipped gear", 
   assert.match(profile, /지하 \{dungeonFloor\.toLocaleString\("ko-KR"\)\}층/);
   assert.match(profile, /EQUIPMENT_SLOTS\.map\(\(slot\) =>/);
   assert.match(profile, /InventoryPaperdollFigure equipment=\{equipment\}/);
+  assert.match(profile, /getGearRequiredLevel\(item\)/);
+  assert.match(profile, /reconcileEquipmentLevelRequirements\(\s*profile\?\.level \?\? 1/);
   assert.match(profile, /role="dialog"/);
   assert.match(profile, /aria-modal="true"/);
   assert.match(protocol, /type HubPublicGearItem = \{/);
@@ -139,7 +144,7 @@ test("I opens a read-only inventory for the selected plaza character", async () 
   );
   assert.match(
     flow,
-    /savedCharacter\?\.player\.inventory[\s\S]{0,420}?normalizeGearItem/,
+    /reconcileEquipmentLevelRequirements\(\s*savedCharacter\?\.player\.level \?\? 1,\s*savedCharacter\?\.player\.equipment,\s*savedCharacter\?\.player\.inventory/,
     "plaza inventory entries must be normalized from the selected save",
   );
   assert.match(flow, /inventoryCapacityFor\(readShopEntitlements\(\)\)/);

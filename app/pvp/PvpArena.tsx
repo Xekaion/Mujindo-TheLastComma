@@ -32,7 +32,7 @@ import {
 } from "../realtime-client";
 import {
   calculateEquipmentCombatPower,
-  normalizeEquipment,
+  reconcileEquipmentLevelRequirements,
 } from "../equipment";
 import {
   PAPERDOLL_BODY_PATH,
@@ -100,11 +100,14 @@ function readLocalPvpBuildProfile(): PvpBuildProfile {
   if (typeof window === "undefined") return { ...DEFAULT_PVP_BUILD_PROFILE };
   const save = readSaveSlot(readActiveSaveSlot());
   if (!save) return { ...DEFAULT_PVP_BUILD_PROFILE };
+  const gear = reconcileEquipmentLevelRequirements(
+    save.player.level,
+    save.player.equipment,
+    save.player.inventory,
+  );
   return sanitizePvpBuildProfile({
     level: save.player.level,
-    equipmentPower: calculateEquipmentCombatPower(
-      normalizeEquipment(save.player.equipment),
-    ),
+    equipmentPower: calculateEquipmentCombatPower(gear.equipment),
     augmentStacks: Object.values(save.player.augments).reduce(
       (total, stacks) => total + stacks,
       0,
@@ -121,9 +124,12 @@ function readLocalPvpPaperdollLoadout(): PaperdollLoadout {
   if (typeof window === "undefined") return {};
   const save = readSaveSlot(readActiveSaveSlot());
   if (!save) return {};
-  return paperdollLoadoutFromEquipment(
-    normalizeEquipment(save.player.equipment),
+  const gear = reconcileEquipmentLevelRequirements(
+    save.player.level,
+    save.player.equipment,
+    save.player.inventory,
   );
+  return paperdollLoadoutFromEquipment(gear.equipment);
 }
 
 export default function PvpArena({ suggestedName }: PvpArenaProps) {
