@@ -69,6 +69,18 @@ import {
   MARGIN_SEVERER_WALK_ROW_CROPS,
   marginSeverLine,
 } from "./enemy-balance";
+import {
+  SILENT_LIBRARIAN_DAMAGE_MULTIPLIER,
+  SILENT_LIBRARIAN_KIND,
+  SILENT_LIBRARIAN_MAX_PER_ROOM,
+  SILENT_LIBRARIAN_RECOVERY_SECONDS,
+  SILENT_LIBRARIAN_TELEGRAPH_SECONDS,
+  SILENT_LIBRARIAN_UNLOCK_DEPTH,
+  SILENT_LIBRARIAN_WAVE_SECONDS,
+  silentLibrarianWaveProgress,
+  silentLibrarianWaveRadius,
+  sweptEchoRingHits,
+} from "./silent-librarian";
 import { experienceRequiredForLevel } from "./progression";
 import {
   BASE_INVENTORY_CAPACITY,
@@ -281,7 +293,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
 type ProjectileAffinity =
   | "arcane"
   | "blood"
@@ -354,7 +366,9 @@ type Enemy = {
     | "orbit"
     | "riftWindup"
     | "inscribe"
-    | "sever";
+    | "sever"
+    | "echoWindup"
+    | "echoWave";
   patternTimer?: number;
   patternX?: number;
   patternY?: number;
@@ -1431,6 +1445,7 @@ const ENEMY_NAMES = [
   "시간의 추적자",
   "여백 절단사",
   "종언의 제본사",
+  "침묵의 사서",
 ];
 
 const spriteCrops = [
@@ -1454,6 +1469,7 @@ const WALK_IMAGE_KEYS = [
   "walkTimeStalker",
   "walkMarginSeverer",
   "walkFinalBinder",
+  "walkSilentLibrarian",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1485,6 +1501,9 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   MARGIN_SEVERER_DIRECTION_FRAMES,
   // The generated boss sheet authors all eight rows after synthesizing SE from
   // the exact horizontal mirror of SW while preserving animation-frame order.
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
+  // The Silent Librarian atlas is normalized to the runtime's canonical order:
+  // S, SW, W, NW, N, NE, E, SE. No runtime mirroring is needed.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
@@ -2642,10 +2661,11 @@ export default function GameCanvas({
         92,
         68,
         FINAL_BINDER_BASE_HP,
+        82,
       ];
-      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED];
-      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11, FINAL_BINDER_BASE_DAMAGE];
-      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS];
+      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED, 54];
+      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11, FINAL_BINDER_BASE_DAMAGE, 14];
+      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS, 25];
       const radius = radii[kind];
       const spawnPoint = safeWalkableFloorPoint(x, y, radius);
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
@@ -2681,7 +2701,7 @@ export default function GameCanvas({
         patternPhase:
           kind === 6
             ? "stalk"
-            : kind === 7 || kind === MARGIN_SEVERER_KIND
+            : kind === 7 || kind === MARGIN_SEVERER_KIND || kind === SILENT_LIBRARIAN_KIND
               ? "orbit"
               : undefined,
         patternTimer:
@@ -2695,6 +2715,8 @@ export default function GameCanvas({
               ? 1.4 + hash(worldRef.current.seed, x | 0, y | 0, 707) * 1.2
               : kind === MARGIN_SEVERER_KIND
                 ? 1.65 + hash(worldRef.current.seed, x | 0, y | 0, 807) * 1.1
+                : kind === SILENT_LIBRARIAN_KIND
+                  ? 1.8 + hash(worldRef.current.seed, x | 0, y | 0, 1007) * 1.2
                 : undefined,
         patternX:
           kind === 6
@@ -2707,7 +2729,7 @@ export default function GameCanvas({
         patternY: kind === 6 ? 1 : undefined,
         patternHit: false,
         strafeDirection:
-          kind === MARGIN_SEVERER_KIND
+          kind === MARGIN_SEVERER_KIND || kind === SILENT_LIBRARIAN_KIND
             ? hash(worldRef.current.seed, x | 0, y | 0, 817) < 0.5
               ? -1
               : 1
@@ -2748,6 +2770,7 @@ export default function GameCanvas({
         depth * 97 +
         world.dungeonFloor * 131;
       let marginSevererCount = 0;
+      let silentLibrarianCount = 0;
 
       if (kind !== "boss") world.activeBossKind = null;
 
@@ -2799,7 +2822,9 @@ export default function GameCanvas({
               ? [0, 1, 2, 6]
               : depth < 6
                 ? [0, 1, 2, 3, 4, 6, MARGIN_SEVERER_KIND]
-                : [0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND];
+                : depth < SILENT_LIBRARIAN_UNLOCK_DEPTH
+                  ? [0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND]
+                  : [0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND, SILENT_LIBRARIAN_KIND];
         let enemyKind =
           unlockedKinds[
             Math.floor(
@@ -2815,6 +2840,14 @@ export default function GameCanvas({
               hash(world.seed, world.roomX + i, world.roomY, 819) < 0.5 ? 2 : 4;
           } else {
             marginSevererCount += 1;
+          }
+        }
+        if (enemyKind === SILENT_LIBRARIAN_KIND) {
+          if (silentLibrarianCount >= SILENT_LIBRARIAN_MAX_PER_ROOM) {
+            enemyKind =
+              hash(world.seed, world.roomX + i, world.roomY, 1019) < 0.5 ? 2 : 7;
+          } else {
+            silentLibrarianCount += 1;
           }
         }
         const elite = kind === "elite" && i === 0;
@@ -3908,11 +3941,13 @@ export default function GameCanvas({
       walkTimeStalker: "/assets/walk/time-stalker-walk.png",
       walkMarginSeverer: "/assets/walk/margin-severer-walk-v1.png",
       walkFinalBinder: "/assets/walk/final-binder-walk-v1.png",
+      walkSilentLibrarian: "/assets/walk/silent-librarian-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
       marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
+      silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
@@ -6328,6 +6363,86 @@ export default function GameCanvas({
               enemy.patternTargetY = undefined;
             }
           }
+        } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
+          const phase = enemy.patternPhase ?? "orbit";
+          if (phase === "orbit") {
+            const preferredDistance = 285;
+            const radialCorrection = clamp((d - preferredDistance) / 140, -0.62, 0.66);
+            const strafeStrength = 0.68 * (enemy.strafeDirection ?? 1);
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeStrength;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeStrength;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5.35 + enemy.speed / 42) * slowMultiplier) % 4;
+
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "echoWindup";
+              enemy.patternTimer = SILENT_LIBRARIAN_TELEGRAPH_SECONDS;
+              enemy.patternHit = false;
+              enemy.moving = false;
+              enemy.facing = directionRow(
+                Math.cos(angle),
+                Math.sin(angle),
+                enemy.facing,
+              );
+              playGameSfx("timeRift", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+                playbackRate: 0.82,
+              });
+            }
+          } else if (phase === "echoWindup") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "echoWave";
+              enemy.patternTimer = SILENT_LIBRARIAN_WAVE_SECONDS;
+              enemy.patternHit = false;
+            }
+          } else if (phase === "echoWave") {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            const currentRadius = silentLibrarianWaveRadius(enemy.patternTimer ?? 0);
+            const previousRadius = silentLibrarianWaveRadius(
+              Math.min(SILENT_LIBRARIAN_WAVE_SECONDS, (enemy.patternTimer ?? 0) + dt),
+            );
+            if (
+              !enemy.patternHit &&
+              sweptEchoRingHits({
+                previousRadius,
+                currentRadius,
+                targetDistance: distance(player.x, player.y, enemy.x, enemy.y),
+                targetRadius: player.radius,
+              })
+            ) {
+              enemy.patternHit = true;
+              damagePlayer(enemy.damage * SILENT_LIBRARIAN_DAMAGE_MULTIPLIER);
+            }
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "recover";
+              enemy.patternTimer = SILENT_LIBRARIAN_RECOVERY_SECONDS;
+            }
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            if ((enemy.patternTimer ?? 0) <= 0) {
+              enemy.patternPhase = "orbit";
+              enemy.patternTimer =
+                2.8 + hash(world.seed, enemy.id, player.rooms, player.kills + 10007) * 0.8;
+              enemy.patternHit = false;
+              enemy.strafeDirection = enemy.strafeDirection === -1 ? 1 : -1;
+            }
+          }
         } else {
           let movement = 1;
           if (enemy.kind === 1 && d < 280) movement = -0.32;
@@ -6389,6 +6504,7 @@ export default function GameCanvas({
           enemy.kind !== 6 &&
           enemy.kind !== 7 &&
           enemy.kind !== MARGIN_SEVERER_KIND &&
+          enemy.kind !== SILENT_LIBRARIAN_KIND &&
           bossCanDealContactDamage &&
           distance(player.x, player.y, enemy.x, enemy.y) <
             player.radius + enemy.radius * 0.72
@@ -7270,6 +7386,65 @@ export default function GameCanvas({
         context.lineTo(lineLength / 2, 0);
         context.stroke();
       }
+      context.restore();
+      return true;
+    };
+
+    const drawSilentLibrarianEcho = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const phase = enemy.patternPhase;
+      if (phase !== "echoWindup" && phase !== "echoWave") return false;
+      const isWave = phase === "echoWave";
+      const progress = isWave
+        ? silentLibrarianWaveProgress(enemy.patternTimer ?? 0)
+        : clamp(
+            1 - (enemy.patternTimer ?? 0) / SILENT_LIBRARIAN_TELEGRAPH_SECONDS,
+            0,
+            0.999,
+          );
+      const radius = isWave
+        ? silentLibrarianWaveRadius(enemy.patternTimer ?? 0)
+        : 48 + progress * 28;
+      const frameIndex = isWave ? (progress < 0.82 ? 2 : 3) : progress < 0.56 ? 0 : 1;
+      const drawSize = isWave ? Math.max(128, radius * 2.18) : 150 + progress * 68;
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+      context.globalCompositeOperation = "lighter";
+      context.globalAlpha = isWave ? (frameIndex === 3 ? 0.72 : 0.94) : 0.58 + progress * 0.3;
+      context.shadowColor = "#84f5ff";
+      context.shadowBlur = isWave ? 18 : 9 + progress * 10;
+      if (image?.complete && image.naturalWidth && image.naturalHeight) {
+        const sourceWidth = image.naturalWidth / 2;
+        const sourceHeight = image.naturalHeight / 2;
+        context.drawImage(
+          image,
+          (frameIndex % 2) * sourceWidth,
+          Math.floor(frameIndex / 2) * sourceHeight,
+          sourceWidth,
+          sourceHeight,
+          enemy.x - drawSize / 2,
+          enemy.y - drawSize / 2,
+          drawSize,
+          drawSize,
+        );
+      }
+      context.strokeStyle = isWave ? "#c8fbff" : "#b89155";
+      context.lineWidth = isWave ? 3.5 : 2;
+      context.beginPath();
+      // This ring is the exact world-space collision boundary. Keep it circular;
+      // a perspective ellipse would teach a different dodge timing than the hit test.
+      context.arc(enemy.x, enemy.y, radius, 0, Math.PI * 2);
+      context.stroke();
       context.restore();
       return true;
     };
@@ -8682,6 +8857,8 @@ export default function GameCanvas({
           drawMarginSeverLine(images.marginSeverLine, enemy);
         } else if (enemy.kind === FINAL_BINDER_KIND) {
           drawFinalBinderPattern(images.finalBinderPatterns, enemy);
+        } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
+          drawSilentLibrarianEcho(images.silentLibrarianEcho, enemy);
         }
       }
 
@@ -8759,6 +8936,8 @@ export default function GameCanvas({
                 ? 118
                 : enemy.kind === MARGIN_SEVERER_KIND
                   ? 116
+                  : enemy.kind === SILENT_LIBRARIAN_KIND
+                    ? 122
                 : 72 + enemy.radius;
         const spriteAlpha = enemy.slow > 0 ? 0.78 : 1;
         const walkWidth =
@@ -8772,6 +8951,8 @@ export default function GameCanvas({
                 ? 132
                 : enemy.kind === MARGIN_SEVERER_KIND
                   ? 140
+                  : enemy.kind === SILENT_LIBRARIAN_KIND
+                    ? 136
                 : size * 1.2;
         const walkHeight =
           enemy.kind === BLANK_CARTOGRAPHER_KIND
@@ -8784,6 +8965,8 @@ export default function GameCanvas({
                 ? 152
                 : enemy.kind === MARGIN_SEVERER_KIND
                   ? 154
+                  : enemy.kind === SILENT_LIBRARIAN_KIND
+                    ? 158
                 : size * 1.25;
         const directionFrame =
           ENEMY_DIRECTION_FRAMES[enemy.kind][enemy.facing] ??
@@ -8798,7 +8981,9 @@ export default function GameCanvas({
             walkWidth,
             walkHeight,
             spriteAlpha,
-            enemy.kind === 7 ? false : directionFrame.flipX,
+            enemy.kind === 7 || enemy.kind === SILENT_LIBRARIAN_KIND
+              ? false
+              : directionFrame.flipX,
             enemy.kind === MARGIN_SEVERER_KIND
               ? MARGIN_SEVERER_WALK_ROW_CROPS[directionFrame.row]
               : undefined,
@@ -8827,6 +9012,8 @@ export default function GameCanvas({
                   ? "#394a72"
                   : enemy.kind === MARGIN_SEVERER_KIND
                     ? "#75454b"
+                    : enemy.kind === SILENT_LIBRARIAN_KIND
+                      ? "#34545d"
                   : enemy.elite
                     ? "#b55a3e"
                     : "#746554";
@@ -8846,6 +9033,8 @@ export default function GameCanvas({
               ? "#63dbe8"
               : enemy.kind === MARGIN_SEVERER_KIND
                 ? "#8deaf0"
+                : enemy.kind === SILENT_LIBRARIAN_KIND
+                  ? "#a7f4f5"
               : "#b96649";
         context.fillRect(
           enemy.x - barWidth / 2,
@@ -8858,7 +9047,8 @@ export default function GameCanvas({
           isBossKind(enemy.kind) ||
           enemy.kind === 6 ||
           enemy.kind === 7 ||
-          enemy.kind === MARGIN_SEVERER_KIND
+          enemy.kind === MARGIN_SEVERER_KIND ||
+          enemy.kind === SILENT_LIBRARIAN_KIND
         ) {
           context.font = isBossKind(enemy.kind)
             ? `700 ${readableCanvasFontSize(15, 11)}px serif`

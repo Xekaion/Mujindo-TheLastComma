@@ -1681,6 +1681,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/time-stalker-walk.png", [1024, 1536]],
     ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/silent-librarian-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
     ["public/assets/walk/harin-mannequin-v2.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
@@ -1690,6 +1691,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
     ["public/assets/effects/margin-sever-line-v1.png", [1254, 1254]],
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
+    ["public/assets/effects/silent-librarian-echo-v1.png", [1254, 1254]],
     ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
@@ -1795,22 +1797,22 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,400}?MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
+    /TIME_STALKER_DIRECTION_FRAMES,[\s\S]{0,400}?MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,520}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
     "the canonical Time Stalker direction map must occupy kind 7's frame slot",
   );
   assert.match(
     source,
-    /enemy\.kind === 7 \? false : directionFrame\.flipX/,
+    /enemy\.kind === 7 \|\| enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,80}?\? false[\s\S]{0,80}?: directionFrame\.flipX/,
     "kind 7 must never be mirrored at draw time",
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,260}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,260}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED\];/,
+    /const hpBases = \[[\s\S]{0,280}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,40}?\];[\s\S]{0,280}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED, 54\];/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
     source,
-    /:\s*\[0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND\];/,
+    /:\s*depth < SILENT_LIBRARIAN_UNLOCK_DEPTH[\s\S]{0,100}?\? \[0, 1, 2, 3, 4, 6, 7, MARGIN_SEVERER_KIND\]/,
     "deep rooms must include kind 7 in their normal spawn distribution",
   );
   assert.match(source, /const TIME_RIFT_WARNING_SECONDS = 0\.9;/);
@@ -2010,18 +2012,23 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const speedBases = readBalanceArray("speedBases");
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
-  assert.equal(hpBases.length, 10, "every enemy kind needs an aligned health entry");
-  assert.equal(speedBases.length, 10, "every enemy kind needs an aligned speed entry");
-  assert.equal(damageBases.length, 10, "every enemy kind needs an aligned damage entry");
-  assert.equal(radii.length, 10, "every enemy kind needs an aligned radius entry");
+  assert.equal(hpBases.length, 11, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 11, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 11, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 11, "every enemy kind needs an aligned radius entry");
   assert.deepEqual(
     [hpBases[8], speedBases[8], damageBases[8], radii[8]],
     ["68", "58", "11", "23"],
     "kind 8 must retain its complete authored stat row",
   );
+  assert.deepEqual(
+    [hpBases[10], speedBases[10], damageBases[10], radii[10]],
+    ["82", "54", "14", "25"],
+    "kind 10 must retain its complete authored stat row",
+  );
   assert.match(
     makeEnemy,
-    /kind === 7 \|\| kind === MARGIN_SEVERER_KIND[\s\S]{0,80}?\? ["']orbit["']/,
+    /kind === 7 \|\| kind === MARGIN_SEVERER_KIND \|\| kind === SILENT_LIBRARIAN_KIND[\s\S]{0,80}?\? ["']orbit["']/,
     "the Margin Severer must begin in its orbit phase",
   );
   assert.match(
@@ -2043,8 +2050,8 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const unlockedPools = [
     ...spawnRoom.matchAll(/\[([^\]]*MARGIN_SEVERER_KIND[^\]]*)\]/g),
   ].map((match) => match[1]);
-  assert.equal(unlockedPools.length, 2, "both post-unlock normal pools must include kind 8");
-  assert.ok(unlockedPools[1].includes("7"), "the deepest pool must retain the Time Stalker");
+  assert.equal(unlockedPools.length, 3, "all post-unlock normal pools must include kind 8");
+  assert.ok(unlockedPools.at(-1).includes("7"), "the deepest pool must retain the Time Stalker");
   const roomLimitStart = spawnRoom.indexOf("if (enemyKind === MARGIN_SEVERER_KIND)");
   const roomLimitEnd = spawnRoom.indexOf("const elite =", roomLimitStart);
   assert.ok(roomLimitStart >= 0 && roomLimitEnd > roomLimitStart, "the room cap guard is missing");
@@ -2054,7 +2061,10 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   assert.match(roomLimit, /else \{\s*marginSevererCount \+= 1;/);
 
   const controllerStart = source.indexOf("} else if (enemy.kind === MARGIN_SEVERER_KIND) {");
-  const controllerEnd = source.indexOf("\n        } else {\n          let movement = 1;", controllerStart);
+  const controllerEnd = source.indexOf(
+    "\n        } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {",
+    controllerStart,
+  );
   assert.ok(controllerStart >= 0 && controllerEnd > controllerStart, "kind 8 needs an isolated FSM");
   const controller = source.slice(controllerStart, controllerEnd);
   const inscribeIndex = controller.indexOf('phase === "inscribe"');
@@ -2123,6 +2133,74 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   );
 });
 
+test("the Silent Librarian uses a bounded swept echo ring and production-safe atlases", async () => {
+  const [balance, source] = await Promise.all([
+    importTypeScriptModule("app/silent-librarian.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  const walkPath = "public/assets/walk/silent-librarian-walk-v1.png";
+  const echoPath = "public/assets/effects/silent-librarian-echo-v1.png";
+  const [walk, echo] = await Promise.all([
+    readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
+    readFile(path.join(root, echoPath)).then((png) => decodeRgbaPng(png, echoPath)),
+  ]);
+
+  assert.equal(balance.SILENT_LIBRARIAN_KIND, 10);
+  assert.equal(balance.SILENT_LIBRARIAN_UNLOCK_DEPTH, 8);
+  assert.equal(balance.SILENT_LIBRARIAN_MAX_PER_ROOM, 1);
+  assert.equal(balance.silentLibrarianWaveRadius(balance.SILENT_LIBRARIAN_WAVE_SECONDS), 44);
+  assert.equal(balance.silentLibrarianWaveRadius(0), 340);
+  assert.equal(
+    balance.sweptEchoRingHits({
+      previousRadius: 100,
+      currentRadius: 145,
+      targetDistance: 130,
+      targetRadius: 16,
+    }),
+    true,
+    "a fast frame must not tunnel through the player",
+  );
+  assert.equal(
+    balance.sweptEchoRingHits({
+      previousRadius: 100,
+      currentRadius: 145,
+      targetDistance: 45,
+      targetRadius: 16,
+    }),
+    false,
+    "the hollow center must remain safe after the ring passes",
+  );
+
+  assert.deepEqual([walk.width, walk.height], [1024, 1536]);
+  for (let row = 0; row < 8; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      const label = `silent librarian row ${row} column ${column}`;
+      const metrics = alphaCellMetrics(walk, column, row, 4, 8, label);
+      assert.ok(metrics.opaquePixels >= 4_000, `${label} lacks a complete silhouette`);
+      assert.ok(metrics.left >= 16 && metrics.right >= 16, `${label} needs horizontal crop safety`);
+      assert.ok(metrics.top >= 8 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
+    }
+  }
+  assert.equal(countGreenChromaPixels(walk), 0, `${walkPath} retains green-screen contamination`);
+
+  assert.deepEqual([echo.width, echo.height], [1254, 1254]);
+  for (let row = 0; row < 2; row += 1) {
+    for (let column = 0; column < 2; column += 1) {
+      const metrics = alphaCellMetrics(echo, column, row, 2, 2, `echo ${row},${column}`);
+      assert.ok(metrics.opaquePixels >= 1_000, "every echo frame needs visible authored pixels");
+      assert.ok(metrics.left >= 16 && metrics.right >= 16, "echo frames must not touch cell sides");
+      assert.ok(metrics.top >= 16 && metrics.bottom >= 16, "echo frames must not touch cell edges");
+    }
+  }
+  assert.equal(countGreenChromaPixels(echo), 0, `${echoPath} retains green-screen contamination`);
+
+  assert.match(source, /walkSilentLibrarian:\s*["']\/assets\/walk\/silent-librarian-walk-v1\.png["']/);
+  assert.match(source, /silentLibrarianEcho:\s*["']\/assets\/effects\/silent-librarian-echo-v1\.png["']/);
+  assert.match(source, /enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,5000}?sweptEchoRingHits/);
+  assert.match(source, /silentLibrarianCount >= SILENT_LIBRARIAN_MAX_PER_ROOM/);
+  assert.match(source, /enemy\.kind !== SILENT_LIBRARIAN_KIND/);
+});
+
 test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, and fully wired", async () => {
   const [balance, source] = await Promise.all([
     importTypeScriptModule("app/enemy-balance.ts"),
@@ -2175,12 +2253,12 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
   );
   assert.match(
     source,
-    /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
+    /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,520}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
     "kind 8 must own the ninth enemy direction-table slot",
   );
   assert.match(
     source,
-    /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\][\s\S]{0,320}?directionFrame\.flipX,[\s\S]{0,120}?enemy\.kind === MARGIN_SEVERER_KIND\s*\? MARGIN_SEVERER_WALK_ROW_CROPS\[directionFrame\.row\]/,
+    /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\][\s\S]{0,420}?directionFrame\.flipX,[\s\S]{0,120}?enemy\.kind === MARGIN_SEVERER_KIND\s*\? MARGIN_SEVERER_WALK_ROW_CROPS\[directionFrame\.row\]/,
     "runtime rendering must apply both the SE mirror and the exported custom row crop",
   );
 
