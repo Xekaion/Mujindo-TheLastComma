@@ -4168,7 +4168,10 @@ test("generated room backplates and the archived cartography texture remain inta
     "room-rootbound-ossuary.webp",
     "room-shattered-astrarium.webp",
   ];
-  const allMapAssets = [...roomAssets, "map-board.webp"];
+  const stairRoomAssets = roomAssets.map((assetName) =>
+    assetName.replace(/\.webp$/, "-stairs-v1.webp"),
+  );
+  const allMapAssets = [...roomAssets, ...stairRoomAssets, "map-board.webp"];
 
   for (const assetName of allMapAssets) {
     const relativePath = `public/assets/maps/${assetName}`;
@@ -4187,7 +4190,7 @@ test("generated room backplates and the archived cartography texture remain inta
     readFile(path.join(root, "app/game.css"), "utf8"),
     readFile(path.join(root, "app/room-visuals.ts"), "utf8"),
   ]);
-  for (const assetName of roomAssets) {
+  for (const assetName of [...roomAssets, ...stairRoomAssets]) {
     assert.match(
       `${game}\n${roomVisuals}`,
       new RegExp(`/assets/maps/${assetName.replace(".", "\\.")}`),
@@ -4221,6 +4224,73 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.match(game, /doorRects\.forEach\(drawDoorWard\)/);
   assert.match(game, /transitionOpacity = clamp\(world\.transition \/ 0\.55, 0, 1\)/);
   assert.doesNotMatch(game, /context\.strokeRect\(68, 64, WIDTH - 136, HEIGHT - 128\)/);
+});
+
+test("down-stair rooms use complete room-art variants instead of vector geometry", async () => {
+  const [visuals, game] = await Promise.all([
+    importTypeScriptModule("app/room-visuals.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  const baseKeys = Object.keys(visuals.ROOM_ART_PATHS);
+  assert.equal(baseKeys.length, 9);
+  assert.equal(Object.keys(visuals.ROOM_STAIR_ART_PATHS).length, baseKeys.length);
+  assert.equal(
+    Object.keys(visuals.ROOM_STAIR_ART_BY_ROOM_ART).length,
+    baseKeys.length,
+  );
+  assert.equal(
+    new Set(Object.values(visuals.ROOM_STAIR_ART_BY_ROOM_ART)).size,
+    baseKeys.length,
+    "every room family must own one distinct staircase backplate",
+  );
+
+  for (const baseKey of baseKeys) {
+    const stairKey = visuals.resolveStairRoomArtKey(baseKey);
+    const basePath = visuals.ROOM_ART_PATHS[baseKey];
+    const stairPath = visuals.ROOM_STAIR_ART_PATHS[stairKey];
+    assert.equal(
+      stairPath,
+      basePath.replace(/\.webp$/, "-stairs-v1.webp"),
+      `${baseKey} must resolve to its own staircase backplate`,
+    );
+  }
+
+  assert.deepEqual(visuals.ROOM_STAIR_ASSET_ANCHOR, {
+    sourceWidth: 1600,
+    sourceHeight: 900,
+    x: 800,
+    y: 560,
+  });
+  assert.match(
+    game,
+    /const isStairRoom = world\.stairRoomLookup\[currentRoomKey\] === true/,
+  );
+  assert.match(game, /const stairRoomArtKey = resolveStairRoomArtKey\(roomArtKey\)/);
+  assert.match(game, /stairRoomArt = new Image\(\)/);
+  assert.match(game, /stairRoomArt\.decoding = "async"/);
+  assert.match(game, /await stairRoomArt\?\.decode\(\)/);
+  assert.match(game, /stairRoomArt\.src = ROOM_STAIR_ART_PATHS\[stairRoomArtKey\]/);
+  assert.match(game, /if \(\s*stairRoomArtReady &&[\s\S]{0,220}?drawRoomBackplate\(stairRoomArt\)/);
+  assert.match(game, /delete imagesRef\.current\[stairRoomArtKey\]/);
+  assert.match(game, /attempts < 2/);
+  assert.match(
+    game,
+    /\.slice\(0, activeStairRoomArtKey \? 1 : 2\)/,
+    "only the current plus one recent stair backplate may remain cached",
+  );
+  const preloadBlock = game.slice(
+    game.indexOf("const imagePaths: Record<string, string> = {"),
+    game.indexOf("for (const config of Object.values(EQUIPMENT_RARITY_VFX))"),
+  );
+  assert.doesNotMatch(
+    preloadBlock,
+    /ROOM_STAIR_ART_PATHS/,
+    "nine large staircase backplates must not be eagerly decoded at startup",
+  );
+  assert.doesNotMatch(game, /const stairPulse =/);
+  assert.doesNotMatch(game, /context\.ellipse\(0, 24, 76, 42/);
+  assert.doesNotMatch(game, /context\.moveTo\(0, 55\)/);
 });
 
 test("ordinary room art is deterministic, varied, and never repeats across a doorway", async () => {

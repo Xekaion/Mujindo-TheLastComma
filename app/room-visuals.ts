@@ -23,6 +23,48 @@ export const ROOM_ART_PATHS = {
 
 export type RoomArtKey = keyof typeof ROOM_ART_PATHS;
 
+export const ROOM_STAIR_ART_PATHS = {
+  roomBattleStairs: "/assets/maps/room-battle-stairs-v1.webp",
+  roomHordeStairs: "/assets/maps/room-horde-stairs-v1.webp",
+  roomEliteStairs: "/assets/maps/room-elite-stairs-v1.webp",
+  roomMemoryStairs: "/assets/maps/room-memory-stairs-v1.webp",
+  roomShelterStairs: "/assets/maps/room-shelter-stairs-v1.webp",
+  roomBossStairs: "/assets/maps/room-boss-stairs-v1.webp",
+  roomDrownedArchiveStairs:
+    "/assets/maps/room-drowned-archive-stairs-v1.webp",
+  roomRootboundOssuaryStairs:
+    "/assets/maps/room-rootbound-ossuary-stairs-v1.webp",
+  roomShatteredAstrariumStairs:
+    "/assets/maps/room-shattered-astrarium-stairs-v1.webp",
+} as const;
+
+export type RoomStairArtKey = keyof typeof ROOM_STAIR_ART_PATHS;
+
+export const ROOM_STAIR_ART_BY_ROOM_ART = {
+  roomBattle: "roomBattleStairs",
+  roomHorde: "roomHordeStairs",
+  roomElite: "roomEliteStairs",
+  roomMemory: "roomMemoryStairs",
+  roomShelter: "roomShelterStairs",
+  roomBoss: "roomBossStairs",
+  roomDrownedArchive: "roomDrownedArchiveStairs",
+  roomRootboundOssuary: "roomRootboundOssuaryStairs",
+  roomShatteredAstrarium: "roomShatteredAstrariumStairs",
+} as const satisfies Record<RoomArtKey, RoomStairArtKey>;
+
+export const ROOM_STAIR_ASSET_ANCHOR = {
+  sourceWidth: 1600,
+  sourceHeight: 900,
+  x: 800,
+  y: 560,
+} as const;
+
+export function resolveStairRoomArtKey(
+  roomArtKey: RoomArtKey,
+): RoomStairArtKey {
+  return ROOM_STAIR_ART_BY_ROOM_ART[roomArtKey];
+}
+
 export const ROOM_ART_VARIANTS = {
   battle: [
     "roomBattle",

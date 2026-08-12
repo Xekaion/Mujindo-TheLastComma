@@ -123,7 +123,11 @@ import {
 import {
   ROOM_ART_NAMES,
   ROOM_ART_PATHS,
+  ROOM_STAIR_ART_PATHS,
+  ROOM_STAIR_ASSET_ANCHOR,
   resolveRoomArtKey,
+  resolveStairRoomArtKey,
+  type RoomStairArtKey,
 } from "./room-visuals";
 import {
   SAVE_SLOT_IDS,
@@ -263,8 +267,12 @@ const TIME_RIFT_SEQUENCE_GAP = 0.34;
 const TIME_RIFT_RADIUS = 74;
 const TIME_RIFT_SPRITE_GRID = 2;
 const TIME_RIFT_SOURCE_INSET_RATIO = 0.025;
-const STAIRCASE_X = WIDTH / 2;
-const STAIRCASE_Y = HEIGHT / 2 + 88;
+const STAIRCASE_X =
+  (WIDTH * ROOM_STAIR_ASSET_ANCHOR.x) /
+  ROOM_STAIR_ASSET_ANCHOR.sourceWidth;
+const STAIRCASE_Y =
+  (HEIGHT * ROOM_STAIR_ASSET_ANCHOR.y) /
+  ROOM_STAIR_ASSET_ANCHOR.sourceHeight;
 const STAIRCASE_INTERACTION_RADIUS = 74;
 const MEMORY_DROP_WALL_CLEARANCE = 30;
 const GEAR_DROP_WALL_CLEARANCE = 40;
@@ -2118,6 +2126,11 @@ export default function GameCanvas({
     hasMoveTarget: false,
   });
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
+  const decodedStairRoomArtRef = useRef(new Set<RoomStairArtKey>());
+  const stairRoomArtRetryRef = useRef<
+    Partial<Record<RoomStairArtKey, { attempts: number; retryAt: number }>>
+  >({});
+  const stairRoomArtLastUsedRef = useRef(new Map<RoomStairArtKey, number>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const modeRef = useRef<GameMode>("menu");
   const storyActionRef = useRef<() => void>(() => undefined);
@@ -8289,21 +8302,128 @@ export default function GameCanvas({
         roomY: world.roomY,
         roomKind: world.roomKind,
       });
+      const currentRoomKey = keyOf(world.roomX, world.roomY);
+      const isStairRoom = world.stairRoomLookup[currentRoomKey] === true;
       const roomArt = images[roomArtKey];
+      let stairRoomArt: HTMLImageElement | undefined;
+      let stairRoomArtReady = false;
+
+      if (isStairRoom) {
+        const stairRoomArtKey = resolveStairRoomArtKey(roomArtKey);
+        const retryState = stairRoomArtRetryRef.current[stairRoomArtKey];
+        stairRoomArt = images[stairRoomArtKey];
+        if (
+          !stairRoomArt &&
+          (!retryState ||
+            (retryState.attempts < 2 && performance.now() >= retryState.retryAt))
+        ) {
+          const attempts = (retryState?.attempts ?? 0) + 1;
+          stairRoomArt = new Image();
+          stairRoomArt.decoding = "async";
+          stairRoomArt.onload = async () => {
+            try {
+              await stairRoomArt?.decode();
+            } catch {
+              // A loaded image can still be drawn when decode() is unavailable.
+            }
+            if (stairRoomArt?.naturalWidth && stairRoomArt.naturalHeight) {
+              decodedStairRoomArtRef.current.add(stairRoomArtKey);
+              delete stairRoomArtRetryRef.current[stairRoomArtKey];
+              stairRoomArtLastUsedRef.current.set(
+                stairRoomArtKey,
+                performance.now(),
+              );
+
+              const activeWorld = worldRef.current;
+              const activeRoomKey = keyOf(
+                activeWorld.roomX,
+                activeWorld.roomY,
+              );
+              const activeStairRoomArtKey =
+                activeWorld.stairRoomLookup[activeRoomKey] === true
+                  ? resolveStairRoomArtKey(
+                      resolveRoomArtKey({
+                        seed: activeWorld.seed,
+                        dungeonFloor: activeWorld.dungeonFloor,
+                        roomX: activeWorld.roomX,
+                        roomY: activeWorld.roomY,
+                        roomKind: activeWorld.roomKind,
+                      }),
+                    )
+                  : null;
+              const retainedKeys = new Set<RoomStairArtKey>();
+              if (activeStairRoomArtKey) {
+                retainedKeys.add(activeStairRoomArtKey);
+              }
+              for (const [recentKey] of [
+                ...stairRoomArtLastUsedRef.current.entries(),
+              ]
+                .filter(([key]) => key !== activeStairRoomArtKey)
+                .sort((left, right) => right[1] - left[1])
+                .slice(0, activeStairRoomArtKey ? 1 : 2)) {
+                retainedKeys.add(recentKey);
+              }
+              for (const decodedKey of decodedStairRoomArtRef.current) {
+                if (retainedKeys.has(decodedKey)) continue;
+                delete imagesRef.current[decodedKey];
+                decodedStairRoomArtRef.current.delete(decodedKey);
+                stairRoomArtLastUsedRef.current.delete(decodedKey);
+              }
+            }
+          };
+          stairRoomArt.onerror = () => {
+            if (imagesRef.current[stairRoomArtKey] === stairRoomArt) {
+              delete imagesRef.current[stairRoomArtKey];
+            }
+            decodedStairRoomArtRef.current.delete(stairRoomArtKey);
+            stairRoomArtRetryRef.current[stairRoomArtKey] = {
+              attempts,
+              retryAt: performance.now() + 1500,
+            };
+          };
+          stairRoomArt.src = ROOM_STAIR_ART_PATHS[stairRoomArtKey];
+          images[stairRoomArtKey] = stairRoomArt;
+        }
+        stairRoomArtReady = Boolean(
+          stairRoomArt.complete &&
+            stairRoomArt.naturalWidth &&
+            stairRoomArt.naturalHeight &&
+            decodedStairRoomArtRef.current.has(stairRoomArtKey),
+        );
+      }
+
       const roomGrade = ROOM_COLOR_GRADE[world.roomKind];
-      if (roomArt?.complete && roomArt.naturalWidth && roomArt.naturalHeight) {
-        const mirrorRoom =
-          !["shelter", "boss"].includes(world.roomKind) &&
-          hash(world.seed, world.roomX, world.roomY, 9041) > 0.5;
+      const mirrorRoom =
+        !["shelter", "boss"].includes(world.roomKind) &&
+        hash(world.seed, world.roomX, world.roomY, 9041) > 0.5;
+      const drawRoomBackplate = (
+        image: HTMLImageElement,
+        alpha = 1,
+      ) => {
         context.save();
+        context.globalAlpha = alpha;
         context.imageSmoothingEnabled = true;
         context.imageSmoothingQuality = "high";
         if (mirrorRoom) {
           context.translate(WIDTH, 0);
           context.scale(-1, 1);
         }
-        context.drawImage(roomArt, 0, 0, WIDTH, HEIGHT);
+        context.drawImage(image, 0, 0, WIDTH, HEIGHT);
         context.restore();
+      };
+      if (
+        stairRoomArtReady &&
+        stairRoomArt?.complete &&
+        stairRoomArt.naturalWidth &&
+        stairRoomArt.naturalHeight
+      ) {
+        drawRoomBackplate(stairRoomArt);
+      } else if (
+        roomArt?.complete &&
+        roomArt.naturalWidth &&
+        roomArt.naturalHeight
+      ) {
+        drawRoomBackplate(roomArt);
       } else {
         const fallback = context.createRadialGradient(
           WIDTH / 2,
@@ -8320,7 +8440,6 @@ export default function GameCanvas({
         context.fillRect(0, 0, WIDTH, HEIGHT);
         context.globalAlpha = 1;
       }
-
       context.save();
       context.globalCompositeOperation = "soft-light";
       context.globalAlpha = world.roomKind === "shelter" ? 0.12 : 0.07;
@@ -8487,66 +8606,6 @@ export default function GameCanvas({
       };
 
       doorRects.forEach(drawDoorWard);
-
-      const currentRoomKey = keyOf(world.roomX, world.roomY);
-      if (
-        world.roomCleared &&
-        world.visitedLookup[currentRoomKey] &&
-        world.stairRoomLookup[currentRoomKey]
-      ) {
-        const stairPulse = 0.72 + Math.sin(ambientTime * 2.4) * 0.18;
-        context.save();
-        context.translate(STAIRCASE_X, STAIRCASE_Y);
-        const stairGlow = context.createRadialGradient(0, 6, 8, 0, 6, 104);
-        stairGlow.addColorStop(0, `rgba(116,224,205,${0.22 + stairPulse * 0.16})`);
-        stairGlow.addColorStop(0.48, `rgba(55,118,119,${0.13 + stairPulse * 0.08})`);
-        stairGlow.addColorStop(1, "rgba(5,11,14,0)");
-        context.fillStyle = stairGlow;
-        context.fillRect(-118, -82, 236, 178);
-
-        context.fillStyle = "rgba(0,0,0,.72)";
-        context.beginPath();
-        context.ellipse(0, 24, 76, 42, 0, 0, Math.PI * 2);
-        context.fill();
-
-        for (let step = 0; step < 7; step += 1) {
-          const width = 112 - step * 10;
-          const y = -24 + step * 9;
-          const shade = 37 - step * 3;
-          context.fillStyle = `rgb(${shade},${shade + 7},${shade + 10})`;
-          context.strokeStyle = `rgba(123,221,204,${0.28 + stairPulse * 0.18})`;
-          context.lineWidth = 1.2;
-          context.beginPath();
-          context.moveTo(-width / 2, y);
-          context.lineTo(width / 2, y);
-          context.lineTo(width / 2 - 7, y + 8);
-          context.lineTo(-width / 2 + 7, y + 8);
-          context.closePath();
-          context.fill();
-          context.stroke();
-        }
-
-        context.strokeStyle = `rgba(201,241,224,${0.48 + stairPulse * 0.24})`;
-        context.shadowColor = "#73d9c5";
-        context.shadowBlur = 16;
-        context.lineWidth = 2;
-        context.beginPath();
-        context.arc(0, -15, 67, Math.PI * 1.08, Math.PI * 1.92);
-        context.stroke();
-        context.shadowBlur = 0;
-        context.fillStyle = `rgba(216,250,237,${0.64 + stairPulse * 0.25})`;
-        context.beginPath();
-        context.moveTo(0, 55);
-        context.lineTo(-9, 42);
-        context.lineTo(-3, 42);
-        context.lineTo(-3, 31);
-        context.lineTo(3, 31);
-        context.lineTo(3, 42);
-        context.lineTo(9, 42);
-        context.closePath();
-        context.fill();
-        context.restore();
-      }
 
       if (inputRef.current.hasMoveTarget) {
         const pulse = 12 + Math.sin(performance.now() / 140) * 3;
