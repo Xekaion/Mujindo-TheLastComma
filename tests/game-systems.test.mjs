@@ -3602,6 +3602,51 @@ test("equipment gates apex affixes and deterministically repairs incompatible sa
   }
 });
 
+test("equipment requires character level equal to item level minus twenty", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  assert.equal(equipment.GEAR_EQUIP_LEVEL_OFFSET, 20);
+  assert.equal(equipment.getGearRequiredLevel(1), 1);
+  assert.equal(equipment.getGearRequiredLevel(20), 1);
+  assert.equal(equipment.getGearRequiredLevel(21), 1);
+  assert.equal(equipment.getGearRequiredLevel(70), 50);
+  assert.equal(equipment.getGearRequiredLevel(999), 979);
+
+  const levelSeventyGear = equipment.rollGear("equip-level-contract", {
+    level: 70,
+    slot: "weapon",
+    rarity: "legendary",
+  });
+  assert.equal(equipment.getGearRequiredLevel(levelSeventyGear), 50);
+  assert.equal(equipment.canEquipGearAtLevel(49, levelSeventyGear), false);
+  assert.equal(equipment.canEquipGearAtLevel(50, levelSeventyGear), true);
+});
+
+test("every equip gesture is protected by the shared level requirement", async () => {
+  const [source, overlay, town] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+  ]);
+  const equipHandler = source.match(
+    /const equipInventoryItem = useCallback\(([\s\S]*?)\n\s*const unequipInventoryItem = useCallback/,
+  );
+  assert.ok(equipHandler, "the canonical equip handler must remain present");
+  assert.match(
+    equipHandler[1],
+    /const requiredLevel = getGearRequiredLevel\(item\);[\s\S]{0,180}?if \(!canEquipGearAtLevel\(player\.level, item\)\) \{[\s\S]{0,300}?setToast\([\s\S]{0,240}?return;/,
+  );
+  assert.ok(
+    equipHandler[1].indexOf("canEquipGearAtLevel(player.level, item)")
+      < equipHandler[1].indexOf("player.equipment[item.slot] = item"),
+    "the level gate must run before any equipment or inventory mutation",
+  );
+  assert.match(overlay, /playerLevel: number;/);
+  assert.match(overlay, /아이템 LV\.\{selectedItem\.level\} · 착용 LV\.\{selectedRequiredLevel\}/);
+  assert.match(overlay, /disabled=\{selectedLevelLocked\}/);
+  assert.match(source, /playerLevel=\{hud\.player\.level\}/);
+  assert.match(town, /playerLevel=\{level\}/);
+});
+
 test("equipment rolls twenty-eight real affix types from twenty-option slot pools deterministically", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const expectedStats = [

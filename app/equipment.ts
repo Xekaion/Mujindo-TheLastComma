@@ -1321,6 +1321,9 @@ export const GEAR_ICON_ROWS = 10;
 
 export const MAX_GEAR_ENHANCEMENT = 10;
 
+/** Equipment can be worn twenty levels before its item level. */
+export const GEAR_EQUIP_LEVEL_OFFSET = 20;
+
 const GEAR_ENHANCEMENT_SUCCESS_PERCENT = [
   100, 95, 88, 78, 68, 58, 48, 38, 28, 18,
 ] as const;
@@ -1510,6 +1513,29 @@ const normalizedLevel = (level: unknown): number =>
   typeof level === "number" && Number.isFinite(level)
     ? clamp(Math.floor(level), 1, 999)
     : 1;
+
+/**
+ * Required character level is derived instead of persisted so legacy saves and
+ * server-vault items can never carry a stale or forged requirement.
+ */
+export function getGearRequiredLevel(
+  itemOrLevel: number | Pick<GearItem, "level">,
+): number {
+  const itemLevel = typeof itemOrLevel === "number"
+    ? itemOrLevel
+    : itemOrLevel.level;
+  return Math.max(1, normalizedLevel(itemLevel) - GEAR_EQUIP_LEVEL_OFFSET);
+}
+
+export function canEquipGearAtLevel(
+  playerLevel: number,
+  itemOrLevel: number | Pick<GearItem, "level">,
+): boolean {
+  const normalizedPlayerLevel = Number.isFinite(playerLevel)
+    ? Math.max(1, Math.floor(playerLevel))
+    : 1;
+  return normalizedPlayerLevel >= getGearRequiredLevel(itemOrLevel);
+}
 
 function rarityFromWeights(
   roll: number,

@@ -349,6 +349,7 @@ export default function GameEntryFlow({
           equipment={equipment}
           inventory={inventory}
           inventoryCapacity={inventoryCapacity}
+          playerLevel={level}
           memoryAsh={memoryAsh}
           equippedPower={equippedPower}
           selectedGearId={selectedGearId}

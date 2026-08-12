@@ -218,6 +218,7 @@ import {
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   aggregateEquipmentStats,
+  canEquipGearAtLevel,
   calculateEquipmentCombatPower,
   calculateEquipmentPowerDelta,
   calculateGearPowerScore,
@@ -228,6 +229,7 @@ import {
   gearIconCell,
   getGearAffixDisplay,
   getGearImplicitDisplay,
+  getGearRequiredLevel,
   getGearSalvageAshBreakdown,
   getGearEnhancementRule,
   isExpeditionStartingRoom,
@@ -3590,6 +3592,14 @@ export default function GameCanvas({
       const itemIndex = player.inventory.findIndex((item) => item.id === itemId);
       if (itemIndex < 0) return;
       const item = player.inventory[itemIndex];
+      const requiredLevel = getGearRequiredLevel(item);
+      if (!canEquipGearAtLevel(player.level, item)) {
+        setSelectedGearId(item.id);
+        setToast(
+          `장착 레벨 부족 · LV.${item.level} 장비는 캐릭터 LV.${requiredLevel}부터 장착할 수 있습니다.`,
+        );
+        return;
+      }
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const replaced = player.equipment[item.slot];
       player.equipment[item.slot] = item;
@@ -9942,7 +9952,7 @@ export default function GameCanvas({
                       <GearIcon item={item} size={42} />
                       <div>
                         <strong>{formatGearDisplayName(item)}</strong>
-                        <small>LV.{item.level} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
+                        <small>아이템 LV.{item.level} · 착용 LV.{getGearRequiredLevel(item)} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
                         <span>전투력 {item.powerScore} · 품질 {item.qualityScore}%</span>
                       </div>
                     </button>
@@ -9993,8 +10003,15 @@ export default function GameCanvas({
                     )}
                   </div>
                   <div className="gear-actions">
-                    <button className="primary-button compact" onClick={() => equipInventoryItem(selectedGear.id)}>
-                      장착하고 비교 교체
+                    <button
+                      className="primary-button compact"
+                      onClick={() => equipInventoryItem(selectedGear.id)}
+                      disabled={!canEquipGearAtLevel(hud.player.level, selectedGear)}
+                      title={!canEquipGearAtLevel(hud.player.level, selectedGear) ? `캐릭터 LV.${getGearRequiredLevel(selectedGear)}부터 장착할 수 있습니다.` : undefined}
+                    >
+                      {canEquipGearAtLevel(hud.player.level, selectedGear)
+                        ? "장착하고 비교 교체"
+                        : `LV.${getGearRequiredLevel(selectedGear)}부터 장착`}
                     </button>
                     <button
                       className="text-button"
@@ -10021,6 +10038,7 @@ export default function GameCanvas({
         equipment={hud.player.equipment}
         inventory={hud.player.inventory}
         inventoryCapacity={inventoryCapacity}
+        playerLevel={hud.player.level}
         onOpenShop={openShopFromInventory}
         selectedGearId={selectedGearId}
         onSelect={setSelectedGearId}

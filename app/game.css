@@ -12215,3 +12215,39 @@ button.equipment-slot-card:hover {
     transform: none;
   }
 }
+
+/* Item-level equip requirement: keep the item inspectable while making the
+   LV-20 gate unmistakable on every inventory surface. */
+.inventory-screen-grid-level {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.inventory-screen-grid-level > small {
+  color: rgba(221, 211, 190, 0.82);
+  font-size: 8px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.inventory-screen-level-requirement--locked,
+.inventory-screen-grid-level.inventory-screen-level-requirement--locked,
+.inventory-screen-grid-level.inventory-screen-level-requirement--locked > small {
+  color: #ff8b80;
+  text-shadow: 0 1px 5px #000, 0 0 8px rgba(196, 32, 32, 0.62);
+}
+
+.inventory-screen-grid-item.inventory-screen-grid-item--level-locked {
+  box-shadow:
+    inset 0 0 0 1px rgba(218, 64, 58, 0.58),
+    inset 0 0 22px rgba(105, 13, 18, 0.18);
+}
+
+.inventory-screen-equip-button:disabled,
+.gear-actions .primary-button:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.6);
+  opacity: 0.72;
+}

@@ -22,6 +22,7 @@ import {
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   MAX_GEAR_ENHANCEMENT,
+  canEquipGearAtLevel,
   calculateEquipmentPowerDelta,
   formatCompactGearLabel,
   formatGearDisplayName,
@@ -29,6 +30,7 @@ import {
   getGearAffixDisplay,
   getGearImplicitDisplay,
   getGearEnhancementRule,
+  getGearRequiredLevel,
   getGearSalvageAshBreakdown,
   type EquipmentLoadout,
   type EquipmentSlot,
@@ -55,6 +57,7 @@ export type InventoryOverlayProps = {
   equipment: EquipmentLoadout;
   inventory: GearItem[];
   inventoryCapacity: number;
+  playerLevel: number;
   onOpenShop: () => void;
   selectedGearId: string | null;
   onSelect: (gearId: string) => void;
@@ -232,6 +235,7 @@ function GearTooltip({
   equipment,
   equipped,
   readOnly,
+  playerLevel,
   position,
   onMeasure,
 }: {
@@ -240,10 +244,13 @@ function GearTooltip({
   equipment: EquipmentLoadout;
   equipped: boolean;
   readOnly: boolean;
+  playerLevel: number;
   position: TooltipPosition;
   onMeasure: (width: number, height: number) => void;
 }) {
   const powerDelta = calculateEquipmentPowerDelta(equipment, item);
+  const requiredLevel = getGearRequiredLevel(item);
+  const levelLocked = !equipped && !canEquipGearAtLevel(playerLevel, item);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -279,7 +286,10 @@ function GearTooltip({
             {GEAR_RARITY_META[item.rarity].label} · {EQUIPMENT_SLOT_LABELS[item.slot]}
           </small>
           <h4>{formatGearDisplayName(item)}</h4>
-          <span>아이템 레벨 {item.level}</span>
+          <span className={levelLocked ? "inventory-screen-level-requirement--locked" : undefined}>
+            아이템 레벨 {item.level} · 착용 레벨 {requiredLevel}
+            {levelLocked && <b> · 레벨 부족</b>}
+          </span>
         </div>
         <div className="inventory-screen-tooltip-power">
           <span>전투력</span>
@@ -334,6 +344,7 @@ export default function InventoryOverlay({
   equipment,
   inventory,
   inventoryCapacity,
+  playerLevel,
   onOpenShop,
   selectedGearId,
   onSelect,
@@ -416,6 +427,11 @@ export default function InventoryOverlay({
     equippedItems.find((item) => item.id === selectedGearId) ?? null;
   const selectedItem = selectedInventoryItem ?? selectedEquippedItem;
   const selectedIsEquipped = selectedEquippedItem !== null;
+  const selectedRequiredLevel = selectedItem
+    ? getGearRequiredLevel(selectedItem)
+    : 1;
+  const selectedLevelLocked = selectedInventoryItem !== null
+    && !canEquipGearAtLevel(playerLevel, selectedInventoryItem);
   const selectedSalvageAsh = selectedInventoryItem
     ? getGearSalvageAshBreakdown(selectedInventoryItem).total
     : 0;
@@ -831,8 +847,8 @@ export default function InventoryOverlay({
                         {GEAR_RARITY_META[selectedItem.rarity].label} · {EQUIPMENT_SLOT_LABELS[selectedItem.slot]}
                       </small>
                       <h4>{formatGearDisplayName(selectedItem)}</h4>
-                      <span>
-                        LV.{selectedItem.level} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
+                      <span className={selectedLevelLocked ? "inventory-screen-level-requirement--locked" : undefined}>
+                        아이템 LV.{selectedItem.level} · 착용 LV.{selectedRequiredLevel} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
                       </span>
                     </div>
                     {!selectedIsEquipped && (
@@ -980,8 +996,14 @@ export default function InventoryOverlay({
                         </div>
                       ) : (
                         <div className="inventory-screen-actions">
-                          <button type="button" className="inventory-screen-equip-button" onClick={() => equipItem(selectedItem.id)}>
-                            장착하기
+                          <button
+                            type="button"
+                            className="inventory-screen-equip-button"
+                            onClick={() => equipItem(selectedItem.id)}
+                            disabled={selectedLevelLocked}
+                            title={selectedLevelLocked ? `캐릭터 LV.${selectedRequiredLevel}부터 장착할 수 있습니다.` : undefined}
+                          >
+                            {selectedLevelLocked ? `LV.${selectedRequiredLevel}부터 장착` : "장착하기"}
                           </button>
                           <button type="button" className="inventory-screen-salvage-button" onClick={() => requestSalvageOne(selectedItem.id)}>
                             분해 · 재 {selectedSalvageAsh.toLocaleString("ko-KR")}
@@ -1182,6 +1204,8 @@ export default function InventoryOverlay({
               <div className="inventory-screen-grid">
                 {sortedInventory.map((item, itemIndex) => {
                 const selected = item.id === selectedGearId;
+                const requiredLevel = getGearRequiredLevel(item);
+                const levelLocked = !canEquipGearAtLevel(playerLevel, item);
                 const itemPowerDelta = calculateEquipmentPowerDelta(equipment, item);
                 const checkedForSalvage =
                   salvageModeActive && selectedForSalvage.has(item.id);
@@ -1194,7 +1218,7 @@ export default function InventoryOverlay({
                   >
                     <button
                       type="button"
-                      className={`inventory-screen-grid-item ${rarityClass(item)} ${!salvageModeActive && selected ? "inventory-screen-item--selected" : ""}`}
+                      className={`inventory-screen-grid-item ${rarityClass(item)} ${levelLocked ? "inventory-screen-grid-item--level-locked" : ""} ${!salvageModeActive && selected ? "inventory-screen-item--selected" : ""}`}
                       onClick={() => {
                         if (salvageModeActive) toggleSalvageSelection(item.id);
                         else onSelect(item.id);
@@ -1211,7 +1235,7 @@ export default function InventoryOverlay({
                       onKeyDown={handleTooltipKeyDown}
                       aria-label={salvageModeActive
                         ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${formatGearDisplayName(item, { includeZero: true })}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
+                        : `${formatGearDisplayName(item, { includeZero: true })}, 아이템 레벨 ${item.level}, 착용 요구 레벨 ${requiredLevel}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
                       aria-describedby={!salvageModeActive && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageModeActive ? checkedForSalvage : selected}
                     >
@@ -1230,7 +1254,10 @@ export default function InventoryOverlay({
                       <span className={`inventory-screen-grid-delta ${powerDeltaClass(itemPowerDelta)}`}>
                         {formatPowerDelta(itemPowerDelta)}
                       </span>
-                      <span className="inventory-screen-grid-level">LV.{item.level}</span>
+                      <span className={`inventory-screen-grid-level${levelLocked ? " inventory-screen-level-requirement--locked" : ""}`}>
+                        LV.{item.level}
+                        <small>착용 {requiredLevel}</small>
+                      </span>
                       <span className="inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
                       <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
                       <small className="inventory-screen-grid-name">{formatGearDisplayName(item)}</small>
@@ -1330,6 +1357,7 @@ export default function InventoryOverlay({
             equipment={equipment}
             equipped={hoveredItemIsEquipped}
             readOnly={readOnly}
+            playerLevel={playerLevel}
             position={tooltipPosition}
             onMeasure={handleTooltipMeasure}
           />,
