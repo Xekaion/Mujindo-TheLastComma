@@ -46,6 +46,7 @@ import {
   type InventorySortMode,
 } from "./inventory-sort";
 import { BASE_INVENTORY_CAPACITY } from "./shop";
+import InventoryPaperdollFigure from "./InventoryPaperdollFigure";
 
 export type InventoryOverlayProps = {
   open: boolean;
@@ -749,7 +750,7 @@ export default function InventoryOverlay({
               </div>
 
               <div className="inventory-screen-equipment-slots">
-                <div className="inventory-screen-paperdoll-figure" aria-hidden="true" />
+                <InventoryPaperdollFigure equipment={equipment} />
                 {EQUIPMENT_SLOTS.map((slot) => {
                   const item = equipment[slot];
                   const selected = item?.id === selectedGearId;

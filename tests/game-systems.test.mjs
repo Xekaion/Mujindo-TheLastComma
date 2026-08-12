@@ -6516,7 +6516,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     equipment,
     /EQUIPMENT_SLOTS\s*=\s*\[\s*"weapon",\s*"offhand",\s*"helm",\s*"shoulders",\s*"armor",\s*"gloves",\s*"belt",\s*"legs",\s*"boots",\s*"relic",?\s*\]/,
   );
-  assert.match(overlay, /inventory-screen-paperdoll-figure/);
+  assert.match(overlay, /<InventoryPaperdollFigure equipment=\{equipment\} \/>/);
   assert.match(
     overlay,
     /inventory-screen-equipment-card[\s\S]{0,1800}?inventory-screen-slot-clip[\s\S]{0,300}?<GearIcon/,
@@ -7177,9 +7177,10 @@ test("rare and higher inventory aura frames share one exact slot-sized normalize
 
 test("the inventory paperdoll figure preserves its authored silhouette and generous safe area", async () => {
   const assetPath = "public/assets/ui/inventory-paperdoll-figure.png";
-  const [png, overlay, css] = await Promise.all([
+  const [png, overlay, portrait, css] = await Promise.all([
     readFile(path.join(root, assetPath)),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/InventoryPaperdollFigure.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
   ]);
   const figure = decodeRgbaPng(png, assetPath);
@@ -7192,12 +7193,33 @@ test("the inventory paperdoll figure preserves its authored silhouette and gener
 
   assert.match(
     overlay,
-    /className=["']inventory-screen-paperdoll-figure["'][^>]*aria-hidden=["']true["']/,
+    /<InventoryPaperdollFigure equipment=\{equipment\} \/>/,
+    "the inventory center portrait must consume the live ten-slot equipment loadout",
   );
   assert.match(
     css,
-    /\.inventory-screen-paperdoll-figure\s*\{[\s\S]{0,500}?url\(["']?\/assets\/ui\/inventory-paperdoll-figure\.png["']?\)[\s\S]{0,160}?contain\s+no-repeat/,
-    "the authored paperdoll must be contained behind the five live equipment slots",
+    /\.inventory-screen-paperdoll-figure::before\s*\{[\s\S]{0,500}?url\(["']?\/assets\/ui\/inventory-paperdoll-figure\.png["']?\)[\s\S]{0,160}?contain\s+no-repeat/,
+    "the authored high-resolution portrait must remain a bounded loading fallback",
+  );
+  assert.match(portrait, /paperdollLoadoutFromEquipment\(equipment\)/);
+  assert.match(portrait, /createPaperdollEquipmentSignature\(equipment\)/);
+  assert.match(portrait, /paperdollLayerPathsForLoadout\(loadout\)/);
+  assert.match(portrait, /drawPaperdollCharacter\(context,/);
+  assert.match(portrait, /PORTRAIT_DIRECTION\s*=\s*0/);
+  assert.match(portrait, /PORTRAIT_IDLE_FRAME\s*=\s*1/);
+  assert.match(portrait, /role="img"[\s\S]{0,120}?aria-label=\{portraitLabel\}/);
+  assert.match(
+    portrait,
+    /layerPaths\.every\([\s\S]{0,160}?isPaperdollLayerAtlasReady/,
+    "the previous complete portrait must remain visible until every new wearable atlas is ready",
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-paperdoll-figure\.is-ready::before\s*\{[^}]*opacity:\s*0;/,
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-paperdoll-canvas\s*\{[\s\S]{0,260}?inset:\s*0;[\s\S]{0,220}?width:\s*100%;[\s\S]{0,120}?height:\s*100%;/,
   );
 });
 
