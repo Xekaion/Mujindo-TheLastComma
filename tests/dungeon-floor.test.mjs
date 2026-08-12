@@ -154,6 +154,11 @@ test("door access exhaustively seals the four outer edges of the 99x99 floor", (
   const directionCounts = { 2: 0, 3: 0, 4: 0 };
   for (let y = -49; y <= 49; y += 1) {
     for (let x = -49; x <= 49; x += 1) {
+      assert.deepEqual(
+        dungeon.dungeonDoorAccess(x, y, false),
+        { west: false, east: false, north: false, south: false },
+        `${x},${y} must remain sealed before the room door finishes opening`,
+      );
       const openDirections = Object.values(
         dungeon.dungeonDoorAccess(x, y, true),
       ).filter(Boolean).length;

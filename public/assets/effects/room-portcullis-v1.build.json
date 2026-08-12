@@ -1,0 +1,42 @@
+{
+  "source": "room-portcullis-source-v1.png",
+  "sourceSha256": "5f848704960815b549a86141b53638119bb8f1bba7e5027a1b1bbf82374e88f8",
+  "output": "room-portcullis-v1.png",
+  "outputSha256": "c1bd626f582431f5ec0ce306d5cd1a2443c46c8bec1b64a236225459cba439a4",
+  "format": "RGBA PNG",
+  "atlas": {
+    "width": 1024,
+    "height": 256
+  },
+  "cell": {
+    "width": 256,
+    "height": 256
+  },
+  "frameOrder": "closed to fully raised",
+  "frames": [
+    {
+      "frame": 0,
+      "progressPercent": 0,
+      "gateY": 100,
+      "pixelHash": "c64b01bbdeda9d2ed00feceab580b1ebae88034f7b135d1d1ade6054fcfc9f10"
+    },
+    {
+      "frame": 1,
+      "progressPercent": 33,
+      "gateY": 42,
+      "pixelHash": "285d56939d3d29649310d13162aa03a74d2775ab67c41f6299a24e234fc51997"
+    },
+    {
+      "frame": 2,
+      "progressPercent": 67,
+      "gateY": -36,
+      "pixelHash": "39c35cef477048e387be1cec0682be032e90ed3ac9ebf8db12adf8d5bc9d0d02"
+    },
+    {
+      "frame": 3,
+      "progressPercent": 100,
+      "gateY": -126,
+      "pixelHash": "41137fe3ebdc409a701e1d680fd773aec7e41bc0fda030bc5642ad8877507fff"
+    }
+  ]
+}

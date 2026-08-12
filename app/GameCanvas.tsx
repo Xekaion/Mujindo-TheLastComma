@@ -121,6 +121,15 @@ import {
   projectPointToConvexPolygon,
 } from "./room-collision";
 import {
+  advanceRoomDoorMotion,
+  beginRoomDoorOpening,
+  createClosedRoomDoorMotion,
+  createRoomDoorMotion,
+  roomDoorFrame,
+  roomDoorsPassable,
+  type RoomDoorMotion,
+} from "./room-doors";
+import {
   ROOM_ART_NAMES,
   ROOM_ART_PATHS,
   ROOM_STAIR_ART_PATHS,
@@ -291,6 +300,23 @@ const ROOM_GEOMETRY = {
   openInsetX: 24,
   openInsetY: 24,
 } as const;
+const ROOM_DOOR_ATLAS_CELL_SIZE = 256;
+const ROOM_DOOR_DRAW_WIDTH = 224;
+const ROOM_DOOR_DRAW_HEIGHT = 148;
+const ROOM_DOOR_CLOSE_REVEAL_TRANSITION = 0.24;
+const ROOM_DOOR_ASSET_PATH = "/assets/effects/room-portcullis-v1.png";
+type DoorSide = "west" | "east" | "north" | "south";
+const ROOM_DOOR_PLACEMENTS: ReadonlyArray<{
+  side: DoorSide;
+  x: number;
+  y: number;
+  angle: number;
+}> = [
+  { side: "north", x: WIDTH / 2, y: WALKABLE_FLOOR_POLYGON[0].y, angle: 0 },
+  { side: "east", x: WALKABLE_FLOOR_POLYGON[2].x, y: HEIGHT / 2, angle: Math.PI / 2 },
+  { side: "south", x: WIDTH / 2, y: WALKABLE_FLOOR_POLYGON[4].y, angle: Math.PI },
+  { side: "west", x: WALKABLE_FLOOR_POLYGON[6].x, y: HEIGHT / 2, angle: -Math.PI / 2 },
+];
 type GameMode =
   | "menu"
   | "playing"
@@ -846,9 +872,11 @@ type World = {
   projectiles: Projectile[];
   orbs: MemoryOrb[];
   gearDrops: GearDrop[];
+  doorEffects: VisualEffect[];
   effects: VisualEffect[];
   effectCounts: Record<BehaviorEffectKind, number>;
   transition: number;
+  doorMotion: RoomDoorMotion;
   clearHandled: boolean;
   activeBossKind: BossKind | null;
   expeditionDifficulty: ExpeditionDifficulty;
@@ -1434,14 +1462,14 @@ const ROOM_NAMES: Record<RoomKind, string> = {
 
 const ROOM_COLOR_GRADE: Record<
   RoomKind,
-  { tint: string; mote: string; locked: string; open: string }
+  { tint: string; mote: string }
 > = {
-  battle: { tint: "#8b775f", mote: "#c6aa78", locked: "#c34b43", open: "#72d5c0" },
-  horde: { tint: "#74684c", mote: "#c7b47a", locked: "#bd5344", open: "#a7c883" },
-  elite: { tint: "#7e2527", mote: "#da7764", locked: "#ed534c", open: "#80d1bd" },
-  memory: { tint: "#506b83", mote: "#9fd3dc", locked: "#ba5e78", open: "#87d7dc" },
-  shelter: { tint: "#9a6636", mote: "#f0c477", locked: "#be5743", open: "#8ed7b0" },
-  boss: { tint: "#6f3035", mote: "#d8c7a2", locked: "#e34d50", open: "#d2c89c" },
+  battle: { tint: "#8b775f", mote: "#c6aa78" },
+  horde: { tint: "#74684c", mote: "#c7b47a" },
+  elite: { tint: "#7e2527", mote: "#da7764" },
+  memory: { tint: "#506b83", mote: "#9fd3dc" },
+  shelter: { tint: "#9a6636", mote: "#f0c477" },
+  boss: { tint: "#6f3035", mote: "#d8c7a2" },
 };
 
 const ENEMY_NAMES = [
@@ -1782,9 +1810,11 @@ function makeWorld(seed: number, dungeonFloor = 1): World {
     projectiles: [],
     orbs: [],
     gearDrops: [],
+    doorEffects: [],
     effects: [],
     effectCounts: { summon: 0, teleport: 0 },
     transition: 0,
+    doorMotion: createClosedRoomDoorMotion(),
     clearHandled: false,
     activeBossKind: null,
     expeditionDifficulty: { ...BASE_EXPEDITION_DIFFICULTY },
@@ -2975,6 +3005,22 @@ export default function GameCanvas({
       world.roomY = y;
       world.roomKind = kind;
       world.roomCleared = world.rooms[key].cleared;
+      world.doorMotion = createRoomDoorMotion(world.roomCleared);
+      world.doorEffects = [];
+      if (!world.roomCleared) {
+        for (const placement of ROOM_DOOR_PLACEMENTS) {
+          world.doorEffects.push({
+            id: idRef.current++,
+            kind: "playerImpact",
+            x: placement.x,
+            y: placement.y,
+            life: 0.28,
+            duration: 0.28,
+            size: 46,
+            color: "#9d342f",
+          });
+        }
+      }
       world.clearHandled = world.roomCleared;
       world.projectiles = [];
       world.orbs = [];
@@ -3971,6 +4017,7 @@ export default function GameCanvas({
       marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
       silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
+      roomPortcullis: ROOM_DOOR_ASSET_PATH,
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
@@ -5096,6 +5143,8 @@ export default function GameCanvas({
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       world.clearHandled = true;
       world.roomCleared = true;
+      world.doorMotion = beginRoomDoorOpening(world.doorMotion);
+      world.doorEffects = [];
       playGameSfx("roomClear", { priority: 7 });
       world.rooms[keyOf(world.roomX, world.roomY)].cleared = true;
       world.clearedRoomCount += 1;
@@ -5179,6 +5228,17 @@ export default function GameCanvas({
       const world = worldRef.current;
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       world.transition = Math.max(0, world.transition - dt);
+      // Keep the raised gate behind the first half of the room-crossfade, then
+      // visibly slam it down as the new room is revealed. Collision is already
+      // locked while the motion is in `closing`, so visuals and traversal stay honest.
+      if (
+        world.doorMotion.phase !== "closing" ||
+        world.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION
+      ) {
+        world.doorMotion = advanceRoomDoorMotion(world.doorMotion, dt);
+      }
+      for (const effect of world.doorEffects) effect.life -= dt;
+      world.doorEffects = world.doorEffects.filter((effect) => effect.life > 0);
       for (const effect of world.effects) effect.life -= dt;
       world.effects = world.effects.filter((effect) => effect.life > 0);
       for (const drop of world.gearDrops) {
@@ -5342,7 +5402,7 @@ export default function GameCanvas({
       const doors = dungeonDoorAccess(
         world.roomX,
         world.roomY,
-        world.roomCleared,
+        roomDoorsPassable(world.doorMotion),
       );
       const inHorizontalDoor =
         player.y > ROOM_GEOMETRY.horizontalDoorTop &&
@@ -5350,7 +5410,7 @@ export default function GameCanvas({
       const inVerticalDoor =
         player.x > ROOM_GEOMETRY.verticalDoorLeft &&
         player.x < ROOM_GEOMETRY.verticalDoorRight;
-      if (world.roomCleared && world.transition <= 0) {
+      if (roomDoorsPassable(world.doorMotion) && world.transition <= 0) {
         if (
           doors.west &&
           player.x < ROOM_GEOMETRY.transitionInsetX &&
@@ -8462,10 +8522,10 @@ export default function GameCanvas({
       context.fillRect(0, 0, WIDTH, HEIGHT);
 
       const ambientTime = performance.now() / 1000;
-      const currentDoorAccess = dungeonDoorAccess(
+      const existingDoorways = dungeonDoorAccess(
         world.roomX,
         world.roomY,
-        world.roomCleared,
+        true,
       );
       context.save();
       context.fillStyle = roomGrade.mote;
@@ -8483,129 +8543,44 @@ export default function GameCanvas({
       }
       context.restore();
 
-      type DoorSide = "west" | "east" | "north" | "south";
-      const doorRects: Array<{ side: DoorSide; x: number; y: number; w: number; h: number }> = [
-        {
-          side: "west",
-          x: ROOM_GEOMETRY.openInsetX,
-          y: ROOM_GEOMETRY.horizontalDoorTop,
-          w: ROOM_GEOMETRY.left - ROOM_GEOMETRY.openInsetX + 10,
-          h: ROOM_GEOMETRY.horizontalDoorBottom - ROOM_GEOMETRY.horizontalDoorTop,
-        },
-        {
-          side: "east",
-          x: ROOM_GEOMETRY.right - 10,
-          y: ROOM_GEOMETRY.horizontalDoorTop,
-          w: ROOM_GEOMETRY.left - ROOM_GEOMETRY.openInsetX + 10,
-          h: ROOM_GEOMETRY.horizontalDoorBottom - ROOM_GEOMETRY.horizontalDoorTop,
-        },
-        {
-          side: "north",
-          x: ROOM_GEOMETRY.verticalDoorLeft,
-          y: ROOM_GEOMETRY.openInsetY,
-          w: ROOM_GEOMETRY.verticalDoorRight - ROOM_GEOMETRY.verticalDoorLeft,
-          h: ROOM_GEOMETRY.top - ROOM_GEOMETRY.openInsetY + 10,
-        },
-        {
-          side: "south",
-          x: ROOM_GEOMETRY.verticalDoorLeft,
-          y: ROOM_GEOMETRY.bottom - 10,
-          w: ROOM_GEOMETRY.verticalDoorRight - ROOM_GEOMETRY.verticalDoorLeft,
-          h: ROOM_GEOMETRY.top - ROOM_GEOMETRY.openInsetY + 10,
-        },
-      ];
-
-      const traceDiamond = (x: number, y: number, size: number) => {
-        context.beginPath();
-        context.moveTo(x, y - size);
-        context.lineTo(x + size, y);
-        context.lineTo(x, y + size);
-        context.lineTo(x - size, y);
-        context.closePath();
-      };
-
-      const drawDoorWard = ({ side, x, y, w, h }: (typeof doorRects)[number]) => {
-        const horizontal = side === "west" || side === "east";
-        const pulse = 0.72 + Math.sin(ambientTime * 3.2 + x * 0.01 + y * 0.01) * 0.16;
-        const doorIsOpen = currentDoorAccess[side];
+      const doorImage = images.roomPortcullis;
+      const animatedDoorFrame = roomDoorFrame(world.doorMotion);
+      const drawRoomDoor = ({ side, x, y, angle }: (typeof ROOM_DOOR_PLACEMENTS)[number]) => {
+        // The 99x99 perimeter has no neighboring room. Keep that authored gate
+        // fully lowered even after the current encounter is cleared.
+        const frame = existingDoorways[side] ? animatedDoorFrame : 0;
         context.save();
-        if (!doorIsOpen) {
-          const sealShade = horizontal
-            ? context.createLinearGradient(x, y, x + w, y)
-            : context.createLinearGradient(x, y, x, y + h);
-          sealShade.addColorStop(0, "rgba(20,4,8,.12)");
-          sealShade.addColorStop(0.5, "rgba(95,12,20,.34)");
-          sealShade.addColorStop(1, "rgba(20,4,8,.12)");
-          context.fillStyle = sealShade;
-          context.fillRect(x, y, w, h);
-          context.globalCompositeOperation = "screen";
-          context.strokeStyle = roomGrade.locked;
-          context.fillStyle = roomGrade.locked;
-          context.shadowColor = roomGrade.locked;
-          context.shadowBlur = 14;
-          context.globalAlpha = pulse;
-          context.lineWidth = 1.7;
-          for (let rune = 0; rune < 3; rune += 1) {
-            const offset = 0.24 + rune * 0.26;
-            context.beginPath();
-            if (horizontal) {
-              const lineX = x + w * offset;
-              context.moveTo(lineX, y + 10);
-              context.quadraticCurveTo(lineX + (rune - 1) * 5, y + h / 2, lineX, y + h - 10);
-            } else {
-              const lineY = y + h * offset;
-              context.moveTo(x + 12, lineY);
-              context.quadraticCurveTo(x + w / 2, lineY + (rune - 1) * 5, x + w - 12, lineY);
-            }
-            context.stroke();
-          }
-          traceDiamond(x + w / 2, y + h / 2, 7 + pulse * 2);
-          context.fill();
-          context.globalAlpha = pulse * 0.55;
-          traceDiamond(x + w / 2, y + h / 2, 15);
-          context.stroke();
+        context.translate(x, y);
+        context.rotate(angle);
+        if (doorImage?.complete && doorImage.naturalWidth && doorImage.naturalHeight) {
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = "high";
+          context.drawImage(
+            doorImage,
+            frame * ROOM_DOOR_ATLAS_CELL_SIZE,
+            0,
+            ROOM_DOOR_ATLAS_CELL_SIZE,
+            ROOM_DOOR_ATLAS_CELL_SIZE,
+            -ROOM_DOOR_DRAW_WIDTH / 2,
+            -ROOM_DOOR_DRAW_HEIGHT,
+            ROOM_DOOR_DRAW_WIDTH,
+            ROOM_DOOR_DRAW_HEIGHT,
+          );
         } else {
-          const thresholdX = side === "west" ? x + w - 3 : x + 3;
-          const thresholdY = side === "north" ? y + h - 3 : y + 3;
-          context.globalCompositeOperation = "screen";
-          context.strokeStyle = roomGrade.open;
-          context.fillStyle = roomGrade.open;
-          context.shadowColor = roomGrade.open;
-          context.shadowBlur = 12;
-          context.globalAlpha = 0.34 + pulse * 0.32;
-          context.lineWidth = 2;
-          context.beginPath();
-          if (horizontal) {
-            context.moveTo(thresholdX, y + 15);
-            context.lineTo(thresholdX, y + h - 15);
-          } else {
-            context.moveTo(x + 16, thresholdY);
-            context.lineTo(x + w - 16, thresholdY);
-          }
-          context.stroke();
-          for (let mote = 0; mote < 3; mote += 1) {
-            const travel = positiveModulo(ambientTime * 28 + mote * 18, 48);
-            const moteX =
-              side === "west"
-                ? thresholdX - travel
-                : side === "east"
-                  ? thresholdX + travel
-                  : x + w / 2 + Math.sin(ambientTime * 2 + mote) * 11;
-            const moteY =
-              side === "north"
-                ? thresholdY - travel
-                : side === "south"
-                  ? thresholdY + travel
-                  : y + h / 2 + Math.sin(ambientTime * 1.7 + mote) * 14;
-            context.globalAlpha = (1 - travel / 48) * 0.58;
-            traceDiamond(moteX, moteY, 2.8);
-            context.fill();
-          }
+          // Asset loading failure stays physically honest: an opaque emergency
+          // shutter is safer than showing an open corridor that is still solid.
+          context.fillStyle = "rgba(12,14,16,.96)";
+          context.fillRect(
+            -ROOM_DOOR_DRAW_WIDTH / 2,
+            -ROOM_DOOR_DRAW_HEIGHT,
+            ROOM_DOOR_DRAW_WIDTH,
+            ROOM_DOOR_DRAW_HEIGHT,
+          );
         }
         context.restore();
       };
 
-      doorRects.forEach(drawDoorWard);
+      ROOM_DOOR_PLACEMENTS.forEach(drawRoomDoor);
 
       if (inputRef.current.hasMoveTarget) {
         const pulse = 12 + Math.sin(performance.now() / 140) * 3;
@@ -9130,6 +9105,11 @@ export default function GameCanvas({
 
       for (const projectile of world.projectiles) {
         drawProjectileVfx(projectile, ambientTime, world.projectiles.length, "core");
+      }
+      for (const effect of world.doorEffects) {
+        if (effect.kind !== "timeRiftTelegraph") {
+          drawCombatEffect(effect, ambientTime);
+        }
       }
       for (const effect of world.effects) {
         if (effect.kind !== "timeRiftTelegraph") {
