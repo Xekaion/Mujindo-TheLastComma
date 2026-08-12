@@ -36,12 +36,18 @@ import {
 import {
   PAPERDOLL_BODY_PATH,
   createPaperdollEquipmentSignature,
+  createPaperdollGearSignature,
   drawPaperdollCharacter,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
   clearPaperdollCaches,
 } from "./character-paperdoll";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
+import {
+  EQUIPPED_RARITY_VFX_PATHS,
+  drawEquippedRarityVfx,
+  resolveEquippedRarityVfxPlan,
+} from "./equipped-rarity-vfx";
 import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
@@ -2162,6 +2168,10 @@ export default function GameCanvas({
   >({});
   const stairRoomArtLastUsedRef = useRef(new Map<RoomStairArtKey, number>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const equippedRarityVfxPlanRef = useRef<{
+    signature: string;
+    plan: ReturnType<typeof resolveEquippedRarityVfxPlan>;
+  }>({ signature: "", plan: resolveEquippedRarityVfxPlan({}) });
   const modeRef = useRef<GameMode>("menu");
   const storyActionRef = useRef<() => void>(() => undefined);
   const lastHudUpdateRef = useRef(0);
@@ -4018,6 +4028,8 @@ export default function GameCanvas({
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
       silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
       roomPortcullis: ROOM_DOOR_ASSET_PATH,
+      equippedMythicAura: EQUIPPED_RARITY_VFX_PATHS.mythic,
+      equippedCosmicAura: EQUIPPED_RARITY_VFX_PATHS.cosmic,
       summonEffect: "/assets/effects/summon-rift.png",
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
@@ -9157,6 +9169,20 @@ export default function GameCanvas({
       const playerPaperdollLoadout = paperdollLoadoutFromEquipment(
         player.equipment,
       );
+      const playerPaperdollSignature = createPaperdollGearSignature(
+        playerPaperdollLoadout,
+      );
+      if (equippedRarityVfxPlanRef.current.signature !== playerPaperdollSignature) {
+        equippedRarityVfxPlanRef.current = {
+          signature: playerPaperdollSignature,
+          plan: resolveEquippedRarityVfxPlan(playerPaperdollLoadout),
+        };
+      }
+      const playerRarityVfxPlan = equippedRarityVfxPlanRef.current.plan;
+      const equippedRarityVfxImages = {
+        mythic: images.equippedMythicAura,
+        cosmic: images.equippedCosmicAura,
+      };
       const playerDrawn =
         (paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH) &&
           drawPaperdollCharacter(context, {
@@ -9190,6 +9216,19 @@ export default function GameCanvas({
           112,
           playerAlpha,
         );
+      drawEquippedRarityVfx(context, {
+        plan: playerRarityVfxPlan,
+        images: equippedRarityVfxImages,
+        direction: player.facing,
+        frame: playerWalkFrame,
+        timeMs: ambientTime * 1000,
+        x: player.x,
+        y: playerSpriteY,
+        width: playerSpriteWidth,
+        height: playerSpriteHeight,
+        context: "combat",
+        alpha: playerAlpha,
+      });
       if (!playerDrawn) {
         context.beginPath();
         context.fillStyle = player.invulnerable > 0 ? "#f0cf88" : "#9a4038";

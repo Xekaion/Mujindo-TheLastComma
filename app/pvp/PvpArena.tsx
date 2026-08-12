@@ -42,6 +42,12 @@ import {
   type PaperdollLoadout,
 } from "../character-paperdoll";
 import { createBrowserPaperdollImageStore } from "../paperdoll-image-store";
+import {
+  EQUIPPED_RARITY_VFX_PATHS,
+  drawEquippedRarityVfx,
+  resolveEquippedRarityVfxPlan,
+  type EquippedRarityVfxTier,
+} from "../equipped-rarity-vfx";
 import { readActiveSaveSlot, readSaveSlot } from "../save-slots";
 import {
   CHARACTER_IDLE_FRAME,
@@ -123,6 +129,9 @@ function readLocalPvpPaperdollLoadout(): PaperdollLoadout {
 export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const equippedRarityVfxImagesRef = useRef<
+    Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
+  >({});
   const snapshotRef = useRef<PvpSnapshot | null>(null);
   const playerIdRef = useRef<string | null>(null);
   const keysRef = useRef(new Set<string>());
@@ -167,6 +176,34 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       ...paperdollLayerPathsForLoadout(localPaperdollLoadout),
     ]);
   }, [localPaperdollLoadout]);
+
+  useEffect(() => {
+    let disposed = false;
+    const images = equippedRarityVfxImagesRef.current;
+    const pending: HTMLImageElement[] = [];
+
+    for (const tier of Object.keys(
+      EQUIPPED_RARITY_VFX_PATHS,
+    ) as EquippedRarityVfxTier[]) {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        if (!disposed) images[tier] = image;
+      };
+      image.src = EQUIPPED_RARITY_VFX_PATHS[tier];
+      pending.push(image);
+    }
+
+    return () => {
+      disposed = true;
+      for (const image of pending) {
+        image.onload = null;
+        image.onerror = null;
+        image.src = "";
+      }
+      equippedRarityVfxImagesRef.current = {};
+    };
+  }, []);
 
   useEffect(
     () => {
@@ -330,6 +367,9 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     if (!canvas) return;
     const context = canvas.getContext("2d");
     if (!context) return;
+    const localRarityVfxPlan = resolveEquippedRarityVfxPlan(
+      localPaperdollLoadout,
+    );
     const background = new Image();
     background.src = "/assets/maps/room-elite.webp";
     const renderedPositions = new Map<
@@ -404,7 +444,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     };
 
-    const drawPlayer = (player: PvpPlayerSnapshot, elapsedSeconds: number) => {
+    const drawPlayer = (
+      player: PvpPlayerSnapshot,
+      elapsedSeconds: number,
+      renderTime: number,
+    ) => {
       const targetFacing = characterFacingForVector(
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vx : player.aimX,
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vy : player.aimY,
@@ -459,6 +503,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       const bodyAtlas = paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH);
       const appearance =
         player.id === playerIdRef.current ? localPaperdollLoadout : {};
+      const isLocalPlayer = player.id === playerIdRef.current;
       if (
         bodyAtlas?.complete &&
         bodyAtlas.naturalWidth > 0 &&
@@ -479,6 +524,23 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           width: 157,
           height: 118,
         });
+        if (appearanceDrawn && isLocalPlayer) {
+          context.shadowBlur = 0;
+          context.shadowColor = "transparent";
+          drawEquippedRarityVfx(context, {
+            plan: localRarityVfxPlan,
+            images: equippedRarityVfxImagesRef.current,
+            direction: rendered.facing,
+            frame,
+            timeMs: renderTime,
+            x: rendered.x,
+            y: rendered.y + 34,
+            width: 157,
+            height: 118,
+            context: "combat",
+            alpha,
+          });
+        }
         if (!appearanceDrawn) {
           context.fillStyle = accent;
           context.beginPath();
@@ -544,7 +606,9 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           context.fill();
           context.restore();
         }
-        for (const player of current.players) drawPlayer(player, elapsedSeconds);
+        for (const player of current.players) {
+          drawPlayer(player, elapsedSeconds, renderTime);
+        }
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";

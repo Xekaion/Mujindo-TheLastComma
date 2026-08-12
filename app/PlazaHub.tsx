@@ -39,6 +39,13 @@ import {
 } from "./character-paperdoll";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
 import {
+  EQUIPPED_RARITY_VFX_PATHS,
+  drawEquippedRarityVfx,
+  resolveEquippedRarityVfxPlan,
+  type EquippedRarityVfxImageMap,
+  type EquippedRarityVfxTier,
+} from "./equipped-rarity-vfx";
+import {
   canvasClientPointToWorld,
   pickPlazaInspectablePlayer,
 } from "./plaza-player-inspection";
@@ -114,6 +121,7 @@ type DrawPlayer = {
   moving: boolean;
   walkCycle: number;
   gear: HubAppearance["gear"] | undefined;
+  rarities: HubAppearance["rarities"] | undefined;
   local: boolean;
   stale: boolean;
 };
@@ -441,6 +449,8 @@ function drawPlayer(
   player: DrawPlayer,
   bodyImage: HTMLImageElement | undefined,
   layerSources: ReadonlyMap<string, HTMLImageElement>,
+  rarityVfxImages: EquippedRarityVfxImageMap,
+  timeMs: number,
   readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
 ) {
   const shadowWidth = player.local ? 34 : 30;
@@ -451,13 +461,19 @@ function drawPlayer(
 
   const alpha = player.stale ? 0.44 : 1;
   const frame = characterWalkFrameIndex(player.walkCycle, player.moving);
+  const loadout = paperdollLoadoutFromVisualGear(
+    player.gear,
+    "common",
+    0,
+    player.rarities,
+  );
   const appearanceDrawn = Boolean(
     bodyImage?.complete &&
       bodyImage.naturalWidth > 0 &&
       drawPaperdollCharacterDirect(context, {
         bodyAtlas: bodyImage,
         layerSources,
-        loadout: paperdollLoadoutFromVisualGear(player.gear),
+        loadout,
         direction: player.facing,
         frame,
         x: player.x,
@@ -467,6 +483,24 @@ function drawPlayer(
         alpha,
       }),
   );
+  // Coarse remote players intentionally carry no rarity map. That avoids both
+  // hidden rarity disclosure and needless plan allocation for the other 29
+  // visible players; only the local actor and two detailed remotes reach VFX.
+  if (appearanceDrawn && player.rarities) {
+    drawEquippedRarityVfx(context, {
+      plan: resolveEquippedRarityVfxPlan(loadout),
+      images: rarityVfxImages,
+      direction: player.facing,
+      frame,
+      timeMs,
+      x: player.x,
+      y: player.y + 8,
+      width: 171,
+      height: 128,
+      context: player.local ? "plaza-local" : "plaza-remote",
+      alpha,
+    });
+  }
   if (!appearanceDrawn) {
     context.save();
     context.globalAlpha = alpha;
@@ -529,6 +563,9 @@ export default function PlazaHub({
   const sceneImagesRef = useRef(new Map<string, HTMLImageElement>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const paperdollPathSignatureRef = useRef("");
+  const rarityVfxImagesRef = useRef<
+    Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
+  >({});
   const remotePlayersRef = useRef(remotePlayers);
   const inspectableRemotePlayersRef = useRef<readonly PlazaRemotePlayer[]>([]);
   const remoteRenderPointsRef = useRef(new Map<string, RemoteRenderPoint>());
@@ -549,6 +586,7 @@ export default function PlazaHub({
   const characterEquipped = character.appearance?.equipped;
   const characterPalette = character.appearance?.palette;
   const characterGear = character.appearance?.gear;
+  const characterRarities = character.appearance?.rarities;
 
   const normalizedCharacter = useMemo(
     () => ({
@@ -559,12 +597,14 @@ export default function PlazaHub({
       saveSlot: character.saveSlot,
       appearance: characterSpriteKey !== undefined ||
         characterEquipped !== undefined ||
-        characterGear !== undefined
+        characterGear !== undefined ||
+        characterRarities !== undefined
         ? {
             spriteKey: characterSpriteKey,
             equipped: characterEquipped,
             palette: characterPalette,
             gear: characterGear,
+            rarities: characterRarities,
           }
         : undefined,
     }),
@@ -572,6 +612,7 @@ export default function PlazaHub({
       characterEquipped,
       characterGear,
       characterPalette,
+      characterRarities,
       characterSpriteKey,
       character.characterId,
       character.displayName,
@@ -748,6 +789,33 @@ export default function PlazaHub({
   }, []);
 
   useEffect(() => {
+    const images = rarityVfxImagesRef.current;
+    const ownedImages: Array<readonly [EquippedRarityVfxTier, HTMLImageElement]> = [];
+    for (const [tier, path] of Object.entries(EQUIPPED_RARITY_VFX_PATHS) as Array<
+      readonly [EquippedRarityVfxTier, string]
+    >) {
+      const image = new Image();
+      image.decoding = "async";
+      image.addEventListener(
+        "error",
+        () => {
+          if (images[tier] === image) delete images[tier];
+        },
+        { once: true },
+      );
+      image.src = path;
+      images[tier] = image;
+      ownedImages.push([tier, image]);
+    }
+    return () => {
+      for (const [tier, image] of ownedImages) {
+        if (images[tier] === image) delete images[tier];
+        image.src = "";
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (pausedRef.current) return;
       const target = event.target as HTMLElement | null;
@@ -841,6 +909,9 @@ export default function PlazaHub({
       for (const path of paperdollLayerPathsForLoadout(
         paperdollLoadoutFromVisualGear(
           normalizedCharacterRef.current.appearance?.gear,
+          "common",
+          0,
+          normalizedCharacterRef.current.appearance?.rarities,
         ),
       )) requiredLayerPaths.add(path);
       for (const player of renderableRemotePlayers.slice(
@@ -848,7 +919,12 @@ export default function PlazaHub({
         PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT,
       )) {
         for (const path of paperdollLayerPathsForLoadout(
-          paperdollLoadoutFromVisualGear(player.appearance?.gear),
+          paperdollLoadoutFromVisualGear(
+            player.appearance?.gear,
+            "common",
+            0,
+            player.appearance?.rarities,
+          ),
         )) requiredLayerPaths.add(path);
       }
       const pathSignature = [...requiredLayerPaths].sort().join("|");
@@ -1032,6 +1108,9 @@ export default function PlazaHub({
           gear: detailedRemotePlayerIds.has(player.characterId)
             ? player.appearance.gear
             : undefined,
+          rarities: detailedRemotePlayerIds.has(player.characterId)
+            ? player.appearance.rarities
+            : undefined,
           local: false,
           stale: typeof player.updatedAt === "number" && currentTime - player.updatedAt > 10_000,
         };
@@ -1047,6 +1126,7 @@ export default function PlazaHub({
         moving: movingRef.current,
         walkCycle: walkCycleRef.current,
         gear: localCharacter.appearance?.gear,
+        rarities: localCharacter.appearance?.rarities,
         local: true,
         stale: false,
       });
@@ -1057,6 +1137,8 @@ export default function PlazaHub({
           player,
           paperdollImages.get(PAPERDOLL_BODY_PATH),
           paperdollImages.imageMap(),
+          rarityVfxImagesRef.current,
+          now,
           readableCanvasFontSize,
         );
       }

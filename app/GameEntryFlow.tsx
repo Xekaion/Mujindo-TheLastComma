@@ -169,11 +169,15 @@ export default function GameEntryFlow({
         item ? Math.max(0, Math.min(9, Math.floor(item.iconIndex / 10))) : null,
       ]),
     ) as HubAppearance["gear"];
+    const rarities = Object.fromEntries(
+      entries.map(([slot, item]) => [slot, item?.rarity ?? null]),
+    ) as HubAppearance["rarities"];
     const slotIndex = selection ? selection.slot - 1 : 0;
     return {
       spriteKey: equipped ? "harin-equipped" : "harin",
       palette: HUB_PALETTES[slotIndex] ?? "scarlet",
       gear,
+      rarities,
     };
   }, [equipment, selection]);
 
@@ -415,6 +419,7 @@ export default function GameEntryFlow({
             equipped: hubAppearance.spriteKey === "harin-equipped",
             palette: self?.appearance.palette ?? hubAppearance.palette,
             gear: self?.appearance.gear ?? hubAppearance.gear,
+            rarities: self?.appearance.rarities ?? hubAppearance.rarities,
           },
         }}
         remotePlayers={hubSnapshot?.nearbyPlayers ?? []}

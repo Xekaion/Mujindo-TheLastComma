@@ -22,6 +22,13 @@ import {
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
 } from "./character-paperdoll";
+import {
+  EQUIPPED_RARITY_VFX_PATHS,
+  drawEquippedRarityVfx,
+  resolveEquippedRarityVfxPlan,
+  type EquippedRarityVfxImageMap,
+  type EquippedRarityVfxTier,
+} from "./equipped-rarity-vfx";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
 
 export type InventoryPaperdollFigureProps = Readonly<{
@@ -33,6 +40,7 @@ const PORTRAIT_IDLE_FRAME = 1;
 const PORTRAIT_LOAD_POLL_MS = 40;
 const PORTRAIT_LOAD_POLL_MAX_MS = 1_000;
 const PORTRAIT_LOAD_TIMEOUT_MS = 36_000;
+const PORTRAIT_RARITY_VFX_FRAME_MS = 1_000 / 11;
 const MAX_PORTRAIT_DPR = 2;
 
 function arePortraitSourcesReady(
@@ -106,6 +114,10 @@ export default function InventoryPaperdollFigure({
     () => paperdollLayerPathsForLoadout(loadout),
     [loadout],
   );
+  const rarityVfxPlan = useMemo(
+    () => resolveEquippedRarityVfxPlan(loadout),
+    [loadout],
+  );
   const portraitRarity = useMemo(
     () => strongestEquippedRarity(equipment),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -131,12 +143,22 @@ export default function InventoryPaperdollFigure({
     let cancelled = false;
     let pollTimer: number | undefined;
     let pulseTimer: number | undefined;
+    let animationFrame: number | undefined;
+    let lastAnimationDrawAt = 0;
+    let didTriggerSwapPulse = false;
+    let reducedMotion = false;
     let pollDelay = PORTRAIT_LOAD_POLL_MS;
     const loadDeadline = Date.now() + PORTRAIT_LOAD_TIMEOUT_MS;
     const requiredPaths = [PAPERDOLL_BODY_PATH, ...layerPaths];
+    const rarityVfxImages: Partial<
+      Record<EquippedRarityVfxTier, HTMLImageElement>
+    > = {};
+    const rarityVfxImageList: HTMLImageElement[] = [];
+    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    reducedMotion = motionQuery.matches;
     imageStore.reconcile(requiredPaths);
 
-    const drawLoadedPortrait = () => {
+    const drawLoadedPortrait = (timeMs = performance.now()) => {
       if (cancelled) return false;
       if (!arePortraitSourcesReady(imageStore, layerPaths)) return false;
       const bodyAtlas = imageStore.get(PAPERDOLL_BODY_PATH)!;
@@ -178,20 +200,95 @@ export default function InventoryPaperdollFigure({
       });
       if (!drawn) return false;
 
-      hasRenderedRef.current = true;
-      setHasRendered(true);
-      host.classList.remove("is-swapping");
+      drawEquippedRarityVfx(context, {
+        plan: rarityVfxPlan,
+        images: rarityVfxImages satisfies EquippedRarityVfxImageMap,
+        direction: PORTRAIT_DIRECTION,
+        frame: PORTRAIT_IDLE_FRAME,
+        timeMs,
+        x: bounds.width / 2,
+        y: bounds.height * 0.975,
+        width: portraitWidth,
+        height: portraitHeight,
+        context: "portrait",
+        reducedMotion,
+      });
+
+      if (!hasRenderedRef.current) {
+        hasRenderedRef.current = true;
+        setHasRendered(true);
+      }
       // Re-adding on the next frame gives every successful equipment swap one
       // restrained, visible pulse without continuously animating the canvas.
-      window.requestAnimationFrame(() => {
-        if (cancelled) return;
-        host.classList.add("is-swapping");
-        pulseTimer = window.setTimeout(() => {
-          host.classList.remove("is-swapping");
-        }, 520);
-      });
+      if (!didTriggerSwapPulse) {
+        didTriggerSwapPulse = true;
+        host.classList.remove("is-swapping");
+        window.requestAnimationFrame(() => {
+          if (cancelled) return;
+          host.classList.add("is-swapping");
+          pulseTimer = window.setTimeout(() => {
+            host.classList.remove("is-swapping");
+          }, 520);
+        });
+      }
       return true;
     };
+
+    const stopRarityVfxAnimation = () => {
+      if (animationFrame === undefined) return;
+      window.cancelAnimationFrame(animationFrame);
+      animationFrame = undefined;
+    };
+
+    const animateRarityVfx = (timeMs: number) => {
+      if (cancelled || reducedMotion || rarityVfxPlan.pieces.length === 0) {
+        animationFrame = undefined;
+        return;
+      }
+      if (timeMs - lastAnimationDrawAt >= PORTRAIT_RARITY_VFX_FRAME_MS) {
+        lastAnimationDrawAt = timeMs;
+        drawLoadedPortrait(timeMs);
+      }
+      animationFrame = window.requestAnimationFrame(animateRarityVfx);
+    };
+
+    const startRarityVfxAnimation = () => {
+      if (
+        cancelled ||
+        reducedMotion ||
+        rarityVfxPlan.pieces.length === 0 ||
+        animationFrame !== undefined
+      ) return;
+      lastAnimationDrawAt = 0;
+      animationFrame = window.requestAnimationFrame(animateRarityVfx);
+    };
+
+    const handleMotionPreference = (event: MediaQueryListEvent) => {
+      reducedMotion = event.matches;
+      if (reducedMotion) stopRarityVfxAnimation();
+      else startRarityVfxAnimation();
+      drawLoadedPortrait(performance.now());
+    };
+
+    motionQuery.addEventListener("change", handleMotionPreference);
+
+    if (rarityVfxPlan.pieces.length > 0) {
+      const requiredTiers = new Set(
+        rarityVfxPlan.pieces.map((piece) => piece.tier),
+      );
+      for (const tier of requiredTiers) {
+        const image = new Image();
+        rarityVfxImages[tier] = image;
+        rarityVfxImageList.push(image);
+        image.decoding = "async";
+        image.onload = () => {
+          if (cancelled) return;
+          drawLoadedPortrait(performance.now());
+          startRarityVfxAnimation();
+        };
+        image.src = EQUIPPED_RARITY_VFX_PATHS[tier];
+      }
+    }
 
     const pollUntilReady = () => {
       if (cancelled || drawLoadedPortrait()) return;
@@ -208,11 +305,18 @@ export default function InventoryPaperdollFigure({
 
     return () => {
       cancelled = true;
+      stopRarityVfxAnimation();
       resizeObserver.disconnect();
+      motionQuery.removeEventListener("change", handleMotionPreference);
+      for (const image of rarityVfxImageList) {
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src");
+      }
       if (pollTimer !== undefined) window.clearTimeout(pollTimer);
       if (pulseTimer !== undefined) window.clearTimeout(pulseTimer);
     };
-  }, [equipmentSignature, layerPaths, loadout]);
+  }, [equipmentSignature, layerPaths, loadout, rarityVfxPlan]);
 
   return (
     <div

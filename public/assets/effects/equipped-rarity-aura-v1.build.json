@@ -1,0 +1,123 @@
+{
+  "source": "equipped-rarity-aura-source-v1.png",
+  "sourceSha256": "0da20ea222cf0eafa5429af85350326e8469a264471882f0d64d4fd3031d9edc",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      256
+    ]
+  },
+  "rarities": {
+    "mythic": {
+      "output": "equipped-mythic-aura-v1.png",
+      "outputSha256": "f4c8afcc4c5afebdc49ff461a2deb39c5855c8728ad1df8d2671e51649c2f740",
+      "frames": [
+        {
+          "frame": 0,
+          "scale": 0.78,
+          "rotationDegrees": -2.5,
+          "alphaBounds": [
+            58,
+            43,
+            198,
+            214
+          ],
+          "pixelHash": "064657a1eb2b3f7d1a4b89af31f91f7093bebcbfa1a62239f1a4abf7ec9fdde9"
+        },
+        {
+          "frame": 1,
+          "scale": 0.88,
+          "rotationDegrees": 1.5,
+          "alphaBounds": [
+            50,
+            31,
+            207,
+            225
+          ],
+          "pixelHash": "90f99b8a0325902a03b3b786abdef3d30cf722c6b66aa7cb5d50d7fe3965f06b"
+        },
+        {
+          "frame": 2,
+          "scale": 0.98,
+          "rotationDegrees": 4.5,
+          "alphaBounds": [
+            41,
+            20,
+            216,
+            236
+          ],
+          "pixelHash": "e3ab99b6fbb20b959e0759a7cd3f9f3853b5bd05c84ffbafc133d07374c76fe7"
+        },
+        {
+          "frame": 3,
+          "scale": 0.85,
+          "rotationDegrees": -0.5,
+          "alphaBounds": [
+            52,
+            35,
+            204,
+            221
+          ],
+          "pixelHash": "6fca5f45850ef20922798e033c7e61d54fd1250b4fd165c771839dbe065f0f04"
+        }
+      ]
+    },
+    "cosmic": {
+      "output": "equipped-cosmic-aura-v1.png",
+      "outputSha256": "df199f5ec86e5dc4a219251336cd3953652353968f5b0cce4cb6158abe81c328",
+      "frames": [
+        {
+          "frame": 0,
+          "scale": 0.78,
+          "rotationDegrees": -2.5,
+          "alphaBounds": [
+            57,
+            42,
+            200,
+            214
+          ],
+          "pixelHash": "f53a1d3cf0ced53d8930585e01a96053c411f9d9a36c8e79decd4c13aeec4b32"
+        },
+        {
+          "frame": 1,
+          "scale": 0.88,
+          "rotationDegrees": 1.5,
+          "alphaBounds": [
+            49,
+            31,
+            208,
+            225
+          ],
+          "pixelHash": "de71a23e534758f35ef33d728c19892c96967ad99623f27b3cbf56076a641ba7"
+        },
+        {
+          "frame": 2,
+          "scale": 0.98,
+          "rotationDegrees": 4.5,
+          "alphaBounds": [
+            39,
+            19,
+            218,
+            237
+          ],
+          "pixelHash": "afc70bdb922663135c1ed46d407992c74549fb7cd62573e21b8bcd294611d780"
+        },
+        {
+          "frame": 3,
+          "scale": 0.85,
+          "rotationDegrees": -0.5,
+          "alphaBounds": [
+            51,
+            35,
+            205,
+            222
+          ],
+          "pixelHash": "e485e6a24f84a8d88657c2a7cb12f72c521328000da47c8b6e73f0f5579394ab"
+        }
+      ]
+    }
+  }
+}

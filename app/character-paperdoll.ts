@@ -212,15 +212,18 @@ export function paperdollLoadoutFromVariants(
   variants: unknown,
   rarity: GearRarity = "common",
   enhancement = 0,
+  rarities?: unknown,
 ): PaperdollLoadout {
   if (!isRecord(variants) || !isGearRarity(rarity)) return {};
   const safeEnhancement = finiteInteger(enhancement, 0, MAX_GEAR_ENHANCEMENT);
   if (safeEnhancement === null) return {};
   const result: Partial<Record<EquipmentSlot, PaperdollGearMeta>> = {};
+  const rarityMap = isRecord(rarities) ? rarities : {};
   for (const slot of EQUIPMENT_SLOTS) {
     const variant = finiteInteger(variants[slot], 0, PAPERDOLL_VARIANT_COUNT - 1);
     if (variant === null) continue;
-    result[slot] = { slot, variant, rarity, enhancement: safeEnhancement };
+    const slotRarity = isGearRarity(rarityMap[slot]) ? rarityMap[slot] : rarity;
+    result[slot] = { slot, variant, rarity: slotRarity, enhancement: safeEnhancement };
   }
   return result;
 }

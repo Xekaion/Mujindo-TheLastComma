@@ -128,6 +128,49 @@ test("hub and plaza share one 2400x1350 geometry and cardinal portal source", as
   );
 });
 
+test("hub appearance preserves only allowlisted equipped-rarity cosmetics", async () => {
+  const { protocol } = await importPlazaModules();
+  const appearance = protocol.normalizeHubAppearance({
+    spriteKey: "harin-equipped",
+    palette: "violet",
+    gear: { weapon: 7, shoulders: 9, injected: 4 },
+    rarities: {
+      weapon: "cosmic",
+      shoulders: "mythic",
+      armor: "legendary",
+      relic: "developer-only",
+      injected: "cosmic",
+    },
+  });
+
+  assert.equal(appearance.rarities.weapon, "cosmic");
+  assert.equal(appearance.rarities.shoulders, "mythic");
+  assert.equal(appearance.rarities.armor, "legendary");
+  assert.equal(appearance.rarities.relic, null);
+  assert.equal("injected" in appearance.rarities, false);
+  assert.equal(Object.keys(appearance.rarities).length, 10);
+  assert.deepEqual(
+    protocol.normalizeHubAppearance({ rarities: "not-an-object" }).rarities,
+    protocol.DEFAULT_HUB_APPEARANCE.rarities,
+  );
+
+  const session = protocol.parseHubSessionRequest({
+    characterSlot: 1,
+    appearance: {
+      rarities: {
+        helm: "mythic",
+        offhand: "cosmic",
+        boots: "invalid",
+        prototypePollution: "cosmic",
+      },
+    },
+  });
+  assert.equal(session.appearance.rarities.helm, "mythic");
+  assert.equal(session.appearance.rarities.offhand, "cosmic");
+  assert.equal(session.appearance.rarities.boots, null);
+  assert.equal("prototypePollution" in session.appearance.rarities, false);
+});
+
 test("hub protocol strips coordinate authority and allowlists every visual field", async () => {
   const { protocol } = await importPlazaModules();
   assert.equal(protocol.parseHubSessionRequest({ characterSlot: 0 }), null);

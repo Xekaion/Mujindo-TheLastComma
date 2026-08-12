@@ -5777,12 +5777,12 @@ test("expedition and plaza render independent fitted layers and preserve public 
   assert.doesNotMatch(plaza, /Math\.floor\(time\s*\*\s*8\.5\)/);
   assert.match(
     plaza,
-    /paperdollLoadoutFromVisualGear\(player\.appearance\?\.gear\)/,
+    /paperdollLoadoutFromVisualGear\(\s*player\.appearance\?\.gear,\s*"common",\s*0,\s*player\.appearance\?\.rarities,?\s*\)/,
     "remote public gear must request its independent fitted layers",
   );
   assert.match(
     plaza,
-    /paperdollLoadoutFromVisualGear\(\s*normalizedCharacterRef\.current\.appearance\?\.gear,?\s*\)/,
+    /paperdollLoadoutFromVisualGear\(\s*normalizedCharacterRef\.current\.appearance\?\.gear,\s*"common",\s*0,\s*normalizedCharacterRef\.current\.appearance\?\.rarities,?\s*\)/,
     "the selected local character's public gear must request its independent fitted layers",
   );
   assert.doesNotMatch(plaza, /equipment-types-v4\.png/);

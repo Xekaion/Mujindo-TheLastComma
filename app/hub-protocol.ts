@@ -9,6 +9,7 @@ import {
 } from "./plaza-world";
 import {
   EQUIPMENT_SLOTS,
+  GEAR_RARITIES,
   normalizeEquipment,
   normalizeGearItem,
   type EquipmentLoadout,
@@ -74,11 +75,14 @@ export const HUB_VISUAL_GEAR_SLOTS = [
 export type HubVisualGearSlot = (typeof HUB_VISUAL_GEAR_SLOTS)[number];
 
 export type HubVisualGear = Record<HubVisualGearSlot, number | null>;
+export type HubVisualRarities = Record<HubVisualGearSlot, GearRarity | null>;
 
 export type HubAppearance = {
   spriteKey: HubSpriteKey;
   palette: HubPalette;
   gear: HubVisualGear;
+  /** Cosmetic-only rarity summary. Never grants combat or economy authority. */
+  rarities: HubVisualRarities;
 };
 
 /**
@@ -237,6 +241,19 @@ const emptyVisualGear = (): HubVisualGear => ({
   relic: null,
 });
 
+const emptyVisualRarities = (): HubVisualRarities => ({
+  helm: null,
+  shoulders: null,
+  armor: null,
+  gloves: null,
+  belt: null,
+  legs: null,
+  boots: null,
+  weapon: null,
+  offhand: null,
+  relic: null,
+});
+
 export const createEmptyHubPublicEquipment = (): HubPublicEquipment =>
   Object.fromEntries(EQUIPMENT_SLOTS.map((slot) => [slot, null])) as HubPublicEquipment;
 
@@ -244,6 +261,7 @@ export const DEFAULT_HUB_APPEARANCE: Readonly<HubAppearance> = {
   spriteKey: "harin",
   palette: "scarlet",
   gear: emptyVisualGear(),
+  rarities: emptyVisualRarities(),
 };
 
 function normalizeGearVariant(value: unknown): number | null {
@@ -256,9 +274,14 @@ function normalizeGearVariant(value: unknown): number | null {
 export function normalizeHubAppearance(value: unknown): HubAppearance {
   const raw = isRecord(value) ? value : {};
   const rawGear = isRecord(raw.gear) ? raw.gear : {};
+  const rawRarities = isRecord(raw.rarities) ? raw.rarities : {};
   const gear = emptyVisualGear();
+  const rarities = emptyVisualRarities();
   for (const slot of HUB_VISUAL_GEAR_SLOTS) {
     gear[slot] = normalizeGearVariant(rawGear[slot]);
+    rarities[slot] = isOneOf(GEAR_RARITIES, rawRarities[slot])
+      ? rawRarities[slot]
+      : null;
   }
   return {
     spriteKey: isOneOf(HUB_SPRITE_KEYS, raw.spriteKey)
@@ -268,6 +291,7 @@ export function normalizeHubAppearance(value: unknown): HubAppearance {
       ? raw.palette
       : DEFAULT_HUB_APPEARANCE.palette,
     gear,
+    rarities,
   };
 }
 
