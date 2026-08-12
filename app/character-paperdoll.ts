@@ -315,6 +315,13 @@ export function createPaperdollGearSignature(loadout: PaperdollLoadout): string 
   }).join("|");
 }
 
+/** Stable dependency key for canonical equipment without cloning HUD state. */
+export function createPaperdollEquipmentSignature(
+  equipment: Readonly<Partial<Record<EquipmentSlot, GearItem | null>>>,
+): string {
+  return createPaperdollGearSignature(paperdollLoadoutFromEquipment(equipment));
+}
+
 /** Deterministic LRU constrained to the 256-frame runtime budget. */
 export class PaperdollLruCache<K, V> {
   readonly capacity: number;
@@ -683,6 +690,61 @@ export function drawPaperdollCharacter(
     options.height / PAPERDOLL_FRAME_HEIGHT,
   );
   const layers = resolvePaperdollLayers(loadout, direction, options.layerSources);
+  const result = drawPaperdollFrameContents(
+    context,
+    options.bodyAtlas,
+    layers,
+    direction,
+    frame,
+  );
+  context.restore();
+  return result.drawn;
+}
+
+export type DrawPaperdollCharacterDirectOptions = Omit<
+  DrawPaperdollCharacterOptions,
+  "cache"
+>;
+
+/**
+ * Multiplayer renderer: draws registered layers straight to the destination
+ * canvas. This deliberately bypasses the shared composite-frame LRU so a busy
+ * plaza never creates and immediately evicts one OffscreenCanvas per player.
+ */
+export function drawPaperdollCharacterDirect(
+  context: CanvasRenderingContext2D,
+  options: DrawPaperdollCharacterDirectOptions,
+): boolean {
+  if (
+    !Number.isFinite(options.x) ||
+    !Number.isFinite(options.y) ||
+    !Number.isFinite(options.width) ||
+    !Number.isFinite(options.height) ||
+    options.width <= 0 ||
+    options.height <= 0
+  ) return false;
+
+  const direction = normalizePaperdollDirection(options.direction);
+  const frame = normalizePaperdollFrame(options.frame);
+  const loadout = normalizePaperdollLoadout(options.loadout ?? {});
+  const layers = resolvePaperdollLayers(loadout, direction, options.layerSources);
+  const alpha = Math.max(0, Math.min(1, options.alpha ?? 1));
+  const groundAnchorRatio = Math.max(
+    0,
+    Math.min(1, options.groundAnchorRatio ?? PAPERDOLL_GROUND_ANCHOR_RATIO),
+  );
+
+  context.save();
+  context.globalAlpha *= alpha;
+  context.imageSmoothingEnabled = true;
+  context.translate(
+    options.x - options.width / 2,
+    options.y - options.height * groundAnchorRatio,
+  );
+  context.scale(
+    options.width / PAPERDOLL_FRAME_WIDTH,
+    options.height / PAPERDOLL_FRAME_HEIGHT,
+  );
   const result = drawPaperdollFrameContents(
     context,
     options.bodyAtlas,

@@ -261,8 +261,20 @@ test("cosmic pinnacle options feed live sheet formulas and the special-option le
   const baseline = snapshotFor();
   const finalDamage = snapshotFor({ stat: "cosmicFinalDamagePercent", value: 12 });
   nearlyEqual(
+    finalDamage.offense.sheetAttackPower,
+    baseline.offense.sheetAttackPower,
+  );
+  nearlyEqual(
     finalDamage.offense.normalProjectileDamage,
     baseline.offense.normalProjectileDamage * 1.12,
+  );
+  nearlyEqual(
+    finalDamage.ratings.statAttackDps,
+    baseline.ratings.statAttackDps * 1.12,
+  );
+  nearlyEqual(
+    finalDamage.ratings.standardBossDps,
+    baseline.ratings.standardBossDps * 1.12,
   );
   assert.ok(finalDamage.ratings.combatPower > baseline.ratings.combatPower);
 
@@ -291,6 +303,72 @@ test("cosmic pinnacle options feed live sheet formulas and the special-option le
       `${stat} must be visible in the live character sheet`,
     );
   }
+});
+
+test("cosmic final damage multiplies every flat and periodic conversion source exactly once", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const baseItem = {
+    ...equipment.rollGear("cosmic-global-final-damage", {
+      level: 80,
+      slot: "weapon",
+      rarity: "cosmic",
+    }),
+    affixes: [],
+  };
+  const snapshotFor = (finalDamagePercent) => {
+    const loadout = equipment.createEmptyEquipment();
+    loadout.weapon = finalDamagePercent > 0
+      ? {
+          ...baseItem,
+          affixes: [{
+            stat: "cosmicFinalDamagePercent",
+            value: finalDamagePercent,
+            rollPercent: 100,
+            label: equipment.formatGearAffix(
+              "cosmicFinalDamagePercent",
+              finalDamagePercent,
+            ),
+          }],
+        }
+      : baseItem;
+    return playerStats.calculatePlayerStatSnapshot({
+      level: 80,
+      hp: 100,
+      maxHp: 100,
+      shield: 0,
+      shotCounter: 0,
+      augments: { poison: 10, orbit: 10, void: 10 },
+      profession: null,
+      equipment: loadout,
+      synergies: [],
+      legendaryArmorReady: true,
+      ...dormantLegendaryRuntime,
+    });
+  };
+
+  const baseline = snapshotFor(0);
+  const boosted = snapshotFor(12);
+  const multiplier = 1.12;
+  nearlyEqual(
+    boosted.ratings.bossBreakdown.primaryDps,
+    baseline.ratings.bossBreakdown.primaryDps * multiplier,
+  );
+  nearlyEqual(
+    boosted.ratings.bossBreakdown.poisonDps,
+    baseline.ratings.bossBreakdown.poisonDps * multiplier,
+  );
+  nearlyEqual(
+    boosted.ratings.bossBreakdown.legendaryProcDps,
+    baseline.ratings.bossBreakdown.legendaryProcDps * multiplier,
+  );
+  nearlyEqual(
+    boosted.ratings.threeTargetDps,
+    baseline.ratings.threeTargetDps * multiplier,
+  );
+  nearlyEqual(
+    boosted.ratings.standardBossDps,
+    baseline.ratings.standardBossDps * multiplier,
+  );
 });
 
 test("the standard HP profile and rendered hit budget keep conversion honest", async () => {

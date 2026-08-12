@@ -3399,7 +3399,7 @@ test("enhancement power comes only from slot implicits and stale saves recompute
   }
 });
 
-test("equipment gates apex affixes by rarity while preserving legacy projectile-count saves", async () => {
+test("equipment gates apex affixes and deterministically repairs incompatible saved rolls", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const apexStats = new Set(equipment.GEAR_COSMIC_AFFIX_STATS);
 
@@ -3443,16 +3443,22 @@ test("equipment gates apex affixes by rarity while preserving legacy projectile-
   });
   lowRarityLegacy.affixes = [{
     stat: "projectileCountFlat",
-    value: 1,
-    rollPercent: 50,
-    label: equipment.formatGearAffix("projectileCountFlat", 1),
+    value: 3,
+    rollPercent: 100,
+    label: equipment.formatGearAffix("projectileCountFlat", 3),
   }];
   lowRarityLegacy.powerScore = -1;
   lowRarityLegacy.qualityScore = -1;
   const preserved = equipment.normalizeGearItem(lowRarityLegacy);
-  assert.ok(preserved, "an already-owned low-rarity projectile-count item must remain loadable");
-  assert.equal(preserved.affixes[0].stat, "projectileCountFlat");
-  assert.equal(preserved.affixes[0].value, 1);
+  assert.ok(preserved, "an incompatible legacy item must remain loadable");
+  assert.equal(preserved.id, lowRarityLegacy.id);
+  assert.equal(preserved.affixes.length, 1);
+  assert.notEqual(preserved.affixes[0].stat, "projectileCountFlat");
+  assert.deepEqual(
+    equipment.normalizeGearItem(preserved),
+    preserved,
+    "save repair must be idempotent",
+  );
 
   const forgedCosmicStat = equipment.rollGear("forged-low-cosmic-affix", {
     level: 1,
@@ -3461,15 +3467,60 @@ test("equipment gates apex affixes by rarity while preserving legacy projectile-
   });
   forgedCosmicStat.affixes = [{
     stat: "cosmicFinalDamagePercent",
-    value: 8,
-    rollPercent: 1,
-    label: equipment.formatGearAffix("cosmicFinalDamagePercent", 8),
+    value: 30,
+    rollPercent: 100,
+    label: equipment.formatGearAffix("cosmicFinalDamagePercent", 30),
   }];
+  const repairedForgedCosmic = equipment.normalizeGearItem(forgedCosmicStat);
+  assert.ok(repairedForgedCosmic, "a forged option must not delete its containing item");
+  assert.equal(repairedForgedCosmic.id, forgedCosmicStat.id);
+  assert.equal(repairedForgedCosmic.affixes.length, 1);
   assert.equal(
-    equipment.normalizeGearItem(forgedCosmicStat),
-    null,
-    "cosmic-only stats must not be accepted on persisted lower-rarity gear",
+    repairedForgedCosmic.affixes.some((affix) => apexStats.has(affix.stat)),
+    false,
   );
+
+  const cosmicDonors = new Map();
+  const regularDonors = new Map();
+  let cosmicBase = null;
+  for (let seed = 0; seed < 500 && (cosmicDonors.size < 3 || regularDonors.size < 8); seed += 1) {
+    const item = equipment.rollGear(`cosmic-repair-donor-${seed}`, {
+      level: 80,
+      slot: "weapon",
+      rarity: "cosmic",
+    });
+    cosmicBase ??= item;
+    for (const affix of item.affixes) {
+      const target = apexStats.has(affix.stat) ? cosmicDonors : regularDonors;
+      if (!target.has(affix.stat)) target.set(affix.stat, affix);
+    }
+  }
+  assert.ok(cosmicBase);
+  assert.equal(cosmicDonors.size, 3);
+  assert.ok(regularDonors.size >= 8);
+  const threeCosmic = {
+    ...cosmicBase,
+    affixes: [
+      ...cosmicDonors.values(),
+      ...[...regularDonors.values()].slice(0, 5),
+    ],
+  };
+  const zeroCosmic = {
+    ...cosmicBase,
+    id: `${cosmicBase.id}-zero-apex`,
+    affixes: [...regularDonors.values()].slice(0, 8),
+  };
+  for (const candidate of [threeCosmic, zeroCosmic]) {
+    const repaired = equipment.normalizeGearItem(candidate);
+    assert.ok(repaired);
+    assert.equal(repaired.affixes.length, 8);
+    assert.equal(
+      repaired.affixes.filter((affix) => apexStats.has(affix.stat)).length,
+      1,
+      "every loaded cosmic item must have exactly one pinnacle option",
+    );
+    assert.deepEqual(equipment.normalizeGearItem(repaired), repaired);
+  }
 });
 
 test("equipment rolls twenty-eight real affix types from twenty-option slot pools deterministically", async () => {
@@ -5211,6 +5262,73 @@ test("all hundred fitted wearable atlases are registered, crop-safe, and indepen
   assert.equal(count, 100);
 });
 
+test("paperdoll image storage prunes stale atlases and recovers from bounded failures", async () => {
+  const imageStore = await importTypeScriptModule("app/paperdoll-image-store.ts");
+  const attempts = new Map();
+  const pending = new Map();
+  const retryQueue = [];
+  const store = new imageStore.PaperdollImageStore((path, onLoad, onError) => {
+    attempts.set(path, (attempts.get(path) ?? 0) + 1);
+    pending.set(path, { onLoad, onError });
+    return { complete: false, naturalWidth: 0, naturalHeight: 0, path };
+  }, imageStore.PAPERDOLL_IMAGE_MAX_ATTEMPTS, (callback, delayMs) => {
+    retryQueue.push({ callback, delayMs });
+  });
+
+  store.reconcile(["a", "b", "c"]);
+  assert.deepEqual(store.keys(), ["a", "b", "c"]);
+  assert.equal(store.size, 3);
+  store.reconcile(["b", "d"]);
+  assert.deepEqual(store.keys(), ["b", "d"], "only current-scene atlases remain resident");
+
+  pending.get("b").onError();
+  assert.equal(store.has("b"), false, "a failed image is removed instead of poisoning the map");
+  // Run the captured retry synchronously; production uses the same delay with setTimeout.
+  const firstRetry = retryQueue.shift();
+  assert.equal(firstRetry.delayMs, imageStore.PAPERDOLL_IMAGE_RETRY_BASE_DELAY_MS);
+  firstRetry.callback();
+  assert.equal(attempts.get("b"), 2, "a required failed image receives a bounded retry");
+  pending.get("b").onError();
+  const secondRetry = retryQueue.shift();
+  assert.equal(secondRetry.delayMs, imageStore.PAPERDOLL_IMAGE_RETRY_BASE_DELAY_MS * 2);
+  secondRetry.callback();
+  assert.equal(attempts.get("b"), 3);
+  pending.get("b").onError();
+  assert.equal(retryQueue.length, 1);
+  assert.equal(
+    retryQueue[0].delayMs,
+    imageStore.PAPERDOLL_IMAGE_RETRY_COOLDOWN_MS,
+  );
+  assert.equal(attempts.get("b"), 3, "a permanently missing path may not retry forever");
+  assert.equal(store.size, 1, "only the still-required successful/in-flight path remains");
+  retryQueue.shift().callback();
+  assert.equal(
+    attempts.get("b"),
+    4,
+    "a required path starts one new bounded retry burst after its cooldown",
+  );
+  assert.equal(store.size, 2);
+  store.clear();
+  assert.equal(store.size, 0);
+
+  const invalidPending = new Map();
+  const invalidRetries = [];
+  const validatingStore = new imageStore.PaperdollImageStore(
+    (path, onLoad, onError) => {
+      const image = { complete: true, naturalWidth: 64, naturalHeight: 64, path };
+      invalidPending.set(path, { onLoad, onError, image });
+      return image;
+    },
+    imageStore.PAPERDOLL_IMAGE_MAX_ATTEMPTS,
+    (callback, delayMs) => invalidRetries.push({ callback, delayMs }),
+    (_path, image) => image.naturalWidth === 1024 && image.naturalHeight === 1536,
+  );
+  validatingStore.reconcile(["wrong-size"]);
+  invalidPending.get("wrong-size").onLoad();
+  assert.equal(validatingStore.has("wrong-size"), false);
+  assert.equal(invalidRetries.length, 1, "wrong dimensions must enter the retry path");
+});
+
 test("expedition and plaza render independent fitted layers and preserve public gear appearance", async () => {
   const [source, plaza, paperdollSource, overlay, css] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
@@ -5235,6 +5353,24 @@ test("expedition and plaza render independent fitted layers and preserve public 
   assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
   assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment/);
+  assert.match(source, /createPaperdollEquipmentSignature/);
+  assert.match(source, /paperdollImagesRef\.current\.reconcile\(paths\)/);
+  assert.match(source, /paperdollImagesRef\.current\.imageMap\(\)/);
+  assert.match(plaza, /drawPaperdollCharacterDirect/);
+  assert.doesNotMatch(
+    plaza,
+    /drawPaperdollCharacter\(context/,
+    "the multiplayer plaza must not churn shared composite-frame canvases",
+  );
+  assert.match(plaza, /paperdollImages\.reconcile\(requiredLayerPaths\)/);
+  assert.match(plaza, /selectPlazaRemotePlayersForRender/);
+  assert.match(plaza, /PLAZA_REMOTE_RENDER_LIMIT\s*=\s*32/);
+  assert.match(plaza, /PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT\s*=\s*2/);
+  assert.match(
+    plaza,
+    /const players: DrawPlayer\[\] = renderableRemotePlayers\.map/,
+    "the multiplayer plaza must draw only camera-culled remote paperdolls",
+  );
   const expeditionMotionStart = source.indexOf("const previousPlayerX = player.x;");
   const expeditionCollision = source.indexOf(
     "constrainPlayerToWalkableFloor(player, doors);",
@@ -5285,7 +5421,7 @@ test("expedition and plaza render independent fitted layers and preserve public 
   );
   assert.match(
     plaza,
-    /paperdollLoadoutFromVisualGear\(normalizedCharacter\.appearance\?\.gear\)/,
+    /paperdollLoadoutFromVisualGear\(\s*normalizedCharacterRef\.current\.appearance\?\.gear,?\s*\)/,
     "the selected local character's public gear must request its independent fitted layers",
   );
   assert.doesNotMatch(plaza, /equipment-types-v4\.png/);
@@ -5315,10 +5451,28 @@ test("expedition and plaza render independent fitted layers and preserve public 
   );
 });
 
-test("PVP preserves the same grounded gait and authored sprite aspect", async () => {
+test("PVP preserves grounded gait and renders only the local save through the shared paperdoll", async () => {
   const source = await readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8");
-  assert.match(source, /harin-neutral-walk-v4\.png/);
-  assert.doesNotMatch(source, /harin-walk-v2\.png|HARIN_DIRECTION_ROWS/);
+  assert.doesNotMatch(
+    source,
+    /harin-neutral-walk-v4\.png|harin-walk-v2\.png|HARIN_DIRECTION_ROWS/,
+    "PVP must not regress to a standalone character atlas",
+  );
+  assert.match(source, /PAPERDOLL_BODY_PATH/);
+  assert.match(source, /createBrowserPaperdollImageStore/);
+  assert.match(source, /paperdollLoadoutFromEquipment\(\s*normalizeEquipment\(save\.player\.equipment\)/);
+  assert.match(source, /paperdollLayerPathsForLoadout\(localPaperdollLoadout\)/);
+  assert.match(source, /drawPaperdollCharacterDirect\(context, \{/);
+  assert.match(
+    source,
+    /player\.id === playerIdRef\.current \? localPaperdollLoadout : \{\}/,
+    "only the local player may use local save cosmetics; remote snapshots expose no trusted appearance",
+  );
+  assert.doesNotMatch(
+    source,
+    /RealtimeClientMessage[\s\S]{0,500}?equipment|joinQueue\([^)]*paperdoll/i,
+    "cosmetic rendering must not widen the realtime protocol with canonical equipment",
+  );
   assert.match(
     source,
     /resolveCharacterMotion\(\s*rendered\.x - previousRenderedX,\s*rendered\.y - previousRenderedY/,
@@ -5331,8 +5485,8 @@ test("PVP preserves the same grounded gait and authored sprite aspect", async ()
   assert.match(source, /characterWalkFrameIndex\(rendered\.walkCycle,\s*moving\)/);
   assert.match(
     source,
-    /rendered\.x - 78\.5,[\s\S]{0,80}?157,\s*118,/,
-    "the 256:192 source cell must not be horizontally squeezed in PVP",
+    /width:\s*157,\s*height:\s*118,/,
+    "the 256:192 paperdoll cell must retain its authored aspect in PVP",
   );
 });
 

@@ -27,6 +27,8 @@ export type CombatEvaluationInput = {
   overchargeAverageMultiplier: number;
   /** Averaged HP- and uptime-dependent multiplier for the primary attack. */
   standardPrimaryDamageMultiplier?: number;
+  /** Global final-damage multiplier applied once to every player damage source. */
+  finalDamageMultiplier?: number;
   /** Total angle occupied by a volley, in degrees. */
   projectileSpread?: number;
   /** Explicit alias used by the live stat snapshot. Takes precedence. */
@@ -213,16 +215,20 @@ export const calculateCombatEvaluation = (
   const standardPrimaryDamageMultiplier = finiteMultiplier(
     input.standardPrimaryDamageMultiplier ?? 1,
   );
+  const finalDamageMultiplier = finiteMultiplier(
+    input.finalDamageMultiplier ?? 1,
+  );
   const expectedCriticalMultiplier =
     1 + critChance * (critMultiplier - 1);
 
-  const statAttackDps =
+  const preFinalStatAttackDps =
     sheetAttackPower *
     fireRate *
     projectileCount *
     expectedCriticalMultiplier *
     overchargeAverageMultiplier *
     standardPrimaryDamageMultiplier;
+  const statAttackDps = preFinalStatAttackDps * finalDamageMultiplier;
   const hitRate = calculateStandardBossHitRate(input);
   const executeFactor = calculateExecuteFactor(
     input.executeThreshold,
@@ -241,13 +247,15 @@ export const calculateCombatEvaluation = (
     bossScale *
     finitePositive(input.timeEchoBonus, 0, 100);
   const returnDps = primaryDps * finitePositive(input.returnBonus, 0, 100);
-  const poisonDps = finitePositive(input.poisonDps) * bossScale;
+  const poisonDps =
+    finitePositive(input.poisonDps) * finalDamageMultiplier * bossScale;
   const legendaryProcDps =
-    finitePositive(input.legendaryProcBonusDps) * bossScale;
+    finitePositive(input.legendaryProcBonusDps) * finalDamageMultiplier * bossScale;
   const standardBossDps =
     primaryDps + timeEchoDps + returnDps + poisonDps + legendaryProcDps;
 
-  const threeTargetDps = finitePositive(input.threeTargetDps);
+  const threeTargetDps =
+    finitePositive(input.threeTargetDps) * finalDamageMultiplier;
   const generalDps =
     0.35 * statAttackDps +
     0.45 * standardBossDps +

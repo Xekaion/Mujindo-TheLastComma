@@ -34,12 +34,19 @@ import {
   calculateEquipmentCombatPower,
   normalizeEquipment,
 } from "../equipment";
+import {
+  PAPERDOLL_BODY_PATH,
+  drawPaperdollCharacterDirect,
+  paperdollLayerPathsForLoadout,
+  paperdollLoadoutFromEquipment,
+  type PaperdollLoadout,
+} from "../character-paperdoll";
+import { createBrowserPaperdollImageStore } from "../paperdoll-image-store";
 import { readActiveSaveSlot, readSaveSlot } from "../save-slots";
 import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
   characterFacingForVector,
-  characterSpriteRowForFacing,
   characterWalkFrameIndex,
   resolveCharacterMotion,
 } from "../character-motion";
@@ -98,8 +105,23 @@ function readLocalPvpBuildProfile(): PvpBuildProfile {
   });
 }
 
+/**
+ * Keeps the cosmetic path local: no GearItem, affix, combat stat, or save
+ * payload is added to the realtime protocol. The opponent therefore renders
+ * the common body until the server owns a dedicated slot -> variant allowlist.
+ */
+function readLocalPvpPaperdollLoadout(): PaperdollLoadout {
+  if (typeof window === "undefined") return {};
+  const save = readSaveSlot(readActiveSaveSlot());
+  if (!save) return {};
+  return paperdollLoadoutFromEquipment(
+    normalizeEquipment(save.player.equipment),
+  );
+}
+
 export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const snapshotRef = useRef<PvpSnapshot | null>(null);
   const playerIdRef = useRef<string | null>(null);
   const keysRef = useRef(new Set<string>());
@@ -123,6 +145,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   const [buildProfile, setBuildProfile] = useState<PvpBuildProfile>(() => ({
     ...DEFAULT_PVP_BUILD_PROFILE,
   }));
+  const [localPaperdollLoadout, setLocalPaperdollLoadout] =
+    useState<PaperdollLoadout>({});
   const [notice, setNotice] = useState("마지막 쉼터의 빌드를 읽고 적응형 생존력을 계산합니다.");
 
   useEffect(() => {
@@ -131,9 +155,25 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       setDisplayName(localName);
       setDraftName(localName);
       setBuildProfile(readLocalPvpBuildProfile());
+      setLocalPaperdollLoadout(readLocalPvpPaperdollLoadout());
     });
     return () => window.cancelAnimationFrame(frame);
   }, [suggestedName]);
+
+  useEffect(() => {
+    paperdollImagesRef.current.reconcile([
+      PAPERDOLL_BODY_PATH,
+      ...paperdollLayerPathsForLoadout(localPaperdollLoadout),
+    ]);
+  }, [localPaperdollLoadout]);
+
+  useEffect(
+    () => {
+      const paperdollImages = paperdollImagesRef.current;
+      return () => paperdollImages.clear();
+    },
+    [],
+  );
 
   useEffect(() => {
     const realtime = getRealtimeClient();
@@ -290,9 +330,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     const context = canvas.getContext("2d");
     if (!context) return;
     const background = new Image();
-    const sprites = new Image();
     background.src = "/assets/maps/room-elite.webp";
-    sprites.src = "/assets/walk/harin-neutral-walk-v4.png";
     const renderedPositions = new Map<
       string,
       { x: number; y: number; facing: number; walkCycle: number }
@@ -412,23 +450,35 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       context.beginPath();
       context.ellipse(rendered.x, rendered.y + 18, 47, 25, 0, 0, Math.PI * 2);
       context.fill();
-      if (sprites.complete && sprites.naturalWidth > 0) {
-        const sourceWidth = sprites.naturalWidth / 4;
-        const sourceHeight = sprites.naturalHeight / 8;
-        const row = characterSpriteRowForFacing(rendered.facing);
+      const bodyAtlas = paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH);
+      const appearance =
+        player.id === playerIdRef.current ? localPaperdollLoadout : {};
+      if (
+        bodyAtlas?.complete &&
+        bodyAtlas.naturalWidth > 0 &&
+        bodyAtlas.naturalHeight > 0
+      ) {
         context.shadowColor = accent;
         context.shadowBlur = 16;
-        context.drawImage(
-          sprites,
-          frame * sourceWidth,
-          row * sourceHeight,
-          sourceWidth,
-          sourceHeight,
-          rendered.x - 78.5,
-          rendered.y - 79,
-          157,
-          118,
-        );
+        const appearanceDrawn = drawPaperdollCharacterDirect(context, {
+          bodyAtlas,
+          layerSources: paperdollImagesRef.current.imageMap(),
+          loadout: appearance,
+          direction: rendered.facing,
+          frame,
+          x: rendered.x,
+          // Match the legacy cell's authored foot baseline (top y-79,
+          // bottom y+39) while keeping the exact 256:192 aspect.
+          y: rendered.y + 34,
+          width: 157,
+          height: 118,
+        });
+        if (!appearanceDrawn) {
+          context.fillStyle = accent;
+          context.beginPath();
+          context.arc(rendered.x, rendered.y, 25, 0, Math.PI * 2);
+          context.fill();
+        }
       } else {
         context.fillStyle = accent;
         context.beginPath();
@@ -504,7 +554,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
     };
-  }, [result?.matchId, snapshot?.matchId]);
+  }, [localPaperdollLoadout, result?.matchId, snapshot?.matchId]);
 
   const handleAim = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();

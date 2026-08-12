@@ -35,11 +35,13 @@ import {
 } from "./character-motion";
 import {
   PAPERDOLL_BODY_PATH,
+  createPaperdollEquipmentSignature,
   drawPaperdollCharacter,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
   clearPaperdollCaches,
 } from "./character-paperdoll";
+import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
 import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
@@ -2099,6 +2101,7 @@ export default function GameCanvas({
     hasMoveTarget: false,
   });
   const imagesRef = useRef<Record<string, HTMLImageElement>>({});
+  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const modeRef = useRef<GameMode>("menu");
   const storyActionRef = useRef<() => void>(() => undefined);
   const lastHudUpdateRef = useRef(0);
@@ -2206,6 +2209,10 @@ export default function GameCanvas({
       staircaseNearby: false,
     },
   }));
+  const paperdollEquipmentSignature = useMemo(
+    () => createPaperdollEquipmentSignature(hud.player.equipment),
+    [hud.player.equipment],
+  );
   const [mapSnapshot, setMapSnapshot] = useState<CartographyWorld>(() => ({
     seed: 1,
     dungeonFloor: 1,
@@ -3892,7 +3899,6 @@ export default function GameCanvas({
     const saveCheck = window.setTimeout(refreshSaveSlots, 0);
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
-      walkHarin: PAPERDOLL_BODY_PATH,
       walkHarinLegacy: "/assets/walk/harin-walk.png",
       walkWithered: "/assets/walk/withered-walk-v2.png",
       walkThreader: "/assets/walk/threader-walk.png",
@@ -3935,14 +3941,12 @@ export default function GameCanvas({
 
   useEffect(() => {
     const loadout = paperdollLoadoutFromEquipment(hud.player.equipment);
-    for (const path of paperdollLayerPathsForLoadout(loadout)) {
-      if (imagesRef.current[path]) continue;
-      const image = new Image();
-      image.decoding = "async";
-      image.src = path;
-      imagesRef.current[path] = image;
-    }
-  }, [hud.player.equipment]);
+    const paths = [PAPERDOLL_BODY_PATH, ...paperdollLayerPathsForLoadout(loadout)];
+    paperdollImagesRef.current.reconcile(paths);
+    // Equipment is cloned for HUD snapshots; the signature suppresses those
+    // identity-only updates while still reacting to slot/variant changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paperdollEquipmentSignature]);
 
   useEffect(() => {
     if (!lootNotice) return;
@@ -8915,10 +8919,10 @@ export default function GameCanvas({
         player.equipment,
       );
       const playerDrawn =
-        (images.walkHarin &&
+        (paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH) &&
           drawPaperdollCharacter(context, {
-            bodyAtlas: images.walkHarin,
-            layerSources: images,
+            bodyAtlas: paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH)!,
+            layerSources: paperdollImagesRef.current.imageMap(),
             loadout: playerPaperdollLoadout,
             direction: player.facing,
             frame: playerWalkFrame,

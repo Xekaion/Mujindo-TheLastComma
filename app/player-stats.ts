@@ -261,6 +261,8 @@ export function calculatePlayerStatSnapshot(
   const missingHealthBonus =
     bloodRank > 0 ? missingHpRatio * bloodRank * 0.2 : 0;
   const baseAttack = BASE_PLAYER_ATTACK_DAMAGE + equipmentStats.attackPowerFlat;
+  const finalDamageMultiplier =
+    1 + equipmentStats.cosmicFinalDamagePercent / 100;
   const sheetAttackPower =
     baseAttack *
     (1 + rank("fang") * 0.18) *
@@ -277,8 +279,7 @@ export function calculatePlayerStatSnapshot(
       SIMPLE_AUGMENT_BONUSES.strengthDamagePerRank,
     ) *
     (1 + synergyPower) *
-    (1 + equipmentStats.damagePercent / 100) *
-    (1 + equipmentStats.cosmicFinalDamagePercent / 100);
+    (1 + equipmentStats.damagePercent / 100);
   const normalProjectileDamage =
     sheetAttackPower *
     ((1 + bloodRank * 0.14 + missingHealthBonus) /
@@ -287,7 +288,8 @@ export function calculatePlayerStatSnapshot(
       ? 1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100
       : 1) *
     projectileOverflowFactor *
-    fireRateOverflowFactor;
+    fireRateOverflowFactor *
+    finalDamageMultiplier;
   const eyeRank = rank("eye");
   const critChance = clamp(
     0.05 +
@@ -540,9 +542,7 @@ export function calculatePlayerStatSnapshot(
     averageOverchargeMultiplier *
     standardPrimaryDamageMultiplier;
   const legendaryBaseDamage =
-    baseAttack *
-    (1 + equipmentStats.damagePercent / 100) *
-    (1 + equipmentStats.cosmicFinalDamagePercent / 100);
+    baseAttack * (1 + equipmentStats.damagePercent / 100);
   let legendaryProcBonusDps = 0;
   if (powerSet.has("crescentEcho")) {
     const crescentHitRate = calculateStandardBossHitRate({
@@ -738,6 +738,7 @@ export function calculatePlayerStatSnapshot(
     critMultiplier,
     overchargeAverageMultiplier: averageOverchargeMultiplier,
     standardPrimaryDamageMultiplier,
+    finalDamageMultiplier,
     projectileSpreadDegrees,
     projectileRadius,
     projectileSpeed,
@@ -760,7 +761,7 @@ export function calculatePlayerStatSnapshot(
   const ratings: PlayerStatSnapshot["ratings"] = {
     ...combatEvaluation,
     survivalBudget,
-    threeTargetDps,
+    threeTargetDps: threeTargetDps * finalDamageMultiplier,
     conversionLabel: `표준 보스 v${BOSS_CONVERSION_VERSION} · 전 생명력 처치 환산`,
   };
 

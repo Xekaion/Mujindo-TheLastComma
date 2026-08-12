@@ -32,10 +32,11 @@ import {
 } from "./character-motion";
 import {
   PAPERDOLL_BODY_PATH,
-  drawPaperdollCharacter,
+  drawPaperdollCharacterDirect,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromVisualGear,
 } from "./character-paperdoll";
+import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
 import {
   HUB_PLAYER_SPEED,
   normalizeHubDungeonFloor,
@@ -50,6 +51,12 @@ const MOVEMENT_SEND_INTERVAL_MS = 66;
 const CAMERA_LERP = 0.13;
 const PORTAL_PULSE_SECONDS = 2.4;
 const PLAZA_MAP_PATH = "/assets/maps/memory-plaza-v1.png";
+/** Keep characters just outside the camera warm without drawing the whole plaza. */
+export const PLAZA_REMOTE_RENDER_MARGIN = 220;
+/** Hard upper bound for paperdoll work when many players overlap one screen. */
+export const PLAZA_REMOTE_RENDER_LIMIT = 32;
+/** Only the nearest players keep ten high-resolution wearable atlases resident. */
+export const PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT = 2;
 
 export type PlazaCharacterIdentity = {
   characterId: string;
@@ -115,6 +122,36 @@ type ViewportState = {
   height: number;
   dpr: number;
 };
+
+export function isPlazaPointNearViewport(
+  point: PlazaPoint,
+  camera: PlazaPoint,
+  viewport: Pick<ViewportState, "width" | "height">,
+  margin = PLAZA_REMOTE_RENDER_MARGIN,
+): boolean {
+  const safeMargin = Number.isFinite(margin) ? Math.max(0, margin) : 0;
+  return (
+    Math.abs(point.x - camera.x) <= viewport.width / 2 + safeMargin &&
+    Math.abs(point.y - camera.y) <= viewport.height / 2 + safeMargin
+  );
+}
+
+export function selectPlazaRemotePlayersForRender(
+  players: readonly PlazaRemotePlayer[],
+  camera: PlazaPoint,
+  viewport: Pick<ViewportState, "width" | "height">,
+  limit = PLAZA_REMOTE_RENDER_LIMIT,
+): readonly PlazaRemotePlayer[] {
+  const safeLimit = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 0;
+  return players
+    .filter((player) => isPlazaPointNearViewport(player, camera, viewport))
+    .sort((left, right) => {
+      const leftDistance = Math.hypot(left.x - camera.x, left.y - camera.y);
+      const rightDistance = Math.hypot(right.x - camera.x, right.y - camera.y);
+      return leftDistance - rightDistance || left.characterId.localeCompare(right.characterId);
+    })
+    .slice(0, safeLimit);
+}
 
 const safeLabel = (value: string, fallback: string) => {
   const normalized = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
@@ -411,7 +448,7 @@ function drawPlayer(
   const appearanceDrawn = Boolean(
     bodyImage?.complete &&
       bodyImage.naturalWidth > 0 &&
-      drawPaperdollCharacter(context, {
+      drawPaperdollCharacterDirect(context, {
         bodyAtlas: bodyImage,
         layerSources,
         loadout: paperdollLoadoutFromVisualGear(player.gear),
@@ -486,7 +523,9 @@ export default function PlazaHub({
   const keysRef = useRef(new Set<string>());
   const touchDirectionRef = useRef<PlazaPoint>({ x: 0, y: 0 });
   const viewportRef = useRef<ViewportState>({ width: 1280, height: 720, dpr: 1 });
-  const spriteImagesRef = useRef(new Map<string, HTMLImageElement>());
+  const sceneImagesRef = useRef(new Map<string, HTMLImageElement>());
+  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const paperdollPathSignatureRef = useRef("");
   const remotePlayersRef = useRef(remotePlayers);
   const remoteRenderPointsRef = useRef(new Map<string, RemoteRenderPoint>());
   const remoteWalkCyclesRef = useRef(new Map<string, number>());
@@ -686,23 +725,17 @@ export default function PlazaHub({
   }, []);
 
   useEffect(() => {
-    const requiredPaths = new Set<string>([PLAZA_MAP_PATH, PAPERDOLL_BODY_PATH]);
-    for (const path of paperdollLayerPathsForLoadout(
-      paperdollLoadoutFromVisualGear(normalizedCharacter.appearance?.gear),
-    )) requiredPaths.add(path);
-    for (const player of visibleRemotePlayers) {
-      for (const path of paperdollLayerPathsForLoadout(
-        paperdollLoadoutFromVisualGear(player.appearance?.gear),
-      )) requiredPaths.add(path);
-    }
-    for (const path of requiredPaths) {
-      if (spriteImagesRef.current.has(path)) continue;
+    for (const path of [PLAZA_MAP_PATH]) {
+      if (sceneImagesRef.current.has(path)) continue;
       const image = new Image();
       image.decoding = "async";
+      image.addEventListener("error", () => sceneImagesRef.current.delete(path), {
+        once: true,
+      });
       image.src = path;
-      spriteImagesRef.current.set(path, image);
+      sceneImagesRef.current.set(path, image);
     }
-  }, [normalizedCharacter.appearance, visibleRemotePlayers]);
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -745,6 +778,7 @@ export default function PlazaHub({
 
   useEffect(() => {
     const canvas = canvasRef.current;
+    const paperdollImages = paperdollImagesRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
@@ -774,6 +808,43 @@ export default function PlazaHub({
     canvasResizeObserver.observe(canvas);
     const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
       Math.max(basePx, minimumCssPx / canvasCssScale);
+    let renderableRemotePlayers: readonly PlazaRemotePlayer[] = [];
+    let detailedRemotePlayerIds = new Set<string>();
+    let nextRemoteVisibilityCheckAt = 0;
+
+    const refreshRenderableRemotePlayers = (now: number) => {
+      if (now < nextRemoteVisibilityCheckAt) return;
+      nextRemoteVisibilityCheckAt = now + 120;
+      renderableRemotePlayers = selectPlazaRemotePlayersForRender(
+        remotePlayersRef.current,
+        cameraRef.current,
+        viewportRef.current,
+      );
+      detailedRemotePlayerIds = new Set(
+        renderableRemotePlayers
+          .slice(0, PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT)
+          .map((player) => player.characterId),
+      );
+
+      const requiredLayerPaths = new Set<string>([PAPERDOLL_BODY_PATH]);
+      for (const path of paperdollLayerPathsForLoadout(
+        paperdollLoadoutFromVisualGear(
+          normalizedCharacterRef.current.appearance?.gear,
+        ),
+      )) requiredLayerPaths.add(path);
+      for (const player of renderableRemotePlayers.slice(
+        0,
+        PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT,
+      )) {
+        for (const path of paperdollLayerPathsForLoadout(
+          paperdollLoadoutFromVisualGear(player.appearance?.gear),
+        )) requiredLayerPaths.add(path);
+      }
+      const pathSignature = [...requiredLayerPaths].sort().join("|");
+      if (pathSignature === paperdollPathSignatureRef.current) return;
+      paperdollPathSignatureRef.current = pathSignature;
+      paperdollImages.reconcile(requiredLayerPaths);
+    };
 
     const frame = (now: number) => {
       const previous = previousTimeRef.current || now;
@@ -884,6 +955,7 @@ export default function PlazaHub({
       const desiredCameraY = Math.min(maxCameraY, Math.max(minCameraY, positionRef.current.y));
       cameraRef.current.x += (desiredCameraX - cameraRef.current.x) * CAMERA_LERP;
       cameraRef.current.y += (desiredCameraY - cameraRef.current.y) * CAMERA_LERP;
+      refreshRenderableRemotePlayers(now);
 
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.clearRect(0, 0, width, height);
@@ -892,7 +964,7 @@ export default function PlazaHub({
         Math.round(width / 2 - cameraRef.current.x),
         Math.round(height / 2 - cameraRef.current.y),
       );
-      const plazaMap = spriteImagesRef.current.get(PLAZA_MAP_PATH);
+      const plazaMap = sceneImagesRef.current.get(PLAZA_MAP_PATH);
       const plazaMapReady = Boolean(
         plazaMap?.complete && plazaMap.naturalWidth > 0 && plazaMap.naturalHeight > 0,
       );
@@ -912,7 +984,7 @@ export default function PlazaHub({
 
       const currentTime = Date.now();
       const remoteLerp = 1 - Math.exp(-dt * 11);
-      const players: DrawPlayer[] = remotePlayersRef.current.map((player) => {
+      const players: DrawPlayer[] = renderableRemotePlayers.map((player) => {
         const renderPoint = remoteRenderPointsRef.current.get(player.characterId);
         const previousRenderX = renderPoint?.x ?? player.x;
         const previousRenderY = renderPoint?.y ?? player.y;
@@ -947,7 +1019,9 @@ export default function PlazaHub({
           facing: remoteMotion.moving ? remoteMotion.facing : player.facing,
           moving: remoteMotion.moving,
           walkCycle,
-          gear: player.appearance.gear,
+          gear: detailedRemotePlayerIds.has(player.characterId)
+            ? player.appearance.gear
+            : undefined,
           local: false,
           stale: typeof player.updatedAt === "number" && currentTime - player.updatedAt > 10_000,
         };
@@ -972,8 +1046,8 @@ export default function PlazaHub({
         drawPlayer(
           context,
           player,
-          spriteImagesRef.current.get(PAPERDOLL_BODY_PATH),
-          spriteImagesRef.current,
+          paperdollImages.get(PAPERDOLL_BODY_PATH),
+          paperdollImages.imageMap(),
           readableCanvasFontSize,
         );
       }
@@ -998,6 +1072,8 @@ export default function PlazaHub({
     return () => {
       canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
+      paperdollPathSignatureRef.current = "";
+      paperdollImages.clear();
       previousTimeRef.current = 0;
       const moveHandler = onMoveIntentRef.current;
       if (moveHandler) {

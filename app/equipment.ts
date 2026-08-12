@@ -973,7 +973,7 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     dropSlots: dropSlotsFor("projectileCountFlat"),
     legacySlots: dropSlotsFor("projectileCountFlat"),
     minimumDropRarity: "mythic",
-    minimumSaveRarity: "common",
+    minimumSaveRarity: "mythic",
     integerRoll: true,
   },
   pierceFlat: {
@@ -2459,8 +2459,96 @@ function inferAffixRollPercent(
   );
 }
 
+const cosmicAffixStats = new Set<GearAffixStat>(GEAR_COSMIC_AFFIX_STATS);
+
+function makeDeterministicRepairAffix(
+  rng: () => number,
+  candidates: GearAffixStat[],
+  level: number,
+  rarity: GearRarity,
+): GearAffix | null {
+  if (candidates.length === 0) return null;
+  const candidateIndex = weightedAffixIndex(rng, candidates);
+  const [stat] = candidates.splice(candidateIndex, 1);
+  const { value, rollPercent } = rollAffixValue(rng, stat, level, rarity);
+  return {
+    stat,
+    value,
+    rollPercent,
+    label: formatGearAffix(stat, value),
+  };
+}
+
+/**
+ * Rarity gates were tightened after early local saves already existed. Invalid
+ * gated affixes are therefore repaired, never trusted and never allowed to
+ * delete the containing item. The item identity makes the replacement stable
+ * across every load while the current slot/rarity pools keep it legal.
+ */
+function repairRarityGatedAffixes(
+  affixes: readonly GearAffix[],
+  itemId: string,
+  slot: EquipmentSlot,
+  rarity: GearRarity,
+  level: number,
+  targetCount: number,
+): GearAffix[] | null {
+  const rng = createSeededRng(
+    `affix-save-repair-v1|${itemId}|${slot}|${rarity}|${level}`,
+  );
+  const regularCandidates = GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].filter((stat) => {
+    const minimum = GEAR_AFFIX_DEFINITIONS[stat].minimumDropRarity;
+    return minimum === undefined || gearRarityAtLeast(rarity, minimum);
+  });
+  const validRegular = affixes.filter(
+    (affix) =>
+      !cosmicAffixStats.has(affix.stat) &&
+      (() => {
+        const definition = GEAR_AFFIX_DEFINITIONS[affix.stat];
+        const minimum = definition.minimumSaveRarity ?? definition.minimumDropRarity;
+        return minimum === undefined || gearRarityAtLeast(rarity, minimum);
+      })(),
+  );
+  const repaired: GearAffix[] = [...validRegular];
+  const usedStats = new Set(repaired.map((affix) => affix.stat));
+
+  if (rarity === "cosmic" && targetCount > 0) {
+    const existingCosmic = affixes.find((affix) => cosmicAffixStats.has(affix.stat));
+    if (existingCosmic) {
+      repaired.unshift(existingCosmic);
+      usedStats.add(existingCosmic.stat);
+    } else {
+      const candidates = [...GEAR_COSMIC_AFFIX_DROP_POOL_BY_SLOT[slot]];
+      const replacement = makeDeterministicRepairAffix(
+        rng,
+        candidates,
+        level,
+        rarity,
+      );
+      if (!replacement) return null;
+      repaired.unshift(replacement);
+      usedStats.add(replacement.stat);
+    }
+  }
+
+  const candidates = regularCandidates.filter((stat) => !usedStats.has(stat));
+  while (repaired.length < targetCount) {
+    const replacement = makeDeterministicRepairAffix(
+      rng,
+      candidates,
+      level,
+      rarity,
+    );
+    if (!replacement) return null;
+    repaired.push(replacement);
+    usedStats.add(replacement.stat);
+  }
+  return repaired.slice(0, targetCount);
+}
+
 function normalizeAffixes(
   value: unknown,
+  itemId: string,
   slot: EquipmentSlot,
   rarity: GearRarity,
   level: number,
@@ -2471,22 +2559,14 @@ function normalizeAffixes(
   if (value.length !== expectedCount && value.length !== legacyCount) return null;
 
   const usedStats = new Set<GearAffixStat>();
-  const normalized: GearAffix[] = [];
+  const parsed: GearAffix[] = [];
   for (const candidate of value) {
     if (!isRecord(candidate) || !isGearAffixStat(candidate.stat)) return null;
     const definition = GEAR_AFFIX_DEFINITIONS[candidate.stat];
     if (
-      (!isGearAffixInRegularDropPool(slot, candidate.stat) &&
+      (!isGearAffixRollableForSlot(slot, candidate.stat) &&
         !definition.legacySlots.includes(slot)) ||
       usedStats.has(candidate.stat)
-    ) {
-      return null;
-    }
-    const minimumSaveRarity =
-      definition.minimumSaveRarity ?? definition.minimumDropRarity;
-    if (
-      minimumSaveRarity !== undefined &&
-      !gearRarityAtLeast(rarity, minimumSaveRarity)
     ) {
       return null;
     }
@@ -2500,6 +2580,33 @@ function normalizeAffixes(
     }
     const stat = candidate.stat;
     const amount = candidate.value;
+    const minimumSaveRarity =
+      definition.minimumSaveRarity ?? definition.minimumDropRarity;
+    const rarityAllowed =
+      minimumSaveRarity === undefined ||
+      gearRarityAtLeast(rarity, minimumSaveRarity);
+
+    if (!rarityAllowed) {
+      // The option is about to be replaced by the deterministic repair pass.
+      // Do not evaluate its old value against the new rarity curve: doing so
+      // would discard an otherwise healthy legacy item before it can migrate.
+      const repairRollPercent =
+        typeof candidate.rollPercent === "number" &&
+        Number.isSafeInteger(candidate.rollPercent) &&
+        candidate.rollPercent >= 1 &&
+        candidate.rollPercent <= 100
+          ? candidate.rollPercent
+          : 1;
+      usedStats.add(stat);
+      parsed.push({
+        stat,
+        value: amount,
+        rollPercent: repairRollPercent,
+        label: formatGearAffix(stat, amount),
+      });
+      continue;
+    }
+
     const minimum = affixValueForRollPercent(stat, level, rarity, 1);
     const maximum = affixValueForRollPercent(stat, level, rarity, 100);
     if (amount < minimum || amount > maximum) return null;
@@ -2529,14 +2636,21 @@ function normalizeAffixes(
     }
 
     usedStats.add(stat);
-    normalized.push({
+    parsed.push({
       stat,
       value: amount,
       rollPercent,
       label: formatGearAffix(stat, amount),
     });
   }
-  return normalized;
+  return repairRarityGatedAffixes(
+    parsed,
+    itemId,
+    slot,
+    rarity,
+    level,
+    value.length,
+  );
 }
 
 /**
@@ -2575,7 +2689,13 @@ export function normalizeGearItem(value: unknown): GearItem | null {
     return null;
   }
 
-  const affixes = normalizeAffixes(value.affixes, value.slot, value.rarity, value.level);
+  const affixes = normalizeAffixes(
+    value.affixes,
+    value.id,
+    value.slot,
+    value.rarity,
+    value.level,
+  );
   if (!affixes) return null;
   const legendaryPowerId =
     value.rarity === "legendary" ||
