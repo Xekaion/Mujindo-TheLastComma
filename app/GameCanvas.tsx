@@ -109,6 +109,11 @@ import {
   projectPointToConvexPolygon,
 } from "./room-collision";
 import {
+  ROOM_ART_NAMES,
+  ROOM_ART_PATHS,
+  resolveRoomArtKey,
+} from "./room-visuals";
+import {
   SAVE_SLOT_IDS,
   markSaveSlotEndingSeen,
   migrateLegacySave,
@@ -1401,15 +1406,6 @@ const ROOM_NAMES: Record<RoomKind, string> = {
   memory: "흐릿한 기억",
   shelter: "마지막 쉼표",
   boss: "지도의 심장",
-};
-
-const ROOM_ART_KEYS: Record<RoomKind, string> = {
-  battle: "roomBattle",
-  horde: "roomHorde",
-  elite: "roomElite",
-  memory: "roomMemory",
-  shelter: "roomShelter",
-  boss: "roomBoss",
 };
 
 const ROOM_COLOR_GRADE: Record<
@@ -3921,12 +3917,7 @@ export default function GameCanvas({
       teleportEffect: "/assets/effects/teleport-rift.png",
       memoryFragments: "/assets/pickups/memory-fragments.png",
       equipmentIcons: "/assets/equipment/equipment-types-v4.png",
-      roomBattle: "/assets/maps/room-battle.webp",
-      roomHorde: "/assets/maps/room-horde.webp",
-      roomElite: "/assets/maps/room-elite.webp",
-      roomMemory: "/assets/maps/room-memory.webp",
-      roomShelter: "/assets/maps/room-shelter.webp",
-      roomBoss: "/assets/maps/room-boss.webp",
+      ...ROOM_ART_PATHS,
       ui: "/assets/augment-ui-atlas.png",
       menu: "/assets/menu-title-background.png",
     };
@@ -8106,7 +8097,14 @@ export default function GameCanvas({
       context.fillStyle = "#0a0b0d";
       context.fillRect(0, 0, WIDTH, HEIGHT);
 
-      const roomArt = images[ROOM_ART_KEYS[world.roomKind]];
+      const roomArtKey = resolveRoomArtKey({
+        seed: world.seed,
+        dungeonFloor: world.dungeonFloor,
+        roomX: world.roomX,
+        roomY: world.roomY,
+        roomKind: world.roomKind,
+      });
+      const roomArt = images[roomArtKey];
       const roomGrade = ROOM_COLOR_GRADE[world.roomKind];
       if (roomArt?.complete && roomArt.naturalWidth && roomArt.naturalHeight) {
         const mirrorRoom =
@@ -9388,6 +9386,14 @@ export default function GameCanvas({
     );
   }
 
+  const currentRoomArtKey = resolveRoomArtKey({
+    seed: hud.world.seed,
+    dungeonFloor: hud.world.dungeonFloor,
+    roomX: hud.world.roomX,
+    roomY: hud.world.roomY,
+    roomKind: hud.world.roomKind,
+  });
+
   return (
     <main
       className={`game-screen ${hud.player.hp / hud.player.maxHp < 0.3 ? "is-low-health" : ""}`}
@@ -9397,7 +9403,8 @@ export default function GameCanvas({
       data-room-x={hud.world.roomX}
       data-room-y={hud.world.roomY}
       data-room-kind={hud.world.roomKind}
-      data-room-art={ROOM_ART_KEYS[hud.world.roomKind]}
+      data-room-art={currentRoomArtKey}
+      data-room-theme={ROOM_ART_NAMES[currentRoomArtKey]}
       data-room-cleared={hud.world.roomCleared}
       data-known-rooms={hud.world.knownRoomCount}
       data-visited-rooms={hud.world.visitedCount}
@@ -9487,6 +9494,7 @@ export default function GameCanvas({
             지하 {hud.world.dungeonFloor}층 · 방 {dungeonDisplayCoordinate(hud.world.roomX)} : {dungeonDisplayCoordinate(hud.world.roomY)}
           </small>
           <h2>{ROOM_NAMES[hud.world.roomKind]}</h2>
+          <small className="room-theme-name">{ROOM_ART_NAMES[currentRoomArtKey]}</small>
           <span className={hud.world.roomCleared ? "is-clear" : "is-locked"}>
             {hud.world.roomCleared
               ? `탐색 가능 · ${Object.values(

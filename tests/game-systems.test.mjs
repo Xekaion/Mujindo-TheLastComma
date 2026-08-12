@@ -4041,6 +4041,9 @@ test("generated room backplates and the archived cartography texture remain inta
     "room-memory.webp",
     "room-shelter.webp",
     "room-boss.webp",
+    "room-drowned-archive.webp",
+    "room-rootbound-ossuary.webp",
+    "room-shattered-astrarium.webp",
   ];
   const allMapAssets = [...roomAssets, "map-board.webp"];
 
@@ -4056,12 +4059,16 @@ test("generated room backplates and the archived cartography texture remain inta
     }
   }
 
-  const [game, css] = await Promise.all([
+  const [game, css, roomVisuals] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, "app/room-visuals.ts"), "utf8"),
   ]);
   for (const assetName of roomAssets) {
-    assert.match(game, new RegExp(`/assets/maps/${assetName.replace(".", "\\.")}`));
+    assert.match(
+      `${game}\n${roomVisuals}`,
+      new RegExp(`/assets/maps/${assetName.replace(".", "\\.")}`),
+    );
   }
   assert.doesNotMatch(
     css,
@@ -4091,6 +4098,67 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.match(game, /doorRects\.forEach\(drawDoorWard\)/);
   assert.match(game, /transitionOpacity = clamp\(world\.transition \/ 0\.55, 0, 1\)/);
   assert.doesNotMatch(game, /context\.strokeRect\(68, 64, WIDTH - 136, HEIGHT - 128\)/);
+});
+
+test("ordinary room art is deterministic, varied, and never repeats across a doorway", async () => {
+  const visuals = await importTypeScriptModule("app/room-visuals.ts");
+  const ordinaryKinds = ["battle", "horde", "elite", "memory"];
+
+  for (const roomKind of ordinaryKinds) {
+    const seen = new Set();
+    for (let y = -12; y <= 12; y += 1) {
+      for (let x = -12; x <= 12; x += 1) {
+        const options = {
+          seed: 0x5eed1234,
+          dungeonFloor: 17,
+          roomX: x,
+          roomY: y,
+          roomKind,
+        };
+        const selected = visuals.resolveRoomArtKey(options);
+        assert.equal(
+          visuals.resolveRoomArtKey(options),
+          selected,
+          `${roomKind} art must be stable for ${x},${y}`,
+        );
+        assert.ok(visuals.ROOM_ART_PATHS[selected], `${selected} must be preloaded`);
+        seen.add(selected);
+
+        for (const [dx, dy] of [[1, 0], [0, 1]]) {
+          const neighbor = visuals.resolveRoomArtKey({
+            ...options,
+            roomX: x + dx,
+            roomY: y + dy,
+          });
+          assert.notEqual(
+            neighbor,
+            selected,
+            `${roomKind} art repeated across ${x},${y} -> ${x + dx},${y + dy}`,
+          );
+        }
+      }
+    }
+    assert.equal(seen.size, 4, `${roomKind} must reach every visual family`);
+  }
+
+  for (const roomKind of ["shelter", "boss"]) {
+    const seen = new Set();
+    for (let floor = 1; floor <= 8; floor += 1) {
+      seen.add(visuals.resolveRoomArtKey({
+        seed: floor * 73,
+        dungeonFloor: floor,
+        roomX: floor - 4,
+        roomY: 4 - floor,
+        roomKind,
+      }));
+    }
+    assert.equal(seen.size, 1, `${roomKind} must keep its signature art`);
+  }
+
+  const game = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  assert.match(game, /const roomArtKey = resolveRoomArtKey\(\{/);
+  assert.match(game, /data-room-art=\{currentRoomArtKey\}/);
+  assert.match(game, /data-room-theme=\{ROOM_ART_NAMES\[currentRoomArtKey\]\}/);
 });
 
 test("the minimap uses one fixed 99x99 floor and reveals stairs only after conquest", async () => {
