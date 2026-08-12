@@ -49,6 +49,7 @@ import {
   characterFacingForVector,
   characterWalkFrameIndex,
   resolveCharacterMotion,
+  settleCharacterWalkCycle,
 } from "../character-motion";
 import "./pvp.css";
 
@@ -403,7 +404,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     };
 
-    const drawPlayer = (player: PvpPlayerSnapshot) => {
+    const drawPlayer = (player: PvpPlayerSnapshot, elapsedSeconds: number) => {
       const targetFacing = characterFacingForVector(
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vx : player.aimX,
         Math.abs(player.vx) + Math.abs(player.vy) > 3 ? player.vy : player.aimY,
@@ -427,8 +428,13 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       );
       rendered.facing = motion.moving ? motion.facing : targetFacing;
       rendered.walkCycle = motion.moving
-        ? advanceCharacterWalkCycle(rendered.walkCycle, motion.distance)
-        : CHARACTER_IDLE_FRAME;
+        ? advanceCharacterWalkCycle(
+            rendered.walkCycle,
+            motion.distance,
+            undefined,
+            elapsedSeconds,
+          )
+        : settleCharacterWalkCycle(rendered.walkCycle);
       renderedPositions.set(player.id, rendered);
       const accent = player.side === 0 ? "#65d9ee" : "#ff667f";
       const moving = motion.moving;
@@ -507,7 +513,13 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     };
 
-    const render = () => {
+    let previousRenderTime: number | null = null;
+    const render = (renderTime: number) => {
+      const elapsedSeconds =
+        previousRenderTime === null
+          ? 0
+          : Math.min(0.1, Math.max(0, (renderTime - previousRenderTime) / 1_000));
+      previousRenderTime = renderTime;
       drawBackground();
       const current = snapshotRef.current;
       if (current) {
@@ -532,7 +544,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           context.fill();
           context.restore();
         }
-        for (const player of current.players) drawPlayer(player);
+        for (const player of current.players) drawPlayer(player, elapsedSeconds);
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";

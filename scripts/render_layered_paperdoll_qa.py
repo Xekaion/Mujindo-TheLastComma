@@ -12,7 +12,9 @@ from PIL import Image, ImageDraw
 CELL_W, CELL_H = 256, 192
 SLOTS = ("weapon", "offhand", "helm", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic")
 NAMES = ("iron", "frost", "jade", "blood", "arcane", "waraxe", "celestial", "void", "sealed", "cosmic")
-ROWS = (0, 2, 4, 6)
+ROWS = tuple(range(8))
+PHASES = tuple(range(4))
+AUTHORED_TO_RUNTIME_DIRECTION = (0, 7, 6, 3, 4, 5, 2, 1)
 
 
 def crop(atlas: Image.Image, column: int, row: int) -> Image.Image:
@@ -25,8 +27,8 @@ def crop_alpha(alpha: Image.Image, column: int, row: int) -> Image.Image:
 
 def main() -> None:
     root = Path(__file__).resolve().parents[1]
-    mannequin = Image.open(root / "public/assets/walk/harin-mannequin-v1.png").convert("RGBA")
-    layer_root = root / "public/assets/paperdoll/v1"
+    mannequin = Image.open(root / "public/assets/walk/harin-mannequin-v2.png").convert("RGBA")
+    layer_root = root / "public/assets/paperdoll/v2"
     layers = {
         (slot, variant): Image.open(layer_root / slot / f"{variant:02d}-{NAMES[variant]}.png").convert("RGBA")
         for slot in SLOTS
@@ -34,7 +36,7 @@ def main() -> None:
     }
     scale = 2
     tile_w, tile_h = CELL_W * scale, CELL_H * scale
-    sheet = Image.new("RGBA", (tile_w * 5, tile_h * 4), (16, 17, 20, 255))
+    sheet = Image.new("RGBA", (tile_w * 5, tile_h * len(ROWS) * len(PHASES)), (16, 17, 20, 255))
     draw = ImageDraw.Draw(sheet)
     builds = [
         ("same iron", [0] * 10),
@@ -44,17 +46,38 @@ def main() -> None:
         ("mixed alternating", [9, 0, 8, 1, 7, 2, 6, 3, 5, 4]),
     ]
     for row_index, authored_row in enumerate(ROWS):
-        for build_index, (label, variants) in enumerate(builds):
-            frame = crop(mannequin, 1, authored_row)
-            for slot, variant in zip(SLOTS, variants):
-                layer = crop(layers[(slot, variant)], 1, authored_row)
-                # Match runtime semantics: an authored equipment pixel replaces
-                # the undersuit at the same coordinate instead of blending its
-                # alpha over clothing that should be occluded.
-                frame.paste(layer, (0, 0), layer)
-            frame = frame.resize((tile_w, tile_h), Image.Resampling.NEAREST)
-            sheet.alpha_composite(frame, (build_index * tile_w, row_index * tile_h))
-            draw.text((build_index * tile_w + 10, row_index * tile_h + 8), f"{label} / row {authored_row}", fill=(255, 240, 196, 255))
+        for phase in PHASES:
+            qa_row = row_index * len(PHASES) + phase
+            for build_index, (label, variants) in enumerate(builds):
+                runtime_direction = AUTHORED_TO_RUNTIME_DIRECTION[authored_row]
+                body_frame = crop(mannequin, phase, authored_row)
+                frame = Image.new("RGBA", (CELL_W, CELL_H), (0, 0, 0, 0))
+                resolved_layers: list[tuple[str, Image.Image]] = []
+                for slot, variant in zip(SLOTS, variants):
+                    layer = crop(layers[(slot, variant)], phase, authored_row)
+                    back_facing = runtime_direction in (3, 4, 5)
+                    if slot == "relic":
+                        layer_pass = "rear" if back_facing else "front"
+                    elif slot == "weapon":
+                        layer_pass = "rear" if 2 <= runtime_direction <= 5 else "front"
+                    elif slot == "offhand":
+                        layer_pass = "rear" if 4 <= runtime_direction <= 7 else "front"
+                    else:
+                        layer_pass = "body"
+                    resolved_layers.append((layer_pass, layer))
+                for layer_pass, layer in resolved_layers:
+                    if layer_pass == "rear":
+                        frame.alpha_composite(layer)
+                frame.alpha_composite(body_frame)
+                for layer_pass, layer in resolved_layers:
+                    if layer_pass == "body":
+                        frame.alpha_composite(layer)
+                for layer_pass, layer in resolved_layers:
+                    if layer_pass == "front":
+                        frame.alpha_composite(layer)
+                frame = frame.resize((tile_w, tile_h), Image.Resampling.NEAREST)
+                sheet.alpha_composite(frame, (build_index * tile_w, qa_row * tile_h))
+                draw.text((build_index * tile_w + 10, qa_row * tile_h + 8), f"{label} / row {authored_row} / phase {phase}", fill=(255, 240, 196, 255))
     out = root / "tmp/paperdoll-layer-qa.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out)

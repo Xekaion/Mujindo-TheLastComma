@@ -1,0 +1,405 @@
+{
+  "atlases": {
+    "weapon/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "weapon/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "offhand/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "helm/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "shoulders/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "armor/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "gloves/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "belt/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "legs/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "boots/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/00-iron.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/01-frost.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/02-jade.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/03-blood.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/04-arcane.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/05-waraxe.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/06-celestial.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/07-void.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/08-sealed.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    },
+    "relic/09-cosmic.png": {
+      "nonempty_cells": 32,
+      "clipped_cells": 0
+    }
+  },
+  "atlas_count": 100
+}

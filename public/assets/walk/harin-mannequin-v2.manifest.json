@@ -1,0 +1,260 @@
+{
+  "phase_contract": [
+    "left-contact",
+    "neutral-passing",
+    "right-contact",
+    "neutral-return"
+  ],
+  "directions": {
+    "south": {
+      "source_row": 0,
+      "mirrored": false,
+      "marker_projections": [
+        -12.108131949764385,
+        -21.867219846458624,
+        -19.10404564848608,
+        35.30676218387063
+      ],
+      "left_contact_source_column": 3,
+      "right_contact_source_column": 1,
+      "passing_source_columns": [
+        0,
+        2
+      ],
+      "target_height": 178,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.0,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "contact_lower_body_iou": 0.8333333333333334,
+      "passing_lower_body_iou": 0.8684623430962343
+    },
+    "south-east": {
+      "source_row": 1,
+      "mirrored": false,
+      "marker_projections": [
+        -41.81098018082752,
+        33.00358835714158,
+        36.72788562028829,
+        34.13711703176155
+      ],
+      "left_contact_source_column": 1,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        0,
+        2
+      ],
+      "target_height": 172,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.5,
+        0.0,
+        0.46000000000000796,
+        0.0
+      ],
+      "contact_lower_body_iou": 0.7863493723849372,
+      "passing_lower_body_iou": 0.9376837154614932
+    },
+    "east": {
+      "source_row": 2,
+      "mirrored": false,
+      "marker_projections": [
+        -44.023539574559976,
+        42.27617989531035,
+        -45.5010827288973,
+        41.416201248969
+      ],
+      "left_contact_source_column": 1,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        0,
+        2
+      ],
+      "target_height": 170,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ],
+      "contact_lower_body_iou": 0.7703474535935269,
+      "passing_lower_body_iou": 0.8230966090850927
+    },
+    "north-west": {
+      "source_row": 3,
+      "mirrored": false,
+      "marker_projections": [
+        -41.38600507081583,
+        -44.52581035122493,
+        19.757272421883552,
+        17.24138221090741
+      ],
+      "left_contact_source_column": 2,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        0,
+        2
+      ],
+      "target_height": 177,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "contact_lower_body_iou": 0.7547273225541244,
+      "passing_lower_body_iou": 0.8954629875298488
+    },
+    "north": {
+      "source_row": 4,
+      "mirrored": false,
+      "marker_projections": [
+        10.106302646377003,
+        10.31023079088095,
+        9.907270168855518,
+        -3.850453893932155
+      ],
+      "left_contact_source_column": 0,
+      "right_contact_source_column": 3,
+      "passing_source_columns": [
+        0,
+        2
+      ],
+      "target_height": 178,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.5,
+        0.5,
+        0.03999999999999204,
+        0.0
+      ],
+      "contact_lower_body_iou": 0.9206043956043956,
+      "passing_lower_body_iou": 0.9234972677595629
+    },
+    "north-east": {
+      "source_row": 3,
+      "mirrored": true,
+      "marker_projections": [
+        -41.386005070815806,
+        -44.52581035122493,
+        19.757272421883563,
+        17.241382210907403
+      ],
+      "left_contact_source_column": 2,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        2,
+        0
+      ],
+      "target_height": 177,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.5,
+        0.5,
+        0.5,
+        0.5
+      ],
+      "contact_lower_body_iou": 0.7547273225541244,
+      "passing_lower_body_iou": 0.9513794045342803
+    },
+    "west": {
+      "source_row": 2,
+      "mirrored": true,
+      "marker_projections": [
+        -44.02353957455999,
+        42.276179895310335,
+        -45.5010827288973,
+        41.41620124896902
+      ],
+      "left_contact_source_column": 1,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        2,
+        0
+      ],
+      "target_height": 170,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.0,
+        0.0,
+        0.5,
+        0.0
+      ],
+      "contact_lower_body_iou": 0.7192049919112549,
+      "passing_lower_body_iou": 0.8230966090850927
+    },
+    "south-west": {
+      "source_row": 1,
+      "mirrored": true,
+      "marker_projections": [
+        -41.81098018082753,
+        33.003588357141574,
+        36.72788562028829,
+        34.13711703176155
+      ],
+      "left_contact_source_column": 1,
+      "right_contact_source_column": 0,
+      "passing_source_columns": [
+        2,
+        0
+      ],
+      "target_height": 172,
+      "floor_pixels": [
+        183,
+        183,
+        183,
+        183
+      ],
+      "torso_anchor_residuals": [
+        0.5,
+        0.0,
+        0.4600000000000364,
+        0.0
+      ],
+      "contact_lower_body_iou": 0.7985781990521327,
+      "passing_lower_body_iou": 0.9376837154614932
+    }
+  },
+  "failures": [],
+  "passed": true
+}

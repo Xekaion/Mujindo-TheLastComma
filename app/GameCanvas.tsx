@@ -2947,6 +2947,8 @@ export default function GameCanvas({
         firstRoomGearDroppedRef.current = false;
       }
       inputRef.current.hasMoveTarget = false;
+      player.moving = false;
+      player.walkCycle = settleCharacterWalkCycle(player.walkCycle);
       player.shotCounter = 0;
       player.legendaryArmorReady = true;
       player.x =
@@ -8934,7 +8936,7 @@ export default function GameCanvas({
           })) ||
         drawWalkSprite(
           images.walkHarinLegacy,
-          player.facing,
+          characterSpriteRowForFacing(player.facing),
           playerWalkFrame,
           player.x,
           playerSpriteY,

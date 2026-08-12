@@ -19,9 +19,21 @@ export type CharacterFacingName = (typeof CHARACTER_FACING_NAMES)[number];
 export const HARIN_WALK_ROW_BY_FACING = [0, 7, 6, 3, 4, 5, 2, 1] as const;
 
 export const CHARACTER_WALK_FRAME_COUNT = 4;
-// The generated cycle's contact poses are columns 0 and 2. Column 1 is a
-// passing pose with a lifted foot, so settling there made Harin freeze mid-step.
-export const CHARACTER_IDLE_FRAME = 0;
+/**
+ * Every Harin body/layer atlas follows one anatomical phase contract:
+ *
+ * 0 = left-foot contact, 1 = neutral passing, 2 = right-foot contact,
+ * 3 = neutral return. Direction changes preserve this phase so the same
+ * planted foot never changes identity merely because the player turned.
+ */
+export const CHARACTER_GAIT_PHASE_NAMES = [
+  "left-contact",
+  "neutral-passing",
+  "right-contact",
+  "neutral-return",
+] as const;
+export const CHARACTER_CONTACT_FRAMES = [0, 2] as const;
+export const CHARACTER_IDLE_FRAME = CHARACTER_CONTACT_FRAMES[0];
 /** World-space distance covered by one complete four-pose gait. */
 export const CHARACTER_WALK_CYCLE_DISTANCE = 96;
 /**
@@ -157,10 +169,16 @@ export function settleCharacterWalkCycle(walkCycle: number): number {
     walkCycle,
     CHARACTER_WALK_FRAME_COUNT,
   );
-  return positiveModulo(
-    Math.round(normalizedCycle / 2) * 2,
-    CHARACTER_WALK_FRAME_COUNT,
+  const distanceToLeftContact = Math.min(
+    normalizedCycle,
+    CHARACTER_WALK_FRAME_COUNT - normalizedCycle,
   );
+  const distanceToRightContact = Math.abs(
+    normalizedCycle - CHARACTER_CONTACT_FRAMES[1],
+  );
+  return distanceToRightContact < distanceToLeftContact
+    ? CHARACTER_CONTACT_FRAMES[1]
+    : CHARACTER_CONTACT_FRAMES[0];
 }
 
 export function characterWalkFrameIndex(

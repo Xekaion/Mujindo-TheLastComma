@@ -7,49 +7,17 @@
     <style>
       :root { color-scheme: dark; font-family: Inter, "Noto Sans KR", sans-serif; }
       * { box-sizing: border-box; }
-      body {
-        margin: 0;
-        color: #eee4d1;
-        background: radial-gradient(circle at 50% -10%, #352524 0, transparent 34rem), #08090b;
-      }
-      header {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        display: flex;
-        justify-content: space-between;
-        align-items: end;
-        gap: 24px;
-        padding: 20px 28px 16px;
-        border-bottom: 1px solid #7f5d34;
-        background: rgba(8, 9, 11, .94);
-        backdrop-filter: blur(12px);
-      }
+      body { margin: 0; color: #eee4d1; background: radial-gradient(circle at 50% -10%, #352524 0, transparent 34rem), #08090b; }
+      header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: end; gap: 24px; padding: 20px 28px 16px; border-bottom: 1px solid #7f5d34; background: rgba(8, 9, 11, .94); backdrop-filter: blur(12px); }
       h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .08em; }
       header p { margin: 0; color: #a99e8b; font-size: 13px; }
       #status { color: #76e5d6; font: 700 14px ui-monospace, monospace; text-align: right; }
       main { padding: 18px 24px 40px; }
-      article {
-        margin-bottom: 18px;
-        padding: 14px;
-        border: 1px solid #40382d;
-        background: linear-gradient(145deg, rgba(27, 24, 22, .92), rgba(9, 11, 13, .96));
-      }
+      article { margin-bottom: 18px; padding: 14px; border: 1px solid #40382d; background: linear-gradient(145deg, rgba(27, 24, 22, .92), rgba(9, 11, 13, .96)); }
       h2 { margin: 0 0 12px; color: #d5b474; font-size: 15px; letter-spacing: .12em; }
       .directions { display: grid; grid-template-columns: repeat(8, minmax(108px, 1fr)); gap: 8px; }
       figure { margin: 0; min-width: 0; }
-      canvas {
-        display: block;
-        width: 100%;
-        aspect-ratio: 4 / 3;
-        border: 1px solid #342f2a;
-        background:
-          linear-gradient(rgba(121, 105, 81, .08) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(121, 105, 81, .08) 1px, transparent 1px),
-          radial-gradient(ellipse at 50% 82%, rgba(0, 0, 0, .7) 0 19%, transparent 20%),
-          #12161a;
-        background-size: 16px 16px, 16px 16px, auto, auto;
-      }
+      canvas { display: block; width: 100%; aspect-ratio: 4 / 3; border: 1px solid #342f2a; background: linear-gradient(rgba(121, 105, 81, .08) 1px, transparent 1px), linear-gradient(90deg, rgba(121, 105, 81, .08) 1px, transparent 1px), radial-gradient(ellipse at 50% 82%, rgba(0, 0, 0, .7) 0 19%, transparent 20%), #12161a; background-size: 16px 16px, 16px 16px, auto, auto; image-rendering: pixelated; }
       figcaption { padding-top: 5px; color: #aea491; font: 700 11px ui-monospace, monospace; text-align: center; }
       .failed { border-color: #db5762; color: #ff8790; }
       @media (max-width: 960px) { .directions { grid-template-columns: repeat(4, minmax(108px, 1fr)); } }
@@ -58,8 +26,8 @@
   <body>
     <header>
       <div>
-        <h1>하린 · 10부위 독립 레이어 모션 검수</h1>
-        <p>공통 마네킹 1장 + 장비 레이어 100장 · 8방향 · 방향별 4걸음 · 바닥선 184/192</p>
+        <h1>하린 · 10부위 장비 레이어 모션 검수</h1>
+        <p>공통 본체 + 장비 레이어 100개 · 8방향 · 방향별 4걸음 · 바닥선 184/192</p>
       </div>
       <div id="status">로딩 중</div>
     </header>
@@ -73,7 +41,7 @@
         ["N", 4, 4], ["NE", 5, 5], ["E", 2, 6], ["SE", 1, 7],
       ];
       const builds = [
-        ["마네킹", null],
+        ["본체", null],
         ["철제 동일 세트", slots.map(() => 0)],
         ["우주 동일 세트", slots.map(() => 9)],
         ["10외형 혼합 A", slots.map((_, index) => index)],
@@ -93,7 +61,6 @@
         images.set(path, image);
         return image;
       }
-
       function layerPass(slot, direction) {
         const backFacing = direction === 3 || direction === 4 || direction === 5;
         if (slot === "relic") return backFacing ? "rear" : "front";
@@ -101,9 +68,8 @@
         if (slot === "offhand") return direction >= 4 && direction <= 7 ? "rear" : "front";
         return "body";
       }
-
       function layerPath(slot, variant) {
-        return `/assets/paperdoll/v1/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
+        return `/assets/paperdoll/v2/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
       }
 
       for (const [name, loadout] of builds) {
@@ -132,7 +98,7 @@
         }
       }
 
-      const body = imageFor("/assets/walk/harin-mannequin-v1.png");
+      const body = imageFor("/assets/walk/harin-mannequin-v2.png");
       let frame = 0;
       function drawAtlasCell(context, image, row) {
         context.drawImage(image, frame * 256, row * 192, 256, 192, 0, 0, 256, 192);

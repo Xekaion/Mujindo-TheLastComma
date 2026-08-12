@@ -1682,6 +1682,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
+    ["public/assets/walk/harin-mannequin-v2.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
     ["public/assets/effects/teleport-rift.png", [1024, 1024]],
     ["public/assets/effects/proofreader-telegraph.png", [1536, 1024]],
@@ -4990,8 +4991,8 @@ test("freshly spawned gear counts down a pickup delay before collection", async 
   );
 });
 
-test("Harin's rebuilt atlas retains 32 grounded and distinct gait poses", async () => {
-  const relativePath = "public/assets/walk/harin-neutral-walk-v4.png";
+test("Harin's rebuilt atlas retains 32 grounded and anatomically alternating gait poses", async () => {
+  const relativePath = "public/assets/walk/harin-mannequin-v2.png";
   const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
   assert.deepEqual([image.width, image.height], [1024, 1536]);
   assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green-screen contamination`);
@@ -5024,6 +5025,36 @@ test("Harin's rebuilt atlas retains 32 grounded and distinct gait poses", async 
     assert.equal(frameHashes.size, 4, `Harin direction ${row} contains a duplicated walk frame`);
   }
   assert.equal(groundBaselines.size, 1, "all 32 gait poses must share one pixel-exact foot baseline");
+
+  // The old atlas passed uniqueness checks while showing the same leading leg
+  // in all four columns.  Opposite contact poses now need a substantial
+  // lower-body silhouette change in every authored direction. Passing poses
+  // may be near-neutral in top-down diagonals, so uniqueness above is the
+  // appropriate regression guard for phases 1 and 3.
+  for (let row = 0; row < 8; row += 1) {
+    for (const [leftColumn, rightColumn, phase] of [[0, 2, "opposite contact"]]) {
+      let intersection = 0;
+      let union = 0;
+      for (let localY = Math.floor(cellHeight * 0.58); localY < cellHeight; localY += 1) {
+        for (let localX = 0; localX < cellWidth; localX += 1) {
+          const leftOffset =
+            (((row * cellHeight + localY) * image.width + leftColumn * cellWidth + localX) * 4) + 3;
+          const rightOffset =
+            (((row * cellHeight + localY) * image.width + rightColumn * cellWidth + localX) * 4) + 3;
+          const leftVisible = image.pixels[leftOffset] > 16;
+          const rightVisible = image.pixels[rightOffset] > 16;
+          if (leftVisible || rightVisible) union += 1;
+          if (leftVisible && rightVisible) intersection += 1;
+        }
+      }
+      const lowerBodyIou = intersection / Math.max(1, union);
+      const maximumContactIou = row === 4 ? 0.93 : 0.9;
+      assert.ok(
+        lowerBodyIou < maximumContactIou,
+        `Harin row ${row} ${phase} frames repeat one leg pose (IoU ${lowerBodyIou.toFixed(3)})`,
+      );
+    }
+  }
 });
 
 test("shared character motion follows post-collision displacement and travelled distance", async () => {
@@ -5032,6 +5063,13 @@ test("shared character motion follows post-collision displacement and travelled 
   assert.deepEqual([...motion.HARIN_WALK_ROW_BY_FACING], [0, 7, 6, 3, 4, 5, 2, 1]);
   assert.equal(motion.CHARACTER_WALK_FRAME_COUNT, 4);
   assert.equal(motion.CHARACTER_IDLE_FRAME, 0);
+  assert.deepEqual([...motion.CHARACTER_CONTACT_FRAMES], [0, 2]);
+  assert.deepEqual([...motion.CHARACTER_GAIT_PHASE_NAMES], [
+    "left-contact",
+    "neutral-passing",
+    "right-contact",
+    "neutral-return",
+  ]);
   assert.equal(motion.characterSpriteRowForFacing(2), 6, "west must use the authored west row");
   assert.equal(motion.characterSpriteRowForFacing(6), 2, "east must use the authored east row");
   assert.equal(motion.characterSpriteRowForFacing(3), 3, "north-west must not mirror north-east");
@@ -5105,6 +5143,11 @@ test("shared character motion follows post-collision displacement and travelled 
   assert.equal(motion.settleCharacterWalkCycle(1.4), 2);
   assert.equal(motion.characterWalkFrameIndex(1.4, false), 2);
   assert.equal(motion.settleCharacterWalkCycle(3.6), 0);
+  assert.equal(
+    motion.settleCharacterWalkCycle(3),
+    0,
+    "a passing pose exactly between contacts must settle predictably without flipping feet",
+  );
 });
 
 test("the paperdoll compositor consumes ten registered 32-frame wearable layers with bounded caching", async () => {
@@ -5232,7 +5275,7 @@ test("all hundred fitted wearable atlases are registered, crop-safe, and indepen
     const paths = paperdoll.PAPERDOLL_LAYER_PATHS[slot];
     assert.equal(paths.length, 10);
     for (const publicPath of paths) {
-      assert.match(publicPath, new RegExp(`/assets/paperdoll/v1/${slot}/`));
+      assert.match(publicPath, new RegExp(`/assets/paperdoll/v2/${slot}/`));
       const relativePath = `public${publicPath}`;
       const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
       assert.deepEqual([image.width, image.height], [1024, 1536]);
@@ -5349,7 +5392,8 @@ test("expedition and plaza render independent fitted layers and preserve public 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.match(paperdollSource, /harin-mannequin-v1\.png/);
+  assert.match(paperdollSource, /harin-mannequin-v2\.png/);
+  assert.match(paperdollSource, /paperdoll\/v2/);
   assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
   assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment/);
@@ -5480,8 +5524,10 @@ test("PVP preserves grounded gait and renders only the local save through the sh
   );
   assert.match(
     source,
-    /advanceCharacterWalkCycle\(rendered\.walkCycle,\s*motion\.distance\)/,
+    /advanceCharacterWalkCycle\(\s*rendered\.walkCycle,\s*motion\.distance,\s*undefined,\s*elapsedSeconds,?\s*\)/,
+    "PVP must apply the shared elapsed-time cadence cap to interpolated movement",
   );
+  assert.match(source, /settleCharacterWalkCycle\(rendered\.walkCycle\)/);
   assert.match(source, /characterWalkFrameIndex\(rendered\.walkCycle,\s*moving\)/);
   assert.match(
     source,

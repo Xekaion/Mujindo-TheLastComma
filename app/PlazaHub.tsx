@@ -597,6 +597,7 @@ export default function PlazaHub({
     touchDirectionRef.current = { x: 0, y: 0 };
     pointerTargetRef.current = null;
     movingRef.current = false;
+    walkCycleRef.current = settleCharacterWalkCycle(walkCycleRef.current);
     const facing = normalizedFacing(facingRef.current) as HubFacing;
     lastSentIntentRef.current = { moveX: 0, moveY: 0, facing };
     const moveHandler = onMoveIntentRef.current;
