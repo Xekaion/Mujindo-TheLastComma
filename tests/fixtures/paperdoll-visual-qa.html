@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>하린 장비 레이어 8방향 검수</title>
+    <style>
+      :root { color-scheme: dark; font-family: Inter, "Noto Sans KR", sans-serif; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: #eee4d1;
+        background: radial-gradient(circle at 50% -10%, #352524 0, transparent 34rem), #08090b;
+      }
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 24px;
+        padding: 20px 28px 16px;
+        border-bottom: 1px solid #7f5d34;
+        background: rgba(8, 9, 11, .94);
+        backdrop-filter: blur(12px);
+      }
+      h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: .08em; }
+      header p { margin: 0; color: #a99e8b; font-size: 13px; }
+      #status { color: #76e5d6; font: 700 14px ui-monospace, monospace; text-align: right; }
+      main { padding: 18px 24px 40px; }
+      article {
+        margin-bottom: 18px;
+        padding: 14px;
+        border: 1px solid #40382d;
+        background: linear-gradient(145deg, rgba(27, 24, 22, .92), rgba(9, 11, 13, .96));
+      }
+      h2 { margin: 0 0 12px; color: #d5b474; font-size: 15px; letter-spacing: .12em; }
+      .directions { display: grid; grid-template-columns: repeat(8, minmax(108px, 1fr)); gap: 8px; }
+      figure { margin: 0; min-width: 0; }
+      canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 4 / 3;
+        border: 1px solid #342f2a;
+        background:
+          linear-gradient(rgba(121, 105, 81, .08) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(121, 105, 81, .08) 1px, transparent 1px),
+          radial-gradient(ellipse at 50% 82%, rgba(0, 0, 0, .7) 0 19%, transparent 20%),
+          #12161a;
+        background-size: 16px 16px, 16px 16px, auto, auto;
+      }
+      figcaption { padding-top: 5px; color: #aea491; font: 700 11px ui-monospace, monospace; text-align: center; }
+      .failed { border-color: #db5762; color: #ff8790; }
+      @media (max-width: 960px) { .directions { grid-template-columns: repeat(4, minmax(108px, 1fr)); } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div>
+        <h1>하린 · 10부위 독립 레이어 모션 검수</h1>
+        <p>공통 마네킹 1장 + 장비 레이어 100장 · 8방향 · 방향별 4걸음 · 바닥선 184/192</p>
+      </div>
+      <div id="status">로딩 중</div>
+    </header>
+    <main id="profiles"></main>
+    <script>
+      const origin = "__PAPERDOLL_APP_ORIGIN__";
+      const slots = ["relic", "offhand", "weapon", "legs", "boots", "armor", "belt", "shoulders", "gloves", "helm"];
+      const variants = ["iron", "frost", "jade", "blood", "arcane", "waraxe", "celestial", "void", "sealed", "cosmic"];
+      const facings = [
+        ["S", 0, 0], ["SW", 7, 1], ["W", 6, 2], ["NW", 3, 3],
+        ["N", 4, 4], ["NE", 5, 5], ["E", 2, 6], ["SE", 1, 7],
+      ];
+      const builds = [
+        ["마네킹", null],
+        ["철제 동일 세트", slots.map(() => 0)],
+        ["우주 동일 세트", slots.map(() => 9)],
+        ["10외형 혼합 A", slots.map((_, index) => index)],
+        ["10외형 혼합 B", slots.map((_, index) => 9 - index)],
+      ];
+      const images = new Map();
+      const renderTargets = [];
+      const root = document.querySelector("#profiles");
+      let failureCount = 0;
+
+      function imageFor(path) {
+        if (images.has(path)) return images.get(path);
+        const image = new Image();
+        image.decoding = "async";
+        image.src = origin + path;
+        image.addEventListener("error", () => { failureCount += 1; });
+        images.set(path, image);
+        return image;
+      }
+
+      function layerPass(slot, direction) {
+        const backFacing = direction === 3 || direction === 4 || direction === 5;
+        if (slot === "relic") return backFacing ? "rear" : "front";
+        if (slot === "weapon") return direction >= 2 && direction <= 5 ? "rear" : "front";
+        if (slot === "offhand") return direction >= 4 && direction <= 7 ? "rear" : "front";
+        return "body";
+      }
+
+      function layerPath(slot, variant) {
+        return `/assets/paperdoll/v1/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
+      }
+
+      for (const [name, loadout] of builds) {
+        const article = document.createElement("article");
+        const title = document.createElement("h2");
+        const grid = document.createElement("div");
+        title.textContent = name;
+        grid.className = "directions";
+        article.append(title, grid);
+        root.append(article);
+        for (const [label, authoredRow, direction] of facings) {
+          const figure = document.createElement("figure");
+          const canvas = document.createElement("canvas");
+          const caption = document.createElement("figcaption");
+          canvas.width = 256;
+          canvas.height = 192;
+          caption.textContent = label;
+          figure.append(canvas, caption);
+          grid.append(figure);
+          const layers = loadout === null ? [] : slots.map((slot, index) => ({
+            slot,
+            image: imageFor(layerPath(slot, loadout[index])),
+            pass: layerPass(slot, direction),
+          }));
+          renderTargets.push({ article, canvas, row: authoredRow, layers });
+        }
+      }
+
+      const body = imageFor("/assets/walk/harin-mannequin-v1.png");
+      let frame = 0;
+      function drawAtlasCell(context, image, row) {
+        context.drawImage(image, frame * 256, row * 192, 256, 192, 0, 0, 256, 192);
+      }
+      function draw() {
+        let missing = 0;
+        for (const { article, canvas, row, layers } of renderTargets) {
+          const context = canvas.getContext("2d");
+          context.clearRect(0, 0, canvas.width, canvas.height);
+          if (!body.complete || body.naturalWidth !== 1024 || body.naturalHeight !== 1536) {
+            missing += 1;
+            continue;
+          }
+          for (const layer of layers) if (layer.pass === "rear" && layer.image.complete && layer.image.naturalWidth) drawAtlasCell(context, layer.image, row);
+          drawAtlasCell(context, body, row);
+          for (const pass of ["body", "front"]) {
+            for (const layer of layers) {
+              if (layer.pass !== pass) continue;
+              if (!layer.image.complete || layer.image.naturalWidth !== 1024 || layer.image.naturalHeight !== 1536) {
+                missing += 1;
+                article.classList.add("failed");
+                continue;
+              }
+              drawAtlasCell(context, layer.image, row);
+            }
+          }
+        }
+        const ready = [...images.values()].filter((image) => image.complete && image.naturalWidth === 1024 && image.naturalHeight === 1536).length;
+        document.querySelector("#status").textContent = `FRAME ${frame} · ${ready}/${images.size} 에셋 · 오류 ${failureCount} · 대기 ${missing}`;
+        frame = (frame + 1) % 4;
+      }
+      draw();
+      setInterval(draw, 220);
+    </script>
+  </body>
+</html>

@@ -34,6 +34,11 @@ export const GEAR_RARITIES = [
 
 export type GearRarity = (typeof GEAR_RARITIES)[number];
 
+const gearRarityAtLeast = (
+  rarity: GearRarity,
+  minimum: GearRarity,
+): boolean => GEAR_RARITIES.indexOf(rarity) >= GEAR_RARITIES.indexOf(minimum);
+
 export type GearRarityMeta = {
   label: string;
   color: string;
@@ -423,6 +428,9 @@ export const GEAR_AFFIX_STATS = [
   "dashSpeedPercent",
   "bossDamagePercent",
   "executeDamagePercent",
+  "cosmicFinalDamagePercent",
+  "cosmicAegisPercent",
+  "cosmicActionSpeedPercent",
 ] as const;
 
 export type GearAffixStat = (typeof GEAR_AFFIX_STATS)[number];
@@ -457,6 +465,14 @@ export type GearAffixDefinition = {
   dropSlots: readonly EquipmentSlot[];
   /** Slots accepted when normalizing saves, including the pre-pool rules. */
   legacySlots: readonly EquipmentSlot[];
+  /** Lowest rarity allowed to receive this option on a newly generated drop. */
+  minimumDropRarity?: GearRarity;
+  /**
+   * Lowest rarity accepted from persisted gear. This is intentionally lower
+   * than `minimumDropRarity` only for options that existed before a rarity gate
+   * was introduced, so an old item is preserved without reopening new rolls.
+   */
+  minimumSaveRarity?: GearRarity;
   /** Count-like stats roll and render as whole numbers. */
   integerRoll?: boolean;
 };
@@ -692,10 +708,53 @@ export const GEAR_AFFIX_DROP_POOL_BY_SLOT: Readonly<
   ],
 };
 
-const dropSlotsFor = (stat: GearAffixStat): readonly EquipmentSlot[] =>
-  EQUIPMENT_SLOTS.filter((slot) =>
-    GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(stat),
+/**
+ * Cosmic drops keep the established twenty-option slot pools, then replace
+ * one regular roll with one guaranteed pinnacle option from this pool. This
+ * makes the 1-in-250,000 tier materially special without diluting every lower
+ * rarity's slot identity or silently expanding its roll pool.
+ */
+export const GEAR_COSMIC_AFFIX_STATS = [
+  "cosmicFinalDamagePercent",
+  "cosmicAegisPercent",
+  "cosmicActionSpeedPercent",
+] as const satisfies readonly GearAffixStat[];
+
+export const GEAR_COSMIC_AFFIX_DROP_POOL_BY_SLOT: Readonly<
+  Record<EquipmentSlot, readonly GearAffixStat[]>
+> = {
+  weapon: GEAR_COSMIC_AFFIX_STATS,
+  offhand: GEAR_COSMIC_AFFIX_STATS,
+  helm: GEAR_COSMIC_AFFIX_STATS,
+  shoulders: GEAR_COSMIC_AFFIX_STATS,
+  armor: GEAR_COSMIC_AFFIX_STATS,
+  gloves: GEAR_COSMIC_AFFIX_STATS,
+  belt: GEAR_COSMIC_AFFIX_STATS,
+  legs: GEAR_COSMIC_AFFIX_STATS,
+  boots: GEAR_COSMIC_AFFIX_STATS,
+  relic: GEAR_COSMIC_AFFIX_STATS,
+};
+
+/** True only for stats in a slot's ordinary twenty-option drop pool. */
+export function isGearAffixInRegularDropPool(
+  slot: EquipmentSlot,
+  stat: GearAffixStat,
+): boolean {
+  return GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(stat);
+}
+
+export function isGearAffixRollableForSlot(
+  slot: EquipmentSlot,
+  stat: GearAffixStat,
+): boolean {
+  return (
+    GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(stat) ||
+    GEAR_COSMIC_AFFIX_DROP_POOL_BY_SLOT[slot].includes(stat)
   );
+}
+
+const dropSlotsFor = (stat: GearAffixStat): readonly EquipmentSlot[] =>
+  EQUIPMENT_SLOTS.filter((slot) => isGearAffixRollableForSlot(slot, stat));
 
 /**
  * Affixes cover core offense/defense/mobility, projectile shaping, critical and
@@ -913,6 +972,8 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     rollWeight: 18,
     dropSlots: dropSlotsFor("projectileCountFlat"),
     legacySlots: dropSlotsFor("projectileCountFlat"),
+    minimumDropRarity: "mythic",
+    minimumSaveRarity: "common",
     integerRoll: true,
   },
   pierceFlat: {
@@ -1032,6 +1093,51 @@ export const GEAR_AFFIX_DEFINITIONS: Readonly<
     rollWeight: 35,
     dropSlots: dropSlotsFor("executeDamagePercent"),
     legacySlots: dropSlotsFor("executeDamagePercent"),
+  },
+  cosmicFinalDamagePercent: {
+    name: "우주 최종 피해",
+    unit: "percent",
+    sign: "+",
+    minValue: 8,
+    maxValue: 12,
+    perLevel: 0.04,
+    cap: 30,
+    powerWeight: 3.4,
+    rollWeight: 100,
+    dropSlots: dropSlotsFor("cosmicFinalDamagePercent"),
+    legacySlots: dropSlotsFor("cosmicFinalDamagePercent"),
+    minimumDropRarity: "cosmic",
+    minimumSaveRarity: "cosmic",
+  },
+  cosmicAegisPercent: {
+    name: "사건의 지평선 피해 감쇄",
+    unit: "percent",
+    sign: "-",
+    minValue: 5,
+    maxValue: 8,
+    perLevel: 0.025,
+    cap: 20,
+    powerWeight: 4,
+    rollWeight: 100,
+    dropSlots: dropSlotsFor("cosmicAegisPercent"),
+    legacySlots: dropSlotsFor("cosmicAegisPercent"),
+    minimumDropRarity: "cosmic",
+    minimumSaveRarity: "cosmic",
+  },
+  cosmicActionSpeedPercent: {
+    name: "시공 초월 속도",
+    unit: "percent",
+    sign: "+",
+    minValue: 6,
+    maxValue: 10,
+    perLevel: 0.03,
+    cap: 22,
+    powerWeight: 2.8,
+    rollWeight: 100,
+    dropSlots: dropSlotsFor("cosmicActionSpeedPercent"),
+    legacySlots: dropSlotsFor("cosmicActionSpeedPercent"),
+    minimumDropRarity: "cosmic",
+    minimumSaveRarity: "cosmic",
   },
 };
 
@@ -1890,11 +1996,37 @@ function rollAffixes(
   rarity: GearRarity,
   level: number,
 ): GearAffix[] {
-  const candidates = [...GEAR_AFFIX_DROP_POOL_BY_SLOT[slot]];
+  const candidates = GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].filter((stat) => {
+    const minimum = GEAR_AFFIX_DEFINITIONS[stat].minimumDropRarity;
+    return minimum === undefined || gearRarityAtLeast(rarity, minimum);
+  });
   const affixes: GearAffix[] = [];
   const count = Math.min(GEAR_RARITY_META[rarity].affixCount, candidates.length);
 
-  for (let index = 0; index < count; index += 1) {
+  // Every cosmic item is guaranteed exactly one of the tier's signature
+  // options. It consumes an existing affix slot, so save shape and the
+  // eight-option cosmic contract remain stable.
+  if (rarity === "cosmic" && count > 0) {
+    const cosmicCandidates = GEAR_COSMIC_AFFIX_DROP_POOL_BY_SLOT[slot].filter(
+      (stat) => {
+        const minimum = GEAR_AFFIX_DEFINITIONS[stat].minimumDropRarity;
+        return minimum === undefined || gearRarityAtLeast(rarity, minimum);
+      },
+    );
+    const cosmicIndex = weightedAffixIndex(rng, cosmicCandidates);
+    const stat = cosmicCandidates[cosmicIndex];
+    const { value, rollPercent } = rollAffixValue(rng, stat, level, rarity);
+    affixes.push({
+      stat,
+      value,
+      rollPercent,
+      label: formatGearAffix(stat, value),
+    });
+    const regularDuplicateIndex = candidates.indexOf(stat);
+    if (regularDuplicateIndex >= 0) candidates.splice(regularDuplicateIndex, 1);
+  }
+
+  for (let index = affixes.length; index < count; index += 1) {
     const candidateIndex = weightedAffixIndex(rng, candidates);
     const [stat] = candidates.splice(candidateIndex, 1);
     const { value, rollPercent } = rollAffixValue(rng, stat, level, rarity);
@@ -2000,7 +2132,13 @@ export function calculateCombatPowerFromEquipmentStats(
     (EQUIPMENT_POWER_BASE_ATTACK_DAMAGE + positive(stats.attackPowerFlat)) /
     EQUIPMENT_POWER_BASE_ATTACK_DAMAGE;
   const damageFactor = 1 + positive(stats.damagePercent) / 100;
-  const attackSpeedFactor = 1 + positive(stats.attackSpeedPercent) / 100;
+  const cosmicFinalDamageFactor =
+    1 + positive(stats.cosmicFinalDamagePercent) / 100;
+  const cosmicActionSpeedFactor =
+    1 + positive(stats.cosmicActionSpeedPercent) / 100;
+  const attackSpeedFactor =
+    (1 + positive(stats.attackSpeedPercent) / 100) *
+    cosmicActionSpeedFactor;
   const critChance = clamp(
     BASE_CRIT_CHANCE + positive(stats.critChancePercent) / 100,
     0,
@@ -2066,6 +2204,7 @@ export function calculateCombatPowerFromEquipmentStats(
   const normalDpsIndex =
     attackPowerFactor *
     damageFactor *
+    cosmicFinalDamageFactor *
     attackSpeedFactor *
     critIndex *
     projectileCountFactor *
@@ -2111,6 +2250,8 @@ export function calculateCombatPowerFromEquipmentStats(
   const maxHp = 100 + positive(stats.maxHpFlat);
   const damageReduction =
     Math.min(65, positive(stats.damageReductionPercent)) / 100;
+  const cosmicAegisReduction =
+    Math.min(30, positive(stats.cosmicAegisPercent)) / 100;
   const lastMemoryFactor = hasPower(powers, "lastMemory")
     ? 1 + LEGENDARY_POWERS.lastMemory.parameters.restoreMaxHpRatio
     : 1;
@@ -2136,7 +2277,7 @@ export function calculateCombatPowerFromEquipmentStats(
   const defenseIndex =
     ((maxHp + positive(stats.roomEntryShieldFlat) * 0.35) /
       100 /
-      Math.max(0.01, 1 - damageReduction)) *
+      Math.max(0.01, (1 - damageReduction) * (1 - cosmicAegisReduction))) *
     lastMemoryFactor *
     mirrorBarrierFactor *
     starfallDefenseFactor *
@@ -2166,7 +2307,8 @@ export function calculateCombatPowerFromEquipmentStats(
     ? LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent * 0.5
     : 0;
   const moveFactor =
-    1 + (positive(stats.moveSpeedPercent) + phantomMoveSpeedBonus) / 100;
+    (1 + (positive(stats.moveSpeedPercent) + phantomMoveSpeedBonus) / 100) *
+    cosmicActionSpeedFactor;
   const dashFactor =
     1 + (positive(stats.dashCooldownPercent) + riftDashBonus) / 100;
   const dashSpeedFactor = 1 + positive(stats.dashSpeedPercent) / 100;
@@ -2334,9 +2476,17 @@ function normalizeAffixes(
     if (!isRecord(candidate) || !isGearAffixStat(candidate.stat)) return null;
     const definition = GEAR_AFFIX_DEFINITIONS[candidate.stat];
     if (
-      (!definition.dropSlots.includes(slot) &&
+      (!isGearAffixInRegularDropPool(slot, candidate.stat) &&
         !definition.legacySlots.includes(slot)) ||
       usedStats.has(candidate.stat)
+    ) {
+      return null;
+    }
+    const minimumSaveRarity =
+      definition.minimumSaveRarity ?? definition.minimumDropRarity;
+    if (
+      minimumSaveRarity !== undefined &&
+      !gearRarityAtLeast(rarity, minimumSaveRarity)
     ) {
       return null;
     }
@@ -2541,6 +2691,9 @@ export function createEmptyGearStatTotals(): GearStatTotals {
     dashSpeedPercent: 0,
     bossDamagePercent: 0,
     executeDamagePercent: 0,
+    cosmicFinalDamagePercent: 0,
+    cosmicAegisPercent: 0,
+    cosmicActionSpeedPercent: 0,
   };
 }
 

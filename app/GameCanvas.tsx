@@ -31,10 +31,14 @@ import {
   characterSpriteRowForFacing,
   characterWalkFrameIndex,
   resolveCharacterMotion,
+  settleCharacterWalkCycle,
 } from "./character-motion";
 import {
+  PAPERDOLL_BODY_PATH,
   drawPaperdollCharacter,
+  paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
+  clearPaperdollCaches,
 } from "./character-paperdoll";
 import {
   BASE_EXPEDITION_DIFFICULTY,
@@ -1847,8 +1851,10 @@ function applyPlayerDamage(
   }
 
   const dealt = Math.max(0, Number.isFinite(rawDamage) ? rawDamage : 0) * multiplier;
-  enemy.hp -= dealt;
-  return dealt;
+  const finalDealt =
+    dealt * (1 + Math.max(0, equipmentStats.cosmicFinalDamagePercent) / 100);
+  enemy.hp -= finalDealt;
+  return finalDealt;
 }
 
 function AugmentIcon({ icon, size = 76 }: { icon: number; size?: number }) {
@@ -3549,6 +3555,7 @@ export default function GameCanvas({
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const replaced = player.equipment[item.slot];
       player.equipment[item.slot] = item;
+      clearPaperdollCaches();
       player.inventory.splice(itemIndex, 1);
       if (replaced) player.inventory.push(replaced);
       reconcileLegendaryRuntime(player);
@@ -3580,6 +3587,7 @@ export default function GameCanvas({
 
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       player.equipment[slot] = null;
+      clearPaperdollCaches();
       player.inventory.push(item);
       reconcileLegendaryRuntime(player);
       playGameSfx("uiBack", { gain: 0.9 });
@@ -3884,7 +3892,7 @@ export default function GameCanvas({
     const saveCheck = window.setTimeout(refreshSaveSlots, 0);
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
-      walkHarin: "/assets/walk/harin-neutral-walk-v4.png",
+      walkHarin: PAPERDOLL_BODY_PATH,
       walkHarinLegacy: "/assets/walk/harin-walk.png",
       walkWithered: "/assets/walk/withered-walk-v2.png",
       walkThreader: "/assets/walk/threader-walk.png",
@@ -3924,6 +3932,17 @@ export default function GameCanvas({
     }
     return () => window.clearTimeout(saveCheck);
   }, [refreshSaveSlots]);
+
+  useEffect(() => {
+    const loadout = paperdollLoadoutFromEquipment(hud.player.equipment);
+    for (const path of paperdollLayerPathsForLoadout(loadout)) {
+      if (imagesRef.current[path]) continue;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = path;
+      imagesRef.current[path] = image;
+    }
+  }, [hud.player.equipment]);
 
   useEffect(() => {
     if (!lootNotice) return;
@@ -4177,6 +4196,7 @@ export default function GameCanvas({
       let mitigated = Math.min(amount, player.maxHp * 0.4);
       const equipmentStats = aggregateEquipmentStats(player.equipment);
       mitigated *= 1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
+      mitigated *= 1 - Math.min(0.3, equipmentStats.cosmicAegisPercent / 100);
       if (hasLegendaryPower(player, "starfallMantle") && player.starfallMantleTime > 0) {
         mitigated *= LEGENDARY_RUNTIME.starfallIncomingMultiplier;
       }
@@ -4756,7 +4776,8 @@ export default function GameCanvas({
           powerRankOf(player, "rapidfire"),
           SIMPLE_AUGMENT_BONUSES.rapidfireAttackSpeedPerRank,
         ) *
-        (1 + equipmentStats.attackSpeedPercent / 100);
+        (1 + equipmentStats.attackSpeedPercent / 100) *
+        (1 + equipmentStats.cosmicActionSpeedPercent / 100);
       const visibleRate = Math.min(12, theoreticalRate);
       const overflowRate = Math.max(1, theoreticalRate / visibleRate);
       const bloodRank = powerRankOf(player, "blood");
@@ -5178,6 +5199,7 @@ export default function GameCanvas({
           SIMPLE_AUGMENT_BONUSES.sprintMoveSpeedPerRank,
         ) *
         (1 + equipmentStats.moveSpeedPercent / 100) *
+        (1 + equipmentStats.cosmicActionSpeedPercent / 100) *
         (phantomMarchActive ? LEGENDARY_RUNTIME.phantomMoveMultiplier : 1);
 
       if (inputRef.current.dashQueued && player.dashCooldown <= 0) {
@@ -5323,8 +5345,9 @@ export default function GameCanvas({
             player.walkCycle,
             playerMotion.distance,
             player.dashTime > 0 ? 220 : undefined,
+            dt,
           )
-        : CHARACTER_IDLE_FRAME;
+        : settleCharacterWalkCycle(player.walkCycle);
       const actuallyMoved = playerMotion.moving;
       player.phantomMarchMoveTime = advanceContinuousMovement(
         player.phantomMarchMoveTime,
@@ -8895,7 +8918,7 @@ export default function GameCanvas({
         (images.walkHarin &&
           drawPaperdollCharacter(context, {
             bodyAtlas: images.walkHarin,
-            equipmentAtlas: images.equipmentIcons,
+            layerSources: images,
             loadout: playerPaperdollLoadout,
             direction: player.facing,
             frame: playerWalkFrame,

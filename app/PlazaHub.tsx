@@ -26,12 +26,14 @@ import {
 import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
-  characterSpriteRowForFacing,
   characterWalkFrameIndex,
   resolveCharacterMotion,
+  settleCharacterWalkCycle,
 } from "./character-motion";
 import {
+  PAPERDOLL_BODY_PATH,
   drawPaperdollCharacter,
+  paperdollLayerPathsForLoadout,
   paperdollLoadoutFromVisualGear,
 } from "./character-paperdoll";
 import {
@@ -48,14 +50,6 @@ const MOVEMENT_SEND_INTERVAL_MS = 66;
 const CAMERA_LERP = 0.13;
 const PORTAL_PULSE_SECONDS = 2.4;
 const PLAZA_MAP_PATH = "/assets/maps/memory-plaza-v1.png";
-const EQUIPMENT_ATLAS_PATH = "/assets/equipment/equipment-types-v4.png";
-
-const SPRITE_PATHS: Record<string, string> = {
-  harin: "/assets/walk/harin-neutral-walk-v4.png",
-  // Preserve compatibility with existing plaza snapshots while rendering the
-  // same neutral body and composing their allowlisted gear separately.
-  "harin-equipped": "/assets/walk/harin-neutral-walk-v4.png",
-};
 
 export type PlazaCharacterIdentity = {
   characterId: string;
@@ -106,7 +100,6 @@ type DrawPlayer = {
   facing: number;
   moving: boolean;
   walkCycle: number;
-  spriteKey: string;
   gear: HubAppearance["gear"] | undefined;
   local: boolean;
   stale: boolean;
@@ -133,11 +126,6 @@ const clampLevel = (level: number) =>
 
 const normalizedFacing = (facing: number) =>
   ((Number.isFinite(facing) ? Math.floor(facing) : 0) % 8 + 8) % 8;
-
-function spritePath(spriteKey: string | undefined, equipped = false) {
-  if (spriteKey && SPRITE_PATHS[spriteKey]) return SPRITE_PATHS[spriteKey];
-  return equipped ? SPRITE_PATHS["harin-equipped"] : SPRITE_PATHS.harin;
-}
 
 function roundedRectPath(
   context: CanvasRenderingContext2D,
@@ -409,7 +397,7 @@ function drawPlayer(
   context: CanvasRenderingContext2D,
   player: DrawPlayer,
   bodyImage: HTMLImageElement | undefined,
-  equipmentImage: HTMLImageElement | undefined,
+  layerSources: ReadonlyMap<string, HTMLImageElement>,
   readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
 ) {
   const shadowWidth = player.local ? 34 : 30;
@@ -420,12 +408,12 @@ function drawPlayer(
 
   const alpha = player.stale ? 0.44 : 1;
   const frame = characterWalkFrameIndex(player.walkCycle, player.moving);
-  const paperdollDrawn = Boolean(
+  const appearanceDrawn = Boolean(
     bodyImage?.complete &&
       bodyImage.naturalWidth > 0 &&
       drawPaperdollCharacter(context, {
         bodyAtlas: bodyImage,
-        equipmentAtlas: equipmentImage,
+        layerSources,
         loadout: paperdollLoadoutFromVisualGear(player.gear),
         direction: player.facing,
         frame,
@@ -436,32 +424,7 @@ function drawPlayer(
         alpha,
       }),
   );
-  let fallbackBodyDrawn = false;
-  if (
-    !paperdollDrawn &&
-    bodyImage?.complete &&
-    bodyImage.naturalWidth > 0 &&
-    bodyImage.naturalHeight > 0
-  ) {
-    const sourceWidth = bodyImage.naturalWidth / 4;
-    const sourceHeight = bodyImage.naturalHeight / 8;
-    context.save();
-    context.globalAlpha = alpha;
-    context.drawImage(
-      bodyImage,
-      frame * sourceWidth,
-      characterSpriteRowForFacing(player.facing) * sourceHeight,
-      sourceWidth,
-      sourceHeight,
-      player.x - 85.5,
-      player.y - 92,
-      171,
-      128,
-    );
-    context.restore();
-    fallbackBodyDrawn = true;
-  }
-  if (!paperdollDrawn && !fallbackBodyDrawn) {
+  if (!appearanceDrawn) {
     context.save();
     context.globalAlpha = alpha;
     context.fillStyle = player.local ? "#9b3f43" : "#3b6973";
@@ -723,16 +686,14 @@ export default function PlazaHub({
   }, []);
 
   useEffect(() => {
-    const requiredPaths = new Set<string>([
-      PLAZA_MAP_PATH,
-      EQUIPMENT_ATLAS_PATH,
-      spritePath(
-        normalizedCharacter.appearance?.spriteKey,
-        normalizedCharacter.appearance?.equipped,
-      ),
-    ]);
+    const requiredPaths = new Set<string>([PLAZA_MAP_PATH, PAPERDOLL_BODY_PATH]);
+    for (const path of paperdollLayerPathsForLoadout(
+      paperdollLoadoutFromVisualGear(normalizedCharacter.appearance?.gear),
+    )) requiredPaths.add(path);
     for (const player of visibleRemotePlayers) {
-      requiredPaths.add(spritePath(player.appearance?.spriteKey));
+      for (const path of paperdollLayerPathsForLoadout(
+        paperdollLoadoutFromVisualGear(player.appearance?.gear),
+      )) requiredPaths.add(path);
     }
     for (const path of requiredPaths) {
       if (spriteImagesRef.current.has(path)) continue;
@@ -867,11 +828,16 @@ export default function PlazaHub({
         facingRef.current = motion.facing;
         movingRef.current = motion.moving;
         walkCycleRef.current = motion.moving
-          ? advanceCharacterWalkCycle(walkCycleRef.current, motion.distance)
-          : CHARACTER_IDLE_FRAME;
+          ? advanceCharacterWalkCycle(
+              walkCycleRef.current,
+              motion.distance,
+              undefined,
+              dt,
+            )
+          : settleCharacterWalkCycle(walkCycleRef.current);
       } else {
         movingRef.current = false;
-        walkCycleRef.current = CHARACTER_IDLE_FRAME;
+        walkCycleRef.current = settleCharacterWalkCycle(walkCycleRef.current);
       }
 
       const facing = normalizedFacing(facingRef.current) as HubFacing;
@@ -963,8 +929,13 @@ export default function PlazaHub({
         const previousWalkCycle =
           remoteWalkCyclesRef.current.get(player.characterId) ?? CHARACTER_IDLE_FRAME;
         const walkCycle = remoteMotion.moving
-          ? advanceCharacterWalkCycle(previousWalkCycle, remoteMotion.distance)
-          : CHARACTER_IDLE_FRAME;
+          ? advanceCharacterWalkCycle(
+              previousWalkCycle,
+              remoteMotion.distance,
+              undefined,
+              dt,
+            )
+          : settleCharacterWalkCycle(previousWalkCycle);
         remoteWalkCyclesRef.current.set(player.characterId, walkCycle);
         return {
           key: player.characterId,
@@ -976,7 +947,6 @@ export default function PlazaHub({
           facing: remoteMotion.moving ? remoteMotion.facing : player.facing,
           moving: remoteMotion.moving,
           walkCycle,
-          spriteKey: spritePath(player.appearance?.spriteKey),
           gear: player.appearance.gear,
           local: false,
           stale: typeof player.updatedAt === "number" && currentTime - player.updatedAt > 10_000,
@@ -993,10 +963,6 @@ export default function PlazaHub({
         facing: facingRef.current,
         moving: movingRef.current,
         walkCycle: walkCycleRef.current,
-        spriteKey: spritePath(
-          localCharacter.appearance?.spriteKey,
-          localCharacter.appearance?.equipped,
-        ),
         gear: localCharacter.appearance?.gear,
         local: true,
         stale: false,
@@ -1006,8 +972,8 @@ export default function PlazaHub({
         drawPlayer(
           context,
           player,
-          spriteImagesRef.current.get(player.spriteKey),
-          spriteImagesRef.current.get(EQUIPMENT_ATLAS_PATH),
+          spriteImagesRef.current.get(PAPERDOLL_BODY_PATH),
+          spriteImagesRef.current,
           readableCanvasFontSize,
         );
       }

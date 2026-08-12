@@ -112,6 +112,9 @@ const EQUIPMENT_STAT_ROWS: ReadonlyArray<{
   { key: "dashSpeedPercent", label: "회피 속도", suffix: "%" },
   { key: "bossDamagePercent", label: "보스 피해", suffix: "%" },
   { key: "executeDamagePercent", label: "처형 피해", suffix: "%" },
+  { key: "cosmicFinalDamagePercent", label: "우주 최종 피해", suffix: "%" },
+  { key: "cosmicAegisPercent", label: "사건의 지평선 피해 감쇄", suffix: "%" },
+  { key: "cosmicActionSpeedPercent", label: "시공 초월 속도", suffix: "%" },
 ];
 
 export default function StatsOverlay({

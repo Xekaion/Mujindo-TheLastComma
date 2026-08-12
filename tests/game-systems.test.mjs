@@ -3146,6 +3146,9 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     dashSpeedPercent: [20, 55],
     bossDamagePercent: [30, 75],
     executeDamagePercent: [30, 90],
+    cosmicFinalDamagePercent: [8, 30],
+    cosmicAegisPercent: [5, 20],
+    cosmicActionSpeedPercent: [6, 22],
   };
   assert.deepEqual(Object.keys(monotonicRanges), equipment.GEAR_AFFIX_STATS);
   for (const stat of equipment.GEAR_AFFIX_STATS) {
@@ -3166,6 +3169,7 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     ["lifeOnHitFlat", 18.75, 500],
     ["gearFindPercent", 200, 500],
     ["homingStrengthFlat", 14, 500],
+    ["cosmicAegisPercent", 30, 500],
   ]) {
     assert.equal(
       scoreStat(stat, overflow),
@@ -3395,7 +3399,80 @@ test("enhancement power comes only from slot implicits and stale saves recompute
   }
 });
 
-test("equipment rolls twenty-five real affix types from twenty-option slot pools deterministically", async () => {
+test("equipment gates apex affixes by rarity while preserving legacy projectile-count saves", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const apexStats = new Set(equipment.GEAR_COSMIC_AFFIX_STATS);
+
+  for (const rarity of equipment.GEAR_RARITIES) {
+    for (const slot of equipment.EQUIPMENT_SLOTS) {
+      for (let seed = 0; seed < 240; seed += 1) {
+        const item = equipment.rollGear(`apex-gate-${rarity}-${slot}-${seed}`, {
+          level: 80,
+          slot,
+          rarity,
+        });
+        const rolledStats = item.affixes.map((affix) => affix.stat);
+        if (rarity !== "mythic" && rarity !== "cosmic") {
+          assert.equal(
+            rolledStats.includes("projectileCountFlat"),
+            false,
+            `${rarity}/${slot} must not receive a fresh additional-projectile roll`,
+          );
+        }
+        if (rarity === "cosmic") {
+          assert.equal(
+            rolledStats.filter((stat) => apexStats.has(stat)).length,
+            1,
+            `every cosmic ${slot} must carry exactly one pinnacle option`,
+          );
+        } else {
+          assert.equal(
+            rolledStats.some((stat) => apexStats.has(stat)),
+            false,
+            `${rarity}/${slot} must not receive a cosmic pinnacle option`,
+          );
+        }
+      }
+    }
+  }
+
+  const lowRarityLegacy = equipment.rollGear("legacy-low-projectile", {
+    level: 1,
+    slot: "weapon",
+    rarity: "common",
+  });
+  lowRarityLegacy.affixes = [{
+    stat: "projectileCountFlat",
+    value: 1,
+    rollPercent: 50,
+    label: equipment.formatGearAffix("projectileCountFlat", 1),
+  }];
+  lowRarityLegacy.powerScore = -1;
+  lowRarityLegacy.qualityScore = -1;
+  const preserved = equipment.normalizeGearItem(lowRarityLegacy);
+  assert.ok(preserved, "an already-owned low-rarity projectile-count item must remain loadable");
+  assert.equal(preserved.affixes[0].stat, "projectileCountFlat");
+  assert.equal(preserved.affixes[0].value, 1);
+
+  const forgedCosmicStat = equipment.rollGear("forged-low-cosmic-affix", {
+    level: 1,
+    slot: "weapon",
+    rarity: "common",
+  });
+  forgedCosmicStat.affixes = [{
+    stat: "cosmicFinalDamagePercent",
+    value: 8,
+    rollPercent: 1,
+    label: equipment.formatGearAffix("cosmicFinalDamagePercent", 8),
+  }];
+  assert.equal(
+    equipment.normalizeGearItem(forgedCosmicStat),
+    null,
+    "cosmic-only stats must not be accepted on persisted lower-rarity gear",
+  );
+});
+
+test("equipment rolls twenty-eight real affix types from twenty-option slot pools deterministically", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const expectedStats = [
     "damagePercent",
@@ -3423,6 +3500,9 @@ test("equipment rolls twenty-five real affix types from twenty-option slot pools
     "dashSpeedPercent",
     "bossDamagePercent",
     "executeDamagePercent",
+    "cosmicFinalDamagePercent",
+    "cosmicAegisPercent",
+    "cosmicActionSpeedPercent",
   ];
   assert.deepEqual(equipment.GEAR_AFFIX_STATS, expectedStats);
   assert.deepEqual(Object.keys(equipment.GEAR_AFFIX_DEFINITIONS), expectedStats);
@@ -3456,6 +3536,19 @@ test("equipment rolls twenty-five real affix types from twenty-option slot pools
   assert.equal(equipment.GEAR_AFFIX_DEFINITIONS.pierceFlat.integerRoll, true);
   assert.equal(equipment.formatGearAffix("projectileCountFlat", 2), "추가 투사체 +2");
   assert.equal(equipment.formatGearAffix("pierceFlat", 3), "관통 횟수 +3");
+  assert.equal(
+    equipment.GEAR_AFFIX_DEFINITIONS.projectileCountFlat.minimumDropRarity,
+    "mythic",
+  );
+  assert.deepEqual(equipment.GEAR_COSMIC_AFFIX_STATS, [
+    "cosmicFinalDamagePercent",
+    "cosmicAegisPercent",
+    "cosmicActionSpeedPercent",
+  ]);
+  assert.equal(
+    equipment.formatGearAffix("cosmicFinalDamagePercent", 12),
+    "우주 최종 피해 +12.00%",
+  );
 
   const observedBases = new Set();
   const observedStats = new Set();
@@ -3488,8 +3581,8 @@ test("equipment rolls twenty-five real affix types from twenty-option slot pools
         );
         for (const affix of first.affixes) {
           assert.ok(
-            equipment.GEAR_AFFIX_DROP_POOL_BY_SLOT[slot].includes(affix.stat),
-            `${slot} must only roll stats from its explicit drop pool`,
+            equipment.isGearAffixRollableForSlot(slot, affix.stat),
+            `${slot} must only roll stats from its explicit regular or cosmic pool`,
           );
           assert.ok(Number.isSafeInteger(affix.rollPercent));
           assert.ok(affix.rollPercent >= 1 && affix.rollPercent <= 100);
@@ -4933,9 +5026,37 @@ test("shared character motion follows post-collision displacement and travelled 
   assert.equal(oneStep, splitStep, "walk phase must depend on distance, not update frequency");
   assert.equal(motion.advanceCharacterWalkCycle(0, motion.CHARACTER_WALK_CYCLE_DISTANCE), 0);
   assert.equal(motion.characterWalkFrameIndex(3.75, true), 3);
+
+  const cadenceSampleSeconds = 0.25;
+  const cadenceLimited = motion.advanceCharacterWalkCycle(
+    0,
+    motion.CHARACTER_WALK_CYCLE_DISTANCE * 100,
+    motion.CHARACTER_WALK_CYCLE_DISTANCE,
+    cadenceSampleSeconds,
+  );
+  assert.equal(
+    cadenceLimited,
+    (motion.CHARACTER_MAX_WALK_CYCLES_PER_SECOND *
+      motion.CHARACTER_WALK_FRAME_COUNT *
+      cadenceSampleSeconds) % motion.CHARACTER_WALK_FRAME_COUNT,
+    "extreme movement speed must be capped by elapsed-time gait cadence",
+  );
+  assert.equal(
+    motion.advanceCharacterWalkCycle(
+      1.25,
+      motion.CHARACTER_WALK_CYCLE_DISTANCE,
+      motion.CHARACTER_WALK_CYCLE_DISTANCE,
+      0,
+    ),
+    1.25,
+    "a zero-duration frame must not advance the gait",
+  );
+  assert.equal(motion.settleCharacterWalkCycle(1.4), 2);
+  assert.equal(motion.characterWalkFrameIndex(1.4, false), 2);
+  assert.equal(motion.settleCharacterWalkCycle(3.6), 0);
 });
 
-test("the paperdoll compositor consumes all ten transparent equipment cells with bounded caching", async () => {
+test("the paperdoll compositor consumes ten registered 32-frame wearable layers with bounded caching", async () => {
   const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
   const [equipment, paperdoll, motion, paperdollSource] = await Promise.all([
     importTypeScriptModule("app/equipment.ts"),
@@ -4967,15 +5088,13 @@ test("the paperdoll compositor consumes all ten transparent equipment cells with
   }
   const loadout = paperdoll.paperdollLoadoutFromEquipment(worn);
   assert.equal(Object.keys(loadout).length, 10, "every equipped slot must reach the in-game renderer");
-  for (const [column, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+  for (const slot of equipment.EQUIPMENT_SLOTS) {
     const piece = loadout[slot];
     assert.ok(piece, `${slot} is missing from the paperdoll loadout`);
-    assert.deepEqual(paperdoll.paperdollAtlasCell(slot, piece.variant), {
-      x: column * 280,
-      y: piece.variant * 280,
-      width: 280,
-      height: 280,
-    });
+    assert.equal(
+      paperdoll.getPaperdollLayerPath(slot, piece.variant),
+      paperdoll.PAPERDOLL_LAYER_PATHS[slot][piece.variant],
+    );
   }
   assert.equal(
     paperdoll.paperdollGearMetaFromItem({ ...worn.weapon, iconIndex: worn.weapon.iconIndex + 1 }),
@@ -5009,31 +5128,21 @@ test("the paperdoll compositor consumes all ten transparent equipment cells with
     "untrusted hub variants outside 0..9 or with the wrong type must be dropped",
   );
 
-  const rgba = new Uint8ClampedArray(6 * 5 * 4);
-  rgba[(1 * 6 + 2) * 4 + 3] = 255;
-  rgba[(3 * 6 + 4) * 4 + 3] = 255;
-  assert.deepEqual(paperdoll.computePaperdollOpaqueBounds(rgba, 6, 5), {
-    x: 2,
-    y: 1,
-    width: 3,
-    height: 3,
+  assert.deepEqual(paperdoll.paperdollFrameCell(6, 2), {
+    x: 512,
+    y: 384,
+    width: 256,
+    height: 192,
   });
-  assert.equal(
-    paperdoll.computePaperdollOpaqueBounds(new Uint8ClampedArray(6 * 5 * 4), 6, 5),
-    null,
-    "fully transparent padding must not be drawn as a square",
-  );
-  assert.deepEqual(paperdoll.containPaperdollPart(200, 100, 50, 50), {
-    width: 50,
-    height: 25,
-  });
+  assert.equal(paperdoll.PAPERDOLL_GROUND_ANCHOR_RATIO, 184 / 192);
+  assert.equal(paperdoll.paperdollLayerPathsForLoadout(loadout).length, 10);
 
   const sorted = paperdoll.sortPaperdollPieces(loadout, 6);
-  const layerRank = { back: 0, body: 1, front: 2 };
+  const layerRank = { rear: 0, body: 1, front: 2 };
   const layers = sorted.map((piece) =>
-    paperdoll.resolvePaperdollPartPlacement(piece.slot, 6, 2).layer
+    paperdoll.resolvePaperdollLayer(piece.slot, 6)
   );
-  assert.deepEqual([...new Set(layers)], ["back", "body", "front"]);
+  assert.deepEqual([...new Set(layers)], ["rear", "body", "front"]);
   assert.deepEqual(
     layers.map((layer) => layerRank[layer]),
     layers.map((layer) => layerRank[layer]).toSorted((left, right) => left - right),
@@ -5052,30 +5161,69 @@ test("the paperdoll compositor consumes all ten transparent equipment cells with
 
   assert.match(
     paperdollSource,
-    /context\.drawImage\(\s*atlas,\s*cell\.x \+ trim\.x,\s*cell\.y \+ trim\.y,\s*trim\.width,\s*trim\.height,/,
-    "runtime gear must draw only the alpha-trimmed portion of its atlas cell",
+    /drawPass\("rear"\)[\s\S]{0,220}?drawRegisteredAtlasFrame\(context, bodyAtlas, cell\)[\s\S]{0,220}?drawPass\("body"\)[\s\S]{0,80}?drawPass\("front"\)/,
+    "runtime must draw rear gear, the mannequin, worn gear, then front gear",
   );
-  const frameContents = paperdollSource.indexOf("function drawPaperdollFrameContents(");
-  const backPass = paperdollSource.indexOf('=== "back"', frameContents);
-  const bodyPass = paperdollSource.indexOf("const row = PAPERDOLL_DIRECTION_ROWS[direction];", backPass);
-  const frontPass = paperdollSource.indexOf('for (const layer of ["body", "front"]', bodyPass);
-  assert.ok(
-    frameContents >= 0 && backPass > frameContents && bodyPass > backPass && frontPass > bodyPass,
-    "the compositor must draw back gear, the body frame, then body/front gear",
-  );
+  assert.doesNotMatch(paperdollSource, /equipment-types-v4|trim\.x|context\.rotate|containPaperdollPart/);
 });
 
-test("expedition and plaza render the fitted paperdoll and preserve public gear appearance", async () => {
-  const [source, plaza, overlay, css] = await Promise.all([
+test("all hundred fitted wearable atlases are registered, crop-safe, and independent", async () => {
+  const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
+  const [equipment, paperdoll] = await Promise.all([
+    importTypeScriptModule("app/equipment.ts"),
+    importTypeScriptModule("app/character-paperdoll.ts", {
+      "./equipment": equipmentUrl,
+    }),
+  ]);
+
+  let count = 0;
+  for (const slot of equipment.EQUIPMENT_SLOTS) {
+    const paths = paperdoll.PAPERDOLL_LAYER_PATHS[slot];
+    assert.equal(paths.length, 10);
+    for (const publicPath of paths) {
+      assert.match(publicPath, new RegExp(`/assets/paperdoll/v1/${slot}/`));
+      const relativePath = `public${publicPath}`;
+      const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
+      assert.deepEqual([image.width, image.height], [1024, 1536]);
+      let opaque = 0;
+      for (let index = 3; index < image.pixels.length; index += 4) {
+        if (image.pixels[index] > 8) opaque += 1;
+      }
+      assert.ok(opaque > 20, `${relativePath} must contain a visible fitted layer`);
+      for (let row = 0; row < 8; row += 1) {
+        for (let column = 0; column < 4; column += 1) {
+          let frameOpaque = 0;
+          for (let y = row * 192; y < (row + 1) * 192; y += 1) {
+            for (let x = column * 256; x < (column + 1) * 256; x += 1) {
+              const alphaIndex = (y * image.width + x) * 4 + 3;
+              if (image.pixels[alphaIndex] > 8) frameOpaque += 1;
+            }
+          }
+          assert.ok(
+            frameOpaque > 0,
+            `${relativePath} frame ${row},${column} must not make equipped gear disappear`,
+          );
+        }
+      }
+      count += 1;
+    }
+  }
+  assert.equal(count, 100);
+});
+
+test("expedition and plaza render independent fitted layers and preserve public gear appearance", async () => {
+  const [source, plaza, paperdollSource, overlay, css] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
+    readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
   ]);
 
   for (const runtimeSource of [source, plaza]) {
-    assert.match(runtimeSource, /harin-neutral-walk-v4\.png/);
     assert.match(runtimeSource, /drawPaperdollCharacter/);
+    assert.match(runtimeSource, /paperdollLayerPathsForLoadout/);
+    assert.doesNotMatch(runtimeSource, /drawHarinAppearanceFrame|resolveHarinAppearance|equipmentAtlas:/);
     assert.doesNotMatch(runtimeSource, /harin-equipped-v3\.png|walkHarinEquipped/);
     assert.doesNotMatch(
       runtimeSource,
@@ -5083,7 +5231,10 @@ test("expedition and plaza render the fitted paperdoll and preserve public gear 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment\s*,?\s*\)/);
+  assert.match(paperdollSource, /harin-mannequin-v1\.png/);
+  assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
+  assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
+  assert.match(source, /paperdollLoadoutFromEquipment\(\s*player\.equipment/);
   const expeditionMotionStart = source.indexOf("const previousPlayerX = player.x;");
   const expeditionCollision = source.indexOf(
     "constrainPlayerToWalkableFloor(player, doors);",
@@ -5123,25 +5274,21 @@ test("expedition and plaza render the fitted paperdoll and preserve public gear 
     "plaza motion must be sampled from the movement that survived plaza collision",
   );
   assert.match(
-    plaza.slice(plazaMotionResolve, plazaMotionResolve + 480),
-    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,260}?advanceCharacterWalkCycle\(walkCycleRef\.current,\s*motion\.distance\)/,
+    plaza.slice(plazaMotionResolve, plazaMotionResolve + 620),
+    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,300}?advanceCharacterWalkCycle\(\s*walkCycleRef\.current,\s*motion\.distance,\s*undefined,\s*dt\s*,?\s*\)/,
   );
   assert.doesNotMatch(plaza, /Math\.floor\(time\s*\*\s*8\.5\)/);
   assert.match(
     plaza,
-    /gear:\s*player\.appearance\.gear/,
-    "remote public appearance gear must reach the paperdoll loadout",
+    /paperdollLoadoutFromVisualGear\(player\.appearance\?\.gear\)/,
+    "remote public gear must request its independent fitted layers",
   );
   assert.match(
     plaza,
-    /gear:\s*localCharacter\.appearance\?\.gear/,
-    "the selected local character's public gear must reach the plaza paperdoll",
+    /paperdollLoadoutFromVisualGear\(normalizedCharacter\.appearance\?\.gear\)/,
+    "the selected local character's public gear must request its independent fitted layers",
   );
-  assert.match(
-    plaza,
-    /loadout:\s*paperdollLoadoutFromVisualGear\(player\.gear\)/,
-    "plaza renderers must convert public variants through the strict visual-gear allowlist",
-  );
+  assert.doesNotMatch(plaza, /equipment-types-v4\.png/);
 
   // Ground loot and inventory thumbnails keep the same transparent source atlas.
   assert.match(css, /equipment-types-v4\.png/);

@@ -24,6 +24,12 @@ export const CHARACTER_WALK_FRAME_COUNT = 4;
 export const CHARACTER_IDLE_FRAME = 0;
 /** World-space distance covered by one complete four-pose gait. */
 export const CHARACTER_WALK_CYCLE_DISTANCE = 96;
+/**
+ * Upper gait cadence for the player atlas. Distance still drives the cycle at
+ * ordinary speed, while temporary movement-speed spikes can no longer make the
+ * four authored poses strobe faster than they can be read.
+ */
+export const CHARACTER_MAX_WALK_CYCLES_PER_SECOND = 3.2;
 export const CHARACTER_MOTION_EPSILON = 0.001;
 
 const VECTOR_SECTOR_TO_FACING = [6, 7, 0, 1, 2, 3, 4, 5] as const;
@@ -101,11 +107,18 @@ export function resolveCharacterMotion(
   };
 }
 
-/** Advances the fractional frame cursor using actual travelled distance. */
+/**
+ * Advances the fractional frame cursor using actual travelled distance.
+ *
+ * `elapsedSeconds` is optional to preserve the original distance-only contract
+ * for simulations and callers that do not own a frame delta. Runtime render
+ * loops should pass it so extreme movement speed is cadence-limited.
+ */
 export function advanceCharacterWalkCycle(
   currentCycle: number,
   actualDistance: number,
   cycleDistance: number = CHARACTER_WALK_CYCLE_DISTANCE,
+  elapsedSeconds?: number,
 ): number {
   const safeCycle = Number.isFinite(currentCycle)
     ? currentCycle
@@ -117,11 +130,35 @@ export function advanceCharacterWalkCycle(
     Number.isFinite(cycleDistance) && cycleDistance > CHARACTER_MOTION_EPSILON
       ? cycleDistance
       : CHARACTER_WALK_CYCLE_DISTANCE;
-  const frameAdvance =
+  const distanceFrameAdvance =
     (safeDistance / safeCycleDistance) * CHARACTER_WALK_FRAME_COUNT;
+  const hasElapsedSample = elapsedSeconds !== undefined;
+  const safeElapsedSeconds = Number.isFinite(elapsedSeconds)
+    ? Math.max(0, elapsedSeconds ?? 0)
+    : 0;
+  const maxTimedFrameAdvance =
+    CHARACTER_MAX_WALK_CYCLES_PER_SECOND *
+    CHARACTER_WALK_FRAME_COUNT *
+    safeElapsedSeconds;
+  const frameAdvance = hasElapsedSample
+    ? Math.min(distanceFrameAdvance, maxTimedFrameAdvance)
+    : distanceFrameAdvance;
 
   return positiveModulo(
     safeCycle + frameAdvance,
+    CHARACTER_WALK_FRAME_COUNT,
+  );
+}
+
+/** Settles a halted gait on the nearest authored foot-contact pose (0 or 2). */
+export function settleCharacterWalkCycle(walkCycle: number): number {
+  if (!Number.isFinite(walkCycle)) return CHARACTER_IDLE_FRAME;
+  const normalizedCycle = positiveModulo(
+    walkCycle,
+    CHARACTER_WALK_FRAME_COUNT,
+  );
+  return positiveModulo(
+    Math.round(normalizedCycle / 2) * 2,
     CHARACTER_WALK_FRAME_COUNT,
   );
 }
@@ -130,7 +167,8 @@ export function characterWalkFrameIndex(
   walkCycle: number,
   moving: boolean,
 ): number {
-  if (!moving || !Number.isFinite(walkCycle)) return CHARACTER_IDLE_FRAME;
+  if (!Number.isFinite(walkCycle)) return CHARACTER_IDLE_FRAME;
+  if (!moving) return settleCharacterWalkCycle(walkCycle);
   return positiveModulo(
     Math.floor(walkCycle),
     CHARACTER_WALK_FRAME_COUNT,

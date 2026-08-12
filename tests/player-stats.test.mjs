@@ -220,6 +220,79 @@ test("slot affixes feed the intended rating without contaminating other metrics"
   assert.ok(bossDamage.ratings.combatPower > normalBoss.ratings.combatPower);
 });
 
+test("cosmic pinnacle options feed live sheet formulas and the special-option ledger", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const baseItem = {
+    ...equipment.rollGear("cosmic-runtime-contract", {
+      level: 80,
+      slot: "weapon",
+      rarity: "cosmic",
+    }),
+    affixes: [],
+  };
+  const snapshotFor = (affix = null) => {
+    const loadout = equipment.createEmptyEquipment();
+    loadout.weapon = affix
+      ? {
+          ...baseItem,
+          affixes: [{
+            stat: affix.stat,
+            value: affix.value,
+            rollPercent: 100,
+            label: equipment.formatGearAffix(affix.stat, affix.value),
+          }],
+        }
+      : baseItem;
+    return playerStats.calculatePlayerStatSnapshot({
+      level: 80,
+      hp: 100,
+      maxHp: 100,
+      shield: 0,
+      shotCounter: 0,
+      augments: {},
+      profession: null,
+      equipment: loadout,
+      synergies: [],
+      legendaryArmorReady: true,
+      ...dormantLegendaryRuntime,
+    });
+  };
+
+  const baseline = snapshotFor();
+  const finalDamage = snapshotFor({ stat: "cosmicFinalDamagePercent", value: 12 });
+  nearlyEqual(
+    finalDamage.offense.normalProjectileDamage,
+    baseline.offense.normalProjectileDamage * 1.12,
+  );
+  assert.ok(finalDamage.ratings.combatPower > baseline.ratings.combatPower);
+
+  const aegis = snapshotFor({ stat: "cosmicAegisPercent", value: 10 });
+  nearlyEqual(
+    aegis.defense.currentIncomingMultiplier,
+    baseline.defense.currentIncomingMultiplier * 0.9,
+  );
+  assert.ok(aegis.ratings.combatPower > baseline.ratings.combatPower);
+
+  const actionSpeed = snapshotFor({ stat: "cosmicActionSpeedPercent", value: 10 });
+  nearlyEqual(
+    actionSpeed.offense.theoreticalFireRate,
+    baseline.offense.theoreticalFireRate * 1.1,
+  );
+  nearlyEqual(actionSpeed.mobility.moveSpeed, baseline.mobility.moveSpeed * 1.1);
+  assert.ok(actionSpeed.ratings.combatPower > baseline.ratings.combatPower);
+
+  for (const [stat, snapshot] of [
+    ["cosmicFinalDamagePercent", finalDamage],
+    ["cosmicAegisPercent", aegis],
+    ["cosmicActionSpeedPercent", actionSpeed],
+  ]) {
+    assert.ok(
+      snapshot.specials.some((special) => special.id === stat),
+      `${stat} must be visible in the live character sheet`,
+    );
+  }
+});
+
 test("the standard HP profile and rendered hit budget keep conversion honest", async () => {
   const { playerStats, equipment } = await loadPlayerStatsModules();
   const snapshotFor = (augments) =>

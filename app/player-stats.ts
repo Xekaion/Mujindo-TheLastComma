@@ -236,7 +236,8 @@ export function calculatePlayerStatSnapshot(
       rank("rapidfire"),
       SIMPLE_AUGMENT_BONUSES.rapidfireAttackSpeedPerRank,
     ) *
-    (1 + equipmentStats.attackSpeedPercent / 100);
+    (1 + equipmentStats.attackSpeedPercent / 100) *
+    (1 + equipmentStats.cosmicActionSpeedPercent / 100);
   const theoreticalFireRate =
     unconditionalFireRate *
     Math.pow(1 + rank("frenzy") * missingHpRatio * 0.12, 0.65);
@@ -276,7 +277,8 @@ export function calculatePlayerStatSnapshot(
       SIMPLE_AUGMENT_BONUSES.strengthDamagePerRank,
     ) *
     (1 + synergyPower) *
-    (1 + equipmentStats.damagePercent / 100);
+    (1 + equipmentStats.damagePercent / 100) *
+    (1 + equipmentStats.cosmicFinalDamagePercent / 100);
   const normalProjectileDamage =
     sheetAttackPower *
     ((1 + bloodRank * 0.14 + missingHealthBonus) /
@@ -370,6 +372,7 @@ export function calculatePlayerStatSnapshot(
     1 - Math.min(0.65, equipmentStats.damageReductionPercent / 100);
   const stableAlwaysIncomingMultiplier =
     gearIncomingMultiplier *
+    (1 - Math.min(0.3, equipmentStats.cosmicAegisPercent / 100)) *
     simpleDefenseDamageMultiplier(rank("defense")) /
     Math.pow(1 + rank("armor") * 0.1, 0.62);
   const alwaysIncomingMultiplier =
@@ -435,6 +438,7 @@ export function calculatePlayerStatSnapshot(
       SIMPLE_AUGMENT_BONUSES.sprintMoveSpeedPerRank,
     ) *
     (1 + equipmentStats.moveSpeedPercent / 100) *
+    (1 + equipmentStats.cosmicActionSpeedPercent / 100) *
     (phantomMarchActive
       ? 1 + LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent / 100
       : 1);
@@ -536,7 +540,9 @@ export function calculatePlayerStatSnapshot(
     averageOverchargeMultiplier *
     standardPrimaryDamageMultiplier;
   const legendaryBaseDamage =
-    baseAttack * (1 + equipmentStats.damagePercent / 100);
+    baseAttack *
+    (1 + equipmentStats.damagePercent / 100) *
+    (1 + equipmentStats.cosmicFinalDamagePercent / 100);
   let legendaryProcBonusDps = 0;
   if (powerSet.has("crescentEcho")) {
     const crescentHitRate = calculateStandardBossHitRate({
@@ -759,6 +765,20 @@ export function calculatePlayerStatSnapshot(
   };
 
   const specials: PlayerSpecialStat[] = [];
+  for (const stat of [
+    ["cosmicFinalDamagePercent", "우주 최종 피해"],
+    ["cosmicAegisPercent", "사건의 지평선 피해 감쇄"],
+    ["cosmicActionSpeedPercent", "시공 초월 속도"],
+  ] as const) {
+    const value = equipmentStats[stat[0]];
+    if (value <= 0) continue;
+    specials.push({
+      id: stat[0],
+      label: stat[1],
+      value: `+${value.toFixed(2)}%`,
+      condition: "우주 장비 전용 추가옵션",
+    });
+  }
   if (overchargePeriod) {
     specials.push({
       id: "overcharge",
