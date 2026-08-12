@@ -259,7 +259,7 @@ const EMPTY_SNAPSHOT: EconomySnapshot = {
 
 export function isLocalEconomySandbox(hostname?: string): boolean {
   const host = hostname ?? (typeof window === "undefined" ? "" : window.location.hostname);
-  return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
 }
 
 export function createEconomyIdempotencyKey(prefix = "economy"): string {

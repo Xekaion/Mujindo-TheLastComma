@@ -15,6 +15,11 @@ import {
   type SteamTransactionItem,
 } from "../app/economy-protocol";
 import { ensureEconomyTriggers } from "./economy-trigger-installer";
+import {
+  EconomySchemaMissingError,
+  ensureEconomySchema,
+  resetEconomySchemaReadiness,
+} from "./economy-schema";
 
 export type EconomyD1Env = {
   DB?: D1Database;
@@ -163,7 +168,10 @@ async function constantTimeSecretEqual(left: string, right: string): Promise<boo
 }
 
 function isLocalHost(url: URL): boolean {
-  return url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1";
+  return url.hostname === "localhost" ||
+    url.hostname === "127.0.0.1" ||
+    url.hostname === "::1" ||
+    url.hostname === "[::1]";
 }
 
 function sameOrigin(request: Request): boolean {
@@ -1215,8 +1223,9 @@ export async function handleEconomyRequest(request: Request, env: EconomyD1Env):
   try {
     if (!env.DB) throw new EconomyProblem(503, "ECONOMY_UNAVAILABLE", "경제 D1 binding이 없습니다.", true);
     const db = env.DB;
-    await ensureEconomyTriggers(db);
     const url = new URL(request.url);
+    await ensureEconomySchema(db, { allowLocalBootstrap: isLocalHost(url) });
+    await ensureEconomyTriggers(db);
     const route = url.pathname.replace(/\/+$/, "");
     if (route === "/api/economy/health") return request.method === "GET" ? await health(db, env) : methodNotAllowed("GET");
     if (route === "/api/economy/auth/steam/start") return request.method === "GET" ? await steamStart(request, db, env) : methodNotAllowed("GET");
@@ -1233,11 +1242,17 @@ export async function handleEconomyRequest(request: Request, env: EconomyD1Env):
     if (route === "/api/economy/payments/steam/finalize") return request.method === "POST" ? await steamPaymentFinalize(request, db, env, auth) : methodNotAllowed("POST");
     return json({ ok: false, error: { code: "NOT_FOUND", message: "Unknown economy route.", retryable: false } }, 404);
   } catch (error) {
+    if (error instanceof EconomySchemaMissingError) {
+      return json({ ok: false, requestId, error: { code: "ECONOMY_MIGRATION_REQUIRED", message: "secure market migrations are not fully applied.", retryable: false } }, 503);
+    }
     if (error instanceof EconomyProblem) {
       return json({ ok: false, requestId, serverTime: Date.now(), error: { code: error.code, message: error.message, retryable: error.retryable } }, error.status, error.retryable ? { "retry-after": "1" } : undefined);
     }
     const message = error instanceof Error ? error.message : String(error);
-    if (/no such table/i.test(message)) return json({ ok: false, requestId, error: { code: "ECONOMY_MIGRATION_REQUIRED", message: "secure market migration 0001 is not applied.", retryable: false } }, 503);
+    if (/no such table/i.test(message)) {
+      if (env.DB) resetEconomySchemaReadiness(env.DB);
+      return json({ ok: false, requestId, error: { code: "ECONOMY_MIGRATION_REQUIRED", message: "secure market migrations are not fully applied.", retryable: false } }, 503);
+    }
     return json({ ok: false, requestId, serverTime: Date.now(), error: { code: "ECONOMY_STORAGE_ERROR", message: "경제 서버 저장 작업에 실패했습니다.", retryable: true } }, 503, { "retry-after": "1" });
   }
 }

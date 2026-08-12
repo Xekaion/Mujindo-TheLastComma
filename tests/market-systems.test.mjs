@@ -30,6 +30,71 @@ async function importTs(relative) {
   return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
 }
 
+async function importEconomySchema() {
+  const [schemaSource, migration1, migration2] = await Promise.all([
+    source("worker/economy-schema.ts"),
+    source("drizzle/0001_secure_market.sql"),
+    source("drizzle/0002_loud_major_mapleleaf.sql"),
+  ]);
+  const output = ts.transpileModule(schemaSource, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    fileName: "worker/economy-schema.ts",
+  }).outputText
+    .replace(
+      /import secureMarketSql from [^;]+;/,
+      `const secureMarketSql = ${JSON.stringify(migration1)};`,
+    )
+    .replace(
+      /import listingExpirySql from [^;]+;/,
+      `const listingExpirySql = ${JSON.stringify(migration2)};`,
+    );
+  return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+}
+
+class D1StatementAdapter {
+  constructor(database, sql, bindings = []) {
+    this.database = database;
+    this.sql = sql;
+    this.bindings = bindings;
+  }
+  bind(...bindings) {
+    return new D1StatementAdapter(this.database, this.sql, bindings);
+  }
+  first() {
+    return this.database.prepare(this.sql).get(...this.bindings) ?? null;
+  }
+  all() {
+    return { results: this.database.prepare(this.sql).all(...this.bindings) };
+  }
+  run() {
+    const result = this.database.prepare(this.sql).run(...this.bindings);
+    return { success: true, meta: { changes: Number(result.changes) } };
+  }
+}
+
+class D1DatabaseAdapter {
+  constructor() {
+    this.database = database();
+  }
+  prepare(sql) {
+    return new D1StatementAdapter(this.database, sql);
+  }
+  async batch(statements) {
+    this.database.exec("BEGIN");
+    try {
+      const results = statements.map((statement) => statement.run());
+      this.database.exec("COMMIT");
+      return results;
+    } catch (error) {
+      this.database.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  close() {
+    this.database.close();
+  }
+}
+
 function database() {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys=ON");
@@ -191,6 +256,63 @@ test("Sites migrations stay parser-safe while runtime installs every authoritati
   assert.match(installer, /db\.batch\(/);
   assert.match(installer, /secure-market-triggers-v2/);
   assert.match(installer, /economy_trigger_install_incomplete/);
+});
+
+test("localhost economy schema self-heals a fresh or hub-only D1 without losing rows", async () => {
+  const schema = await importEconomySchema();
+  const db = new D1DatabaseAdapter();
+  db.database.exec("CREATE TABLE hub_sessions (id TEXT PRIMARY KEY); INSERT INTO hub_sessions(id) VALUES('preserve-me')");
+
+  await Promise.all([
+    schema.ensureEconomySchema(db, { allowLocalBootstrap: true }),
+    schema.ensureEconomySchema(db, { allowLocalBootstrap: true }),
+  ]);
+  assert.equal(db.database.prepare("SELECT id FROM hub_sessions").get().id, "preserve-me");
+  assert.equal(
+    db.database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name LIKE 'economy_%'").get().count,
+    new Set(schema.economySchemaTableNames).size,
+  );
+
+  db.database.prepare(`INSERT INTO economy_accounts
+    (id,display_name,status,steam_ownership_verified,trade_eligible,wallet_frozen,auth_epoch,risk_score,created_at,updated_at)
+    VALUES(?,?,'active',0,0,0,0,0,1,1)`).run(UUID.a, "preserved account");
+  schema.resetEconomySchemaReadiness(db);
+  await schema.ensureEconomySchema(db, { allowLocalBootstrap: true });
+  assert.equal(db.database.prepare("SELECT display_name FROM economy_accounts WHERE id=?").get(UUID.a).display_name, "preserved account");
+  db.close();
+});
+
+test("remote economy databases remain fail-closed when migrations are missing", async () => {
+  const schema = await importEconomySchema();
+  const db = new D1DatabaseAdapter();
+  await assert.rejects(
+    schema.ensureEconomySchema(db, { allowLocalBootstrap: false }),
+    (error) => error instanceof schema.EconomySchemaMissingError && error.missingObjects.includes("table:economy_accounts"),
+  );
+  assert.equal(
+    db.database.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type='table' AND name LIKE 'economy_%'").get().count,
+    0,
+  );
+  db.close();
+});
+
+test("missing economy security indexes fail closed remotely and self-heal locally", async () => {
+  const schema = await importEconomySchema();
+  const db = new D1DatabaseAdapter();
+  await schema.ensureEconomySchema(db, { allowLocalBootstrap: true });
+  db.database.exec("DROP INDEX economy_one_open_listing_per_item");
+  schema.resetEconomySchemaReadiness(db);
+
+  await assert.rejects(
+    schema.ensureEconomySchema(db, { allowLocalBootstrap: false }),
+    (error) => error instanceof schema.EconomySchemaMissingError &&
+      error.missingObjects.includes("index:economy_one_open_listing_per_item"),
+  );
+  await schema.ensureEconomySchema(db, { allowLocalBootstrap: true });
+  assert.ok(db.database.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='index' AND name='economy_one_open_listing_per_item'",
+  ).get());
+  db.close();
 });
 
 test("one listing can sell once; idempotency, BOLA, seller sanctions, and rollback hold", async () => {
@@ -420,4 +542,6 @@ test("worker gates live writes, strips spoofed headers, and exposes no local-sav
   assert.match(entry, /headers\.delete\("x-mujindo-account-id"\)/);
   assert.doesNotMatch(entry, /headers\.get\("oai-authenticated-user/);
   assert.match(entry, /localSameOrigin/);
+  assert.match(worker, /url\.hostname === "\[::1\]"/);
+  assert.match(entry, /url\.hostname === "\[::1\]"/);
 });
