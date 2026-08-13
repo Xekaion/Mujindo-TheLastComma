@@ -63,29 +63,38 @@ function fullChaseLoadout(rarity = "cosmic") {
 
 function mockCanvas() {
   const calls = [];
+  const drawStates = [];
   let saves = 0;
   let restores = 0;
+  const context = {
+    globalAlpha: 1,
+    globalCompositeOperation: "source-over",
+    imageSmoothingEnabled: true,
+    save() {
+      saves += 1;
+    },
+    restore() {
+      restores += 1;
+    },
+    drawImage(...args) {
+      calls.push(args);
+      drawStates.push({
+        globalAlpha: context.globalAlpha,
+        globalCompositeOperation: context.globalCompositeOperation,
+        imageSmoothingEnabled: context.imageSmoothingEnabled,
+      });
+    },
+  };
   return {
     calls,
+    drawStates,
     get saves() {
       return saves;
     },
     get restores() {
       return restores;
     },
-    context: {
-      globalAlpha: 1,
-      globalCompositeOperation: "source-over",
-      save() {
-        saves += 1;
-      },
-      restore() {
-        restores += 1;
-      },
-      drawImage(...args) {
-        calls.push(args);
-      },
-    },
+    context,
   };
 }
 
@@ -211,6 +220,44 @@ test("mythic and cosmic VFX preserve authored opacity in every render context", 
   assert.doesNotMatch(source, /piece\.tier\s*===\s*"cosmic"\s*\?\s*0\./);
 });
 
+test("equipped rarity VFX preserves the coarse pre-render style at runtime", async () => {
+  const vfx = await importVfxModule();
+  const canvas = mockCanvas();
+  const draws = vfx.drawEquippedRarityVfx(canvas.context, {
+    plan: vfx.resolveEquippedRarityVfxPlan({
+      weapon: gear("weapon", "cosmic", 10),
+      shoulders: gear("shoulders", "mythic", 5),
+    }),
+    images: {
+      mythic: { width: 1024, height: 256 },
+      cosmic: { width: 1024, height: 256 },
+    },
+    direction: 0,
+    frame: 1,
+    timeMs: 330,
+    x: 100,
+    y: 100,
+    width: 136,
+    height: 102,
+    context: "combat",
+  });
+
+  assert.equal(draws, 2);
+  assert.equal(canvas.drawStates.length, 2);
+  for (const state of canvas.drawStates) {
+    assert.equal(
+      state.globalCompositeOperation,
+      "source-over",
+      "overlapping equipment effects must retain their authored dark pixels",
+    );
+    assert.equal(
+      state.imageSmoothingEnabled,
+      false,
+      "combat-scale equipment effects must use nearest-neighbour sampling",
+    );
+  }
+});
+
 function decodeRgbaPng(png, relativePath) {
   assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", relativePath);
   let offset = 8;
@@ -314,9 +361,9 @@ function frameMetrics(image, column, label) {
   };
 }
 
-test("mythic and cosmic equipped aura atlases retain four padded, unique RGBA frames", async () => {
+test("mythic and cosmic equipped aura atlases retain four padded, unique legacy-style RGBA frames", async () => {
   for (const tier of ["mythic", "cosmic"]) {
-    const relativePath = `public/assets/effects/equipped-${tier}-aura-v1.png`;
+    const relativePath = `public/assets/effects/equipped-${tier}-aura-v2.png`;
     const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
     assert.deepEqual([image.width, image.height], [1024, 256]);
     const frames = Array.from({ length: 4 }, (_, column) =>
@@ -335,5 +382,38 @@ test("mythic and cosmic equipped aura atlases retain four padded, unique RGBA fr
       assert.ok(Math.abs(frame.centerX - 128) <= 24, `${tier} frame ${column} is off-center on x`);
       assert.ok(Math.abs(frame.centerY - 128) <= 12, `${tier} frame ${column} is off-center on y`);
     }
+
+    const visibleAlphaLevels = new Set();
+    let visiblePixels = 0;
+    let overlyBrightPixels = 0;
+    for (let index = 0; index < image.pixels.length; index += 4) {
+      const alpha = image.pixels[index + 3];
+      visibleAlphaLevels.add(alpha);
+      if (alpha === 0) continue;
+      visiblePixels += 1;
+      const luminance = Math.round(
+        image.pixels[index] * 0.299 +
+        image.pixels[index + 1] * 0.587 +
+        image.pixels[index + 2] * 0.114
+      );
+      if (luminance >= 220) overlyBrightPixels += 1;
+    }
+    assert.deepEqual(
+      [...visibleAlphaLevels].sort((left, right) => left - right),
+      [0, 72, 128, 192, 255],
+      `${tier} must use authored stepped alpha instead of a continuous modern glow`,
+    );
+    assert.ok(
+      overlyBrightPixels / visiblePixels <= 0.02,
+      `${tier} must keep bright pixels as sparse highlights`,
+    );
   }
+});
+
+test("equipped rarity VFX paths use the legacy-painted v2 atlases", async () => {
+  const vfx = await importVfxModule();
+  assert.deepEqual(vfx.EQUIPPED_RARITY_VFX_PATHS, {
+    mythic: "/assets/effects/equipped-mythic-aura-v2.png",
+    cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
+  });
 });

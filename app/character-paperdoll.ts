@@ -21,8 +21,12 @@ export const PAPERDOLL_CACHE_LIMIT = 256;
 export const PAPERDOLL_GROUND_BASELINE = 184;
 export const PAPERDOLL_GROUND_ANCHOR_RATIO =
   PAPERDOLL_GROUND_BASELINE / PAPERDOLL_FRAME_HEIGHT;
-export const PAPERDOLL_BODY_PATH = "/assets/walk/harin-mannequin-v5.png";
-export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v5";
+// The v1 rig is the last fully hand-painted, pre-rendered equipment family.
+// Later generated rigs retained the geometry but broke the worn silhouettes
+// into clean polygonal fragments, which clashes with the game's legacy ARPG
+// art direction. Keep body and all ten wearable layers on one matched family.
+export const PAPERDOLL_BODY_PATH = "/assets/walk/harin-mannequin-v1.png";
+export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v1";
 
 /** One world-space silhouette contract shared by expedition, plaza and PvP. */
 export const PAPERDOLL_WORLD_RENDER_WIDTH = 136;
@@ -674,7 +678,7 @@ export function drawPaperdollCharacter(
 
   context.save();
   context.globalAlpha *= alpha;
-  context.imageSmoothingEnabled = true;
+  context.imageSmoothingEnabled = false;
   if (composed) {
     context.drawImage(
       composed,
@@ -743,7 +747,7 @@ export function drawPaperdollCharacterDirect(
 
   context.save();
   context.globalAlpha *= alpha;
-  context.imageSmoothingEnabled = true;
+  context.imageSmoothingEnabled = false;
   context.translate(
     options.x - options.width / 2,
     options.y - options.height * groundAnchorRatio,

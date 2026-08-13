@@ -1,0 +1,273 @@
+{
+  "source": "asset-sources/legacy-arpg/equipped-rarity-legacy-source-v2.png",
+  "sourceSha256": "6d8f50692a8e3a6d0ecc27e19726218aa160e9a639ddd17f149eb3a6c2435c73",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      256
+    ]
+  },
+  "pipeline": {
+    "chromaKey": [
+      0,
+      2,
+      253
+    ],
+    "alphaLevels": [
+      0,
+      72,
+      128,
+      192,
+      255
+    ],
+    "lowResolutionCell": [
+      128,
+      128
+    ],
+    "upscale": "nearest-neighbour",
+    "minimumPadding": 12
+  },
+  "rarities": {
+    "mythic": {
+      "output": "public/assets/effects/equipped-mythic-aura-v2.png",
+      "outputSha256": "2ac46d455e8ccb5c27c8548b68a9d86c6165d657047f885a25fe1c5a31df0ae8",
+      "paletteSize": 18,
+      "frames": [
+        {
+          "alphaBounds": [
+            52,
+            36,
+            198,
+            224
+          ],
+          "padding": [
+            52,
+            36,
+            58,
+            32
+          ],
+          "visiblePixels": 11360,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 17,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "c9b1448fe40b1c718d5e5981ef7b146368d7cc714581c9791b21b8622571e297",
+          "frame": 0,
+          "lowResolutionDiameter": 94,
+          "rotationDegrees": -4
+        },
+        {
+          "alphaBounds": [
+            48,
+            26,
+            210,
+            230
+          ],
+          "padding": [
+            48,
+            26,
+            46,
+            26
+          ],
+          "visiblePixels": 13376,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 18,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "4570f45c3630a1b2848b518f0e1a17b7146ff2c5118034036edf4111fa3d3e0e",
+          "frame": 1,
+          "lowResolutionDiameter": 102,
+          "rotationDegrees": -1
+        },
+        {
+          "alphaBounds": [
+            40,
+            16,
+            216,
+            236
+          ],
+          "padding": [
+            40,
+            16,
+            40,
+            20
+          ],
+          "visiblePixels": 15436,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 19,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "3ef3347a4a8f72e78f7d95b4c3b0541e1c84cef77a3cc1b4b50949344ed69b20",
+          "frame": 2,
+          "lowResolutionDiameter": 110,
+          "rotationDegrees": 3
+        },
+        {
+          "alphaBounds": [
+            48,
+            28,
+            206,
+            228
+          ],
+          "padding": [
+            48,
+            28,
+            50,
+            28
+          ],
+          "visiblePixels": 12840,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 18,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "d48bf9f45c42263dd61f02c8c61f08b63558425dab9061298f8abb2aaf1646af",
+          "frame": 3,
+          "lowResolutionDiameter": 100,
+          "rotationDegrees": 1
+        }
+      ]
+    },
+    "cosmic": {
+      "output": "public/assets/effects/equipped-cosmic-aura-v2.png",
+      "outputSha256": "4526c67af388389ebbb3ee005602a8d0a71274a6017b8b73701c6f4d273ca617",
+      "paletteSize": 21,
+      "frames": [
+        {
+          "alphaBounds": [
+            50,
+            36,
+            202,
+            224
+          ],
+          "padding": [
+            50,
+            36,
+            54,
+            32
+          ],
+          "visiblePixels": 14108,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 21,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "7427b8b325d615d89821aeababc5631e63ed179a327539e57376c6ebb37f2f08",
+          "frame": 0,
+          "lowResolutionDiameter": 94,
+          "rotationDegrees": -4
+        },
+        {
+          "alphaBounds": [
+            46,
+            26,
+            214,
+            230
+          ],
+          "padding": [
+            46,
+            26,
+            42,
+            26
+          ],
+          "visiblePixels": 16616,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 21,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "d695558e88848ca801cd8f6e02cb790aba8a755591ee11efef2a8f718e8a4352",
+          "frame": 1,
+          "lowResolutionDiameter": 102,
+          "rotationDegrees": -1
+        },
+        {
+          "alphaBounds": [
+            38,
+            16,
+            218,
+            236
+          ],
+          "padding": [
+            38,
+            16,
+            38,
+            20
+          ],
+          "visiblePixels": 19132,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 22,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "1fc0ae9bf9bd2b6b762b93aab84cd4c0e686c5f9812db6971310d104b6869f8e",
+          "frame": 2,
+          "lowResolutionDiameter": 110,
+          "rotationDegrees": 3
+        },
+        {
+          "alphaBounds": [
+            44,
+            28,
+            208,
+            228
+          ],
+          "padding": [
+            44,
+            28,
+            48,
+            28
+          ],
+          "visiblePixels": 15888,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "uniqueVisibleColors": 22,
+          "brightPixelRatio": 0.0,
+          "pixelHash": "53b40523a9b3f4ae14bd9deeae577b9bc168d37741cb713c911304f272fd3da6",
+          "frame": 3,
+          "lowResolutionDiameter": 100,
+          "rotationDegrees": 1
+        }
+      ]
+    }
+  }
+}

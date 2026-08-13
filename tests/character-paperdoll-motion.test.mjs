@@ -123,8 +123,9 @@ test("expedition, plaza, and PVP share one corrected player scale", async () => 
     readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
     readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
   ]);
-  assert.match(paperdoll, /harin-mannequin-v5\.png/);
-  assert.match(paperdoll, /paperdoll\/v5/);
+  assert.match(paperdoll, /harin-mannequin-v1\.png/);
+  assert.match(paperdoll, /paperdoll\/v1/);
+  assert.match(paperdoll, /context\.imageSmoothingEnabled\s*=\s*false/g);
   assert.match(paperdoll, /PAPERDOLL_WORLD_RENDER_WIDTH\s*=\s*136/);
   assert.match(paperdoll, /PAPERDOLL_WORLD_RENDER_HEIGHT\s*=\s*102/);
   for (const source of [expedition, plaza, pvp]) {

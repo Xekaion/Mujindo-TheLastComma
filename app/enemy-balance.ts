@@ -9,16 +9,6 @@ export const MARGIN_SEVERER_LINE_LENGTH = 520;
 export const MARGIN_SEVERER_HIT_HALF_WIDTH = 12;
 export const MARGIN_SEVERER_DAMAGE_MULTIPLIER = 1.2;
 
-export const MARGIN_SEVERER_WALK_ROW_CROPS = [
-  { y: 0, height: 220 },
-  { y: 220, height: 215 },
-  { y: 435, height: 200 },
-  { y: 635, height: 208 },
-  { y: 843, height: 200 },
-  { y: 1043, height: 205 },
-  { y: 1248, height: 204 },
-] as const;
-
 export type MarginSeverLine = {
   startX: number;
   startY: number;

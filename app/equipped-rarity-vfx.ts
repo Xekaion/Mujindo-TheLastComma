@@ -13,8 +13,8 @@ import {
 export const EQUIPPED_RARITY_VFX_FRAME_SIZE = 256;
 export const EQUIPPED_RARITY_VFX_FRAME_COUNT = 4;
 export const EQUIPPED_RARITY_VFX_PATHS = {
-  mythic: "/assets/effects/equipped-mythic-aura-v1.png",
-  cosmic: "/assets/effects/equipped-cosmic-aura-v1.png",
+  mythic: "/assets/effects/equipped-mythic-aura-v2.png",
+  cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
 } as const;
 
 export type EquippedRarityVfxTier = keyof typeof EQUIPPED_RARITY_VFX_PATHS;
@@ -221,7 +221,12 @@ export function drawEquippedRarityVfx(
   let draws = 0;
 
   canvas.save();
-  canvas.globalCompositeOperation = "lighter";
+  // Keep the authored darks, stepped edges and limited palette intact. Additive
+  // blending bleaches overlapping pieces into modern neon, while bilinear
+  // resampling turns the deliberately coarse pre-render pixels into smooth
+  // vector-like gradients at combat scale.
+  canvas.globalCompositeOperation = "source-over";
+  canvas.imageSmoothingEnabled = false;
   for (let index = 0; index < pieceCount; index += 1) {
     const piece = options.plan.pieces[index];
     const source = options.images[piece.tier];

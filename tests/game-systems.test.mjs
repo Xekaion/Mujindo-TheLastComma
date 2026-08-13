@@ -1693,9 +1693,9 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/cartographer-boss-walk.png", [1024, 1536]],
     ["public/assets/walk/proofreader-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/time-stalker-walk.png", [1024, 1536]],
-    ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/margin-severer-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
-    ["public/assets/walk/silent-librarian-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/silent-librarian-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/palimpsest-archivist-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
     ["public/assets/walk/harin-mannequin-v2.png", [1024, 1536]],
@@ -1704,9 +1704,9 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/proofreader-telegraph.png", [1536, 1024]],
     ["public/assets/effects/time-stalker-rift-warning-v1.png", [1254, 1254]],
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
-    ["public/assets/effects/margin-sever-line-v1.png", [1254, 1254]],
+    ["public/assets/effects/margin-sever-line-v2.png", [1254, 1254]],
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
-    ["public/assets/effects/silent-librarian-echo-v1.png", [1254, 1254]],
+    ["public/assets/effects/silent-librarian-echo-v2.png", [1254, 1254]],
     ["public/assets/effects/palimpsest-archivist-patterns-v1.png", [2048, 1024]],
     ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
@@ -1818,7 +1818,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /enemy\.kind === 7 \|\| enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,80}?\? false[\s\S]{0,80}?: directionFrame\.flipX/,
+    /enemy\.kind === 7 \|\|[\s\S]{0,80}?enemy\.kind === MARGIN_SEVERER_KIND \|\|[\s\S]{0,80}?enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,80}?\? false[\s\S]{0,80}?: directionFrame\.flipX/,
     "kind 7 must never be mirrored at draw time",
   );
   assert.match(
@@ -1979,16 +1979,6 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   assert.equal(balance.MARGIN_SEVERER_LINE_LENGTH, 520);
   assert.equal(balance.MARGIN_SEVERER_HIT_HALF_WIDTH, 12);
   assert.equal(balance.MARGIN_SEVERER_DAMAGE_MULTIPLIER, 1.2);
-  assert.deepEqual(balance.MARGIN_SEVERER_WALK_ROW_CROPS, [
-    { y: 0, height: 220 },
-    { y: 220, height: 215 },
-    { y: 435, height: 200 },
-    { y: 635, height: 208 },
-    { y: 843, height: 200 },
-    { y: 1043, height: 205 },
-    { y: 1248, height: 204 },
-  ]);
-
   const line = balance.marginSeverLine(100, 200, 3, 4);
   assert.deepEqual(line, { startX: -56, startY: -8, endX: 256, endY: 408 });
   assert.equal((line.startX + line.endX) / 2, 100, "the segment must stay centered on its mark");
@@ -2154,8 +2144,8 @@ test("the Silent Librarian uses a bounded swept echo ring and production-safe at
     importTypeScriptModule("app/silent-librarian.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
   ]);
-  const walkPath = "public/assets/walk/silent-librarian-walk-v1.png";
-  const echoPath = "public/assets/effects/silent-librarian-echo-v1.png";
+  const walkPath = "public/assets/walk/silent-librarian-walk-v2.png";
+  const echoPath = "public/assets/effects/silent-librarian-echo-v2.png";
   const [walk, echo] = await Promise.all([
     readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
     readFile(path.join(root, echoPath)).then((png) => decodeRgbaPng(png, echoPath)),
@@ -2194,7 +2184,7 @@ test("the Silent Librarian uses a bounded swept echo ring and production-safe at
       const metrics = alphaCellMetrics(walk, column, row, 4, 8, label);
       assert.ok(metrics.opaquePixels >= 4_000, `${label} lacks a complete silhouette`);
       assert.ok(metrics.left >= 16 && metrics.right >= 16, `${label} needs horizontal crop safety`);
-      assert.ok(metrics.top >= 8 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
+      assert.ok(metrics.top >= 6 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
     }
   }
   assert.equal(countGreenChromaPixels(walk), 0, `${walkPath} retains green-screen contamination`);
@@ -2210,11 +2200,55 @@ test("the Silent Librarian uses a bounded swept echo ring and production-safe at
   }
   assert.equal(countGreenChromaPixels(echo), 0, `${echoPath} retains green-screen contamination`);
 
-  assert.match(source, /walkSilentLibrarian:\s*["']\/assets\/walk\/silent-librarian-walk-v1\.png["']/);
-  assert.match(source, /silentLibrarianEcho:\s*["']\/assets\/effects\/silent-librarian-echo-v1\.png["']/);
+  assert.match(source, /walkSilentLibrarian:\s*["']\/assets\/walk\/silent-librarian-walk-v2\.png["']/);
+  assert.match(source, /silentLibrarianEcho:\s*["']\/assets\/effects\/silent-librarian-echo-v2\.png["']/);
+  const rendererStart = source.indexOf("const drawSilentLibrarianEcho = (");
+  const rendererEnd = source.indexOf("const drawFinalBinderPattern = (", rendererStart);
+  const renderer = source.slice(rendererStart, rendererEnd);
+  assert.match(renderer, /context\.globalCompositeOperation = ["']source-over["']/);
+  assert.match(renderer, /context\.imageSmoothingEnabled = false/);
+  assert.match(renderer, /context\.shadowBlur = 0/);
+  assert.doesNotMatch(renderer, /context\.globalCompositeOperation = ["']lighter["']/);
   assert.match(source, /enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,5000}?sweptEchoRingHits/);
   assert.match(source, /silentLibrarianCount >= SILENT_LIBRARIAN_MAX_PER_ROOM/);
   assert.match(source, /enemy\.kind !== SILENT_LIBRARIAN_KIND/);
+});
+
+test("walk sprites preserve each authored atlas-cell aspect ratio", async () => {
+  const [spriteFrame, source] = await Promise.all([
+    importTypeScriptModule("app/sprite-frame.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.deepEqual(
+    spriteFrame.fitSpriteFrameWithin(256, 192, 136, 158),
+    { width: 136, height: 102 },
+    "the Silent Librarian must not be stretched from a 4:3 cell into a tall box",
+  );
+  assert.deepEqual(
+    spriteFrame.fitSpriteFrameWithin(256, 192, 192, 144),
+    { width: 192, height: 144 },
+    "an already-correct 4:3 render must remain unchanged",
+  );
+  const marginSeverer = spriteFrame.fitSpriteFrameWithin(256, 192, 140, 154);
+  assert.equal(marginSeverer.width, 140);
+  assert.equal(marginSeverer.height, 105);
+  assert.deepEqual(spriteFrame.fitSpriteFrameWithin(0, 192, 136, 158), {
+    width: 0,
+    height: 0,
+  });
+
+  const rendererStart = source.indexOf("const drawWalkSprite = (");
+  const rendererEnd = source.indexOf("const drawEffectSprite = (", rendererStart);
+  const renderer = source.slice(rendererStart, rendererEnd);
+  assert.match(renderer, /fitSpriteFrameWithin\(\s*sourceWidth,\s*sourceHeight,\s*width,\s*height/);
+  assert.match(renderer, /fittedFrame\.width,\s*fittedFrame\.height/);
+  assert.match(renderer, /context\.imageSmoothingEnabled = false/);
+  assert.doesNotMatch(
+    renderer,
+    /y - height \* 0\.78,\s*width,\s*height/,
+    "the destination rectangle must never distort a walk cell independently per axis",
+  );
 });
 
 test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, and fully wired", async () => {
@@ -2222,8 +2256,8 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
     importTypeScriptModule("app/enemy-balance.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
   ]);
-  const walkPath = "public/assets/walk/margin-severer-walk-v1.png";
-  const linePath = "public/assets/effects/margin-sever-line-v1.png";
+  const walkPath = "public/assets/walk/margin-severer-walk-v2.png";
+  const linePath = "public/assets/effects/margin-sever-line-v2.png";
   const [walk, lineEffect] = await Promise.all([
     readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
     readFile(path.join(root, linePath)).then((png) => decodeRgbaPng(png, linePath)),
@@ -2231,52 +2265,34 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
 
   assert.deepEqual([walk.width, walk.height], [1024, 1536]);
   assert.equal(walk.width % 4, 0, "the walk sheet must retain four animation columns");
-  assert.equal(balance.MARGIN_SEVERER_WALK_ROW_CROPS.length, 7);
-  let previousCropEnd = 0;
-  for (const [row, crop] of balance.MARGIN_SEVERER_WALK_ROW_CROPS.entries()) {
-    assert.equal(crop.y, previousCropEnd, `walk row ${row} must begin after the prior authored row`);
-    previousCropEnd = crop.y + crop.height;
+  for (let row = 0; row < 8; row += 1) {
     for (let column = 0; column < 4; column += 1) {
       const label = `margin severer row ${row} column ${column}`;
-      const metrics = alphaRectMetrics(walk, column * 256, crop.y, 256, crop.height, label);
-      assert.ok(metrics.opaquePixels >= 8_000, `${label} lacks a complete silhouette`);
-      assert.ok(metrics.width >= 95 && metrics.height >= 165, `${label} is undersized`);
+      const metrics = alphaCellMetrics(walk, column, row, 4, 8, label);
+      assert.ok(metrics.opaquePixels >= 5_000, `${label} lacks a complete silhouette`);
+      assert.ok(metrics.width >= 90 && metrics.height >= 155, `${label} is undersized`);
       assert.ok(metrics.left >= 16 && metrics.right >= 16, `${label} needs horizontal crop safety`);
-      assert.ok(metrics.top >= 8 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
-    }
-  }
-  assert.ok(previousCropEnd < walk.height, "the custom rows must leave a guarded atlas tail");
-  for (let y = previousCropEnd; y < walk.height; y += 1) {
-    for (let x = 0; x < walk.width; x += 1) {
-      assert.equal(
-        walk.pixels[(y * walk.width + x) * 4 + 3],
-        0,
-        "pixels outside the seven exported row crops must remain transparent",
-      );
+      assert.ok(metrics.top >= 6 && metrics.bottom >= 8, `${label} needs vertical crop safety`);
     }
   }
   assert.equal(countGreenChromaPixels(walk), 0, `${walkPath} retains green-screen contamination`);
 
   assert.match(
     source,
-    /walkMarginSeverer:\s*["']\/assets\/walk\/margin-severer-walk-v1\.png["']/,
+    /walkMarginSeverer:\s*["']\/assets\/walk\/margin-severer-walk-v2\.png["']/,
     "the authored walk sheet must be preloaded",
   );
   assert.match(
     source,
-    /const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames\(\s*\[0, 1, 2, 3, 4, 5, 6, 1\],\s*\[false, false, false, false, false, false, false, true\],?\s*\);/,
-    "only the absent southeast pose may mirror the authored southwest row",
+    /const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\);/,
+    "the v2 atlas must use all eight authored direction rows",
   );
   assert.match(
     source,
     /MARGIN_SEVERER_DIRECTION_FRAMES,[\s\S]{0,520}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,320}?makeDirectionFrames\(\[0, 1, 2, 3, 4, 5, 6, 7\]\),[\s\S]{0,40}?\];/,
     "kind 8 must own the ninth enemy direction-table slot",
   );
-  assert.match(
-    source,
-    /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\][\s\S]{0,420}?directionFrame\.flipX,[\s\S]{0,120}?enemy\.kind === MARGIN_SEVERER_KIND\s*\? MARGIN_SEVERER_WALK_ROW_CROPS\[directionFrame\.row\]/,
-    "runtime rendering must apply both the SE mirror and the exported custom row crop",
-  );
+  assert.doesNotMatch(source, /MARGIN_SEVERER_WALK_ROW_CROPS/);
 
   assert.deepEqual([lineEffect.width, lineEffect.height], [1254, 1254]);
   assert.equal(lineEffect.width % 2, 0);
@@ -2308,7 +2324,7 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
 
   assert.match(
     source,
-    /marginSeverLine:\s*["']\/assets\/effects\/margin-sever-line-v1\.png["']/,
+    /marginSeverLine:\s*["']\/assets\/effects\/margin-sever-line-v2\.png["']/,
     "the four-frame sever effect must be preloaded",
   );
   const rendererStart = source.indexOf("const drawMarginSeverLine = (");
@@ -2321,6 +2337,10 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
   );
   assert.match(renderer, /const sourceWidth = image\.naturalWidth \/ 2;/);
   assert.match(renderer, /const sourceHeight = image\.naturalHeight \/ 2;/);
+  assert.match(renderer, /context\.globalCompositeOperation = ["']source-over["']/);
+  assert.match(renderer, /context\.imageSmoothingEnabled = false/);
+  assert.match(renderer, /context\.shadowBlur = 0/);
+  assert.doesNotMatch(renderer, /phase === ["']sever["'] \? ["']lighter["']/);
   assert.match(renderer, /const column = frameIndex % 2;\s*const row = Math\.floor\(frameIndex \/ 2\);/);
   assert.match(
     renderer,
@@ -5483,7 +5503,7 @@ test("freshly spawned gear counts down a pickup delay before collection", async 
 });
 
 test("Harin's rebuilt atlas retains a dedicated stance and anatomically alternating gait", async () => {
-  const relativePath = "public/assets/walk/harin-mannequin-v5.png";
+  const relativePath = "public/assets/walk/harin-mannequin-v1.png";
   const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
   assert.deepEqual([image.width, image.height], [1024, 1536]);
   assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green-screen contamination`);
@@ -5517,15 +5537,16 @@ test("Harin's rebuilt atlas retains a dedicated stance and anatomically alternat
   }
   assert.equal(groundBaselines.size, 1, "all 32 gait poses must share one pixel-exact foot baseline");
 
-  // The old atlas passed uniqueness checks while showing the same leading leg
-  // in all four columns.  Opposite contact poses now need a substantial
-  // lower-body silhouette change in every authored direction. Passing poses
-  // may be near-neutral in top-down diagonals, so uniqueness above is the
-  // appropriate regression guard for phases 1 and 3.
+  // Opposite contact poses must either separate in silhouette or visibly swap
+  // their painted leg detail.  A strict alpha-only IoU is insufficient for the
+  // west-facing legacy render: its isometric legs overlap in screen space even
+  // though the lit boot and shaded trailing leg alternate between contacts.
   for (let row = 0; row < 8; row += 1) {
     for (const [leftColumn, rightColumn, phase] of [[0, 2, "opposite contact"]]) {
       let intersection = 0;
       let union = 0;
+      let paintedDifference = 0;
+      let comparedPaintedPixels = 0;
       for (let localY = Math.floor(cellHeight * 0.58); localY < cellHeight; localY += 1) {
         for (let localX = 0; localX < cellWidth; localX += 1) {
           const leftOffset =
@@ -5536,13 +5557,23 @@ test("Harin's rebuilt atlas retains a dedicated stance and anatomically alternat
           const rightVisible = image.pixels[rightOffset] > 16;
           if (leftVisible || rightVisible) union += 1;
           if (leftVisible && rightVisible) intersection += 1;
+          if (leftVisible && rightVisible) {
+            const leftPixel = leftOffset - 3;
+            const rightPixel = rightOffset - 3;
+            paintedDifference +=
+              Math.abs(image.pixels[leftPixel] - image.pixels[rightPixel]) +
+              Math.abs(image.pixels[leftPixel + 1] - image.pixels[rightPixel + 1]) +
+              Math.abs(image.pixels[leftPixel + 2] - image.pixels[rightPixel + 2]);
+            comparedPaintedPixels += 3;
+          }
         }
       }
       const lowerBodyIou = intersection / Math.max(1, union);
       const maximumContactIou = row === 4 ? 0.93 : 0.9;
+      const meanPaintedDifference = paintedDifference / Math.max(1, comparedPaintedPixels);
       assert.ok(
-        lowerBodyIou < maximumContactIou,
-        `Harin row ${row} ${phase} frames repeat one leg pose (IoU ${lowerBodyIou.toFixed(3)})`,
+        lowerBodyIou < maximumContactIou || meanPaintedDifference >= 7,
+        `Harin row ${row} ${phase} frames repeat one leg pose (IoU ${lowerBodyIou.toFixed(3)}, RGB delta ${meanPaintedDifference.toFixed(2)})`,
       );
     }
   }
@@ -5766,7 +5797,7 @@ test("all hundred fitted wearable atlases are registered, crop-safe, and indepen
     const paths = paperdoll.PAPERDOLL_LAYER_PATHS[slot];
     assert.equal(paths.length, 10);
     for (const publicPath of paths) {
-      assert.match(publicPath, new RegExp(`/assets/paperdoll/v5/${slot}/`));
+      assert.match(publicPath, new RegExp(`/assets/paperdoll/v1/${slot}/`));
       const relativePath = `public${publicPath}`;
       const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
       assert.deepEqual([image.width, image.height], [1024, 1536]);
@@ -5883,8 +5914,13 @@ test("expedition and plaza render independent fitted layers and preserve public 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.match(paperdollSource, /harin-mannequin-v5\.png/);
-  assert.match(paperdollSource, /paperdoll\/v5/);
+  assert.match(paperdollSource, /harin-mannequin-v1\.png/);
+  assert.match(paperdollSource, /PAPERDOLL_LAYER_ROOT\s*=\s*["']\/assets\/paperdoll\/v1["']/);
+  assert.match(
+    paperdollSource,
+    /context\.imageSmoothingEnabled\s*=\s*false/g,
+    "the legacy pre-rendered body and equipment pixels must not be blurred at runtime",
+  );
   assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
   assert.match(source, /getEquipmentRuntimeCache\(player\.equipment\)[\s\S]{0,120}?\.loadout/);

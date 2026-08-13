@@ -1,0 +1,1863 @@
+{
+  "format": "RGBA PNG",
+  "rowOrder": [
+    "south",
+    "south-east",
+    "east",
+    "north-west",
+    "north",
+    "north-east",
+    "west",
+    "south-west"
+  ],
+  "phaseOrder": [
+    "left-contact",
+    "passing",
+    "right-contact",
+    "return"
+  ],
+  "alphaLevels": [
+    0,
+    72,
+    128,
+    192,
+    255
+  ],
+  "paletteSize": 42,
+  "walk": {
+    "silent-librarian": {
+      "source": "asset-sources/legacy-arpg/silent-librarian-walk-registered-v2.png",
+      "sourceSha256": "668614329ecff547ba4ff27861d44034bdc9fd8c43dd0bd450e8bc9ebf87c0ec",
+      "output": "public/assets/walk/silent-librarian-walk-v2.png",
+      "outputSha256": "051c179f98c16117dd4b52f6f28f9c41721840093b6da4668f32be1600dff34d",
+      "frames": [
+        {
+          "row": 0,
+          "column": 0,
+          "alphaBounds": [
+            67,
+            7,
+            193,
+            183
+          ],
+          "padding": [
+            67,
+            7,
+            63,
+            9
+          ],
+          "visiblePixels": 13903,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "d69b3e0f3dddb22e0f66c6baf4e61db73af05ecdb43c7fb77e9bf8fbde07e989"
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "alphaBounds": [
+            67,
+            7,
+            194,
+            183
+          ],
+          "padding": [
+            67,
+            7,
+            62,
+            9
+          ],
+          "visiblePixels": 13964,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "01827b4d564e5ec8960e3ec709be190570010103f7066d8419b6b3e73b62ba10"
+        },
+        {
+          "row": 0,
+          "column": 2,
+          "alphaBounds": [
+            65,
+            7,
+            191,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            65,
+            9
+          ],
+          "visiblePixels": 14044,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "d66ff36b266b1666840a7c82bc3db8a859bb52e9b00e569af0ef3b9397a3758b"
+        },
+        {
+          "row": 0,
+          "column": 3,
+          "alphaBounds": [
+            65,
+            7,
+            190,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            66,
+            9
+          ],
+          "visiblePixels": 13982,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "84946b46aa32a3ed40f7e80529631fe7f680465b2c1f3d4fa7c55b744ce42b58"
+        },
+        {
+          "row": 1,
+          "column": 0,
+          "alphaBounds": [
+            69,
+            7,
+            184,
+            184
+          ],
+          "padding": [
+            69,
+            7,
+            72,
+            8
+          ],
+          "visiblePixels": 13058,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "732cc9902124432f3cdee69cc4f95812c67791b7426bc50c61970d751258b84e"
+        },
+        {
+          "row": 1,
+          "column": 1,
+          "alphaBounds": [
+            70,
+            7,
+            184,
+            184
+          ],
+          "padding": [
+            70,
+            7,
+            72,
+            8
+          ],
+          "visiblePixels": 13462,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "2e3deff91787eb81881df83c0af515c778bc99e3de3dcb607e25b9abaa71a5f2"
+        },
+        {
+          "row": 1,
+          "column": 2,
+          "alphaBounds": [
+            69,
+            7,
+            183,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            73,
+            9
+          ],
+          "visiblePixels": 13337,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "0972bf8b4a3318cd5d9813f30d24f1a15a1c290e1c806d243c534168eaff9f59"
+        },
+        {
+          "row": 1,
+          "column": 3,
+          "alphaBounds": [
+            67,
+            7,
+            181,
+            183
+          ],
+          "padding": [
+            67,
+            7,
+            75,
+            9
+          ],
+          "visiblePixels": 12964,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "dc820d46903c4b23f36d25a1f6f224dbc737f456e89d6634d85bb4db62383139"
+        },
+        {
+          "row": 2,
+          "column": 0,
+          "alphaBounds": [
+            79,
+            7,
+            179,
+            183
+          ],
+          "padding": [
+            79,
+            7,
+            77,
+            9
+          ],
+          "visiblePixels": 11669,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "fd640334e83482dc8dc7ee3d19b8a8d8920ba7efaff72971c5076c26f56f4d0b"
+        },
+        {
+          "row": 2,
+          "column": 1,
+          "alphaBounds": [
+            69,
+            7,
+            179,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            77,
+            9
+          ],
+          "visiblePixels": 11415,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "9143561d742d31c708808c75e72266a15e10813e0707a5bfae87e5bed726ebaa"
+        },
+        {
+          "row": 2,
+          "column": 2,
+          "alphaBounds": [
+            69,
+            7,
+            176,
+            184
+          ],
+          "padding": [
+            69,
+            7,
+            80,
+            8
+          ],
+          "visiblePixels": 11653,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "bf0f5ac0772de416c5aa9bbe47ce3d15179945de2abc88f06842c00182c5baf5"
+        },
+        {
+          "row": 2,
+          "column": 3,
+          "alphaBounds": [
+            76,
+            7,
+            179,
+            184
+          ],
+          "padding": [
+            76,
+            7,
+            77,
+            8
+          ],
+          "visiblePixels": 11648,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1a0ac0a17f7b6686661bf8654014191217afe2ed5a391c6c3477025d867747be"
+        },
+        {
+          "row": 3,
+          "column": 0,
+          "alphaBounds": [
+            65,
+            7,
+            188,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            68,
+            9
+          ],
+          "visiblePixels": 13591,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "6462c6116e5ca4b874e6c6ac44d267fa3ab3be72fc6140f1a34ea7f508f9e4f1"
+        },
+        {
+          "row": 3,
+          "column": 1,
+          "alphaBounds": [
+            65,
+            7,
+            187,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            69,
+            9
+          ],
+          "visiblePixels": 13381,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "6f4ab55c158b63ee26622f66d78fd8beeac401a8086c3c3b9b0571eb7afb64af"
+        },
+        {
+          "row": 3,
+          "column": 2,
+          "alphaBounds": [
+            65,
+            7,
+            186,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            70,
+            9
+          ],
+          "visiblePixels": 13643,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "eb86b3075514b093db2950e96b87d9f0297cbf1915438717da2f835ec957f9f4"
+        },
+        {
+          "row": 3,
+          "column": 3,
+          "alphaBounds": [
+            63,
+            7,
+            186,
+            184
+          ],
+          "padding": [
+            63,
+            7,
+            70,
+            8
+          ],
+          "visiblePixels": 13665,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "46a701c6de78321544ca43dee33c667b23548a8586f086a08a5845ce6efd4944"
+        },
+        {
+          "row": 4,
+          "column": 0,
+          "alphaBounds": [
+            73,
+            7,
+            177,
+            183
+          ],
+          "padding": [
+            73,
+            7,
+            79,
+            9
+          ],
+          "visiblePixels": 12235,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "d4807a69f0351939953f8ab44d29cf214cff1bbcb9d454b0980338e9ef06b2bd"
+        },
+        {
+          "row": 4,
+          "column": 1,
+          "alphaBounds": [
+            73,
+            7,
+            179,
+            183
+          ],
+          "padding": [
+            73,
+            7,
+            77,
+            9
+          ],
+          "visiblePixels": 11885,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "6af565f5faf749138c9f96fcd6ce6571855ce6e3f012f7498bda2d873473cf7b"
+        },
+        {
+          "row": 4,
+          "column": 2,
+          "alphaBounds": [
+            71,
+            7,
+            175,
+            183
+          ],
+          "padding": [
+            71,
+            7,
+            81,
+            9
+          ],
+          "visiblePixels": 11995,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1af038967c868c099a335f68ffb7ac216135f711612e188be4c44407fa5190aa"
+        },
+        {
+          "row": 4,
+          "column": 3,
+          "alphaBounds": [
+            74,
+            7,
+            179,
+            183
+          ],
+          "padding": [
+            74,
+            7,
+            77,
+            9
+          ],
+          "visiblePixels": 11768,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "65109869fc680dd958583e024fcd56cc448b5ba3e04c3c6e91ed59d881bfb9df"
+        },
+        {
+          "row": 5,
+          "column": 0,
+          "alphaBounds": [
+            73,
+            7,
+            177,
+            183
+          ],
+          "padding": [
+            73,
+            7,
+            79,
+            9
+          ],
+          "visiblePixels": 12309,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "dfaca3777df9d85a941d2b41acfdd9ecfe4d120017bb33c2141c9e9829e6c6ab"
+        },
+        {
+          "row": 5,
+          "column": 1,
+          "alphaBounds": [
+            72,
+            7,
+            179,
+            183
+          ],
+          "padding": [
+            72,
+            7,
+            77,
+            9
+          ],
+          "visiblePixels": 12363,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "050f9b076dd157bc1eb4b4f93ef056430293638c63d787faab6ffcc197a331c3"
+        },
+        {
+          "row": 5,
+          "column": 2,
+          "alphaBounds": [
+            75,
+            7,
+            177,
+            184
+          ],
+          "padding": [
+            75,
+            7,
+            79,
+            8
+          ],
+          "visiblePixels": 12301,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "4b6ff870616de9496ed9bbc399c1b1a9f835563bd6e7acd793d3c15dcd5fc155"
+        },
+        {
+          "row": 5,
+          "column": 3,
+          "alphaBounds": [
+            71,
+            7,
+            176,
+            183
+          ],
+          "padding": [
+            71,
+            7,
+            80,
+            9
+          ],
+          "visiblePixels": 12377,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "cb5b84bae0c261a2d29a3cd3229c77c59a1d426e91cb71703e1c09f608ff9b71"
+        },
+        {
+          "row": 6,
+          "column": 0,
+          "alphaBounds": [
+            77,
+            7,
+            177,
+            183
+          ],
+          "padding": [
+            77,
+            7,
+            79,
+            9
+          ],
+          "visiblePixels": 11669,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "84dcec2780d5820143728d2813cd67e1129a8626ea236791e44ea19961d1ea3d"
+        },
+        {
+          "row": 6,
+          "column": 1,
+          "alphaBounds": [
+            77,
+            7,
+            187,
+            183
+          ],
+          "padding": [
+            77,
+            7,
+            69,
+            9
+          ],
+          "visiblePixels": 11415,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "9085099b55d4883fdefc5c9d955f275d063fd6caf6329e387c4ae4e1e7e45ce9"
+        },
+        {
+          "row": 6,
+          "column": 2,
+          "alphaBounds": [
+            80,
+            7,
+            187,
+            184
+          ],
+          "padding": [
+            80,
+            7,
+            69,
+            8
+          ],
+          "visiblePixels": 11653,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "9306d95067628585bc318df701ea1ec9038cd3339f3eb50d6afec7ed80c5fa3c"
+        },
+        {
+          "row": 6,
+          "column": 3,
+          "alphaBounds": [
+            77,
+            7,
+            180,
+            184
+          ],
+          "padding": [
+            77,
+            7,
+            76,
+            8
+          ],
+          "visiblePixels": 11648,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "ccccf8dce7092ac6edcafe0157dfb183bd09afb2c17d0f399eb4059626d542d5"
+        },
+        {
+          "row": 7,
+          "column": 0,
+          "alphaBounds": [
+            69,
+            7,
+            173,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            83,
+            9
+          ],
+          "visiblePixels": 12425,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "de09dc3183d41a3aa66f6160e11c0ee7fc683fe3f94e29f77d10d9c0e515285d"
+        },
+        {
+          "row": 7,
+          "column": 1,
+          "alphaBounds": [
+            69,
+            7,
+            175,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            81,
+            9
+          ],
+          "visiblePixels": 12557,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "8df3033a7947fd05da2f9702daa795ca2107f39faba439ff600b1a6fea767e79"
+        },
+        {
+          "row": 7,
+          "column": 2,
+          "alphaBounds": [
+            69,
+            7,
+            173,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            83,
+            9
+          ],
+          "visiblePixels": 12160,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "c70491f27cf9e6a3b954c6a3ade0c2a01ea725b325baca223eea7951e4a15626"
+        },
+        {
+          "row": 7,
+          "column": 3,
+          "alphaBounds": [
+            67,
+            7,
+            172,
+            184
+          ],
+          "padding": [
+            67,
+            7,
+            84,
+            8
+          ],
+          "visiblePixels": 12210,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1ba9b956e939875e032d798e7618b8a8c7908c8f87de1548f99d913b730097db"
+        }
+      ]
+    },
+    "margin-severer": {
+      "source": "asset-sources/legacy-arpg/margin-severer-walk-registered-v2.png",
+      "sourceSha256": "645e1f619f8ab1fc5e3ff490869b8811b95970c700f1f8350ef77f0d1fb53b87",
+      "output": "public/assets/walk/margin-severer-walk-v2.png",
+      "outputSha256": "1109397321e5c059062ee1c9626889b8c06dbeea07dcd6bdd6250a9218c5c639",
+      "frames": [
+        {
+          "row": 0,
+          "column": 0,
+          "alphaBounds": [
+            67,
+            7,
+            208,
+            183
+          ],
+          "padding": [
+            67,
+            7,
+            48,
+            9
+          ],
+          "visiblePixels": 12205,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "9d6bcdd215639b37afc297a916da86e0724329ad8eb9049edcfba15589a81693"
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "alphaBounds": [
+            71,
+            7,
+            211,
+            183
+          ],
+          "padding": [
+            71,
+            7,
+            45,
+            9
+          ],
+          "visiblePixels": 12305,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "bafe4fe6613d3f9f4716e771012aa5af0f6426d129dbc884e69488366df0a2a5"
+        },
+        {
+          "row": 0,
+          "column": 2,
+          "alphaBounds": [
+            53,
+            7,
+            190,
+            183
+          ],
+          "padding": [
+            53,
+            7,
+            66,
+            9
+          ],
+          "visiblePixels": 12016,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "72588c9595633aa383ab76db59bc918fd4660a6a5bf68e31f24a201f482cd204"
+        },
+        {
+          "row": 0,
+          "column": 3,
+          "alphaBounds": [
+            47,
+            7,
+            184,
+            183
+          ],
+          "padding": [
+            47,
+            7,
+            72,
+            9
+          ],
+          "visiblePixels": 11955,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "85d4f68b4d797d5742de749da2af19309fc15a05a30e34899cf21b7e84ad1567"
+        },
+        {
+          "row": 1,
+          "column": 0,
+          "alphaBounds": [
+            71,
+            7,
+            217,
+            183
+          ],
+          "padding": [
+            71,
+            7,
+            39,
+            9
+          ],
+          "visiblePixels": 11431,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "14f23735d84fc8c432d32183ca0b528a782c0a71f2adf11c942eca2e0e8de1d8"
+        },
+        {
+          "row": 1,
+          "column": 1,
+          "alphaBounds": [
+            77,
+            7,
+            213,
+            183
+          ],
+          "padding": [
+            77,
+            7,
+            43,
+            9
+          ],
+          "visiblePixels": 10698,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "39b1b2d887de495c0ab018ec516c3ae3f537bd35b4258365bdad7f7e932d55a0"
+        },
+        {
+          "row": 1,
+          "column": 2,
+          "alphaBounds": [
+            54,
+            7,
+            183,
+            183
+          ],
+          "padding": [
+            54,
+            7,
+            73,
+            9
+          ],
+          "visiblePixels": 10613,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "121439fc2a366bcbf132a63e8d8f53ed4cc6a580bd64fd84b23ad82943d70bba"
+        },
+        {
+          "row": 1,
+          "column": 3,
+          "alphaBounds": [
+            50,
+            7,
+            191,
+            183
+          ],
+          "padding": [
+            50,
+            7,
+            65,
+            9
+          ],
+          "visiblePixels": 10769,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "ff82ed52492ea5d027d59d5fd2a721ede9ae8bb34908f883882fb259038da16c"
+        },
+        {
+          "row": 2,
+          "column": 0,
+          "alphaBounds": [
+            65,
+            7,
+            215,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            41,
+            9
+          ],
+          "visiblePixels": 11439,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "cd81e9af699720497c8adc6e8f80105918a318df55999252d225c901c54ec168"
+        },
+        {
+          "row": 2,
+          "column": 1,
+          "alphaBounds": [
+            72,
+            7,
+            215,
+            183
+          ],
+          "padding": [
+            72,
+            7,
+            41,
+            9
+          ],
+          "visiblePixels": 11112,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "fef1a914b13b141820d1c74150afcdbd003150c208088caa0d35e05a67d8a684"
+        },
+        {
+          "row": 2,
+          "column": 2,
+          "alphaBounds": [
+            53,
+            8,
+            198,
+            183
+          ],
+          "padding": [
+            53,
+            8,
+            58,
+            9
+          ],
+          "visiblePixels": 11360,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "e8025174a8e6c47e51634520ecd361108ee039befa611bdb8a030e0ba6da4c9a"
+        },
+        {
+          "row": 2,
+          "column": 3,
+          "alphaBounds": [
+            44,
+            7,
+            188,
+            183
+          ],
+          "padding": [
+            44,
+            7,
+            68,
+            9
+          ],
+          "visiblePixels": 11235,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "379f2a7f1fcb8f60577262eaeae68e8ce03773356e06eccb427350a803460fa0"
+        },
+        {
+          "row": 3,
+          "column": 0,
+          "alphaBounds": [
+            70,
+            7,
+            216,
+            183
+          ],
+          "padding": [
+            70,
+            7,
+            40,
+            9
+          ],
+          "visiblePixels": 12320,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "3d03f05298b85a36fb5c806a15c5947645729a43ee01006b84a95413e750db44"
+        },
+        {
+          "row": 3,
+          "column": 1,
+          "alphaBounds": [
+            74,
+            7,
+            219,
+            183
+          ],
+          "padding": [
+            74,
+            7,
+            37,
+            9
+          ],
+          "visiblePixels": 12354,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1ea69c6c77f4546efb7c883b3fe296af17558849b1e130916cec2d317b8fa2b8"
+        },
+        {
+          "row": 3,
+          "column": 2,
+          "alphaBounds": [
+            55,
+            6,
+            201,
+            183
+          ],
+          "padding": [
+            55,
+            6,
+            55,
+            9
+          ],
+          "visiblePixels": 12423,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1b8a850056ae9dab7af54f838a9ec4967984c538f28932ff46c599a4ac3f09a8"
+        },
+        {
+          "row": 3,
+          "column": 3,
+          "alphaBounds": [
+            52,
+            7,
+            193,
+            184
+          ],
+          "padding": [
+            52,
+            7,
+            63,
+            8
+          ],
+          "visiblePixels": 12105,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "da902ca591c1e5017abc752f82011ba4487bdd8d7783cf8afe673fb7d340c38a"
+        },
+        {
+          "row": 4,
+          "column": 0,
+          "alphaBounds": [
+            68,
+            7,
+            208,
+            183
+          ],
+          "padding": [
+            68,
+            7,
+            48,
+            9
+          ],
+          "visiblePixels": 11208,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "8438678d3e460d0e7be920dee5d9850790599f82625a3b722c29e3c55b1ca3bf"
+        },
+        {
+          "row": 4,
+          "column": 1,
+          "alphaBounds": [
+            69,
+            7,
+            210,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            46,
+            9
+          ],
+          "visiblePixels": 11355,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "f0e3bd6b0dd15d16b5f39f1f8fcdef85640915cb54e1f0a93c047f13bb2ab6ce"
+        },
+        {
+          "row": 4,
+          "column": 2,
+          "alphaBounds": [
+            59,
+            7,
+            193,
+            183
+          ],
+          "padding": [
+            59,
+            7,
+            63,
+            9
+          ],
+          "visiblePixels": 11023,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "781a62eb29656896721baf3199027c246d7fe1838128712cbb463cf580a15025"
+        },
+        {
+          "row": 4,
+          "column": 3,
+          "alphaBounds": [
+            48,
+            7,
+            187,
+            183
+          ],
+          "padding": [
+            48,
+            7,
+            69,
+            9
+          ],
+          "visiblePixels": 11295,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "d3897c739d3f65dda313986b41ca0a66f16b0b25fb8f9f6180cce1394892231e"
+        },
+        {
+          "row": 5,
+          "column": 0,
+          "alphaBounds": [
+            65,
+            7,
+            212,
+            183
+          ],
+          "padding": [
+            65,
+            7,
+            44,
+            9
+          ],
+          "visiblePixels": 11623,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "a3d6bdb3853c08b67d803eb7f18d5c21b23d87c2b9016b7c406d8a7cf0a8c356"
+        },
+        {
+          "row": 5,
+          "column": 1,
+          "alphaBounds": [
+            71,
+            7,
+            208,
+            183
+          ],
+          "padding": [
+            71,
+            7,
+            48,
+            9
+          ],
+          "visiblePixels": 11328,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "28fc85a02c1260a76c6b8b566388a59dfb9f376a547b258b4600874054ffab44"
+        },
+        {
+          "row": 5,
+          "column": 2,
+          "alphaBounds": [
+            53,
+            7,
+            193,
+            183
+          ],
+          "padding": [
+            53,
+            7,
+            63,
+            9
+          ],
+          "visiblePixels": 11506,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "0ffe3084d75187b7c8515f136f26561b6639104a809702582b621b4072eca6f3"
+        },
+        {
+          "row": 5,
+          "column": 3,
+          "alphaBounds": [
+            49,
+            7,
+            184,
+            183
+          ],
+          "padding": [
+            49,
+            7,
+            72,
+            9
+          ],
+          "visiblePixels": 11022,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "626728b4181a22429962cd04d9605a3266141629a57b1e1ae5949f873f4aad65"
+        },
+        {
+          "row": 6,
+          "column": 0,
+          "alphaBounds": [
+            41,
+            7,
+            191,
+            183
+          ],
+          "padding": [
+            41,
+            7,
+            65,
+            9
+          ],
+          "visiblePixels": 11439,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "288238172aa4ceeb65859fa9a4528ecae96613ef4c54a21d94f277087acd04d2"
+        },
+        {
+          "row": 6,
+          "column": 1,
+          "alphaBounds": [
+            41,
+            7,
+            184,
+            183
+          ],
+          "padding": [
+            41,
+            7,
+            72,
+            9
+          ],
+          "visiblePixels": 11112,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "1501443308af67a8bfecff5fb7a78c1047cb6cfe7a85a107eabc6c4505426162"
+        },
+        {
+          "row": 6,
+          "column": 2,
+          "alphaBounds": [
+            58,
+            8,
+            203,
+            183
+          ],
+          "padding": [
+            58,
+            8,
+            53,
+            9
+          ],
+          "visiblePixels": 11360,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "0d798f2d81cf80ada5e9606592d73727e52fc9706b5093d8cbd6dd3a052d5fca"
+        },
+        {
+          "row": 6,
+          "column": 3,
+          "alphaBounds": [
+            69,
+            7,
+            213,
+            183
+          ],
+          "padding": [
+            69,
+            7,
+            43,
+            9
+          ],
+          "visiblePixels": 11235,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "bb97d98b0ed7aa2cd667e0b49df1b97c1f3afca97217eda81739747e18ad1dfd"
+        },
+        {
+          "row": 7,
+          "column": 0,
+          "alphaBounds": [
+            57,
+            7,
+            206,
+            183
+          ],
+          "padding": [
+            57,
+            7,
+            50,
+            9
+          ],
+          "visiblePixels": 11574,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "f8d4d7b1e9ff90eac0c8f75237c0c7403938b3355df5e2f827eb8d34ff01002b"
+        },
+        {
+          "row": 7,
+          "column": 1,
+          "alphaBounds": [
+            61,
+            7,
+            209,
+            183
+          ],
+          "padding": [
+            61,
+            7,
+            47,
+            9
+          ],
+          "visiblePixels": 11657,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "9cb538768a91614821458739a201459d34bb525e2f4272dcfaefef4a1b6edc5e"
+        },
+        {
+          "row": 7,
+          "column": 2,
+          "alphaBounds": [
+            47,
+            7,
+            191,
+            183
+          ],
+          "padding": [
+            47,
+            7,
+            65,
+            9
+          ],
+          "visiblePixels": 11299,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "91ab3473c72e5dfebf01717d24cf3f1f82526b802f5b419bfbb1dcabfe6f0146"
+        },
+        {
+          "row": 7,
+          "column": 3,
+          "alphaBounds": [
+            43,
+            7,
+            188,
+            183
+          ],
+          "padding": [
+            43,
+            7,
+            68,
+            9
+          ],
+          "visiblePixels": 11364,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "b2d43c21f4ce87cfe13396b144c51b6f7ac79e52da3a3992a74b3ea36f413f83"
+        }
+      ]
+    }
+  },
+  "effects": {
+    "silent-librarian-echo": {
+      "source": "asset-sources/legacy-arpg/silent-librarian-echo-legacy-source-v2.png",
+      "sourceSha256": "85910f7634b56f2e02b14795902809dcff210f9e2563aed23a65f73173b7d3d0",
+      "output": "public/assets/effects/silent-librarian-echo-v2.png",
+      "outputSha256": "fc0965c7402a2d2c5e44fd72f1c784a6a096309b80e2f32fd176e2935db5bc06",
+      "frames": [
+        {
+          "row": 0,
+          "column": 0,
+          "alphaBounds": [
+            196,
+            84,
+            431,
+            543
+          ],
+          "padding": [
+            196,
+            84,
+            196,
+            84
+          ],
+          "visiblePixels": 29953,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "869dddbc393d96e00c5e8735206b1a637f951dcc5815ee9ec26087adeca0295c"
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "alphaBounds": [
+            80,
+            20,
+            547,
+            607
+          ],
+          "padding": [
+            80,
+            20,
+            80,
+            20
+          ],
+          "visiblePixels": 99502,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "344583a7acc4a36e4befe21135f4d4670283898a20d6409f6b6fa2d5841c9008"
+        },
+        {
+          "row": 1,
+          "column": 0,
+          "alphaBounds": [
+            20,
+            34,
+            607,
+            593
+          ],
+          "padding": [
+            20,
+            34,
+            20,
+            34
+          ],
+          "visiblePixels": 149442,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "65621b0a09273c948e662181a59bc0996a017f1341dcf8c9d6c04c3e5d700cf5"
+        },
+        {
+          "row": 1,
+          "column": 1,
+          "alphaBounds": [
+            28,
+            20,
+            599,
+            607
+          ],
+          "padding": [
+            28,
+            20,
+            28,
+            20
+          ],
+          "visiblePixels": 161104,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "08c655a61a053555f2b94c3375031d13709f6b291e6c415c207ef12ad3959df2"
+        }
+      ]
+    },
+    "margin-sever-line": {
+      "source": "asset-sources/legacy-arpg/margin-sever-line-legacy-source-v2.png",
+      "sourceSha256": "c6ec00eebd3735d4fff388b5708ee3f56b8f328820d92faacba0ac4b3ac0cd7d",
+      "output": "public/assets/effects/margin-sever-line-v2.png",
+      "outputSha256": "d0e56f8c8553d8948eb24e1d1d72a85f468fcebc20749aead0bb802e4955fa44",
+      "frames": [
+        {
+          "row": 0,
+          "column": 0,
+          "alphaBounds": [
+            46,
+            258,
+            581,
+            369
+          ],
+          "padding": [
+            46,
+            258,
+            46,
+            258
+          ],
+          "visiblePixels": 11325,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "a3a471e6d866d0c5f7d6e0cf26c8039743937ac0b4b0346e1a3ac0da2e08a8fb"
+        },
+        {
+          "row": 0,
+          "column": 1,
+          "alphaBounds": [
+            20,
+            252,
+            605,
+            375
+          ],
+          "padding": [
+            20,
+            252,
+            22,
+            252
+          ],
+          "visiblePixels": 34047,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "83d83f4fc30692077e61e4ee79af52b7ef96d592e9546a5fc42019f307ae1299"
+        },
+        {
+          "row": 1,
+          "column": 0,
+          "alphaBounds": [
+            22,
+            236,
+            603,
+            389
+          ],
+          "padding": [
+            22,
+            236,
+            24,
+            238
+          ],
+          "visiblePixels": 53085,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "836a8399f8cf683859cc0d5633917018ff78cccf77af22c5d185c7f04d1e456f"
+        },
+        {
+          "row": 1,
+          "column": 1,
+          "alphaBounds": [
+            36,
+            258,
+            591,
+            369
+          ],
+          "padding": [
+            36,
+            258,
+            36,
+            258
+          ],
+          "visiblePixels": 14008,
+          "alphaLevels": [
+            0,
+            72,
+            128,
+            192,
+            255
+          ],
+          "pixelHash": "d08e6eea9ef02685f3f5ca9ca2089762af8e7718495eb371dc655107959eaf4f"
+        }
+      ]
+    }
+  }
+}

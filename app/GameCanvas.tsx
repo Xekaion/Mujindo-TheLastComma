@@ -95,7 +95,6 @@ import {
   MARGIN_SEVERER_RECOVERY_SECONDS,
   MARGIN_SEVERER_TELEGRAPH_SECONDS,
   MARGIN_SEVERER_UNLOCK_DEPTH,
-  MARGIN_SEVERER_WALK_ROW_CROPS,
   marginSeverLine,
 } from "./enemy-balance";
 import {
@@ -110,6 +109,7 @@ import {
   silentLibrarianWaveRadius,
   sweptEchoRingHits,
 } from "./silent-librarian";
+import { fitSpriteFrameWithin } from "./sprite-frame";
 import { experienceRequiredForLevel } from "./progression";
 import {
   BASE_INVENTORY_CAPACITY,
@@ -1579,10 +1579,7 @@ const makeDirectionFrames = (
 ): readonly DirectionFrame[] =>
   rows.map((row, index) => ({ row, flipX: flips[index] ?? false }));
 const TIME_STALKER_DIRECTION_FRAMES = makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]);
-const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames(
-  [0, 1, 2, 3, 4, 5, 6, 1],
-  [false, false, false, false, false, false, false, true],
-);
+const MARGIN_SEVERER_DIRECTION_FRAMES = makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]);
 
 // Each generated enemy sheet has its own authored row order. Missing left-facing
 // poses are synthesized from the matching right-facing pose instead of showing
@@ -1597,8 +1594,7 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   // The Time Stalker sheet authors every facing; never synthesize one by mirroring.
   TIME_STALKER_DIRECTION_FRAMES,
-  // The generated sheet supplies S through E; SE is the exact horizontal
-  // counterpart of its authored SW pose, so only that final diagonal is mirrored.
+  // The v2 legacy atlas authors all eight canonical facings without mirroring.
   MARGIN_SEVERER_DIRECTION_FRAMES,
   // The generated boss sheet authors all eight rows after synthesizing SE from
   // the exact horizontal mirror of SW while preserving animation-frame order.
@@ -4245,16 +4241,16 @@ export default function GameCanvas({
       walkBoss: "/assets/walk/cartographer-boss-walk.png",
       walkProofreader: "/assets/walk/proofreader-walk-v2.png",
       walkTimeStalker: "/assets/walk/time-stalker-walk.png",
-      walkMarginSeverer: "/assets/walk/margin-severer-walk-v1.png",
+      walkMarginSeverer: "/assets/walk/margin-severer-walk-v2.png",
       walkFinalBinder: "/assets/walk/final-binder-walk-v1.png",
-      walkSilentLibrarian: "/assets/walk/silent-librarian-walk-v1.png",
+      walkSilentLibrarian: "/assets/walk/silent-librarian-walk-v2.png",
       walkPalimpsestArchivist: "/assets/walk/palimpsest-archivist-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
-      marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
+      marginSeverLine: "/assets/effects/margin-sever-line-v2.png",
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
-      silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
+      silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v2.png",
       palimpsestArchivistPatterns:
         "/assets/effects/palimpsest-archivist-patterns-v1.png",
       equippedMythicAura: EQUIPPED_RARITY_VFX_PATHS.mythic,
@@ -7609,9 +7605,16 @@ export default function GameCanvas({
       const sourceHeight = sourceRowCrop?.height ?? image.naturalHeight / 8;
       const sourceY = sourceRowCrop?.y ?? clamp(Math.floor(facing), 0, 7) * sourceHeight;
       const column = positiveModulo(Math.floor(frameIndex), 4);
+      const fittedFrame = fitSpriteFrameWithin(
+        sourceWidth,
+        sourceHeight,
+        width,
+        height,
+      );
+      if (fittedFrame.width <= 0 || fittedFrame.height <= 0) return false;
       context.save();
       context.globalAlpha = alpha;
-      context.imageSmoothingEnabled = true;
+      context.imageSmoothingEnabled = false;
       if (flipX) {
         context.translate(x, 0);
         context.scale(-1, 1);
@@ -7622,10 +7625,10 @@ export default function GameCanvas({
         sourceY,
         sourceWidth,
         sourceHeight,
-        flipX ? -width / 2 : x - width / 2,
-        y - height * 0.78,
-        width,
-        height,
+        flipX ? -fittedFrame.width / 2 : x - fittedFrame.width / 2,
+        y - fittedFrame.height * 0.78,
+        fittedFrame.width,
+        fittedFrame.height,
       );
       context.restore();
       return true;
@@ -7894,11 +7897,10 @@ export default function GameCanvas({
       context.translate(centerX, centerY);
       context.rotate(lineAngle);
       context.globalAlpha = alpha;
-      context.globalCompositeOperation =
-        phase === "sever" ? "lighter" : "source-over";
-      context.shadowColor = phase === "sever" ? "#8df7ff" : "#b72d3f";
-      context.shadowBlur = phase === "sever" ? 18 : 8 + progress * 7;
-      context.imageSmoothingEnabled = true;
+      context.globalCompositeOperation = "source-over";
+      context.shadowColor = "transparent";
+      context.shadowBlur = 0;
+      context.imageSmoothingEnabled = false;
 
       if (image?.complete && image.naturalWidth && image.naturalHeight) {
         const sourceWidth = image.naturalWidth / 2;
@@ -7957,10 +7959,11 @@ export default function GameCanvas({
         ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
       );
       context.clip();
-      context.globalCompositeOperation = "lighter";
+      context.globalCompositeOperation = "source-over";
       context.globalAlpha = isWave ? (frameIndex === 3 ? 0.72 : 0.94) : 0.58 + progress * 0.3;
-      context.shadowColor = "#84f5ff";
-      context.shadowBlur = isWave ? 18 : 9 + progress * 10;
+      context.shadowColor = "transparent";
+      context.shadowBlur = 0;
+      context.imageSmoothingEnabled = false;
       if (image?.complete && image.naturalWidth && image.naturalHeight) {
         const sourceWidth = image.naturalWidth / 2;
         const sourceHeight = image.naturalHeight / 2;
@@ -9778,12 +9781,12 @@ export default function GameCanvas({
             walkWidth,
             walkHeight,
             spriteAlpha,
-            enemy.kind === 7 || enemy.kind === SILENT_LIBRARIAN_KIND
+            enemy.kind === 7 ||
+            enemy.kind === MARGIN_SEVERER_KIND ||
+            enemy.kind === SILENT_LIBRARIAN_KIND
               ? false
               : directionFrame.flipX,
-            enemy.kind === MARGIN_SEVERER_KIND
-              ? MARGIN_SEVERER_WALK_ROW_CROPS[directionFrame.row]
-              : undefined,
+            undefined,
           ) ||
           (enemy.kind <= 5
             ? drawSprite(
