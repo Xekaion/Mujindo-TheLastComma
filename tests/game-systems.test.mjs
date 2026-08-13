@@ -7427,7 +7427,45 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   assert.match(pillarRenderer, /context\.imageSmoothingEnabled = false;/);
   assert.match(
     pillarRenderer,
-    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*drop\.y \+ 12 - rarityVfx\.pillarHeight,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
+    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*[\s\S]{0,180}?drop\.y - rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
+  );
+  assert.match(
+    source,
+    /pillarGroundAnchor:\s*number;/,
+    "persistent pillar placement needs a semantic authored-floor anchor",
+  );
+  const expectedGroundAnchors = {
+    common: 0.9277,
+    magic: 0.9111,
+    superior: 0.8975,
+    rare: 0.9287,
+    epic: 0.8164,
+    legendary: 0.8252,
+    mythic: 0.8076,
+    cosmic: 0.875,
+  };
+  for (const [rarity, anchor] of Object.entries(expectedGroundAnchors)) {
+    assert.match(
+      source,
+      new RegExp(`${rarity}:\\s*\\{[\\s\\S]{0,900}?pillarGroundAnchor:\\s*${anchor}`),
+      `${rarity} must register its measured visible flare-floor origin`,
+    );
+    assert.ok(anchor > 0.75 && anchor < 0.95, `${rarity} floor anchor must stay inside the lower flare`);
+  }
+  const legendaryHeight = 216;
+  const oldLegendaryHotspotY =
+    12 - legendaryHeight + expectedGroundAnchors.legendary * legendaryHeight;
+  const correctedLegendaryHotspotY =
+    -legendaryHeight * expectedGroundAnchors.legendary +
+    legendaryHeight * expectedGroundAnchors.legendary;
+  assert.ok(
+    oldLegendaryHotspotY < -24,
+    "the legacy bottom anchor reproduced the reported raised flare",
+  );
+  assert.equal(
+    correctedLegendaryHotspotY,
+    0,
+    "the authored legendary flare must meet drop.y exactly",
   );
   assert.doesNotMatch(
     pillarRenderer,

@@ -632,6 +632,8 @@ type EquipmentRarityVfxConfig = {
   pillarWidth: number;
   pillarHeight: number;
   pillarFps: number;
+  /** Normalized source Y where the authored flare visually meets the floor. */
+  pillarGroundAnchor: number;
 };
 
 // The authored awakening is a one-shot reveal. Persistent pillar art must not
@@ -662,6 +664,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 74,
     pillarHeight: 96,
     pillarFps: 4,
+    pillarGroundAnchor: 0.9277,
   },
   magic: {
     imageKey: "lootAwakeningMagic",
@@ -683,6 +686,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 82,
     pillarHeight: 108,
     pillarFps: 4,
+    pillarGroundAnchor: 0.9111,
   },
   superior: {
     imageKey: "lootAwakeningSuperior",
@@ -704,6 +708,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 92,
     pillarHeight: 124,
     pillarFps: 5,
+    pillarGroundAnchor: 0.8975,
   },
   rare: {
     imageKey: "lootAwakeningRare",
@@ -725,6 +730,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 104,
     pillarHeight: 146,
     pillarFps: 5,
+    pillarGroundAnchor: 0.9287,
   },
   epic: {
     imageKey: "lootAwakeningEpic",
@@ -746,6 +752,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 120,
     pillarHeight: 174,
     pillarFps: 6,
+    pillarGroundAnchor: 0.8164,
   },
   legendary: {
     imageKey: "lootAwakeningLegendary",
@@ -767,6 +774,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 144,
     pillarHeight: 216,
     pillarFps: 6,
+    pillarGroundAnchor: 0.8252,
   },
   mythic: {
     imageKey: "lootAwakeningMythic",
@@ -788,6 +796,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 174,
     pillarHeight: 274,
     pillarFps: 7,
+    pillarGroundAnchor: 0.8076,
   },
   cosmic: {
     imageKey: "lootAwakeningCosmic",
@@ -809,6 +818,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 210,
     pillarHeight: 344,
     pillarFps: 8,
+    pillarGroundAnchor: 0.875,
   },
 };
 
@@ -9785,7 +9795,9 @@ export default function GameCanvas({
             sourceWidth,
             sourceHeight,
             drop.x - rarityVfx.pillarWidth / 2,
-            drop.y + 12 - rarityVfx.pillarHeight,
+            // Anchor the authored flare's visible floor contact—not the PNG's
+            // transparent canvas bottom—to the same world point as the drop.
+            drop.y - rarityVfx.pillarHeight * rarityVfx.pillarGroundAnchor,
             rarityVfx.pillarWidth,
             rarityVfx.pillarHeight,
           );
