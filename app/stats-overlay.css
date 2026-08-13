@@ -778,3 +778,130 @@
   font-size: 10px;
   line-height: 1.4;
 }
+
+/* High-rarity equipment resonance remains readable inside the stats scroll. */
+.stats-resonance-section {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.stats-resonance-grid {
+  display: grid;
+  min-width: 0;
+  gap: 8px;
+  padding: 8px 9px 10px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.stats-resonance-tier {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+  border: 1px solid rgba(205, 177, 111, 0.18);
+  border-left: 3px solid currentColor;
+  border-radius: 2px;
+  padding: 8px 9px;
+  background: rgba(2, 5, 7, 0.64);
+  box-shadow: inset 0 0 22px color-mix(in srgb, currentColor 8%, transparent);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.stats-resonance-tier--mythic {
+  color: #ff7acd;
+  border-color: rgba(255, 82, 188, 0.42);
+  border-left-color: #ff5cbd;
+}
+
+.stats-resonance-tier--cosmic {
+  color: #76eaff;
+  border-color: rgba(72, 220, 255, 0.44);
+  border-left-color: #52dcff;
+}
+
+.stats-resonance-tier__heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.stats-resonance-tier__heading span,
+.stats-resonance-tier__heading strong {
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.stats-resonance-tier > p {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  margin: 0;
+  color: rgba(237, 230, 216, 0.82);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stats-resonance-tier > p b,
+.stats-resonance-tier > p span {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.stats-resonance-next {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-width: 0;
+  align-items: start;
+  gap: 8px;
+  border-top: 1px solid rgba(239, 230, 209, 0.1);
+  padding-top: 6px;
+  color: rgba(227, 219, 203, 0.67);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stats-resonance-next small,
+.stats-resonance-next span,
+.stats-resonance-next strong,
+.stats-resonance-next b {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.stats-resonance-next span {
+  display: grid;
+  gap: 2px;
+}
+
+.stats-resonance-next b,
+.stats-resonance-next strong {
+  color: currentColor;
+}
+
+@media (max-width: 680px) {
+  .stats-resonance-grid {
+    padding: 7px;
+  }
+}
+
+@media (max-height: 700px) and (min-width: 981px) {
+  .stats-resonance-grid {
+    gap: 6px;
+    padding-block: 6px;
+  }
+
+  .stats-resonance-tier {
+    gap: 5px;
+    padding-block: 6px;
+  }
+}

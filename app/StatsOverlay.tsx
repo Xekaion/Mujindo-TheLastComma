@@ -39,6 +39,20 @@ const formatPercent = (ratio: number) => formatNumber(ratio * 100, "%");
 
 const formatMultiplier = (value: number) => `×${formatNumber(value)}`;
 
+type EquipmentResonance = PlayerStatSnapshot["equipment"]["resonance"];
+
+const formatHighTierBonus = (
+  bonus: EquipmentResonance["highTierBonus"],
+) => bonus.count > 0
+  ? `공격력 +${bonus.damagePercent}% · 공격 속도 +${bonus.attackSpeedPercent}% · 보스 피해 +${bonus.bossDamagePercent}%`
+  : "아직 활성화된 효과가 없습니다";
+
+const formatCosmicBonus = (
+  bonus: EquipmentResonance["cosmicBonus"],
+) => bonus.count > 0
+  ? `최종 피해 +${bonus.finalDamagePercent}% · 행동 속도 +${bonus.actionSpeedPercent}%`
+  : "아직 활성화된 효과가 없습니다";
+
 function StatRow({ label, value, detail, active, meter }: StatRowProps) {
   return (
     <div className={`stats-row${active ? " is-active" : ""}`}>
@@ -190,7 +204,7 @@ export default function StatsOverlay({
               <small>CHARACTER RECORD · CURRENT FORMULA</small>
               <h2 id="stats-title">하린의 능력치</h2>
               <p id="stats-description">
-                LV.{context.level} · {professionTitle ?? "미전직 방랑자"} · 장착 {context.equippedCount}/10
+                LV.{context.level} · {professionTitle ?? "미전직 방랑자"} · 장착 {context.equippedCount}/10 · 신화 공명 {equipment.resonance.highTierCount} · 우주 초월 {equipment.resonance.cosmicCount}
               </p>
             </div>
           </div>
@@ -335,6 +349,64 @@ export default function StatsOverlay({
                 </div>
               ))}
             </dl>
+          </section>
+
+          <section
+            className="stats-section stats-resonance-section"
+            aria-label={`고위 장비 공명, 신화 ${equipment.resonance.highTierCount}개, 우주 ${equipment.resonance.cosmicCount}개`}
+          >
+            <header>
+              <span aria-hidden="true">✦</span>
+              <div>
+                <small>CHASE EQUIPMENT RESONANCE</small>
+                <h3>고위 장비 공명</h3>
+              </div>
+            </header>
+            <div className="stats-resonance-grid">
+              <article className="stats-resonance-tier stats-resonance-tier--mythic">
+                <div className="stats-resonance-tier__heading">
+                  <span>신화 공명</span>
+                  <strong>{equipment.resonance.highTierCount}개</strong>
+                </div>
+                <p>
+                  <b>현재 단계 · {equipment.resonance.highTierBonus.count > 0 ? `${equipment.resonance.highTierBonus.count}개` : "미활성"}</b>
+                  <span>{formatHighTierBonus(equipment.resonance.highTierBonus)}</span>
+                </p>
+                <div className="stats-resonance-next">
+                  <small>다음 단계</small>
+                  {equipment.resonance.highTierNext ? (
+                    <span>
+                      <b>{equipment.resonance.highTierNext.count}개</b>
+                      {formatHighTierBonus(equipment.resonance.highTierNext)}
+                    </span>
+                  ) : (
+                    <strong>최종 단계 달성</strong>
+                  )}
+                </div>
+              </article>
+
+              <article className="stats-resonance-tier stats-resonance-tier--cosmic">
+                <div className="stats-resonance-tier__heading">
+                  <span>우주 초월</span>
+                  <strong>{equipment.resonance.cosmicCount}개</strong>
+                </div>
+                <p>
+                  <b>현재 단계 · {equipment.resonance.cosmicBonus.count > 0 ? `${equipment.resonance.cosmicBonus.count}개` : "미활성"}</b>
+                  <span>{formatCosmicBonus(equipment.resonance.cosmicBonus)}</span>
+                </p>
+                <div className="stats-resonance-next">
+                  <small>다음 단계</small>
+                  {equipment.resonance.cosmicNext ? (
+                    <span>
+                      <b>{equipment.resonance.cosmicNext.count}개</b>
+                      {formatCosmicBonus(equipment.resonance.cosmicNext)}
+                    </span>
+                  ) : (
+                    <strong>최종 단계 달성</strong>
+                  )}
+                </div>
+              </article>
+            </div>
           </section>
 
           <section className="stats-section stats-find-section">

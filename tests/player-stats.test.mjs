@@ -261,21 +261,24 @@ test("cosmic pinnacle options feed live sheet formulas and the special-option le
 
   const baseline = snapshotFor();
   const finalDamage = snapshotFor({ stat: "cosmicFinalDamagePercent", value: 12 });
+  const finalDamageMultiplier =
+    (1 + finalDamage.equipment.stats.cosmicFinalDamagePercent / 100) /
+    (1 + baseline.equipment.stats.cosmicFinalDamagePercent / 100);
   nearlyEqual(
     finalDamage.offense.sheetAttackPower,
     baseline.offense.sheetAttackPower,
   );
   nearlyEqual(
     finalDamage.offense.normalProjectileDamage,
-    baseline.offense.normalProjectileDamage * 1.12,
+    baseline.offense.normalProjectileDamage * finalDamageMultiplier,
   );
   nearlyEqual(
     finalDamage.ratings.statAttackDps,
-    baseline.ratings.statAttackDps * 1.12,
+    baseline.ratings.statAttackDps * finalDamageMultiplier,
   );
   nearlyEqual(
     finalDamage.ratings.standardBossDps,
-    baseline.ratings.standardBossDps * 1.12,
+    baseline.ratings.standardBossDps * finalDamageMultiplier,
   );
   assert.ok(finalDamage.ratings.combatPower > baseline.ratings.combatPower);
 
@@ -288,11 +291,17 @@ test("cosmic pinnacle options feed live sheet formulas and the special-option le
   assert.equal(aegis.ratings.combatPower, baseline.ratings.combatPower);
 
   const actionSpeed = snapshotFor({ stat: "cosmicActionSpeedPercent", value: 10 });
+  const actionSpeedMultiplier =
+    (1 + actionSpeed.equipment.stats.cosmicActionSpeedPercent / 100) /
+    (1 + baseline.equipment.stats.cosmicActionSpeedPercent / 100);
   nearlyEqual(
     actionSpeed.offense.theoreticalFireRate,
-    baseline.offense.theoreticalFireRate * 1.1,
+    baseline.offense.theoreticalFireRate * actionSpeedMultiplier,
   );
-  nearlyEqual(actionSpeed.mobility.moveSpeed, baseline.mobility.moveSpeed * 1.1);
+  nearlyEqual(
+    actionSpeed.mobility.moveSpeed,
+    baseline.mobility.moveSpeed * actionSpeedMultiplier,
+  );
   assert.ok(actionSpeed.ratings.combatPower > baseline.ratings.combatPower);
 
   for (const [stat, snapshot] of [
@@ -350,7 +359,9 @@ test("cosmic final damage multiplies every flat and periodic conversion source e
 
   const baseline = snapshotFor(0);
   const boosted = snapshotFor(12);
-  const multiplier = 1.12;
+  const multiplier =
+    (1 + boosted.equipment.stats.cosmicFinalDamagePercent / 100) /
+    (1 + baseline.equipment.stats.cosmicFinalDamagePercent / 100);
   nearlyEqual(
     boosted.ratings.bossBreakdown.primaryDps,
     baseline.ratings.bossBreakdown.primaryDps * multiplier,

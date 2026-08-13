@@ -22,8 +22,10 @@ import {
   EQUIPMENT_POWER_REFERENCE_BOSS_HITS_PER_SECOND,
   EQUIPMENT_POWER_REFERENCE_PICKUPS_PER_SECOND,
   equippedLegendaryPowers,
+  resolveEquipmentRarityResonance,
   type EquipmentCombatPowerBreakdown,
   type EquipmentLoadout,
+  type EquipmentRarityResonance,
   type GearStatTotals,
   type LegendaryPowerId,
 } from "./equipment";
@@ -80,6 +82,7 @@ export type PlayerStatSnapshot = {
     stats: GearStatTotals;
     powers: LegendaryPowerId[];
     power: EquipmentCombatPowerBreakdown;
+    resonance: EquipmentRarityResonance;
   };
   ratings: CombatEvaluationRatings & {
     survivalBudget: number;
@@ -208,6 +211,7 @@ export function calculatePlayerStatSnapshot(
   const equipmentStats = aggregateEquipmentStats(input.equipment);
   const equipmentPowers = equippedLegendaryPowers(input.equipment);
   const equipmentPower = calculateEquipmentCombatPowerBreakdown(input.equipment);
+  const equipmentResonance = resolveEquipmentRarityResonance(input.equipment);
   const powerSet = new Set(equipmentPowers);
   const starfallMantleTime = safePositive(input.starfallMantleTime);
   const starfallMantleActive =
@@ -726,6 +730,24 @@ export function calculatePlayerStatSnapshot(
   };
 
   const specials: PlayerSpecialStat[] = [];
+  if (equipmentResonance.highTierBonus.count > 0) {
+    const bonus = equipmentResonance.highTierBonus;
+    specials.push({
+      id: "mythic-resonance",
+      label: "신화 공명",
+      value: `공격력 +${bonus.damagePercent.toFixed(2)}% · 공격 속도 +${bonus.attackSpeedPercent.toFixed(2)}% · 보스 피해 +${bonus.bossDamagePercent.toFixed(2)}%`,
+      condition: `신화 이상 장비 ${equipmentResonance.highTierCount}개 장착 · ${bonus.count}단계 활성`,
+    });
+  }
+  if (equipmentResonance.cosmicBonus.count > 0) {
+    const bonus = equipmentResonance.cosmicBonus;
+    specials.push({
+      id: "cosmic-transcendence",
+      label: "우주 초월",
+      value: `최종 피해 +${bonus.finalDamagePercent.toFixed(2)}% · 시공 속도 +${bonus.actionSpeedPercent.toFixed(2)}%`,
+      condition: `우주 장비 ${equipmentResonance.cosmicCount}개 장착 · ${bonus.count}단계 활성`,
+    });
+  }
   for (const stat of [
     ["cosmicFinalDamagePercent", "우주 최종 피해"],
     ["cosmicAegisPercent", "사건의 지평선 피해 감쇄"],
@@ -897,6 +919,7 @@ export function calculatePlayerStatSnapshot(
       stats: equipmentStats,
       powers: equipmentPowers,
       power: equipmentPower,
+      resonance: equipmentResonance,
     },
     ratings,
     resources: {

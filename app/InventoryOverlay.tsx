@@ -32,6 +32,7 @@ import {
   getGearEnhancementRule,
   getGearRequiredLevel,
   getGearSalvageAshBreakdown,
+  resolveEquipmentRarityResonance,
   type EquipmentLoadout,
   type EquipmentSlot,
   type GearItem,
@@ -229,6 +230,66 @@ function GearImplicitBreakdown({
   );
 }
 
+type EquipmentResonance = ReturnType<typeof resolveEquipmentRarityResonance>;
+
+function formatHighTierResonance(
+  bonus: EquipmentResonance["highTierBonus"],
+) {
+  if (bonus.count <= 0) return "효과 대기";
+  return `공격력 +${bonus.damagePercent}% · 공속 +${bonus.attackSpeedPercent}% · 보스 +${bonus.bossDamagePercent}%`;
+}
+
+function formatCosmicResonance(
+  bonus: EquipmentResonance["cosmicBonus"],
+) {
+  if (bonus.count <= 0) return "효과 대기";
+  return `최종 피해 +${bonus.finalDamagePercent}% · 행동 속도 +${bonus.actionSpeedPercent}%`;
+}
+
+function ResonanceTransition({
+  equipment,
+  item,
+  equipped,
+}: {
+  equipment: EquipmentLoadout;
+  item: GearItem;
+  equipped: boolean;
+}) {
+  const before = resolveEquipmentRarityResonance(equipment);
+  const after = resolveEquipmentRarityResonance({
+    ...equipment,
+    [item.slot]: equipped ? null : item,
+  });
+  const highTierChanged =
+    before.highTierCount !== after.highTierCount ||
+    before.highTierBonus.count !== after.highTierBonus.count;
+  const cosmicChanged =
+    before.cosmicCount !== after.cosmicCount ||
+    before.cosmicBonus.count !== after.cosmicBonus.count;
+
+  if (!highTierChanged && !cosmicChanged) return null;
+  return (
+    <div
+      className="inventory-screen-resonance-transition"
+      aria-label={equipped ? "해제 시 고위 장비 공명 변화" : "장착 시 고위 장비 공명 변화"}
+    >
+      <strong>{equipped ? "해제 시 공명 변화" : "장착 시 공명 변화"}</strong>
+      {highTierChanged && (
+        <span className="inventory-screen-resonance-transition__tier inventory-screen-resonance-transition__tier--mythic">
+          <b>신화 공명 {before.highTierCount} → {after.highTierCount}</b>
+          <small>{formatHighTierResonance(after.highTierBonus)}</small>
+        </span>
+      )}
+      {cosmicChanged && (
+        <span className="inventory-screen-resonance-transition__tier inventory-screen-resonance-transition__tier--cosmic">
+          <b>우주 초월 {before.cosmicCount} → {after.cosmicCount}</b>
+          <small>{formatCosmicResonance(after.cosmicBonus)}</small>
+        </span>
+      )}
+    </div>
+  );
+}
+
 function GearTooltip({
   item,
   comparisonItem,
@@ -300,6 +361,11 @@ function GearTooltip({
             </em>
           )}
         </div>
+        <ResonanceTransition
+          equipment={equipment}
+          item={item}
+          equipped={equipped}
+        />
         <GearImplicitBreakdown item={item} compact />
         <div className="inventory-screen-tooltip-quality">
           <span>품질</span>
@@ -501,6 +567,7 @@ export default function InventoryOverlay({
   const hoveredComparisonItem = hoveredItemIsEquipped || !hoveredItem
     ? null
     : equipment[hoveredItem.slot];
+  const equippedResonance = resolveEquipmentRarityResonance(equipment);
 
   const showPointerTooltip = (
     item: GearItem,
@@ -762,9 +829,34 @@ export default function InventoryOverlay({
             >
               <div className="inventory-screen-section-heading">
                 <h3 id="inventory-screen-equipment-title">장착 장비</h3>
-                <span>
-                  장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
-                </span>
+                <div className="inventory-screen-equipment-summary">
+                  <span className="inventory-screen-equipment-summary__power">
+                    장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
+                  </span>
+                  <div
+                    className="inventory-screen-resonance-summary"
+                    aria-label={`신화 공명 ${equippedResonance.highTierCount}개, 우주 초월 ${equippedResonance.cosmicCount}개`}
+                  >
+                    <span className="inventory-screen-resonance-chip inventory-screen-resonance-chip--mythic">
+                      <strong>신화 공명 {equippedResonance.highTierCount}</strong>
+                      <em>현재 · {formatHighTierResonance(equippedResonance.highTierBonus)}</em>
+                      <small>
+                        다음 · {equippedResonance.highTierNext
+                          ? `${equippedResonance.highTierNext.count}개 ${formatHighTierResonance(equippedResonance.highTierNext)}`
+                          : "최종 단계"}
+                      </small>
+                    </span>
+                    <span className="inventory-screen-resonance-chip inventory-screen-resonance-chip--cosmic">
+                      <strong>우주 초월 {equippedResonance.cosmicCount}</strong>
+                      <em>현재 · {formatCosmicResonance(equippedResonance.cosmicBonus)}</em>
+                      <small>
+                        다음 · {equippedResonance.cosmicNext
+                          ? `${equippedResonance.cosmicNext.count}개 ${formatCosmicResonance(equippedResonance.cosmicNext)}`
+                          : "최종 단계"}
+                      </small>
+                    </span>
+                  </div>
+                </div>
               </div>
 
               <div className="inventory-screen-equipment-slots">
@@ -875,6 +967,11 @@ export default function InventoryOverlay({
                           </strong>
                         </div>
                       )}
+                      <ResonanceTransition
+                        equipment={equipment}
+                        item={selectedItem}
+                        equipped={selectedIsEquipped}
+                      />
                       <GearImplicitBreakdown item={selectedItem} />
                       <div className="inventory-screen-quality" aria-label={`장비 품질 ${selectedItem.qualityScore}점`}>
                         <span>품질</span>

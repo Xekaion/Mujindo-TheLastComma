@@ -1305,6 +1305,61 @@ export type EquipmentLoadout = Record<EquipmentSlot, GearItem | null>;
 
 export type GearStatTotals = Record<GearStat, number>;
 
+export type HighTierResonanceBonus = {
+  count: number;
+  damagePercent: number;
+  attackSpeedPercent: number;
+  bossDamagePercent: number;
+};
+
+export type CosmicTranscendenceBonus = {
+  count: number;
+  finalDamagePercent: number;
+  actionSpeedPercent: number;
+};
+
+/**
+ * Total bonuses at each equipped mythic-or-better piece count. Rows are
+ * cumulative totals, not increments. Cosmic gear also counts toward this
+ * track, so upgrading a mythic piece to cosmic can never lower resonance.
+ */
+export const HIGH_TIER_RESONANCE_THRESHOLDS: readonly HighTierResonanceBonus[] = [
+  { count: 1, damagePercent: 15, attackSpeedPercent: 15, bossDamagePercent: 0 },
+  { count: 2, damagePercent: 20, attackSpeedPercent: 20, bossDamagePercent: 10 },
+  { count: 3, damagePercent: 22, attackSpeedPercent: 22, bossDamagePercent: 12 },
+  { count: 4, damagePercent: 24, attackSpeedPercent: 24, bossDamagePercent: 14 },
+  { count: 5, damagePercent: 26, attackSpeedPercent: 26, bossDamagePercent: 16 },
+  { count: 6, damagePercent: 28, attackSpeedPercent: 28, bossDamagePercent: 18 },
+  { count: 7, damagePercent: 30, attackSpeedPercent: 30, bossDamagePercent: 20 },
+  { count: 8, damagePercent: 32, attackSpeedPercent: 32, bossDamagePercent: 22 },
+  { count: 9, damagePercent: 34, attackSpeedPercent: 34, bossDamagePercent: 24 },
+  { count: 10, damagePercent: 36, attackSpeedPercent: 36, bossDamagePercent: 27 },
+] as const;
+
+/** Cosmic-only totals, applied in addition to high-tier resonance. */
+export const COSMIC_TRANSCENDENCE_THRESHOLDS: readonly CosmicTranscendenceBonus[] = [
+  { count: 1, finalDamagePercent: 10, actionSpeedPercent: 3 },
+  { count: 2, finalDamagePercent: 12, actionSpeedPercent: 4 },
+  { count: 3, finalDamagePercent: 14, actionSpeedPercent: 5 },
+  { count: 4, finalDamagePercent: 16, actionSpeedPercent: 6 },
+  { count: 5, finalDamagePercent: 18, actionSpeedPercent: 7 },
+  { count: 6, finalDamagePercent: 20, actionSpeedPercent: 8 },
+  { count: 7, finalDamagePercent: 22, actionSpeedPercent: 9 },
+  { count: 8, finalDamagePercent: 24, actionSpeedPercent: 10 },
+  { count: 9, finalDamagePercent: 27, actionSpeedPercent: 11 },
+  { count: 10, finalDamagePercent: 30, actionSpeedPercent: 12 },
+] as const;
+
+export type EquipmentRarityResonance = {
+  mythicCount: number;
+  cosmicCount: number;
+  highTierCount: number;
+  highTierBonus: HighTierResonanceBonus;
+  cosmicBonus: CosmicTranscendenceBonus;
+  highTierNext: HighTierResonanceBonus | null;
+  cosmicNext: CosmicTranscendenceBonus | null;
+};
+
 export type GearSeed = number | string;
 
 export type RollGearOptions = {
@@ -2494,8 +2549,15 @@ const powerStatsForItem = (item: PowerScoreInput): GearStatTotals =>
  * functions below instead, so interactions with currently equipped gear count.
  */
 export function calculateGearPowerScore(item: PowerScoreInput): number {
+  const singletonResonance = resolveRarityResonanceCounts(
+    item.rarity === "mythic" ? 1 : 0,
+    item.rarity === "cosmic" ? 1 : 0,
+  );
   const power = calculateCombatPowerFromEquipmentStats(
-    powerStatsForItem(item),
+    applyResolvedEquipmentRarityResonance(
+      powerStatsForItem(item),
+      singletonResonance,
+    ),
     item.legendaryPowerId ? [item.legendaryPowerId] : [],
   ).total;
   return Math.max(0, power - BASE_EQUIPMENT_COMBAT_POWER);
@@ -3061,7 +3123,113 @@ export function createEmptyGearStatTotals(): GearStatTotals {
   };
 }
 
-/** Aggregates enhanced implicits and fixed additional options for live combat. */
+const EMPTY_HIGH_TIER_RESONANCE_BONUS: HighTierResonanceBonus = {
+  count: 0,
+  damagePercent: 0,
+  attackSpeedPercent: 0,
+  bossDamagePercent: 0,
+};
+
+const EMPTY_COSMIC_TRANSCENDENCE_BONUS: CosmicTranscendenceBonus = {
+  count: 0,
+  finalDamagePercent: 0,
+  actionSpeedPercent: 0,
+};
+
+const resonanceThresholdAt = <T extends { count: number }>(
+  thresholds: readonly T[],
+  count: number,
+  empty: T,
+): T => {
+  const normalizedCount = Math.max(0, Math.floor(count));
+  for (let index = thresholds.length - 1; index >= 0; index -= 1) {
+    if (normalizedCount >= thresholds[index].count) return thresholds[index];
+  }
+  return empty;
+};
+
+const nextResonanceThreshold = <T extends { count: number }>(
+  thresholds: readonly T[],
+  count: number,
+): T | null => thresholds.find((threshold) => threshold.count > count) ?? null;
+
+const resolveRarityResonanceCounts = (
+  mythicCount: number,
+  cosmicCount: number,
+): EquipmentRarityResonance => {
+  const safeMythicCount = Math.max(0, Math.floor(mythicCount));
+  const safeCosmicCount = Math.max(0, Math.floor(cosmicCount));
+  const highTierCount = safeMythicCount + safeCosmicCount;
+  return {
+    mythicCount: safeMythicCount,
+    cosmicCount: safeCosmicCount,
+    highTierCount,
+    highTierBonus: resonanceThresholdAt(
+      HIGH_TIER_RESONANCE_THRESHOLDS,
+      highTierCount,
+      EMPTY_HIGH_TIER_RESONANCE_BONUS,
+    ),
+    cosmicBonus: resonanceThresholdAt(
+      COSMIC_TRANSCENDENCE_THRESHOLDS,
+      safeCosmicCount,
+      EMPTY_COSMIC_TRANSCENDENCE_BONUS,
+    ),
+    highTierNext: nextResonanceThreshold(
+      HIGH_TIER_RESONANCE_THRESHOLDS,
+      highTierCount,
+    ),
+    cosmicNext: nextResonanceThreshold(
+      COSMIC_TRANSCENDENCE_THRESHOLDS,
+      safeCosmicCount,
+    ),
+  };
+};
+
+/**
+ * Resolves both rarity tracks exclusively from currently equipped items.
+ * The result is derived rather than persisted so forged/stale save values can
+ * never grant a bonus after the corresponding equipment has been removed.
+ */
+export function resolveEquipmentRarityResonance(
+  equipment: EquipmentLoadout,
+): EquipmentRarityResonance {
+  let mythicCount = 0;
+  let cosmicCount = 0;
+  for (const slot of EQUIPMENT_SLOTS) {
+    const rarity = equipment[slot]?.rarity;
+    if (rarity === "mythic") mythicCount += 1;
+    else if (rarity === "cosmic") cosmicCount += 1;
+  }
+  return resolveRarityResonanceCounts(mythicCount, cosmicCount);
+}
+
+const applyResolvedEquipmentRarityResonance = (
+  stats: Readonly<GearStatTotals>,
+  resonance: EquipmentRarityResonance,
+): GearStatTotals => ({
+  ...stats,
+  damagePercent:
+    stats.damagePercent + resonance.highTierBonus.damagePercent,
+  attackSpeedPercent:
+    stats.attackSpeedPercent + resonance.highTierBonus.attackSpeedPercent,
+  bossDamagePercent:
+    stats.bossDamagePercent + resonance.highTierBonus.bossDamagePercent,
+  cosmicFinalDamagePercent:
+    stats.cosmicFinalDamagePercent + resonance.cosmicBonus.finalDamagePercent,
+  cosmicActionSpeedPercent:
+    stats.cosmicActionSpeedPercent + resonance.cosmicBonus.actionSpeedPercent,
+});
+
+/** Returns a new totals record with both active rarity tracks applied once. */
+export function applyEquipmentRarityResonance(
+  stats: Readonly<GearStatTotals>,
+  equipment: EquipmentLoadout,
+): GearStatTotals {
+  const resonance = resolveEquipmentRarityResonance(equipment);
+  return applyResolvedEquipmentRarityResonance(stats, resonance);
+}
+
+/** Aggregates item stats, then applies loadout rarity resonance exactly once. */
 export function aggregateEquipmentStats(
   equipment: EquipmentLoadout,
 ): GearStatTotals {
@@ -3074,12 +3242,13 @@ export function aggregateEquipmentStats(
       totals[stat] += itemStats[stat];
     }
   }
+  const resonantTotals = applyEquipmentRarityResonance(totals, equipment);
   for (const stat of GEAR_STAT_KEYS) {
     // Two decimals are enough for combat formulas and keep repeated HUD/save
     // projections stable without allowing floating-point drift to accumulate.
-    totals[stat] = Math.round(totals[stat] * 100) / 100;
+    resonantTotals[stat] = Math.round(resonantTotals[stat] * 100) / 100;
   }
-  return totals;
+  return resonantTotals;
 }
 
 /** Returns the absolute, synergy-aware standard-boss DPS rating of the build. */
