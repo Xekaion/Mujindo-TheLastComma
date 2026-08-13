@@ -168,7 +168,7 @@ test("equipped rarity VFX enforces per-context draw caps with atlas-safe source 
   const expectedCaps = {
     combat: 4,
     "plaza-local": 3,
-    "plaza-remote": 1,
+    "plaza-remote": 3,
     portrait: 5,
   };
 
@@ -215,6 +215,46 @@ test("equipped rarity VFX enforces per-context draw caps with atlas-safe source 
     0,
     "an incorrectly cropped atlas must never be drawn",
   );
+});
+
+test("detailed plaza remotes preserve both mythic and cosmic equipped effects", async () => {
+  const vfx = await importVfxModule();
+  const mythic = { width: 1024, height: 256, id: "mythic-atlas" };
+  const cosmic = { width: 1024, height: 256, id: "cosmic-atlas" };
+  const plan = vfx.resolveEquippedRarityVfxPlan({
+    weapon: gear("weapon", "cosmic", 7),
+    shoulders: gear("shoulders", "mythic", 4),
+  });
+
+  assert.deepEqual(
+    plan.pieces.map(({ slot, tier }) => [slot, tier]),
+    [
+      ["weapon", "cosmic"],
+      ["shoulders", "mythic"],
+    ],
+  );
+  for (const context of ["plaza-local", "plaza-remote"]) {
+    const canvas = mockCanvas();
+    const draws = vfx.drawEquippedRarityVfx(canvas.context, {
+      plan,
+      images: { mythic, cosmic },
+      direction: 0,
+      frame: 1,
+      timeMs: 330,
+      x: 100,
+      y: 100,
+      width: 136,
+      height: 102,
+      context,
+    });
+
+    assert.equal(draws, 2, `${context} must composite both chase-rarity pieces`);
+    assert.deepEqual(
+      canvas.calls.map((call) => call[0].id),
+      ["cosmic-atlas", "mythic-atlas"],
+      `${context} must draw both tier-specific atlases in plan order`,
+    );
+  }
 });
 
 test("mythic and cosmic VFX preserve authored opacity in every render context", async () => {

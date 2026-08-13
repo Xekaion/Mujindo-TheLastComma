@@ -110,7 +110,10 @@ const SLOT_SCALE: Readonly<Record<EquipmentSlot, number>> = {
 const CONTEXT_CAP: Readonly<Record<EquippedRarityVfxContext, number>> = {
   combat: 4,
   "plaza-local": 3,
-  "plaza-remote": 1,
+  // Nearby detailed remote players receive the same rarity loadout fidelity as
+  // the local plaza actor. Keeping this at one made a two-piece mythic/cosmic
+  // set look like a single equipped effect to every other player.
+  "plaza-remote": 3,
   portrait: 5,
 };
 
