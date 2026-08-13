@@ -146,6 +146,13 @@ test("equipped rarity VFX frame selection is deterministic and reduced-motion sa
     ),
     [0, 0, 1, 1, 2, 2, 3, 3, 0],
   );
+  assert.deepEqual(
+    [0, 144, 145, 289, 290, 434, 435, 579, 580].map((timeMs) =>
+      vfx.equippedRarityVfxFrame(timeMs, "weapon", false, "mythic"),
+    ),
+    [0, 0, 1, 1, 2, 2, 3, 3, 0],
+    "mythic flash must advance at a clearly readable 145ms cadence",
+  );
   assert.equal(
     vfx.equippedRarityVfxFrame(1234, "relic"),
     vfx.equippedRarityVfxFrame(1234, "relic"),
@@ -244,12 +251,12 @@ test("equipped rarity VFX preserves the coarse pre-render style at runtime", asy
 
   assert.equal(draws, 2);
   assert.equal(canvas.drawStates.length, 2);
+  assert.deepEqual(
+    canvas.drawStates.map(({ globalCompositeOperation }) => globalCompositeOperation),
+    ["source-over", "screen"],
+    "cosmic must retain normal compositing while only mythic uses its transparent flash blend",
+  );
   for (const state of canvas.drawStates) {
-    assert.equal(
-      state.globalCompositeOperation,
-      "source-over",
-      "overlapping equipment effects must retain their authored dark pixels",
-    );
     assert.equal(
       state.imageSmoothingEnabled,
       false,
@@ -361,8 +368,8 @@ function frameMetrics(image, column, label) {
   };
 }
 
-test("mythic and cosmic equipped aura atlases retain four padded, unique legacy-style RGBA frames", async () => {
-  for (const tier of ["mythic", "cosmic"]) {
+test("cosmic equipped aura retains four padded, unique legacy-style RGBA frames", async () => {
+  for (const tier of ["cosmic"]) {
     const relativePath = `public/assets/effects/equipped-${tier}-aura-v2.png`;
     const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
     assert.deepEqual([image.width, image.height], [1024, 256]);
@@ -410,10 +417,84 @@ test("mythic and cosmic equipped aura atlases retain four padded, unique legacy-
   }
 });
 
-test("equipped rarity VFX paths use the legacy-painted v2 atlases", async () => {
+test("mythic v3 flash is padded, transparent, stepped, and peaks visibly in frame two", async () => {
+  const relativePath = "public/assets/effects/equipped-mythic-flash-v3.png";
+  const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
+  assert.deepEqual([image.width, image.height], [1024, 256]);
+  const hashes = [];
+  const brightRatios = [];
+  const alphaLevels = new Set();
+  for (let column = 0; column < 4; column += 1) {
+    const frameBytes = Buffer.alloc(256 * 256 * 4);
+    let offset = 0;
+    let visible = 0;
+    let bright = 0;
+    let minimumX = 256;
+    let maximumX = -1;
+    let minimumY = 256;
+    let maximumY = -1;
+    let chromaPixels = 0;
+    let blackPixels = 0;
+    let centreVisible = 0;
+    for (let y = 0; y < 256; y += 1) {
+      for (let x = 0; x < 256; x += 1) {
+        const source = (y * image.width + column * 256 + x) * 4;
+        const red = image.pixels[source];
+        const green = image.pixels[source + 1];
+        const blue = image.pixels[source + 2];
+        const alpha = image.pixels[source + 3];
+        frameBytes[offset++] = red;
+        frameBytes[offset++] = green;
+        frameBytes[offset++] = blue;
+        frameBytes[offset++] = alpha;
+        alphaLevels.add(alpha);
+        if (alpha === 0) continue;
+        visible += 1;
+        minimumX = Math.min(minimumX, x);
+        maximumX = Math.max(maximumX, x);
+        minimumY = Math.min(minimumY, y);
+        maximumY = Math.max(maximumY, y);
+        const luminance = red * 0.299 + green * 0.587 + blue * 0.114;
+        if (luminance >= 210) bright += 1;
+        if (luminance < 12) blackPixels += 1;
+        if (blue > red * 1.35 && blue > green * 1.35) chromaPixels += 1;
+        if ((x - 128) ** 2 + (y - 128) ** 2 <= 28 ** 2) centreVisible += 1;
+      }
+    }
+    assert.ok(visible >= 800, `mythic frame ${column} is unexpectedly empty`);
+    assert.ok(minimumX >= 12 && 255 - maximumX >= 12, `mythic frame ${column} lacks x padding`);
+    assert.ok(minimumY >= 12 && 255 - maximumY >= 12, `mythic frame ${column} lacks y padding`);
+    assert.equal(chromaPixels, 0, `mythic frame ${column} retains chroma contamination`);
+    assert.equal(blackPixels, 0, `mythic frame ${column} contains an opaque black rectangle`);
+    assert.ok(
+      centreVisible / visible <= 0.08,
+      `mythic frame ${column} obscures too much of its equipped slot`,
+    );
+    hashes.push(createHash("sha256").update(frameBytes).digest("hex"));
+    brightRatios.push(bright / visible);
+  }
+  assert.equal(new Set(hashes).size, 4, "mythic v3 needs four distinct temporal poses");
+  assert.deepEqual([...alphaLevels].sort((left, right) => left - right), [0, 72, 128, 192, 255]);
+  assert.ok(brightRatios[2] > brightRatios[0] * 1.6, "peak frame must outshine frame zero");
+  assert.ok(brightRatios[2] > brightRatios[3] * 1.6, "peak frame must outshine recovery");
+
+  const manifest = JSON.parse(
+    await readFile(
+      path.join(root, "public/assets/effects/equipped-mythic-flash-v3.build.json"),
+      "utf8",
+    ),
+  );
+  assert.deepEqual(manifest.atlas, { columns: 4, rows: 1, cell: [256, 256] });
+  assert.deepEqual(manifest.pipeline.alphaLevels, [0, 72, 128, 192, 255]);
+  assert.deepEqual(manifest.pipeline.logicalCell, [128, 128]);
+  assert.equal(manifest.pipeline.upscale, "nearest-neighbour-2x");
+  assert.equal(manifest.pipeline.minimumPadding, 12);
+});
+
+test("equipped rarity VFX paths isolate mythic v3 while preserving cosmic v2", async () => {
   const vfx = await importVfxModule();
   assert.deepEqual(vfx.EQUIPPED_RARITY_VFX_PATHS, {
-    mythic: "/assets/effects/equipped-mythic-aura-v2.png",
+    mythic: "/assets/effects/equipped-mythic-flash-v3.png",
     cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
   });
 });

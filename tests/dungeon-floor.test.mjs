@@ -205,7 +205,10 @@ test("runtime descent resets only floor-local state and checkpoints the floor nu
     "stairs must not bypass checkpoints or reset lifetime boss progress",
   );
 
-  assert.match(source, /bossKindForProgress\(player\.endingVersion, player\.bossesCleared\)/);
+  assert.match(
+    source,
+    /bossKindForProgress\(\s*player\.endingVersion,\s*player\.bossesCleared,\s*world\.dungeonFloor,?\s*\)/,
+  );
   assert.match(
     source,
     /if \(world\.roomKind === "boss"\) \{\s*player\.bossesCleared \+= 1;/,

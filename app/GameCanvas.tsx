@@ -252,6 +252,27 @@ import {
   type PalimpsestArchivistRuntimeState,
 } from "./palimpsest-archivist";
 import {
+  INKBOUND_MAGISTRATE_BASE_DAMAGE,
+  INKBOUND_MAGISTRATE_BASE_HP,
+  INKBOUND_MAGISTRATE_BASE_SPEED,
+  INKBOUND_MAGISTRATE_CHAIN_BIND_SECONDS,
+  INKBOUND_MAGISTRATE_CLONE_BARRAGE_SECONDS,
+  INKBOUND_MAGISTRATE_CROSS_WAVE_SECONDS,
+  INKBOUND_MAGISTRATE_DISPLAY_NAME,
+  INKBOUND_MAGISTRATE_EXECUTION_WARNING_SECONDS,
+  INKBOUND_MAGISTRATE_KIND,
+  INKBOUND_MAGISTRATE_PATTERN_LABELS,
+  INKBOUND_MAGISTRATE_PHASE_LABELS,
+  INKBOUND_MAGISTRATE_RADIUS,
+  INKBOUND_MAGISTRATE_TELEGRAPH_SECONDS,
+  INKBOUND_MAGISTRATE_VERDICT_BURST_SECONDS,
+  advanceInkboundMagistrate,
+  createInkboundMagistrateState,
+  type InkboundMagistratePattern,
+  type InkboundMagistratePhase,
+  type InkboundMagistrateState,
+} from "./inkbound-magistrate";
+import {
   bossKindForProgress,
   isBossKind,
   type BossKind,
@@ -369,7 +390,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
 type ProjectileAffinity =
   | "arcane"
   | "blood"
@@ -468,6 +489,7 @@ type Enemy = {
   binderPulseIndex?: number;
   binderInitialSafeSector?: number;
   archivist?: PalimpsestArchivistRuntimeState;
+  magistrate?: InkboundMagistrateState;
   timeRifts?: Array<{
     x: number;
     y: number;
@@ -584,6 +606,8 @@ const EQUIPMENT_RARITY_TIER: Readonly<Record<GearItem["rarity"], number>> = {
 type EquipmentRarityVfxConfig = {
   imageKey: string;
   imagePath: string;
+  groundImageKey: string;
+  groundImagePath: string;
   arrivalPattern:
     | "dustSeal"
     | "arcaneTriangle"
@@ -604,7 +628,14 @@ type EquipmentRarityVfxConfig = {
   moteCount: number;
   accentSides: number;
   spinDirection: 1 | -1;
+  groundSize: number;
+  groundFps: number;
 };
+
+// The authored awakening is a one-shot reveal. Persistent ground art must not
+// overlap it: that was the source of the old circle/triangle marker suddenly
+// appearing during the otherwise-finished arrival animation.
+const LOOT_GROUND_VFX_REVEAL_SECONDS = 0.16;
 
 const EQUIPMENT_RARITY_VFX: Readonly<
   Record<GearItem["rarity"], EquipmentRarityVfxConfig>
@@ -612,6 +643,8 @@ const EQUIPMENT_RARITY_VFX: Readonly<
   common: {
     imageKey: "lootAwakeningCommon",
     imagePath: "/assets/effects/loot-awakening-common-v5.png",
+    groundImageKey: "lootGroundCommon",
+    groundImagePath: "/assets/effects/loot-ground-common-v1.png",
     arrivalPattern: "dustSeal",
     beamHeight: 68,
     beamWidth: 7,
@@ -624,10 +657,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 4,
     accentSides: 4,
     spinDirection: 1,
+    groundSize: 86,
+    groundFps: 4,
   },
   magic: {
     imageKey: "lootAwakeningMagic",
     imagePath: "/assets/effects/loot-awakening-magic-v5.png",
+    groundImageKey: "lootGroundMagic",
+    groundImagePath: "/assets/effects/loot-ground-magic-v1.png",
     arrivalPattern: "arcaneTriangle",
     beamHeight: 78,
     beamWidth: 8,
@@ -640,10 +677,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 6,
     accentSides: 3,
     spinDirection: 1,
+    groundSize: 98,
+    groundFps: 4,
   },
   superior: {
     imageKey: "lootAwakeningSuperior",
     imagePath: "/assets/effects/loot-awakening-superior-v5.png",
+    groundImageKey: "lootGroundSuperior",
+    groundImagePath: "/assets/effects/loot-ground-superior-v1.png",
     arrivalPattern: "thornBloom",
     beamHeight: 90,
     beamWidth: 10,
@@ -656,10 +697,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 7,
     accentSides: 6,
     spinDirection: -1,
+    groundSize: 110,
+    groundFps: 5,
   },
   rare: {
     imageKey: "lootAwakeningRare",
     imagePath: "/assets/effects/loot-awakening-rare-v5.png",
+    groundImageKey: "lootGroundRare",
+    groundImagePath: "/assets/effects/loot-ground-rare-v1.png",
     arrivalPattern: "compassBloom",
     beamHeight: 108,
     beamWidth: 12,
@@ -672,10 +717,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 9,
     accentSides: 8,
     spinDirection: 1,
+    groundSize: 124,
+    groundFps: 5,
   },
   epic: {
     imageKey: "lootAwakeningEpic",
     imagePath: "/assets/effects/loot-awakening-epic-v5.png",
+    groundImageKey: "lootGroundEpic",
+    groundImagePath: "/assets/effects/loot-ground-epic-v1.png",
     arrivalPattern: "reverseVortex",
     beamHeight: 132,
     beamWidth: 16,
@@ -688,10 +737,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 11,
     accentSides: 5,
     spinDirection: -1,
+    groundSize: 142,
+    groundFps: 6,
   },
   legendary: {
     imageKey: "lootAwakeningLegendary",
     imagePath: "/assets/effects/loot-awakening-legendary-v5.png",
+    groundImageKey: "lootGroundLegendary",
+    groundImagePath: "/assets/effects/loot-ground-legendary-v1.png",
     arrivalPattern: "solarCoronation",
     beamHeight: 174,
     beamWidth: 22,
@@ -704,10 +757,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 14,
     accentSides: 12,
     spinDirection: 1,
+    groundSize: 168,
+    groundFps: 6,
   },
   mythic: {
     imageKey: "lootAwakeningMythic",
     imagePath: "/assets/effects/loot-awakening-mythic-v5.png",
+    groundImageKey: "lootGroundMythic",
+    groundImagePath: "/assets/effects/loot-ground-mythic-v1.png",
     arrivalPattern: "mythicCoronation",
     beamHeight: 228,
     beamWidth: 30,
@@ -720,10 +777,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 17,
     accentSides: 7,
     spinDirection: -1,
+    groundSize: 198,
+    groundFps: 7,
   },
   cosmic: {
     imageKey: "lootAwakeningCosmic",
     imagePath: "/assets/effects/loot-awakening-cosmic-v5.png",
+    groundImageKey: "lootGroundCosmic",
+    groundImagePath: "/assets/effects/loot-ground-cosmic-v1.png",
     arrivalPattern: "nebulaCollapse",
     beamHeight: 296,
     beamWidth: 42,
@@ -736,6 +797,8 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 20,
     accentSides: 16,
     spinDirection: -1,
+    groundSize: 226,
+    groundFps: 8,
   },
 };
 
@@ -1546,6 +1609,7 @@ const ENEMY_NAMES = [
   "종언의 제본사",
   "침묵의 사서",
   "덧쓴 기록관",
+  INKBOUND_MAGISTRATE_DISPLAY_NAME,
 ];
 
 const spriteCrops = [
@@ -1571,6 +1635,7 @@ const WALK_IMAGE_KEYS = [
   "walkFinalBinder",
   "walkSilentLibrarian",
   "walkPalimpsestArchivist",
+  "walkInkboundMagistrate",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1603,6 +1668,8 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   // S, SW, W, NW, N, NE, E, SE. No runtime mirroring is needed.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   // The Palimpsest Archivist owns all eight canonical facing rows.
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
+  // The Inkbound Magistrate owns all eight canonical facing rows.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
@@ -2406,6 +2473,8 @@ export default function GameCanvas({
       binderPhase: null as FinalBinderPhase | null,
       archivistPattern: null as PalimpsestArchivistPattern | null,
       archivistPhase: null as PalimpsestArchivistPhase | null,
+      magistratePattern: null as InkboundMagistratePattern | null,
+      magistratePhase: null as InkboundMagistratePhase | null,
       activeEffects: 0,
       playerProjectiles: 0,
       hostileProjectiles: 0,
@@ -2745,6 +2814,8 @@ export default function GameCanvas({
         binderPhase: boss?.binderPhase ?? null,
         archivistPattern: boss?.archivist?.pattern ?? null,
         archivistPhase: boss?.archivist?.phase ?? null,
+        magistratePattern: boss?.magistrate?.pattern ?? null,
+        magistratePhase: boss?.magistrate?.phase ?? null,
         activeEffects: world.effects.length,
         playerProjectiles: playerProjectileCount,
         hostileProjectiles: hostileProjectileCount,
@@ -2908,18 +2979,22 @@ export default function GameCanvas({
         FINAL_BINDER_BASE_HP,
         82,
         PALIMPSEST_ARCHIVIST_BASE_HP,
+        INKBOUND_MAGISTRATE_BASE_HP,
       ];
       const speedBases = [
         76, 50, 43, 26, 62, 38, 72, 66, 58,
         FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,
+        INKBOUND_MAGISTRATE_BASE_SPEED,
       ];
       const damageBases = [
         8, 10, 14, 7, 12, 16, 15, 13, 11,
         FINAL_BINDER_BASE_DAMAGE, 14, PALIMPSEST_ARCHIVIST_BASE_DAMAGE,
+        INKBOUND_MAGISTRATE_BASE_DAMAGE,
       ];
       const radii = [
         21, 20, 28, 32, 22, 62, 24, 26, 23,
         FINAL_BINDER_RADIUS, 25, PALIMPSEST_ARCHIVIST_RADIUS,
+        INKBOUND_MAGISTRATE_RADIUS,
       ];
       const radius = radii[kind];
       const spawnPoint = safeWalkableFloorPoint(x, y, radius);
@@ -3010,6 +3085,10 @@ export default function GameCanvas({
           kind === PALIMPSEST_ARCHIVIST_KIND
             ? createPalimpsestState()
             : undefined,
+        magistrate:
+          kind === INKBOUND_MAGISTRATE_KIND
+            ? createInkboundMagistrateState()
+            : undefined,
         timeRifts:
           kind === 7 || kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
       };
@@ -3041,7 +3120,11 @@ export default function GameCanvas({
 
       const bossKind =
         kind === "boss"
-          ? bossKindForProgress(player.endingVersion, player.bossesCleared)
+          ? bossKindForProgress(
+              player.endingVersion,
+              player.bossesCleared,
+              world.dungeonFloor,
+            )
           : null;
       const currentCombatPower = calculatePlayerStatsForRuntime(player).ratings.combatPower;
       player.expeditionPowerRating = updateExpeditionPowerRating({
@@ -3279,6 +3362,10 @@ export default function GameCanvas({
         if (kind === "boss" && bossKind === PALIMPSEST_ARCHIVIST_KIND) {
           setToast(
             "당신이 지나온 발자취 위로 새 문장이 번집니다. 덧쓴 기록관이 기록을 재생합니다.",
+          );
+        } else if (kind === "boss" && bossKind === INKBOUND_MAGISTRATE_KIND) {
+          setToast(
+            "삭제된 판결문이 바닥에서 일어납니다. 먹칠된 판관이 침묵한 죄목을 집행합니다.",
           );
         } else if (kind === "boss" && bossKind === FINAL_BINDER_KIND) {
           setToast(
@@ -4245,6 +4332,7 @@ export default function GameCanvas({
       walkFinalBinder: "/assets/walk/final-binder-walk-v1.png",
       walkSilentLibrarian: "/assets/walk/silent-librarian-walk-v2.png",
       walkPalimpsestArchivist: "/assets/walk/palimpsest-archivist-walk-v1.png",
+      walkInkboundMagistrate: "/assets/walk/inkbound-magistrate-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
@@ -4253,6 +4341,8 @@ export default function GameCanvas({
       silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v2.png",
       palimpsestArchivistPatterns:
         "/assets/effects/palimpsest-archivist-patterns-v1.png",
+      inkboundMagistratePatterns:
+        "/assets/effects/inkbound-magistrate-patterns-v1.png",
       equippedMythicAura: EQUIPPED_RARITY_VFX_PATHS.mythic,
       equippedCosmicAura: EQUIPPED_RARITY_VFX_PATHS.cosmic,
       summonEffect: "/assets/effects/summon-rift.png",
@@ -4268,6 +4358,7 @@ export default function GameCanvas({
     }
     for (const config of Object.values(EQUIPMENT_RARITY_VFX)) {
       imagePaths[config.imageKey] = config.imagePath;
+      imagePaths[config.groundImageKey] = config.groundImagePath;
     }
     for (const [name, source] of Object.entries(imagePaths)) {
       const image = new Image();
@@ -6572,6 +6663,103 @@ export default function GameCanvas({
               playGameSfx("enemyCharge", { playbackRate: 0.62, gain: 1.12 });
             }
           }
+        } else if (enemy.kind === INKBOUND_MAGISTRATE_KIND) {
+          const currentMagistrate =
+            enemy.magistrate ?? createInkboundMagistrateState();
+          if (currentMagistrate.phase === "pursuit") {
+            const preferredDistance = 248;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 138,
+              -0.48,
+              0.72,
+            );
+            const strafeDirection =
+              currentMagistrate.patternIndex % 2 === 0 ? 1 : -1;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeDirection * 0.38;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeDirection * 0.38;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5 + enemy.speed / 42) * slowMultiplier) % 4;
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            enemy.facing = directionRow(
+              player.x - enemy.x,
+              player.y - enemy.y,
+              enemy.facing,
+            );
+          }
+
+          const magistrateStep = advanceInkboundMagistrate(currentMagistrate, {
+            dt,
+            seed: world.seed ^ enemy.id,
+            castIndex: currentMagistrate.castIndex,
+            bossPosition: { x: enemy.x, y: enemy.y },
+            playerPosition: { x: player.x, y: player.y },
+            playerRadius: player.radius,
+            arena: {
+              minX: WALKABLE_FLOOR_POLYGON[0].x,
+              minY: WALKABLE_FLOOR_POLYGON[0].y,
+              maxX: WALKABLE_FLOOR_POLYGON[4].x,
+              maxY: WALKABLE_FLOOR_POLYGON[4].y,
+            },
+          });
+          enemy.magistrate = magistrateStep.state;
+          for (const command of magistrateStep.commands) {
+            if (command.type === "damage") {
+              damagePlayer(enemy.damage * command.multiplier);
+              continue;
+            }
+            if (command.type === "telegraph") {
+              setToast(
+                `${INKBOUND_MAGISTRATE_DISPLAY_NAME} · ${INKBOUND_MAGISTRATE_PATTERN_LABELS[command.pattern]} — 먹빛 문양을 보고 피하세요.`,
+              );
+              playGameSfx("enemyCharge", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+                playbackRate: 0.61,
+                gain: 1.18,
+                priority: 9,
+              });
+            } else if (command.type === "chainBind") {
+              playGameSfx("playerImpact", { playbackRate: 0.57, gain: 1.14 });
+            } else if (command.type === "crossWave") {
+              playGameSfx("timeRift", { playbackRate: 0.68, gain: 1.02 });
+            } else if (command.type === "spawnClones") {
+              playGameSfx("enemyTeleport", { playbackRate: 0.72, gain: 1.04 });
+            } else if (command.type === "inkBarrage") {
+              for (const origin of command.origins) {
+                const projectileAngle = Math.atan2(
+                  command.target.y - origin.y,
+                  command.target.x - origin.x,
+                );
+                spawnHostileProjectile(
+                  origin.x,
+                  origin.y,
+                  projectileAngle,
+                  395,
+                  enemy.damage * 0.76,
+                  10,
+                  "boss",
+                );
+              }
+            } else if (command.type === "executionWarning") {
+              setToast("최후 판결 — 밝게 남은 먹물 인장 안으로 피하세요.");
+              playGameSfx("enemyCharge", { playbackRate: 0.48, gain: 1.2, priority: 9 });
+            } else if (command.type === "verdictBurst") {
+              playGameSfx("playerImpact", { playbackRate: 0.43, gain: 1.3, priority: 10 });
+            }
+          }
         } else if (enemy.kind === 6) {
           const phase = enemy.patternPhase ?? "stalk";
           if (phase === "stalk") {
@@ -6992,6 +7180,8 @@ export default function GameCanvas({
               ? enemy.binderPhase === "pursuit"
               : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
                 ? enemy.archivist?.phase === "pursuit"
+                : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                  ? enemy.magistrate?.phase === "pursuit"
               : true;
         if (
           enemy.kind !== 6 &&
@@ -8366,6 +8556,147 @@ export default function GameCanvas({
       return true;
     };
 
+    const drawInkboundMagistratePattern = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const state = enemy.magistrate;
+      if (!state || state.phase === "pursuit" || state.phase === "recovery") {
+        return false;
+      }
+      if (!image?.complete || !image.naturalWidth || !image.naturalHeight) {
+        return false;
+      }
+      const sourceWidth = image.naturalWidth / 4;
+      const sourceHeight = image.naturalHeight / 2;
+      const drawCell = (
+        column: number,
+        row: number,
+        x: number,
+        y: number,
+        width: number,
+        height = width,
+        alpha = 1,
+        rotation = 0,
+      ) => {
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-over";
+        context.shadowColor = "transparent";
+        context.shadowBlur = 0;
+        context.imageSmoothingEnabled = false;
+        context.drawImage(
+          image,
+          column * sourceWidth,
+          row * sourceHeight,
+          sourceWidth,
+          sourceHeight,
+          -width / 2,
+          -height / 2,
+          width,
+          height,
+        );
+        context.restore();
+      };
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+
+      if (state.pattern === "chainCross") {
+        if (state.phase === "telegraph" || state.phase === "chainBind") {
+          const duration =
+            state.phase === "telegraph"
+              ? INKBOUND_MAGISTRATE_TELEGRAPH_SECONDS.chainCross
+              : INKBOUND_MAGISTRATE_CHAIN_BIND_SECONDS;
+          const progress = clamp(1 - state.phaseTimer / duration, 0, 1);
+          const centerX = (state.origin.x + state.anchor.x) / 2;
+          const centerY = (state.origin.y + state.anchor.y) / 2;
+          const chainLength = Math.max(
+            96,
+            distance(state.origin.x, state.origin.y, state.anchor.x, state.anchor.y),
+          );
+          drawCell(
+            state.phase === "telegraph" ? 0 : 1,
+            0,
+            centerX,
+            centerY,
+            chainLength / 0.72,
+            state.phase === "telegraph" ? 118 : 154,
+            0.68 + progress * 0.3,
+            Math.atan2(
+              state.anchor.y - state.origin.y,
+              state.anchor.x - state.origin.x,
+            ),
+          );
+        } else if (state.phase === "crossWaves") {
+          const progress = clamp(
+            1 - state.phaseTimer / INKBOUND_MAGISTRATE_CROSS_WAVE_SECONDS,
+            0,
+            1,
+          );
+          drawCell(
+            progress < 0.2 ? 2 : 3,
+            0,
+            state.origin.x,
+            state.origin.y,
+            250 + progress * 570,
+            250 + progress * 570,
+            0.92,
+          );
+        }
+      } else if (state.pattern === "inkDoubles") {
+        const active = state.phase === "cloneBarrage";
+        const progress = active
+          ? clamp(1 - state.phaseTimer / INKBOUND_MAGISTRATE_CLONE_BARRAGE_SECONDS, 0, 1)
+          : clamp(
+              1 - state.phaseTimer / INKBOUND_MAGISTRATE_TELEGRAPH_SECONDS.inkDoubles,
+              0,
+              1,
+            );
+        for (const [index, clone] of state.clones.entries()) {
+          drawCell(
+            active ? 1 : 0,
+            1,
+            clone.x,
+            clone.y,
+            active ? 150 : 118 + progress * 24,
+            active ? 174 : 142,
+            active ? 0.92 : 0.48 + progress * 0.3,
+            Math.atan2(state.anchor.y - clone.y, state.anchor.x - clone.x) +
+              Math.sin(performance.now() / 500 + index) * 0.035,
+          );
+        }
+      } else {
+        const active = state.phase === "verdictBurst";
+        const duration = active
+          ? INKBOUND_MAGISTRATE_VERDICT_BURST_SECONDS
+          : state.phase === "executionWarning"
+            ? INKBOUND_MAGISTRATE_EXECUTION_WARNING_SECONDS
+            : INKBOUND_MAGISTRATE_TELEGRAPH_SECONDS.finalVerdict;
+        const progress = clamp(1 - state.phaseTimer / duration, 0, 1);
+        drawCell(
+          active ? 3 : 2,
+          1,
+          state.anchor.x,
+          state.anchor.y,
+          active ? 520 : 226 + progress * 42,
+          active ? 520 : 226 + progress * 42,
+          active ? 1 : 0.68 + progress * 0.28,
+        );
+      }
+      context.restore();
+      return true;
+    };
+
     const drawTimeRiftSprite = (
       image: HTMLImageElement | undefined,
       effect: VisualEffect,
@@ -9368,178 +9699,49 @@ export default function GameCanvas({
           0,
           1,
         );
-        const beamRevealRaw = clamp(
-          (appearanceProgress - rarityVfx.beamRevealAt) /
-            Math.max(0.08, 1 - rarityVfx.beamRevealAt),
-          0,
-          1,
-        );
         const itemRevealRaw = clamp(
           (appearanceProgress - rarityVfx.itemRevealAt) / 0.2,
           0,
           1,
         );
-        const beamReveal =
-          beamRevealRaw * beamRevealRaw * (3 - 2 * beamRevealRaw);
         const itemReveal =
           itemRevealRaw * itemRevealRaw * (3 - 2 * itemRevealRaw);
+        const groundRevealRaw = clamp(
+          ((drop.appearanceAge ?? 0) - rarityVfx.awakeningDuration) /
+            LOOT_GROUND_VFX_REVEAL_SECONDS,
+          0,
+          1,
+        );
+        const groundReveal =
+          groundRevealRaw * groundRevealRaw * (3 - 2 * groundRevealRaw);
         context.save();
-        if (beamReveal > 0.001) {
-          const { beamHeight, beamWidth } = rarityVfx;
-          const beam = context.createLinearGradient(
-            drop.x,
-            drop.y - beamHeight,
-            drop.x,
-            drop.y + 12,
+        const groundVfxImage = images[rarityVfx.groundImageKey];
+        if (
+          groundReveal > 0.001 &&
+          groundVfxImage?.complete &&
+          groundVfxImage.naturalWidth &&
+          groundVfxImage.naturalHeight
+        ) {
+          const groundFrame = positiveModulo(
+            Math.floor(ambientTime * rarityVfx.groundFps + drop.id),
+            4,
           );
-          beam.addColorStop(0, colorWithAlpha(rarity.color, 0));
-          beam.addColorStop(
-            0.5,
-            colorWithAlpha(rarity.color, 0.13 + rarityTier * 0.035),
-          );
-          beam.addColorStop(
-            0.82,
-            colorWithAlpha(rarity.color, 0.3 + rarityTier * 0.06),
-          );
-          beam.addColorStop(1, colorWithAlpha(rarity.color, 0.72));
-          context.globalAlpha = beamReveal;
-          context.globalCompositeOperation = "lighter";
-          context.fillStyle = beam;
-          context.beginPath();
-          context.moveTo(drop.x - beamWidth, drop.y + 10);
-          context.lineTo(drop.x - beamWidth * 0.18, drop.y - beamHeight);
-          context.lineTo(drop.x + beamWidth * 0.18, drop.y - beamHeight);
-          context.lineTo(drop.x + beamWidth, drop.y + 10);
-          context.closePath();
-          context.fill();
-
-          const core = context.createLinearGradient(
-            drop.x,
-            drop.y - beamHeight,
-            drop.x,
-            drop.y + 8,
-          );
-          core.addColorStop(0, "rgba(255,255,255,0)");
-          core.addColorStop(
-            0.72,
-            colorWithAlpha("#fffdf2", 0.12 + rarityTier * 0.045),
-          );
-          core.addColorStop(1, colorWithAlpha("#fffdf2", 0.64));
-          context.fillStyle = core;
-          context.fillRect(
-            drop.x - Math.max(1, beamWidth * 0.13),
-            drop.y - beamHeight,
-            Math.max(2, beamWidth * 0.26),
-            beamHeight + 8,
-          );
-
-          context.beginPath();
-          context.fillStyle = colorWithAlpha(rarity.color, 0.18);
-          context.ellipse(
-            drop.x,
-            drop.y + 8,
-            26 + rarityTier * 5,
-            11 + rarityTier * 2,
+          const sourceWidth = groundVfxImage.naturalWidth / 4;
+          const sourceHeight = groundVfxImage.naturalHeight;
+          context.globalAlpha = groundReveal;
+          context.globalCompositeOperation = "source-over";
+          context.imageSmoothingEnabled = false;
+          context.drawImage(
+            groundVfxImage,
+            groundFrame * sourceWidth,
             0,
-            0,
-            Math.PI * 2,
+            sourceWidth,
+            sourceHeight,
+            drop.x - rarityVfx.groundSize / 2,
+            drop.y - rarityVfx.groundSize * 0.72,
+            rarityVfx.groundSize,
+            rarityVfx.groundSize,
           );
-          context.fill();
-
-          if (rarityTier >= 2) {
-            context.strokeStyle = colorWithAlpha(rarity.color, 0.58);
-            context.lineWidth = 1.2 + rarityTier * 0.35;
-            context.shadowColor = rarity.color;
-            context.shadowBlur = 10 + rarityTier * 3;
-            const runePulse =
-              1 + Math.sin(ambientTime * 2.4 + drop.id) * 0.08;
-            context.beginPath();
-            context.ellipse(
-              drop.x,
-              drop.y + 9,
-              (32 + rarityTier * 5) * runePulse,
-              (13 + rarityTier * 2) * runePulse,
-              0,
-              0,
-              Math.PI * 2,
-            );
-            context.stroke();
-            if (rarityTier >= 5) {
-              context.beginPath();
-              context.ellipse(
-                drop.x,
-                drop.y + 9,
-                (43 + Math.sin(ambientTime * 3.2 + drop.id) * 3) *
-                  runePulse,
-                18 * runePulse,
-                0,
-                0,
-                Math.PI * 2,
-              );
-              context.stroke();
-              if (rarityTier >= 6) {
-                context.save();
-                context.globalAlpha =
-                  beamReveal *
-                  (0.72 + Math.sin(ambientTime * 4 + drop.id) * 0.18);
-                context.translate(drop.x, drop.y + 9);
-                context.rotate(ambientTime * 0.45);
-                context.beginPath();
-                context.moveTo(0, -16);
-                context.lineTo(34, 0);
-                context.lineTo(0, 16);
-                context.lineTo(-34, 0);
-                context.closePath();
-                context.stroke();
-                if (rarityTier === EQUIPMENT_RARITY_TIER.cosmic) {
-                  context.rotate(-ambientTime * 1.08);
-                  context.beginPath();
-                  for (let point = 0; point < 16; point += 1) {
-                    const angle = (Math.PI * point) / 8 - Math.PI / 2;
-                    const radius = point % 2 === 0 ? 52 : 34;
-                    const pointX = Math.cos(angle) * radius;
-                    const pointY = Math.sin(angle) * radius * 0.42;
-                    if (point === 0) context.moveTo(pointX, pointY);
-                    else context.lineTo(pointX, pointY);
-                  }
-                  context.closePath();
-                  context.stroke();
-                }
-                context.restore();
-              }
-            }
-          }
-
-          context.fillStyle = colorWithAlpha("#fff8db", 0.88);
-          const beamMotes = 3 + rarityTier * 2;
-          for (let mote = 0; mote < beamMotes; mote += 1) {
-            const phase = positiveModulo(
-              ambientTime * (0.42 + (mote % 3) * 0.08) +
-                drop.id * 0.07 +
-                mote * 0.19,
-              1,
-            );
-            const moteX =
-              drop.x +
-              (hash(drop.id, mote, rarityTier, 981) - 0.5) *
-                (24 + rarityTier * 7);
-            const moteY = drop.y - phase * beamHeight * 0.88;
-            const moteSize = 1.4 + (mote % 3) * 0.7 + rarityTier * 0.2;
-            context.globalAlpha =
-              beamReveal *
-              (1 - phase) *
-              Math.min(0.96, 0.48 + rarityTier * 0.08);
-            context.save();
-            context.translate(moteX, moteY);
-            context.rotate(ambientTime * 1.2 + mote);
-            context.fillRect(
-              -moteSize / 2,
-              -moteSize / 2,
-              moteSize,
-              moteSize,
-            );
-            context.restore();
-          }
         }
         if (itemReveal > 0.001) {
           context.globalAlpha = itemReveal;
@@ -9642,6 +9844,8 @@ export default function GameCanvas({
           drawFinalBinderPattern(images.finalBinderPatterns, enemy);
         } else if (PALIMPSEST_ARCHIVIST_KIND === enemy.kind) {
           drawPalimpsestPattern(images.palimpsestArchivistPatterns, enemy);
+        } else if (enemy.kind === INKBOUND_MAGISTRATE_KIND) {
+          drawInkboundMagistratePattern(images.inkboundMagistratePatterns, enemy);
         } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
           drawSilentLibrarianEcho(images.silentLibrarianEcho, enemy);
         }
@@ -9726,6 +9930,8 @@ export default function GameCanvas({
               ? 190
               : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
                 ? 192
+                : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                  ? 194
             : enemy.kind === 6
               ? 112
               : enemy.kind === 7
@@ -9743,6 +9949,8 @@ export default function GameCanvas({
               ? 270
               : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
                 ? 272
+                : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                  ? 274
             : enemy.kind === 6
               ? 192
               : enemy.kind === 7
@@ -9759,6 +9967,8 @@ export default function GameCanvas({
               ? 240
               : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
                 ? 244
+                : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                  ? 244
             : enemy.kind === 6
               ? 144
               : enemy.kind === 7
@@ -9783,7 +9993,8 @@ export default function GameCanvas({
             spriteAlpha,
             enemy.kind === 7 ||
             enemy.kind === MARGIN_SEVERER_KIND ||
-            enemy.kind === SILENT_LIBRARIAN_KIND
+            enemy.kind === SILENT_LIBRARIAN_KIND ||
+            enemy.kind === INKBOUND_MAGISTRATE_KIND
               ? false
               : directionFrame.flipX,
             undefined,
@@ -9806,8 +10017,10 @@ export default function GameCanvas({
               ? "#812f36"
               : enemy.kind === FINAL_BINDER_KIND
                 ? "#9d7438"
-                : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
-                  ? "#662a53"
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? "#662a53"
+                : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                  ? "#432925"
               : enemy.kind === 6
                 ? "#a72531"
                 : enemy.kind === 7
@@ -9853,8 +10066,10 @@ export default function GameCanvas({
             ? "#d14f55"
             : enemy.kind === FINAL_BINDER_KIND
               ? "#e1b45b"
-              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
-                ? "#f05f9e"
+            : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+              ? "#f05f9e"
+              : enemy.kind === INKBOUND_MAGISTRATE_KIND
+                ? "#d9894c"
             : enemy.kind === 7
               ? "#63dbe8"
               : enemy.kind === MARGIN_SEVERER_KIND
@@ -10558,8 +10773,8 @@ export default function GameCanvas({
       data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
       data-equipment-power={equippedPower}
       data-boss-kind={hud.world.bossKind ?? "none"}
-      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? hud.world.archivistPattern ?? "none"}
-      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? hud.world.archivistPhase ?? "none"}
+      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? hud.world.archivistPattern ?? hud.world.magistratePattern ?? "none"}
+      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? hud.world.archivistPhase ?? hud.world.magistratePhase ?? "none"}
       data-proofreader-enemies={hud.world.proofreaderEnemies}
       data-proofreader-windups={hud.world.proofreaderWindups}
     >
@@ -10669,6 +10884,8 @@ export default function GameCanvas({
                 ? "종언의 정본"
                 : hud.world.bossKind === PALIMPSEST_ARCHIVIST_KIND
                   ? "덧쓴 기록"
+                  : hud.world.bossKind === INKBOUND_MAGISTRATE_KIND
+                    ? "먹빛 법정"
                 : "백지의 권역"}
             </small>
             <strong>
@@ -10701,6 +10918,15 @@ export default function GameCanvas({
                   {PALIMPSEST_ARCHIVIST_PATTERN_LABELS[hud.world.archivistPattern]}
                   {" · "}
                   {PALIMPSEST_ARCHIVIST_PHASE_LABELS[hud.world.archivistPhase]}
+                </em>
+              )}
+            {hud.world.bossKind === INKBOUND_MAGISTRATE_KIND &&
+              hud.world.magistratePattern &&
+              hud.world.magistratePhase && (
+                <em>
+                  {INKBOUND_MAGISTRATE_PATTERN_LABELS[hud.world.magistratePattern]}
+                  {" · "}
+                  {INKBOUND_MAGISTRATE_PHASE_LABELS[hud.world.magistratePhase]}
                 </em>
               )}
           </div>

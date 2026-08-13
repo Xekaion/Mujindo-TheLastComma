@@ -13,7 +13,7 @@ import {
 export const EQUIPPED_RARITY_VFX_FRAME_SIZE = 256;
 export const EQUIPPED_RARITY_VFX_FRAME_COUNT = 4;
 export const EQUIPPED_RARITY_VFX_PATHS = {
-  mythic: "/assets/effects/equipped-mythic-aura-v2.png",
+  mythic: "/assets/effects/equipped-mythic-flash-v3.png",
   cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
 } as const;
 
@@ -194,10 +194,13 @@ export function equippedRarityVfxFrame(
   timeMs: number,
   slot: EquipmentSlot,
   reducedMotion = false,
+  tier: EquippedRarityVfxTier = "cosmic",
 ): number {
   if (reducedMotion || !Number.isFinite(timeMs)) return 1;
   const phase = SLOT_PRIORITY[slot] * 137;
-  return Math.floor((Math.max(0, timeMs) + phase) / 110) % EQUIPPED_RARITY_VFX_FRAME_COUNT;
+  const frameDurationMs = tier === "mythic" ? 145 : 110;
+  return Math.floor((Math.max(0, timeMs) + phase) / frameDurationMs) %
+    EQUIPPED_RARITY_VFX_FRAME_COUNT;
 }
 
 export function drawEquippedRarityVfx(
@@ -221,11 +224,10 @@ export function drawEquippedRarityVfx(
   let draws = 0;
 
   canvas.save();
-  // Keep the authored darks, stepped edges and limited palette intact. Additive
-  // blending bleaches overlapping pieces into modern neon, while bilinear
-  // resampling turns the deliberately coarse pre-render pixels into smooth
-  // vector-like gradients at combat scale.
-  canvas.globalCompositeOperation = "source-over";
+  // Nearest-neighbour scaling preserves the deliberately coarse pre-rendered
+  // pixels at combat scale. Cosmic keeps its authored dark nebula via normal
+  // compositing; the transparent mythic flash alone uses screen blending so
+  // its short ivory peak reads against both dark armour and dungeon floors.
   canvas.imageSmoothingEnabled = false;
   for (let index = 0; index < pieceCount; index += 1) {
     const piece = options.plan.pieces[index];
@@ -247,11 +249,13 @@ export function drawEquippedRarityVfx(
       options.timeMs,
       piece.slot,
       options.reducedMotion,
+      piece.tier,
     );
     // Rarity never lowers authored opacity: mythic magenta and cosmic nebula
     // retain their original color density in every surface. Only an explicit
     // character-state alpha (death/stale/respawn) may fade the composite.
     canvas.globalAlpha = alpha * CONTEXT_ALPHA[context];
+    canvas.globalCompositeOperation = piece.tier === "mythic" ? "screen" : "source-over";
     canvas.drawImage(
       source,
       sourceFrame * EQUIPPED_RARITY_VFX_FRAME_SIZE,

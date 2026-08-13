@@ -1138,6 +1138,13 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   assert.equal(roster.bossKindForProgress(2, 2), 11);
   assert.equal(roster.bossKindForProgress(2, 3), 5);
   assert.equal(roster.bossKindForProgress(2, 4), 9);
+  assert.equal(roster.bossKindForProgress(0, 99, 99), 5);
+  assert.equal(roster.bossKindForProgress(1, 99, 99), 5);
+  assert.equal(roster.bossKindForProgress(2, 1, 99), 12);
+  assert.deepEqual(
+    Array.from({ length: 8 }, (_, index) => roster.bossKindForProgress(2, index + 1, 2)),
+    [12, 11, 5, 9, 12, 11, 5, 9],
+  );
   assert.equal(ending.normalizeEndingVersion(undefined, false), 0);
   assert.equal(ending.normalizeEndingVersion(undefined, true), 1);
   assert.equal(ending.normalizeEndingVersion(2, false), 2);
@@ -1160,7 +1167,7 @@ test("the blank cartographer owns the first boss and its long ending can trigger
 
   assert.match(
     source,
-    /const bossKind =[\s\S]{0,160}?kind === "boss"[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, player\.bossesCleared\)[\s\S]{0,1000}?if \(kind === "boss"\) \{[\s\S]{0,180}?makeEnemy\(bossKind,/,
+    /const bossKind =[\s\S]{0,160}?kind === "boss"[\s\S]{0,240}?bossKindForProgress\(\s*player\.endingVersion,\s*player\.bossesCleared,\s*world\.dungeonFloor,?\s*\)[\s\S]{0,1000}?if \(kind === "boss"\) \{[\s\S]{0,180}?makeEnemy\(bossKind,/,
     "boss spawning must preserve the first boss while selecting the post-ending roster",
   );
   assert.match(
@@ -1247,7 +1254,7 @@ test("the blank cartographer deterministically cycles every inherited attack beh
   assert.ok(bossRoom, "the boss-room spawn branch must remain isolated");
   assert.match(
     source,
-    /const bossKind =[\s\S]{0,160}?bossKindForProgress\(player\.endingVersion, player\.bossesCleared\)/,
+    /const bossKind =[\s\S]{0,240}?bossKindForProgress\(\s*player\.endingVersion,\s*player\.bossesCleared,\s*world\.dungeonFloor,?\s*\)/,
   );
   assert.match(bossRoom[1], /if \(bossKind === null\) return;/);
   assert.match(bossRoom[1], /makeEnemy\(bossKind,/);
@@ -1342,7 +1349,7 @@ test("the blank cartographer deterministically cycles every inherited attack beh
   );
   assert.match(
     source,
-    /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? hud\.world\.archivistPattern \?\? "none"\}/,
+    /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? hud\.world\.archivistPattern \?\? hud\.world\.magistratePattern \?\? "none"\}/,
   );
   assert.match(source, /BLANK_CARTOGRAPHER_PATTERN_LABELS\[hud\.world\.bossPattern\]/);
 });
@@ -1773,7 +1780,7 @@ test("the Proofreader walk atlas fills all canonical direction cells without edg
   assert.match(source, /images\[WALK_IMAGE_KEYS\[enemy\.kind\]\]/);
   assert.match(
     source,
-    /enemy\.kind === 6\s*\?\s*192[\s\S]{0,520}?enemy\.kind === 6\s*\?\s*144/,
+    /const walkWidth =[\s\S]{0,520}?enemy\.kind === 6\s*\?\s*192[\s\S]{0,700}?const walkHeight =[\s\S]{0,520}?enemy\.kind === 6\s*\?\s*144/,
   );
 });
 
@@ -1823,7 +1830,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,360}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,80}?PALIMPSEST_ARCHIVIST_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,340}?const speedBases = \[[\s\S]{0,240}?76, 50, 43, 26, 62, 38, 72, 66, 58,[\s\S]{0,80}?FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,/,
+    /const hpBases = \[[\s\S]{0,420}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,80}?PALIMPSEST_ARCHIVIST_BASE_HP,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,380}?const speedBases = \[[\s\S]{0,240}?76, 50, 43, 26, 62, 38, 72, 66, 58,[\s\S]{0,80}?FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_SPEED,/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
@@ -2018,10 +2025,10 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const speedBases = readBalanceArray("speedBases");
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
-  assert.equal(hpBases.length, 12, "every enemy kind needs an aligned health entry");
-  assert.equal(speedBases.length, 12, "every enemy kind needs an aligned speed entry");
-  assert.equal(damageBases.length, 12, "every enemy kind needs an aligned damage entry");
-  assert.equal(radii.length, 12, "every enemy kind needs an aligned radius entry");
+  assert.equal(hpBases.length, 13, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 13, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 13, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 13, "every enemy kind needs an aligned radius entry");
   assert.deepEqual(
     [hpBases[8], speedBases[8], damageBases[8], radii[8]],
     ["68", "58", "11", "23"],
@@ -7268,9 +7275,146 @@ test("all eight field-loot atlases are safe, unique, lightweight, and finite", a
 
   assert.match(source, /const EQUIPMENT_RARITY_VFX:[\s\S]{0,120}?Record<GearItem\["rarity"\], EquipmentRarityVfxConfig>/);
   assert.match(source, /cosmic:\s*\{[\s\S]{0,300}?beamHeight:\s*296,[\s\S]{0,80}?beamWidth:\s*42,/);
-  assert.match(source, /const \{ beamHeight, beamWidth \}\s*=\s*rarityVfx;/);
-  assert.doesNotMatch(source, /const beam(?:Height|Width)\s*=\s*\[[^\]]+\]\[rarityTier\]/);
-  assert.match(source, /rarityTier\s*===\s*EQUIPMENT_RARITY_TIER\.cosmic[\s\S]{0,500}?for \(let point = 0; point < 16;/);
+  const arrivalStart = source.indexOf("const drawLootAwakening = (");
+  const arrivalEnd = source.indexOf("const drawProofreaderTelegraph = (", arrivalStart);
+  assert.ok(arrivalStart >= 0 && arrivalEnd > arrivalStart, "the V5 arrival renderer is missing");
+  const arrivalRenderer = source.slice(arrivalStart, arrivalEnd);
+  assert.match(arrivalRenderer, /const frameIndex = clamp\(Math\.floor\(progress \* 8\), 0, 7\);/);
+  assert.match(arrivalRenderer, /const sourceWidth = image\.naturalWidth \/ 4;/);
+  assert.match(arrivalRenderer, /const sourceHeight = image\.naturalHeight \/ 2;/);
+  assert.match(arrivalRenderer, /const config = EQUIPMENT_RARITY_VFX\[rarity\];/);
+  assert.match(arrivalRenderer, /config\.arrivalPattern/);
+  assert.match(arrivalRenderer, /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,/);
+});
+
+test("persistent loot-ground V1 atlases are tracked, chroma-free, padded four-frame RGBA loops", async () => {
+  const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
+  const manifestPath = "public/assets/effects/loot-ground-v1.build.json";
+  const builderPath = "scripts/build_legacy_loot_ground_assets.py";
+  const [manifestText, builder, ...assetBuffers] = await Promise.all([
+    readFile(path.join(root, manifestPath), "utf8"),
+    readFile(path.join(root, builderPath), "utf8"),
+    ...rarities.map((rarity) =>
+      readFile(path.join(root, `public/assets/effects/loot-ground-${rarity}-v1.png`)),
+    ),
+  ]);
+  const manifest = JSON.parse(manifestText);
+
+  assert.equal(manifest.version, 1);
+  assert.equal(manifest.builder, builderPath);
+  assert.deepEqual(manifest.layout, {
+    columns: 4,
+    rows: 1,
+    frames: 4,
+    logicalCellSize: 128,
+    outputCellSize: 256,
+    width: 1024,
+    height: 256,
+  });
+  assert.deepEqual(manifest.pipeline.alphaLevels, [0, 64, 128, 192, 255]);
+  assert.equal(manifest.pipeline.minimumOutputGutterPixels, 16);
+  assert.match(builder, /SOURCE_ROOT\s*=\s*ROOT\s*\/\s*"asset-sources"\s*\/\s*"legacy-arpg"\s*\/\s*"loot-drop-v6"/);
+  assert.match(builder, /row\s*=\s*SOURCE_ROWS\s*-\s*1/);
+  assert.match(builder, /Image\.Resampling\.NEAREST/);
+  assert.match(builder, /ALPHA_LEVELS\s*=\s*np\.array\(\[0, 64, 128, 192, 255\]/);
+  assert.match(builder, /chroma_residual/);
+
+  const raritySupportHashes = [];
+  for (const [index, rarity] of rarities.entries()) {
+    const assetPath = `public/assets/effects/loot-ground-${rarity}-v1.png`;
+    const sourcePath = `asset-sources/legacy-arpg/loot-drop-v6/${rarity}-source.png`;
+    const png = assetBuffers[index];
+    assert.ok(png.byteLength <= 650_000, `${assetPath} exceeds the 650 KB decode budget`);
+    await readFile(path.join(root, sourcePath));
+
+    const image = decodeRgbaPng(png, assetPath);
+    assert.deepEqual([image.width, image.height], [1024, 256], `${assetPath} must be a 4x1 atlas`);
+    const frameHashes = [];
+    const atlasSupport = new Uint8Array(image.width * image.height);
+    const alphaLevels = new Set();
+    for (let pixel = 0; pixel < atlasSupport.length; pixel += 1) {
+      const alpha = image.pixels[pixel * 4 + 3];
+      alphaLevels.add(alpha);
+      atlasSupport[pixel] = alpha >= 64 ? 1 : 0;
+    }
+    assert.deepEqual([...alphaLevels].sort((a, b) => a - b), [0, 64, 128, 192, 255]);
+    raritySupportHashes.push(createHash("sha256").update(atlasSupport).digest("hex"));
+
+    for (let column = 0; column < 4; column += 1) {
+      const label = `${rarity} persistent ground frame ${column}`;
+      const metrics = alphaCellMetrics(image, column, 0, 4, 1, label);
+      assert.ok(metrics.left >= 16, `${label} needs a 16px left gutter`);
+      assert.ok(metrics.right >= 16, `${label} needs a 16px right gutter`);
+      assert.ok(metrics.top >= 16, `${label} needs a 16px top gutter`);
+      assert.ok(metrics.bottom >= 16, `${label} needs a 16px bottom gutter`);
+
+      const support = new Uint8Array(256 * 256);
+      let supportOffset = 0;
+      for (let y = 0; y < 256; y += 1) {
+        for (let x = column * 256; x < (column + 1) * 256; x += 1) {
+          support[supportOffset] = image.pixels[(y * image.width + x) * 4 + 3] >= 64 ? 1 : 0;
+          supportOffset += 1;
+        }
+      }
+      frameHashes.push(createHash("sha256").update(support).digest("hex"));
+    }
+    assert.equal(new Set(frameHashes).size, 4, `${assetPath} needs four unique loop frames`);
+
+    const record = manifest.rarities[rarity];
+    assert.equal(record.source, sourcePath);
+    assert.equal(record.output, assetPath);
+    assert.deepEqual(record.sourceRowsUsed, [2]);
+    assert.equal(record.width, 1024);
+    assert.equal(record.height, 256);
+    assert.equal(record.bytes, png.byteLength);
+    assert.equal(record.chromaResidualPixels, 0);
+    assert.deepEqual(record.alphaLevels, [0, 64, 128, 192, 255]);
+    assert.equal(record.cells.length, 4);
+    assert.ok(record.cells.every((cell) => Math.min(...Object.values(cell.gutters)) >= 16));
+    assert.ok(record.cells.every((cell) => cell.visiblePixels > 0));
+  }
+  assert.equal(
+    new Set(raritySupportHashes).size,
+    rarities.length,
+    "persistent ground loops must use eight genuinely distinct silhouettes",
+  );
+});
+
+test("persistent gear drops draw only authored four-frame ground sprites", async () => {
+  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
+  for (const rarity of rarities) {
+    assert.match(
+      source,
+      new RegExp(`groundImagePath:\\s*["']/assets/effects/loot-ground-${rarity}-v1\\.png["']`),
+      `${rarity} must preload its dedicated persistent ground loop`,
+    );
+  }
+  assert.match(source, /imagePaths\[config\.groundImageKey\]\s*=\s*config\.groundImagePath/);
+
+  const drawStart = source.lastIndexOf("for (const drop of world.gearDrops)");
+  const drawEnd = source.indexOf("for (const orb of world.orbs)", drawStart);
+  assert.ok(drawStart >= 0 && drawEnd > drawStart, "the persistent gear-drop renderer is missing");
+  const drawDrops = source.slice(drawStart, drawEnd);
+  const groundStart = drawDrops.indexOf("const groundVfxImage =");
+  const iconStart = drawDrops.indexOf("if (itemReveal > 0.001) {", groundStart + 1);
+  assert.ok(groundStart >= 0 && iconStart > groundStart, "the ground sprite block is not isolated from the icon block");
+  const groundRenderer = drawDrops.slice(groundStart, iconStart);
+
+  assert.match(groundRenderer, /const groundFrame = positiveModulo\([\s\S]{0,160}?Math\.floor\(ambientTime \* rarityVfx\.groundFps \+ drop\.id\)[\s\S]{0,40}?,\s*4,/);
+  assert.match(groundRenderer, /const sourceWidth = groundVfxImage\.naturalWidth \/ 4;/);
+  assert.match(groundRenderer, /const sourceHeight = groundVfxImage\.naturalHeight;/);
+  assert.match(groundRenderer, /context\.globalCompositeOperation = "source-over";/);
+  assert.match(groundRenderer, /context\.imageSmoothingEnabled = false;/);
+  assert.match(
+    groundRenderer,
+    /context\.drawImage\(\s*groundVfxImage,\s*groundFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,/,
+  );
+  assert.doesNotMatch(
+    groundRenderer,
+    /context\.(?:beginPath|ellipse|arc|moveTo|lineTo|closePath|stroke|fill|fillRect|createLinearGradient|createRadialGradient)\s*\(/,
+    "persistent ground VFX must not synthesize canvas geometry or gradients",
+  );
 });
 
 test("the V5 field-loot builder keeps authored frame scale and never recolors one shared atlas", async () => {
@@ -7312,7 +7456,7 @@ test("the V5 field-loot builder keeps authored frame scale and never recolors on
   assert.match(fieldBuild[0], /len\(set\(support_hashes\)\) != len\(RARITIES\)/);
 });
 
-test("field drops use eight unique arrival patterns and reveal the beam and item on authored cues", async () => {
+test("field drops keep eight V5 arrival patterns and reveal persistent ground art with the item", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const config = source.match(
     /const EQUIPMENT_RARITY_VFX:[\s\S]*?= \{([\s\S]*?)\n\};\n\nconst EQUIPMENT_RARITIES/,
@@ -7352,12 +7496,11 @@ test("field drops use eight unique arrival patterns and reveal the beam and item
   assert.ok(drawStart >= 0 && drawEnd > drawStart, "the field-drop render block is missing");
   const drawDrops = source.slice(drawStart, drawEnd);
   assert.match(drawDrops, /const appearanceProgress = clamp\([\s\S]{0,160}?rarityVfx\.awakeningDuration/);
-  assert.match(drawDrops, /appearanceProgress - rarityVfx\.beamRevealAt/);
   assert.match(drawDrops, /appearanceProgress - rarityVfx\.itemRevealAt/);
   assert.match(
     drawDrops,
-    /context\.globalAlpha = beamReveal;[\s\S]{0,260}?context\.fillStyle = beam;/,
-    "the persistent beam must stay gated until its rarity cue",
+    /const groundRevealRaw = clamp\([\s\S]{0,180}?drop\.appearanceAge[\s\S]{0,120}?rarityVfx\.awakeningDuration[\s\S]{0,180}?const groundReveal =[\s\S]{0,240}?const groundVfxImage = images\[rarityVfx\.groundImageKey\];[\s\S]{0,180}?groundReveal > 0\.001[\s\S]{0,800}?context\.drawImage\(\s*groundVfxImage,/,
+    "persistent ground art must fade in only after the authored arrival completes",
   );
   assert.match(
     drawDrops,
@@ -7366,8 +7509,8 @@ test("field drops use eight unique arrival patterns and reveal the beam and item
   );
   assert.match(
     drawDrops,
-    /if \(beamReveal > 0\.001\) \{[\s\S]{0,220}?context\.createLinearGradient\(/,
-    "hidden persistent beams must skip their gradient and particle render work",
+    /const groundFrame = positiveModulo\([\s\S]{0,180}?,\s*4,/,
+    "persistent ground art must loop all four authored frames",
   );
   assert.match(
     drawDrops,

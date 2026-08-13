@@ -1,0 +1,998 @@
+{
+  "version": 1,
+  "builder": "scripts/build_legacy_loot_ground_assets.py",
+  "layout": {
+    "columns": 4,
+    "rows": 1,
+    "frames": 4,
+    "logicalCellSize": 128,
+    "outputCellSize": 256,
+    "width": 1024,
+    "height": 256
+  },
+  "pipeline": {
+    "sourceSelection": "bottom row only; persistent ground-loop frames",
+    "backgroundRemoval": "per-cell border-connected alpha or chroma segmentation",
+    "logicalResize": "fixed scale per rarity at 128px cell resolution",
+    "outputResize": "nearest-neighbor 2x",
+    "alphaLevels": [
+      0,
+      64,
+      128,
+      192,
+      255
+    ],
+    "maximumVisiblePaletteColors": 60,
+    "minimumOutputGutterPixels": 16
+  },
+  "rarities": {
+    "common": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/common-source.png",
+      "sourceSha256": "f5591cb2d52c6eb068a576985fae40dbe42f7a70ca337005cc6452bc23186427",
+      "sourceWidth": 1402,
+      "sourceHeight": 1122,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-common-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            1,
+            5,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            1,
+            5,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            1,
+            5,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            1,
+            5,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 28863,
+      "sha256": "63d77aedea263a127c7f683b5cb92901f2df1eee48d989f0230f02cfbeaafa97",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            26,
+            62,
+            226,
+            238
+          ],
+          "gutters": {
+            "left": 26,
+            "top": 62,
+            "right": 30,
+            "bottom": 18
+          },
+          "visiblePixels": 6220
+        },
+        {
+          "index": 1,
+          "bbox": [
+            34,
+            50,
+            220,
+            238
+          ],
+          "gutters": {
+            "left": 34,
+            "top": 50,
+            "right": 36,
+            "bottom": 18
+          },
+          "visiblePixels": 6736
+        },
+        {
+          "index": 2,
+          "bbox": [
+            26,
+            66,
+            230,
+            238
+          ],
+          "gutters": {
+            "left": 26,
+            "top": 66,
+            "right": 26,
+            "bottom": 18
+          },
+          "visiblePixels": 6168
+        },
+        {
+          "index": 3,
+          "bbox": [
+            20,
+            84,
+            236,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 84,
+            "right": 20,
+            "bottom": 18
+          },
+          "visiblePixels": 6032
+        }
+      ]
+    },
+    "magic": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/magic-source.png",
+      "sourceSha256": "df3112bc0dc60803294d8b55f974497ce0dc8997f768ef77b70091be87576d38",
+      "sourceWidth": 1774,
+      "sourceHeight": 887,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-magic-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            14,
+            247,
+            13
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            14,
+            247,
+            13
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            13,
+            247,
+            13
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            13,
+            247,
+            13
+          ],
+          "sourceTransparentFraction": 0.0
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 37144,
+      "sha256": "40d2dfe0e2fb93291c11e06b54dd11f6eb2fabf6501f73acd2c063f83a4a09ab",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            36,
+            38,
+            220,
+            238
+          ],
+          "gutters": {
+            "left": 36,
+            "top": 38,
+            "right": 36,
+            "bottom": 18
+          },
+          "visiblePixels": 9488
+        },
+        {
+          "index": 1,
+          "bbox": [
+            36,
+            22,
+            218,
+            238
+          ],
+          "gutters": {
+            "left": 36,
+            "top": 22,
+            "right": 38,
+            "bottom": 18
+          },
+          "visiblePixels": 10600
+        },
+        {
+          "index": 2,
+          "bbox": [
+            34,
+            28,
+            220,
+            238
+          ],
+          "gutters": {
+            "left": 34,
+            "top": 28,
+            "right": 36,
+            "bottom": 18
+          },
+          "visiblePixels": 10776
+        },
+        {
+          "index": 3,
+          "bbox": [
+            28,
+            28,
+            226,
+            238
+          ],
+          "gutters": {
+            "left": 28,
+            "top": 28,
+            "right": 30,
+            "bottom": 18
+          },
+          "visiblePixels": 9852
+        }
+      ]
+    },
+    "superior": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/superior-source.png",
+      "sourceSha256": "ea4a8f0bcbdf353897e708eefee5d8d29dedcfdde472c40dac4f9fa97b02dc2a",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-superior-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.765663
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.782426
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.765075
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.765594
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 51739,
+      "sha256": "9881dde4725825b8caad327af40f3d59ee1cabe33644e1ddd0dfd97cbf50cf69",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            20,
+            50,
+            236,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 50,
+            "right": 20,
+            "bottom": 18
+          },
+          "visiblePixels": 15400
+        },
+        {
+          "index": 1,
+          "bbox": [
+            24,
+            70,
+            230,
+            238
+          ],
+          "gutters": {
+            "left": 24,
+            "top": 70,
+            "right": 26,
+            "bottom": 18
+          },
+          "visiblePixels": 14320
+        },
+        {
+          "index": 2,
+          "bbox": [
+            24,
+            54,
+            230,
+            238
+          ],
+          "gutters": {
+            "left": 24,
+            "top": 54,
+            "right": 26,
+            "bottom": 18
+          },
+          "visiblePixels": 15476
+        },
+        {
+          "index": 3,
+          "bbox": [
+            22,
+            48,
+            234,
+            238
+          ],
+          "gutters": {
+            "left": 22,
+            "top": 48,
+            "right": 22,
+            "bottom": 18
+          },
+          "visiblePixels": 15396
+        }
+      ]
+    },
+    "rare": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/rare-source.png",
+      "sourceSha256": "471502000fd1a49477727b2a7149a3a54965297cb576c70ef1081804f8fb7266",
+      "sourceWidth": 1402,
+      "sourceHeight": 1122,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-rare-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            0,
+            2,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            0,
+            2,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            0,
+            2,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            0,
+            3,
+            253
+          ],
+          "sourceTransparentFraction": 0.0
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 43464,
+      "sha256": "8817bb734b078be193ae4bf4c8b22e96c2bb5d6fde963046500d578dad0a642e",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            50,
+            22,
+            206,
+            238
+          ],
+          "gutters": {
+            "left": 50,
+            "top": 22,
+            "right": 50,
+            "bottom": 18
+          },
+          "visiblePixels": 10108
+        },
+        {
+          "index": 1,
+          "bbox": [
+            42,
+            30,
+            208,
+            238
+          ],
+          "gutters": {
+            "left": 42,
+            "top": 30,
+            "right": 48,
+            "bottom": 18
+          },
+          "visiblePixels": 10404
+        },
+        {
+          "index": 2,
+          "bbox": [
+            50,
+            46,
+            208,
+            238
+          ],
+          "gutters": {
+            "left": 50,
+            "top": 46,
+            "right": 48,
+            "bottom": 18
+          },
+          "visiblePixels": 10684
+        },
+        {
+          "index": 3,
+          "bbox": [
+            44,
+            40,
+            212,
+            238
+          ],
+          "gutters": {
+            "left": 44,
+            "top": 40,
+            "right": 44,
+            "bottom": 18
+          },
+          "visiblePixels": 11104
+        }
+      ]
+    },
+    "epic": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/epic-source.png",
+      "sourceSha256": "b0dc8d6df8b99a94687e9bc6b0459cd474e36419ed9b6875f7f4f9b08b80b05d",
+      "sourceWidth": 1402,
+      "sourceHeight": 1122,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-epic-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            4,
+            250,
+            2
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            4,
+            250,
+            2
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            4,
+            250,
+            2
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            4,
+            250,
+            2
+          ],
+          "sourceTransparentFraction": 0.0
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 34685,
+      "sha256": "6eb8b293b5a1d15ddcaebbc5a401adaf361b891a4177f9823749772602b2dbfe",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            20,
+            110,
+            232,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 110,
+            "right": 24,
+            "bottom": 18
+          },
+          "visiblePixels": 10088
+        },
+        {
+          "index": 1,
+          "bbox": [
+            26,
+            100,
+            230,
+            238
+          ],
+          "gutters": {
+            "left": 26,
+            "top": 100,
+            "right": 26,
+            "bottom": 18
+          },
+          "visiblePixels": 9188
+        },
+        {
+          "index": 2,
+          "bbox": [
+            24,
+            104,
+            230,
+            238
+          ],
+          "gutters": {
+            "left": 24,
+            "top": 104,
+            "right": 26,
+            "bottom": 18
+          },
+          "visiblePixels": 9680
+        },
+        {
+          "index": 3,
+          "bbox": [
+            26,
+            112,
+            228,
+            238
+          ],
+          "gutters": {
+            "left": 26,
+            "top": 112,
+            "right": 28,
+            "bottom": 18
+          },
+          "visiblePixels": 10120
+        }
+      ]
+    },
+    "legendary": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/legendary-source.png",
+      "sourceSha256": "fb60dc8b2c0ee7098516fad6d5936af052394d284325c545ce75ff47119d09ca",
+      "sourceWidth": 1536,
+      "sourceHeight": 1024,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-legendary-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.744608
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.732092
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.757064
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.726089
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 52548,
+      "sha256": "4c32ba1d240ee963c81401e03fff3b88cf366102528d1347a4919ec789f9b425",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            26,
+            68,
+            228,
+            238
+          ],
+          "gutters": {
+            "left": 26,
+            "top": 68,
+            "right": 28,
+            "bottom": 18
+          },
+          "visiblePixels": 14736
+        },
+        {
+          "index": 1,
+          "bbox": [
+            20,
+            54,
+            236,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 54,
+            "right": 20,
+            "bottom": 18
+          },
+          "visiblePixels": 15260
+        },
+        {
+          "index": 2,
+          "bbox": [
+            32,
+            72,
+            222,
+            238
+          ],
+          "gutters": {
+            "left": 32,
+            "top": 72,
+            "right": 34,
+            "bottom": 18
+          },
+          "visiblePixels": 13768
+        },
+        {
+          "index": 3,
+          "bbox": [
+            28,
+            58,
+            226,
+            238
+          ],
+          "gutters": {
+            "left": 28,
+            "top": 58,
+            "right": 30,
+            "bottom": 18
+          },
+          "visiblePixels": 15704
+        }
+      ]
+    },
+    "mythic": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/mythic-source.png",
+      "sourceSha256": "a34ce8c6f6df2ac45bf85c5bfd7569d0d8aee4801eba9932f167c7d67c41cd7f",
+      "sourceWidth": 1448,
+      "sourceHeight": 1086,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-mythic-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.666219
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.640472
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.707007
+        },
+        {
+          "backgroundMode": "border-connected-alpha",
+          "keyRgb": null,
+          "sourceTransparentFraction": 0.650766
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 61939,
+      "sha256": "c8b08a171e2524a3aae007acf5262974b93f66a478df6f99990097b64d59bf4e",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            22,
+            50,
+            232,
+            238
+          ],
+          "gutters": {
+            "left": 22,
+            "top": 50,
+            "right": 24,
+            "bottom": 18
+          },
+          "visiblePixels": 18752
+        },
+        {
+          "index": 1,
+          "bbox": [
+            20,
+            42,
+            236,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 42,
+            "right": 20,
+            "bottom": 18
+          },
+          "visiblePixels": 20572
+        },
+        {
+          "index": 2,
+          "bbox": [
+            22,
+            50,
+            234,
+            238
+          ],
+          "gutters": {
+            "left": 22,
+            "top": 50,
+            "right": 22,
+            "bottom": 18
+          },
+          "visiblePixels": 16364
+        },
+        {
+          "index": 3,
+          "bbox": [
+            20,
+            36,
+            236,
+            238
+          ],
+          "gutters": {
+            "left": 20,
+            "top": 36,
+            "right": 20,
+            "bottom": 18
+          },
+          "visiblePixels": 19976
+        }
+      ]
+    },
+    "cosmic": {
+      "source": "asset-sources/legacy-arpg/loot-drop-v6/cosmic-source.png",
+      "sourceSha256": "99557cb3613ad2eb52c804f5c1ad423ff03592d6459fa8907152b513201fe90a",
+      "sourceWidth": 1403,
+      "sourceHeight": 1121,
+      "sourceRowsUsed": [
+        2
+      ],
+      "output": "public/assets/effects/loot-ground-cosmic-v1.png",
+      "background": [
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            5,
+            240,
+            6
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            5,
+            240,
+            5
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            5,
+            240,
+            5
+          ],
+          "sourceTransparentFraction": 0.0
+        },
+        {
+          "backgroundMode": "border-connected-chroma",
+          "keyRgb": [
+            5,
+            240,
+            5
+          ],
+          "sourceTransparentFraction": 0.0
+        }
+      ],
+      "width": 1024,
+      "height": 256,
+      "bytes": 41438,
+      "sha256": "3dcd7162466c558ea6e0909c2410a019851cf14c9893f90aab68cda0df28adc6",
+      "alphaLevels": [
+        0,
+        64,
+        128,
+        192,
+        255
+      ],
+      "visiblePaletteColors": 60,
+      "chromaResidualPixels": 0,
+      "cells": [
+        {
+          "index": 0,
+          "bbox": [
+            42,
+            32,
+            214,
+            238
+          ],
+          "gutters": {
+            "left": 42,
+            "top": 32,
+            "right": 42,
+            "bottom": 18
+          },
+          "visiblePixels": 11356
+        },
+        {
+          "index": 1,
+          "bbox": [
+            46,
+            22,
+            208,
+            238
+          ],
+          "gutters": {
+            "left": 46,
+            "top": 22,
+            "right": 48,
+            "bottom": 18
+          },
+          "visiblePixels": 11748
+        },
+        {
+          "index": 2,
+          "bbox": [
+            38,
+            28,
+            216,
+            234
+          ],
+          "gutters": {
+            "left": 38,
+            "top": 28,
+            "right": 40,
+            "bottom": 22
+          },
+          "visiblePixels": 11860
+        },
+        {
+          "index": 3,
+          "bbox": [
+            40,
+            26,
+            214,
+            238
+          ],
+          "gutters": {
+            "left": 40,
+            "top": 26,
+            "right": 42,
+            "bottom": 18
+          },
+          "visiblePixels": 11492
+        }
+      ]
+    }
+  }
+}

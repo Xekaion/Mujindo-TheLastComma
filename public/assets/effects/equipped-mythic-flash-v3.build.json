@@ -1,0 +1,252 @@
+{
+  "source": "asset-sources/legacy-arpg/equipped-mythic-flash-source-v3.png",
+  "sourceSha256": "40309f2e9c7d9cda397bd0b6c5ae78fea1b3bb28d7cf5095daae467f47bdf5c1",
+  "output": "public/assets/effects/equipped-mythic-flash-v3.png",
+  "outputSha256": "9f3143b87ad3ed57d45b46dd8280229759487299c48f0adae699346a96881f69",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      256
+    ]
+  },
+  "pipeline": {
+    "logicalCell": [
+      128,
+      128
+    ],
+    "upscale": "nearest-neighbour-2x",
+    "minimumPadding": 12,
+    "alphaLevels": [
+      0,
+      72,
+      128,
+      192,
+      255
+    ],
+    "palette": [
+      [
+        34,
+        3,
+        20
+      ],
+      [
+        52,
+        4,
+        30
+      ],
+      [
+        73,
+        5,
+        39
+      ],
+      [
+        96,
+        7,
+        45
+      ],
+      [
+        122,
+        9,
+        54
+      ],
+      [
+        151,
+        12,
+        66
+      ],
+      [
+        181,
+        18,
+        79
+      ],
+      [
+        91,
+        4,
+        82
+      ],
+      [
+        119,
+        6,
+        106
+      ],
+      [
+        148,
+        10,
+        132
+      ],
+      [
+        178,
+        17,
+        153
+      ],
+      [
+        205,
+        29,
+        171
+      ],
+      [
+        226,
+        50,
+        185
+      ],
+      [
+        239,
+        79,
+        195
+      ],
+      [
+        244,
+        111,
+        201
+      ],
+      [
+        235,
+        143,
+        190
+      ],
+      [
+        230,
+        180,
+        190
+      ],
+      [
+        239,
+        205,
+        197
+      ],
+      [
+        247,
+        226,
+        211
+      ],
+      [
+        255,
+        244,
+        225
+      ],
+      [
+        255,
+        252,
+        239
+      ]
+    ],
+    "centreTreatment": "transparent core with stepped radial feather"
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "alphaBounds": [
+        66,
+        78,
+        150,
+        182
+      ],
+      "padding": [
+        66,
+        78,
+        106,
+        74
+      ],
+      "visiblePixels": 936,
+      "visibleColourCount": 16,
+      "alphaLevels": [
+        0,
+        72,
+        128,
+        192,
+        255
+      ],
+      "brightPixelRatio": 0.004274,
+      "visibleBlackPixels": 0,
+      "chromaPixels": 0,
+      "pixelHash": "3612f080e5392d685ac5893e8376de3bbbdcf0b40d06cfbfa1714a5bfda34735"
+    },
+    {
+      "frame": 1,
+      "alphaBounds": [
+        58,
+        58,
+        184,
+        194
+      ],
+      "padding": [
+        58,
+        58,
+        72,
+        62
+      ],
+      "visiblePixels": 3124,
+      "visibleColourCount": 18,
+      "alphaLevels": [
+        0,
+        72,
+        128,
+        192,
+        255
+      ],
+      "brightPixelRatio": 0.060179,
+      "visibleBlackPixels": 0,
+      "chromaPixels": 0,
+      "pixelHash": "655951c957ac3e4af6794a262acc31a50c778a39ea8b799c80252e5a806b550b"
+    },
+    {
+      "frame": 2,
+      "alphaBounds": [
+        46,
+        32,
+        208,
+        212
+      ],
+      "padding": [
+        46,
+        32,
+        48,
+        44
+      ],
+      "visiblePixels": 9768,
+      "visibleColourCount": 17,
+      "alphaLevels": [
+        0,
+        72,
+        128,
+        192,
+        255
+      ],
+      "brightPixelRatio": 0.176495,
+      "visibleBlackPixels": 0,
+      "chromaPixels": 0,
+      "pixelHash": "05fb3f5be29c9edf0dc9ea6f2bc13f08f8343ee244decf60b4d4d842d832fef4"
+    },
+    {
+      "frame": 3,
+      "alphaBounds": [
+        60,
+        42,
+        202,
+        202
+      ],
+      "padding": [
+        60,
+        42,
+        54,
+        54
+      ],
+      "visiblePixels": 3660,
+      "visibleColourCount": 17,
+      "alphaLevels": [
+        0,
+        72,
+        128,
+        192,
+        255
+      ],
+      "brightPixelRatio": 0.005464,
+      "visibleBlackPixels": 0,
+      "chromaPixels": 0,
+      "pixelHash": "6b2de82db46d6dbac7db2261f7f017165a6d97ef39236d10cc2ee9b1b190b3c7"
+    }
+  ]
+}
