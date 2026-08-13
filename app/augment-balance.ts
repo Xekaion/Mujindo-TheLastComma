@@ -14,39 +14,24 @@ export const SIMPLE_AUGMENT_IDS = [
 /** Every augmentation has one universal, persisted rank ceiling. */
 export const MAX_AUGMENT_STACKS = 20;
 
-export const EARLY_SPLIT_AUGMENT_ID = "split";
-export const EARLY_SPLIT_MAX_LEVEL = 10;
-export const EARLY_SPLIT_APPEARANCE_CHANCE = 0.5;
-
 type AugmentChoiceCandidate = {
   id: string;
 };
 
 type SelectAugmentChoicesInput<T extends AugmentChoiceCandidate> = {
   available: readonly T[];
-  playerLevel: number;
   getRank: (augment: T) => number;
   random?: () => number;
   choiceCount?: number;
 };
 
-export function usesEarlySplitAppearanceRule(playerLevel: number): boolean {
-  return (
-    Number.isFinite(playerLevel) &&
-    playerLevel >= 1 &&
-    playerLevel <= EARLY_SPLIT_MAX_LEVEL
-  );
-}
-
 /**
  * Builds a unique augment-card set while preserving the existing preference
- * for already-owned augments. During levels 1-10, the split augment gets one
- * exact 50% appearance roll: a failed feature roll also removes it from the
- * ordinary pool so its real appearance rate cannot creep above 50%.
+ * for already-owned augments. Every augment, including split, follows this one
+ * ordinary selection rule at every player level.
  */
 export function selectAugmentChoices<T extends AugmentChoiceCandidate>({
   available,
-  playerLevel,
   getRank,
   random = Math.random,
   choiceCount = 3,
@@ -54,22 +39,8 @@ export function selectAugmentChoices<T extends AugmentChoiceCandidate>({
   const maximumChoices = Math.max(0, Math.floor(choiceCount));
   if (maximumChoices === 0 || available.length === 0) return [];
 
-  const split = available.find(
-    (augment) => augment.id === EARLY_SPLIT_AUGMENT_ID,
-  );
-  const usesEarlyRule = usesEarlySplitAppearanceRule(playerLevel) && split !== undefined;
-  const featureSplit = usesEarlyRule && random() < EARLY_SPLIT_APPEARANCE_CHANCE;
-  const eligible = usesEarlyRule
-    ? available.filter((augment) => augment.id !== EARLY_SPLIT_AUGMENT_ID)
-    : [...available];
-  const picked: T[] = featureSplit && split ? [split] : [];
-
-  // A corrupted or heavily edited early save can leave split as the only
-  // uncapped augment. Never open an empty choice modal in that exceptional
-  // state, even when the 50% roll fails.
-  if (usesEarlyRule && !featureSplit && eligible.length === 0 && split) {
-    return [split];
-  }
+  const eligible = [...available];
+  const picked: T[] = [];
 
   const owned = eligible.filter((augment) => getRank(augment) > 0);
   const unowned = eligible.filter((augment) => getRank(augment) === 0);

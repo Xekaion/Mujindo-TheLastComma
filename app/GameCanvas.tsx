@@ -3358,7 +3358,6 @@ export default function GameCanvas({
     }
     const picked = selectAugmentChoices({
       available,
-      playerLevel: player.level,
       getRank: (augment) => rankOf(player, augment.id),
     });
     setChoices(picked);
