@@ -1116,8 +1116,9 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   assert.equal(roster.bossKindForProgress(0, 0), 5);
   assert.equal(roster.bossKindForProgress(1, 1), 5);
   assert.equal(roster.bossKindForProgress(2, 1), 9);
-  assert.equal(roster.bossKindForProgress(2, 2), 5);
-  assert.equal(roster.bossKindForProgress(2, 3), 9);
+  assert.equal(roster.bossKindForProgress(2, 2), 11);
+  assert.equal(roster.bossKindForProgress(2, 3), 5);
+  assert.equal(roster.bossKindForProgress(2, 4), 9);
   assert.equal(ending.normalizeEndingVersion(undefined, false), 0);
   assert.equal(ending.normalizeEndingVersion(undefined, true), 1);
   assert.equal(ending.normalizeEndingVersion(2, false), 2);
@@ -1320,7 +1321,10 @@ test("the blank cartographer deterministically cycles every inherited attack beh
     /const bossWindup =[\s\S]{0,180}?enemy\.bossPattern === "charge"[\s\S]{0,100}?enemy\.bossPhase === "telegraph";[\s\S]{0,1000}?drawProofreaderTelegraph\(/,
     "the boss charge warning must use the authored charge telegraph asset",
   );
-  assert.match(source, /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? "none"\}/);
+  assert.match(
+    source,
+    /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? hud\.world\.archivistPattern \?\? "none"\}/,
+  );
   assert.match(source, /BLANK_CARTOGRAPHER_PATTERN_LABELS\[hud\.world\.bossPattern\]/);
 });
 
@@ -1400,6 +1404,7 @@ test("the Final Binder is a post-ending boss with three telegraphed arena patter
 
   assert.equal(roster.isBossKind(5), true);
   assert.equal(roster.isBossKind(9), true);
+  assert.equal(roster.isBossKind(11), true);
   assert.equal(roster.isBossKind(8), false);
   assert.equal(roster.bossKindForProgress(1, 10), 5);
   assert.equal(roster.bossKindForProgress(2, 1), 9);
@@ -1454,7 +1459,7 @@ test("the Final Binder is a post-ending boss with three telegraphed arena patter
   assert.match(source, /const dropCount = isBossKind\(enemy\.kind\) \? 2 : 1;/);
 
   const controller = source.match(
-    /else if \(enemy\.kind === FINAL_BINDER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === 6\) \{/,
+    /else if \(enemy\.kind === FINAL_BINDER_KIND\) \{([\s\S]*?)\n\s*\} else if \(enemy\.kind === PALIMPSEST_ARCHIVIST_KIND\) \{/,
   );
   assert.ok(controller, "kind 9 needs an isolated controller");
   const warningMarker = '} else if (binderPhase === "telegraph") {';
@@ -1672,6 +1677,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/margin-severer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/silent-librarian-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/palimpsest-archivist-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
     ["public/assets/walk/harin-mannequin-v2.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
@@ -1682,6 +1688,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/margin-sever-line-v1.png", [1254, 1254]],
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
     ["public/assets/effects/silent-librarian-echo-v1.png", [1254, 1254]],
+    ["public/assets/effects/palimpsest-archivist-patterns-v1.png", [2048, 1024]],
     ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
@@ -1797,7 +1804,7 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,280}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,40}?\];[\s\S]{0,280}?const speedBases = \[76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED, 54\];/,
+    /const hpBases = \[[\s\S]{0,360}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,80}?PALIMPSEST_ARCHIVIST_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,340}?const speedBases = \[[\s\S]{0,240}?76, 50, 43, 26, 62, 38, 72, 66, 58,[\s\S]{0,80}?FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
@@ -2002,10 +2009,10 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const speedBases = readBalanceArray("speedBases");
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
-  assert.equal(hpBases.length, 11, "every enemy kind needs an aligned health entry");
-  assert.equal(speedBases.length, 11, "every enemy kind needs an aligned speed entry");
-  assert.equal(damageBases.length, 11, "every enemy kind needs an aligned damage entry");
-  assert.equal(radii.length, 11, "every enemy kind needs an aligned radius entry");
+  assert.equal(hpBases.length, 12, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 12, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 12, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 12, "every enemy kind needs an aligned radius entry");
   assert.deepEqual(
     [hpBases[8], speedBases[8], damageBases[8], radii[8]],
     ["68", "58", "11", "23"],

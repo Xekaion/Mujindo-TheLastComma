@@ -212,6 +212,22 @@ import {
   type FinalBinderPhase,
 } from "./final-binder-balance";
 import {
+  PALIMPSEST_ARCHIVIST_BASE_DAMAGE,
+  PALIMPSEST_ARCHIVIST_BASE_HP,
+  PALIMPSEST_ARCHIVIST_BASE_SPEED,
+  PALIMPSEST_ARCHIVIST_KIND,
+  PALIMPSEST_ARCHIVIST_PATTERN_LABELS,
+  PALIMPSEST_ARCHIVIST_PHASE_LABELS,
+  PALIMPSEST_ARCHIVIST_RADIUS,
+  PALIMPSEST_TRACE_EXECUTE_SECONDS,
+  advancePalimpsestArchivist,
+  createPalimpsestState,
+  tracePointAtArcProgress,
+  type PalimpsestArchivistPattern,
+  type PalimpsestArchivistPhase,
+  type PalimpsestArchivistRuntimeState,
+} from "./palimpsest-archivist";
+import {
   bossKindForProgress,
   isBossKind,
   type BossKind,
@@ -345,7 +361,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11;
 type ProjectileAffinity =
   | "arcane"
   | "blood"
@@ -441,6 +457,7 @@ type Enemy = {
   binderStartAngle?: number;
   binderPulseIndex?: number;
   binderInitialSafeSector?: number;
+  archivist?: PalimpsestArchivistRuntimeState;
   timeRifts?: Array<{
     x: number;
     y: number;
@@ -1500,6 +1517,7 @@ const ENEMY_NAMES = [
   "여백 절단사",
   "종언의 제본사",
   "침묵의 사서",
+  "덧쓴 기록관",
 ];
 
 const spriteCrops = [
@@ -1524,6 +1542,7 @@ const WALK_IMAGE_KEYS = [
   "walkMarginSeverer",
   "walkFinalBinder",
   "walkSilentLibrarian",
+  "walkPalimpsestArchivist",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1558,6 +1577,8 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   // The Silent Librarian atlas is normalized to the runtime's canonical order:
   // S, SW, W, NW, N, NE, E, SE. No runtime mirroring is needed.
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
+  // The Palimpsest Archivist owns all eight canonical facing rows.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
@@ -2327,6 +2348,8 @@ export default function GameCanvas({
       bossPhase: null as Enemy["bossPhase"] | null,
       binderPattern: null as FinalBinderPattern | null,
       binderPhase: null as FinalBinderPhase | null,
+      archivistPattern: null as PalimpsestArchivistPattern | null,
+      archivistPhase: null as PalimpsestArchivistPhase | null,
       activeEffects: 0,
       playerProjectiles: 0,
       hostileProjectiles: 0,
@@ -2664,6 +2687,8 @@ export default function GameCanvas({
         bossPhase: boss?.bossPhase ?? null,
         binderPattern: boss?.binderPattern ?? null,
         binderPhase: boss?.binderPhase ?? null,
+        archivistPattern: boss?.archivist?.pattern ?? null,
+        archivistPhase: boss?.archivist?.phase ?? null,
         activeEffects: world.effects.length,
         playerProjectiles: playerProjectileCount,
         hostileProjectiles: hostileProjectileCount,
@@ -2825,10 +2850,20 @@ export default function GameCanvas({
         68,
         FINAL_BINDER_BASE_HP,
         82,
+        PALIMPSEST_ARCHIVIST_BASE_HP,
       ];
-      const speedBases = [76, 50, 43, 26, 62, 38, 72, 66, 58, FINAL_BINDER_BASE_SPEED, 54];
-      const damageBases = [8, 10, 14, 7, 12, 16, 15, 13, 11, FINAL_BINDER_BASE_DAMAGE, 14];
-      const radii = [21, 20, 28, 32, 22, 62, 24, 26, 23, FINAL_BINDER_RADIUS, 25];
+      const speedBases = [
+        76, 50, 43, 26, 62, 38, 72, 66, 58,
+        FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,
+      ];
+      const damageBases = [
+        8, 10, 14, 7, 12, 16, 15, 13, 11,
+        FINAL_BINDER_BASE_DAMAGE, 14, PALIMPSEST_ARCHIVIST_BASE_DAMAGE,
+      ];
+      const radii = [
+        21, 20, 28, 32, 22, 62, 24, 26, 23,
+        FINAL_BINDER_RADIUS, 25, PALIMPSEST_ARCHIVIST_RADIUS,
+      ];
       const radius = radii[kind];
       const spawnPoint = safeWalkableFloorPoint(x, y, radius);
       const scale = Math.pow(1 + 0.075 * depth, 1.28);
@@ -2914,6 +2949,10 @@ export default function GameCanvas({
               : 1
             : undefined,
         binderPulseIndex: kind === FINAL_BINDER_KIND ? 0 : undefined,
+        archivist:
+          kind === PALIMPSEST_ARCHIVIST_KIND
+            ? createPalimpsestState()
+            : undefined,
         timeRifts:
           kind === 7 || kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
       };
@@ -3193,13 +3232,22 @@ export default function GameCanvas({
           setToast(SPENT_SHELTER_MESSAGE);
         }
       } else {
-        setToast(
-          kind === "boss"
-            ? world.activeBossKind === FINAL_BINDER_KIND
-              ? "찢긴 장들이 닫히며 종언의 제본사가 정본을 만들기 시작합니다."
-              : "지도 자체가 당신의 빌드를 되그리기 시작합니다."
-            : `${ROOM_NAMES[kind]} — 문이 봉쇄되었습니다.`,
-        );
+        const bossKind = world.activeBossKind;
+        if (kind === "boss" && bossKind === PALIMPSEST_ARCHIVIST_KIND) {
+          setToast(
+            "당신이 지나온 발자취 위로 새 문장이 번집니다. 덧쓴 기록관이 기록을 재생합니다.",
+          );
+        } else if (kind === "boss" && bossKind === FINAL_BINDER_KIND) {
+          setToast(
+            "찢긴 장들이 닫히며 종언의 제본사가 정본을 만들기 시작합니다.",
+          );
+        } else {
+          setToast(
+            kind === "boss"
+              ? "지도 자체가 당신의 빌드를 되그리기 시작합니다."
+              : `${ROOM_NAMES[kind]} — 문이 봉쇄되었습니다.`,
+          );
+        }
       }
       syncHud();
     },
@@ -4148,12 +4196,15 @@ export default function GameCanvas({
       walkMarginSeverer: "/assets/walk/margin-severer-walk-v1.png",
       walkFinalBinder: "/assets/walk/final-binder-walk-v1.png",
       walkSilentLibrarian: "/assets/walk/silent-librarian-walk-v1.png",
+      walkPalimpsestArchivist: "/assets/walk/palimpsest-archivist-walk-v1.png",
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
       marginSeverLine: "/assets/effects/margin-sever-line-v1.png",
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
       silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
+      palimpsestArchivistPatterns:
+        "/assets/effects/palimpsest-archivist-patterns-v1.png",
       roomPortcullis: ROOM_DOOR_ASSET_PATH,
       equippedMythicAura: EQUIPPED_RARITY_VFX_PATHS.mythic,
       equippedCosmicAura: EQUIPPED_RARITY_VFX_PATHS.cosmic,
@@ -6316,6 +6367,90 @@ export default function GameCanvas({
               enemy.binderDirection = enemy.binderDirection === -1 ? 1 : -1;
             }
           }
+        } else if (enemy.kind === PALIMPSEST_ARCHIVIST_KIND) {
+          const currentArchivist = enemy.archivist ?? createPalimpsestState();
+          if (currentArchivist.phase === "pursuit") {
+            const preferredDistance = 286;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 155,
+              -0.46,
+              0.64,
+            );
+            const strafeDirection = currentArchivist.patternIndex % 2 === 0 ? 1 : -1;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeDirection * 0.42;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeDirection * 0.42;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (5.1 + enemy.speed / 44) * slowMultiplier) % 4;
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            enemy.facing = directionRow(
+              player.x - enemy.x,
+              player.y - enemy.y,
+              enemy.facing,
+            );
+          }
+
+          const safeAnchors = [
+            safeWalkableFloorPoint(WIDTH * 0.28, HEIGHT * 0.31, 40),
+            safeWalkableFloorPoint(WIDTH * 0.72, HEIGHT * 0.31, 40),
+            safeWalkableFloorPoint(WIDTH * 0.72, HEIGHT * 0.69, 40),
+            safeWalkableFloorPoint(WIDTH * 0.28, HEIGHT * 0.69, 40),
+          ];
+          const archivistStep = advancePalimpsestArchivist(currentArchivist, {
+            dt,
+            seed: world.seed ^ enemy.id,
+            castIndex: currentArchivist.castIndex,
+            hpRatio: clamp(enemy.hp / enemy.maxHp, 0, 1),
+            previousPlayerPosition: { x: previousPlayerX, y: previousPlayerY },
+            playerPosition: { x: player.x, y: player.y },
+            bossPosition: { x: enemy.x, y: enemy.y },
+            playerRadius: player.radius,
+            safeAnchors,
+          });
+          enemy.archivist = archivistStep.state;
+          for (const command of archivistStep.commands) {
+            if (command.type === "damage") {
+              damagePlayer(enemy.damage * command.multiplier);
+              continue;
+            }
+            if (command.kind === "warning") {
+              const patternLabel =
+                PALIMPSEST_ARCHIVIST_PATTERN_LABELS[archivistStep.state.pattern];
+              setToast(`덧쓴 기록관 · ${patternLabel} — 빛나는 기록선을 확인하세요.`);
+              playGameSfx("timeRift", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+                playbackRate: 0.76,
+                gain: 1.12,
+                priority: 8,
+              });
+            } else if (command.kind === "traceRecord") {
+              playGameSfx("enemyCharge", { playbackRate: 0.72, gain: 0.9 });
+            } else if (command.kind === "traceStrike") {
+              playGameSfx("playerImpact", { playbackRate: 0.68, gain: 1.15 });
+            } else if (command.kind === "proofRoute") {
+              setToast("교정 경로 — 숫자가 새겨진 룬을 1번부터 차례대로 밟으세요.");
+              playGameSfx("timeRift", { playbackRate: 1.18, gain: 1.04 });
+            } else if (command.kind === "proofSuccess") {
+              setToast("교정 완료 — 기록관의 잉크가 오래 멎습니다.");
+              playGameSfx("uiConfirm", { playbackRate: 0.82, gain: 0.9 });
+            } else if (command.kind === "proofFailure") {
+              setToast("교정 실패 — 잘못된 순서가 공격으로 덧씌워졌습니다.");
+              playGameSfx("enemyCharge", { playbackRate: 0.62, gain: 1.12 });
+            }
+          }
         } else if (enemy.kind === 6) {
           const phase = enemy.patternPhase ?? "stalk";
           if (phase === "stalk") {
@@ -6734,6 +6869,8 @@ export default function GameCanvas({
             ? enemy.bossPhase === "pursuit"
             : enemy.kind === FINAL_BINDER_KIND
               ? enemy.binderPhase === "pursuit"
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? enemy.archivist?.phase === "pursuit"
               : true;
         if (
           enemy.kind !== 6 &&
@@ -7919,6 +8056,160 @@ export default function GameCanvas({
       return true;
     };
 
+    const drawPalimpsestPattern = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const state = enemy.archivist;
+      if (!state || state.phase === "pursuit" || state.phase === "recovery") {
+        return false;
+      }
+
+      const canDrawImage = Boolean(
+        image?.complete && image.naturalWidth && image.naturalHeight,
+      );
+      const sourceWidth = (image?.naturalWidth ?? 0) / 4;
+      const sourceHeight = (image?.naturalHeight ?? 0) / 2;
+      const drawAtlasCell = (
+        column: number,
+        row: number,
+        x: number,
+        y: number,
+        size: number,
+        alpha = 1,
+      ) => {
+        if (!canDrawImage || !image) return false;
+        context.save();
+        context.globalCompositeOperation = "lighter";
+        context.globalAlpha = alpha;
+        context.shadowColor = row === 0 ? "#ff4267" : "#70f7e8";
+        context.shadowBlur = row === 0 ? 22 : 16;
+        context.drawImage(
+          image,
+          column * sourceWidth,
+          row * sourceHeight,
+          sourceWidth,
+          sourceHeight,
+          x - size / 2,
+          y - size / 2,
+          size,
+          size,
+        );
+        context.restore();
+        return true;
+      };
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+
+      if (state.pattern === "proofRoute") {
+        if (state.phase === "warning") {
+          drawAtlasCell(0, 1, enemy.x, enemy.y + 8, 174, 0.82);
+        }
+        for (let index = 0; index < state.runes.length; index += 1) {
+          const rune = state.runes[index];
+          const completed = index < state.runeIndex;
+          const current = index === state.runeIndex;
+          const pulse = 1 + Math.sin(performance.now() / 170 + index) * 0.07;
+          drawAtlasCell(
+            completed ? 3 : current ? 2 : 1,
+            1,
+            rune.x,
+            rune.y,
+            (completed ? 82 : current ? 108 : 88) * pulse,
+            completed ? 0.42 : current ? 1 : 0.7,
+          );
+          context.save();
+          context.font = `800 ${readableCanvasFontSize(18, 14)}px serif`;
+          context.textAlign = "center";
+          context.textBaseline = "middle";
+          context.fillStyle = completed ? "#79c9b8" : "#fff4c8";
+          context.shadowColor = current ? "#6dfff0" : "#000000";
+          context.shadowBlur = current ? 12 : 4;
+          context.fillText(String(index + 1), rune.x, rune.y + 1);
+          context.restore();
+        }
+      } else {
+        const trace = state.trace;
+        if (trace.length > 0) {
+          const active = state.phase === "execute";
+          context.save();
+          context.globalCompositeOperation = active ? "lighter" : "source-over";
+          context.lineCap = "round";
+          context.lineJoin = "round";
+          context.strokeStyle =
+            state.pattern === "restoreTrace"
+              ? active
+                ? "rgba(126,255,231,.98)"
+                : "rgba(104,223,205,.64)"
+              : active
+                ? "rgba(255,66,103,.98)"
+                : "rgba(236,83,105,.62)";
+          context.lineWidth = active ? 18 : state.phase === "record" ? 10 : 6;
+          context.shadowColor =
+            state.pattern === "restoreTrace" ? "#65ffe7" : "#ff315f";
+          context.shadowBlur = active ? 24 : 12;
+          context.beginPath();
+          context.moveTo(trace[0].x, trace[0].y);
+          for (let index = 1; index < trace.length; index += 1) {
+            context.lineTo(trace[index].x, trace[index].y);
+          }
+          context.stroke();
+          context.restore();
+
+          if (active) {
+            const head = tracePointAtArcProgress(trace, state.previousHeadProgress);
+            const frame = Math.min(
+              3,
+              Math.floor(
+                clamp(
+                  1 - state.phaseTimer / PALIMPSEST_TRACE_EXECUTE_SECONDS,
+                  0,
+                  0.999,
+                ) * 4,
+              ),
+            );
+            drawAtlasCell(
+              frame,
+              state.pattern === "restoreTrace" ? 1 : 0,
+              head.x,
+              head.y,
+              state.pattern === "restoreTrace" ? 112 : 132,
+            );
+          } else {
+            const tail = trace[trace.length - 1];
+            drawAtlasCell(
+              state.phase === "record" ? 1 : 0,
+              state.pattern === "restoreTrace" ? 1 : 0,
+              tail.x,
+              tail.y,
+              state.phase === "record" ? 86 : 104,
+              0.82,
+            );
+          }
+        } else if (state.phase === "warning") {
+          drawAtlasCell(
+            0,
+            state.pattern === "restoreTrace" ? 1 : 0,
+            enemy.x,
+            enemy.y + 10,
+            158,
+            0.76,
+          );
+        }
+      }
+
+      context.restore();
+      return true;
+    };
+
     const drawTimeRiftSprite = (
       image: HTMLImageElement | undefined,
       effect: VisualEffect,
@@ -9055,6 +9346,8 @@ export default function GameCanvas({
           drawMarginSeverLine(images.marginSeverLine, enemy);
         } else if (enemy.kind === FINAL_BINDER_KIND) {
           drawFinalBinderPattern(images.finalBinderPatterns, enemy);
+        } else if (PALIMPSEST_ARCHIVIST_KIND === enemy.kind) {
+          drawPalimpsestPattern(images.palimpsestArchivistPatterns, enemy);
         } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
           drawSilentLibrarianEcho(images.silentLibrarianEcho, enemy);
         }
@@ -9137,6 +9430,8 @@ export default function GameCanvas({
             ? 185
             : enemy.kind === FINAL_BINDER_KIND
               ? 190
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? 192
             : enemy.kind === 6
               ? 112
               : enemy.kind === 7
@@ -9152,6 +9447,8 @@ export default function GameCanvas({
             ? 250
             : enemy.kind === FINAL_BINDER_KIND
               ? 270
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? 272
             : enemy.kind === 6
               ? 192
               : enemy.kind === 7
@@ -9166,6 +9463,8 @@ export default function GameCanvas({
             ? 225
             : enemy.kind === FINAL_BINDER_KIND
               ? 240
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? 244
             : enemy.kind === 6
               ? 144
               : enemy.kind === 7
@@ -9213,6 +9512,8 @@ export default function GameCanvas({
               ? "#812f36"
               : enemy.kind === FINAL_BINDER_KIND
                 ? "#9d7438"
+                : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                  ? "#662a53"
               : enemy.kind === 6
                 ? "#a72531"
                 : enemy.kind === 7
@@ -9236,6 +9537,8 @@ export default function GameCanvas({
             ? "#d14f55"
             : enemy.kind === FINAL_BINDER_KIND
               ? "#e1b45b"
+              : enemy.kind === PALIMPSEST_ARCHIVIST_KIND
+                ? "#f05f9e"
             : enemy.kind === 7
               ? "#63dbe8"
               : enemy.kind === MARGIN_SEVERER_KIND
@@ -9854,8 +10157,8 @@ export default function GameCanvas({
       data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
       data-equipment-power={equippedPower}
       data-boss-kind={hud.world.bossKind ?? "none"}
-      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? "none"}
-      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? "none"}
+      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? hud.world.archivistPattern ?? "none"}
+      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? hud.world.archivistPhase ?? "none"}
       data-proofreader-enemies={hud.world.proofreaderEnemies}
       data-proofreader-windups={hud.world.proofreaderWindups}
     >
@@ -9963,6 +10266,8 @@ export default function GameCanvas({
             <small>
               {hud.world.bossKind === FINAL_BINDER_KIND
                 ? "종언의 정본"
+                : hud.world.bossKind === PALIMPSEST_ARCHIVIST_KIND
+                  ? "덧쓴 기록"
                 : "백지의 권역"}
             </small>
             <strong>
@@ -9986,6 +10291,15 @@ export default function GameCanvas({
                   {FINAL_BINDER_PATTERN_LABELS[hud.world.binderPattern]}
                   {" · "}
                   {FINAL_BINDER_PHASE_LABELS[hud.world.binderPhase]}
+                </em>
+              )}
+            {hud.world.bossKind === PALIMPSEST_ARCHIVIST_KIND &&
+              hud.world.archivistPattern &&
+              hud.world.archivistPhase && (
+                <em>
+                  {PALIMPSEST_ARCHIVIST_PATTERN_LABELS[hud.world.archivistPattern]}
+                  {" · "}
+                  {PALIMPSEST_ARCHIVIST_PHASE_LABELS[hud.world.archivistPhase]}
                 </em>
               )}
           </div>
