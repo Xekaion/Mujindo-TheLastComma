@@ -1,0 +1,261 @@
+{
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 2,
+    "cell": [
+      1024,
+      128
+    ],
+    "safeCopyArea": [
+      218,
+      46,
+      806,
+      82
+    ]
+  },
+  "rarities": {
+    "mythic": {
+      "source": "work/imagegen/world-announcement-v1/mythic-source.png",
+      "sourceSha256": "6aeeb70427775841d9599f6c39f9ccc1efde0dbd8a94450b4c7af420f5964910",
+      "output": "public/assets/ui/world-announcement-mythic-v1.png",
+      "outputSha256": "8759bbd44573a7f941fa7211c800a5bc2ad2fc03bc2e27a424bd8149e0a45b44",
+      "bytes": 981376,
+      "frames": [
+        {
+          "frame": 0,
+          "brightness": 0.9,
+          "alphaScale": 0.82,
+          "scale": 0.986,
+          "alphaBounds": [
+            23,
+            10,
+            1001,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.112387,
+          "pixelHash": "90b6db5e06f3a4e197d1b1a8769a4e920d984f778455fae214a3641d10f2522e"
+        },
+        {
+          "frame": 1,
+          "brightness": 1.0,
+          "alphaScale": 0.94,
+          "scale": 0.994,
+          "alphaBounds": [
+            19,
+            9,
+            1005,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.127882,
+          "pixelHash": "90cb6a7ca9b49506e079bfbf8334bba273a03815e6dcb44d9c69202b47203d5f"
+        },
+        {
+          "frame": 2,
+          "brightness": 1.1,
+          "alphaScale": 1.0,
+          "scale": 1.0,
+          "alphaBounds": [
+            16,
+            9,
+            1008,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.106245,
+          "pixelHash": "44e1fca1e6ba46e6f0d280f213a0c3a653415ac3ea4c7bcec1c52740458793c9"
+        },
+        {
+          "frame": 3,
+          "brightness": 1.22,
+          "alphaScale": 1.0,
+          "scale": 1.004,
+          "alphaBounds": [
+            14,
+            9,
+            1010,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.106198,
+          "pixelHash": "b97269128f4ebdaf6f79ab7db3718c425b04a2aec03275b3c87d38b798442864"
+        },
+        {
+          "frame": 4,
+          "brightness": 1.34,
+          "alphaScale": 1.0,
+          "scale": 1.008,
+          "alphaBounds": [
+            12,
+            8,
+            1012,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.090231,
+          "pixelHash": "933e1bd82415b1ae117adcf6e9776abff290fe51b1a8a1d6094ce102f48d232e"
+        },
+        {
+          "frame": 5,
+          "brightness": 1.18,
+          "alphaScale": 0.98,
+          "scale": 1.004,
+          "alphaBounds": [
+            14,
+            9,
+            1010,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.105867,
+          "pixelHash": "4744fedef808e9fb42351faedf4366351ffe3c3b22c72ae06e86c99a06010750"
+        },
+        {
+          "frame": 6,
+          "brightness": 1.08,
+          "alphaScale": 0.94,
+          "scale": 1.0,
+          "alphaBounds": [
+            16,
+            9,
+            1008,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.1053,
+          "pixelHash": "bfb729ff4443971e52ac6a2a1b3b4e88f894845ca70835ff7825d7aaf3f3ee70"
+        },
+        {
+          "frame": 7,
+          "brightness": 0.98,
+          "alphaScale": 0.88,
+          "scale": 0.992,
+          "alphaBounds": [
+            20,
+            9,
+            1004,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.12689,
+          "pixelHash": "818c903de73212c6112ed9753fc9f0721ee34cfdbe76f774a794e3abb708f6cd"
+        }
+      ]
+    },
+    "cosmic": {
+      "source": "work/imagegen/world-announcement-v1/cosmic-source.png",
+      "sourceSha256": "058b67b8d4b3890cb76ca629234e59c1e93cf6b0329265dddf9e1c1708da04b9",
+      "output": "public/assets/ui/world-announcement-cosmic-v1.png",
+      "outputSha256": "5d61d9c91be14922ff41b18dcc96602a98c091388dc45959b622d5d31b25d58b",
+      "bytes": 1155274,
+      "frames": [
+        {
+          "frame": 0,
+          "brightness": 0.9,
+          "alphaScale": 0.82,
+          "scale": 0.986,
+          "alphaBounds": [
+            23,
+            10,
+            1001,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.000614,
+          "pixelHash": "fc3f73ee98beb9962e4a66d498f294d8342b4b1630465c413131d68b7045fb2f"
+        },
+        {
+          "frame": 1,
+          "brightness": 1.0,
+          "alphaScale": 0.94,
+          "scale": 0.994,
+          "alphaBounds": [
+            19,
+            9,
+            1005,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.000378,
+          "pixelHash": "815d3d69638b631a469d259a824dc6e6e6fdb892120ba7ae255659d423f578e9"
+        },
+        {
+          "frame": 2,
+          "brightness": 1.1,
+          "alphaScale": 1.0,
+          "scale": 1.0,
+          "alphaBounds": [
+            16,
+            9,
+            1008,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.000567,
+          "pixelHash": "4714215713795d4e91434384ff8f1ae5b83a28a628cd3a3957e36596544cd54e"
+        },
+        {
+          "frame": 3,
+          "brightness": 1.22,
+          "alphaScale": 1.0,
+          "scale": 1.004,
+          "alphaBounds": [
+            14,
+            9,
+            1010,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.000567,
+          "pixelHash": "1c318e1fcaacd12c3529edad118c3ef25ed7412b9674dca3f0a4ba83485e8992"
+        },
+        {
+          "frame": 4,
+          "brightness": 1.34,
+          "alphaScale": 1.0,
+          "scale": 1.008,
+          "alphaBounds": [
+            12,
+            8,
+            1012,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.000378,
+          "pixelHash": "ea5c01f502c286ca12f1007731667024bd2c0f05ff5d47f944be7ca2de9921eb"
+        },
+        {
+          "frame": 5,
+          "brightness": 1.18,
+          "alphaScale": 0.98,
+          "scale": 1.004,
+          "alphaBounds": [
+            14,
+            9,
+            1010,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.00052,
+          "pixelHash": "7f2273404d6c24812d82cf9b0aa1210b7606d04a00017d5f969161c47bb13ca2"
+        },
+        {
+          "frame": 6,
+          "brightness": 1.08,
+          "alphaScale": 0.94,
+          "scale": 1.0,
+          "alphaBounds": [
+            16,
+            9,
+            1008,
+            119
+          ],
+          "safeAreaBrightOccupancy": 0.000472,
+          "pixelHash": "c28c9c45d229e3b2e9bb70be41b045a057f2c0372b1c1953bb66ce7bec10ba40"
+        },
+        {
+          "frame": 7,
+          "brightness": 0.98,
+          "alphaScale": 0.88,
+          "scale": 0.992,
+          "alphaBounds": [
+            20,
+            9,
+            1004,
+            118
+          ],
+          "safeAreaBrightOccupancy": 0.000378,
+          "pixelHash": "e483c1ba0a97395fe1e75f43bf85acb216feb0409e00e8e3fe0d02eec67ed422"
+        }
+      ]
+    }
+  }
+}

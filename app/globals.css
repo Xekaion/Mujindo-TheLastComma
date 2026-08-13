@@ -38,187 +38,374 @@ button {
 }
 
 .world-announcement {
-  --world-accent: #ff526e;
-  --world-accent-soft: rgba(255, 82, 110, 0.28);
+  --world-accent: #ff4b9b;
+  --world-accent-bright: #fff1c4;
+  --world-accent-soft: rgba(255, 46, 139, 0.42);
+  --world-frame: url("/assets/ui/world-announcement-mythic-v1.png");
   position: fixed;
-  top: max(12px, env(safe-area-inset-top));
+  top: max(6px, env(safe-area-inset-top));
   left: 50%;
-  z-index: 315;
+  z-index: 620;
+  isolation: isolate;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(132px, 18%) minmax(0, 1fr) minmax(92px, 13%);
   align-items: center;
-  gap: 16px;
-  width: min(860px, calc(100vw - 28px));
-  min-height: 58px;
-  padding: 9px 18px 9px 11px;
-  overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--world-accent) 78%, #f4e3bb 22%);
-  border-radius: 4px;
+  gap: clamp(6px, 1vw, 14px);
+  width: min(1024px, calc(100vw - 24px));
+  height: clamp(76px, 12.5vw, 128px);
+  padding: 0 clamp(26px, 4.6vw, 48px);
+  overflow: visible;
+  border: 0;
+  opacity: 1;
   color: #f7edd8;
-  background:
-    linear-gradient(90deg, var(--world-accent-soft), rgba(8, 7, 12, 0.96) 24%, rgba(7, 8, 12, 0.96) 76%, var(--world-accent-soft)),
-    #09090d;
-  box-shadow:
-    0 10px 42px rgba(0, 0, 0, 0.72),
-    0 0 30px var(--world-accent-soft),
-    inset 0 0 22px rgba(255, 255, 255, 0.025);
+  background: transparent;
   pointer-events: none;
   transform-origin: 50% 0;
-  animation: world-announcement-enter 540ms cubic-bezier(0.2, 0.9, 0.22, 1.12) both;
+  will-change: opacity, transform;
 }
 
-.world-announcement::before,
-.world-announcement::after {
+.world-announcement.is-mythic:not(.is-exiting) {
+  --world-frame: url("/assets/ui/world-announcement-mythic-v1.png");
+  animation: world-announcement-mythic-enter 720ms cubic-bezier(0.16, 0.88, 0.22, 1.08) both;
+}
+
+.world-announcement.is-cosmic:not(.is-exiting) {
+  animation: world-announcement-cosmic-enter 880ms cubic-bezier(0.12, 0.82, 0.15, 1) both;
+}
+
+.world-announcement.is-exiting {
+  animation: world-announcement-exit 620ms cubic-bezier(0.55, 0, 0.82, 0.2) both;
+}
+
+.world-announcement-surface {
   position: absolute;
-  top: 50%;
-  width: 94px;
-  height: 1px;
+  z-index: 0;
+  inset: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.world-announcement-surface::before {
+  position: absolute;
+  z-index: 0;
+  inset: 21% 12.5%;
+  border: 1px solid color-mix(in srgb, var(--world-accent) 58%, #f8df9d 42%);
+  clip-path: polygon(1.7% 0, 98.3% 0, 100% 19%, 100% 81%, 98.3% 100%, 1.7% 100%, 0 81%, 0 19%);
   content: "";
-  background: linear-gradient(90deg, transparent, var(--world-accent));
-  filter: drop-shadow(0 0 5px var(--world-accent));
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--world-accent) 18%, transparent), transparent 20% 80%, color-mix(in srgb, var(--world-accent) 18%, transparent)),
+    linear-gradient(180deg, rgba(21, 12, 20, 0.98), rgba(3, 5, 9, 0.985));
+  box-shadow:
+    0 12px 38px rgba(0, 0, 0, 0.88),
+    0 0 26px var(--world-accent-soft),
+    inset 0 1px rgba(255, 244, 205, 0.11),
+    inset 0 0 24px rgba(0, 0, 0, 0.86);
 }
 
-.world-announcement::before {
-  left: 0;
+.world-announcement-art {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 1;
+  background-image: var(--world-frame);
+  background-repeat: no-repeat;
+  background-position: 0 0;
+  background-size: 400% 200%;
+  filter:
+    drop-shadow(0 0 5px var(--world-accent))
+    drop-shadow(0 0 17px var(--world-accent-soft));
+  image-rendering: auto;
+  will-change: background-position, filter;
 }
 
-.world-announcement::after {
-  right: 0;
-  transform: rotate(180deg);
+.world-announcement-atlas {
+  background-size: 400% 200%;
+  animation: world-announcement-atlas 2.32s steps(1, end) infinite;
+}
+
+.world-announcement.is-mythic .world-announcement-art {
+  animation: world-announcement-atlas 2.32s steps(1, end) infinite;
 }
 
 .world-announcement.is-cosmic {
   --world-accent: #65f4ff;
-  --world-accent-soft: rgba(101, 244, 255, 0.26);
-  border-color: rgba(181, 252, 255, 0.9);
+  --world-accent-bright: #e9feff;
+  --world-accent-soft: rgba(113, 76, 255, 0.48);
+  --world-frame: url("/assets/ui/world-announcement-cosmic-v1.png");
+}
+
+.world-announcement.is-cosmic .world-announcement-surface::before {
   background:
-    radial-gradient(circle at 14% 50%, rgba(183, 82, 255, 0.22), transparent 25%),
-    radial-gradient(circle at 86% 50%, rgba(50, 210, 255, 0.22), transparent 28%),
-    linear-gradient(90deg, rgba(18, 35, 54, 0.98), rgba(7, 8, 18, 0.97) 25% 75%, rgba(27, 24, 60, 0.98));
+    radial-gradient(ellipse at 16% 50%, rgba(174, 79, 255, 0.21), transparent 29%),
+    radial-gradient(ellipse at 84% 50%, rgba(51, 226, 255, 0.2), transparent 30%),
+    linear-gradient(180deg, rgba(10, 10, 30, 0.985), rgba(2, 6, 15, 0.99));
 }
 
-.world-announcement-flare {
-  position: relative;
-  z-index: 1;
-  width: 38px;
-  height: 38px;
-  border: 1px solid var(--world-accent);
-  transform: rotate(45deg);
-  background: radial-gradient(circle, #fff 0 5%, var(--world-accent) 7% 14%, transparent 16%);
-  box-shadow: 0 0 18px var(--world-accent-soft), inset 0 0 10px var(--world-accent-soft);
-  animation: world-announcement-sigil 2.2s linear infinite;
+.world-announcement.is-cosmic .world-announcement-art {
+  animation: world-announcement-atlas 3.04s steps(1, end) infinite reverse;
+  filter:
+    drop-shadow(0 0 6px #54e8ff)
+    drop-shadow(0 0 20px rgba(139, 61, 255, 0.58));
 }
 
-.world-announcement-flare::after {
+.world-announcement-particles {
   position: absolute;
-  inset: 6px;
-  border: 1px solid color-mix(in srgb, var(--world-accent) 75%, white 25%);
-  content: "";
+  z-index: 2;
+  inset: 14% 8%;
+  opacity: 1;
+  background:
+    radial-gradient(circle at 9% 35%, var(--world-accent-bright) 0 1px, transparent 2px),
+    radial-gradient(circle at 18% 72%, var(--world-accent) 0 1px, transparent 2.2px),
+    radial-gradient(circle at 48% 11%, var(--world-accent-bright) 0 1px, transparent 2.3px),
+    radial-gradient(circle at 78% 77%, var(--world-accent) 0 1px, transparent 2px),
+    radial-gradient(circle at 91% 28%, var(--world-accent-bright) 0 1px, transparent 2.4px);
+  mix-blend-mode: screen;
+  filter: drop-shadow(0 0 4px var(--world-accent));
+  animation: world-announcement-particles 2.6s ease-in-out infinite alternate;
 }
 
 .world-announcement-rarity {
-  position: absolute;
-  top: 4px;
-  left: 68px;
-  color: var(--world-accent);
-  font-size: 8px;
-  font-weight: 900;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-}
-
-.world-announcement p {
   position: relative;
-  z-index: 1;
-  margin: 9px 0 0;
-  overflow: hidden;
-  font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(13px, 1.25vw, 17px);
-  letter-spacing: -0.01em;
+  z-index: 3;
+  justify-self: center;
+  padding: 5px 9px 4px;
+  border: 1px solid color-mix(in srgb, var(--world-accent) 64%, transparent);
+  color: var(--world-accent-bright);
+  background: rgba(4, 5, 9, 0.72);
+  box-shadow: 0 0 14px var(--world-accent-soft), inset 0 0 9px rgba(255, 255, 255, 0.035);
+  font-family: "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(10px, 1vw, 13px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.13em;
   text-align: center;
-  text-overflow: ellipsis;
+  text-shadow: 0 0 7px var(--world-accent), 0 1px 2px #000;
   white-space: nowrap;
 }
 
+.world-announcement-copy,
+.world-announcement p {
+  position: relative;
+  z-index: 3;
+  margin: 0;
+  overflow: hidden;
+  color: #e8dfd1;
+  font-family: "Nanum Myeongjo", Georgia, serif;
+  font-size: clamp(14px, 1.55vw, 20px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 4px #000, 0 0 14px rgba(0, 0, 0, 0.9);
+  white-space: nowrap;
+}
+
+.world-announcement-copy strong,
+.world-announcement-copy b,
 .world-announcement p strong,
 .world-announcement p b {
   color: var(--world-accent);
-  font-weight: 800;
-  text-shadow: 0 0 12px var(--world-accent-soft);
+  font-weight: 900;
+  text-shadow: 0 0 10px var(--world-accent-soft), 0 1px 3px #000;
 }
 
+.world-announcement-copy b,
 .world-announcement p b {
-  margin: 0 6px;
-  color: #fff5d4;
+  display: inline-block;
+  max-width: min(48%, 360px);
+  margin: 0 6px -0.28em;
+  overflow: hidden;
+  color: var(--world-accent-bright);
+  text-overflow: ellipsis;
+  vertical-align: baseline;
+  white-space: nowrap;
 }
 
+.world-announcement-copy-verb {
+  margin-left: 2px;
+}
+
+.world-announcement-meta,
 .world-announcement small {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  min-width: 74px;
-  color: rgba(238, 225, 198, 0.78);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
+  align-items: center;
+  justify-self: center;
+  min-width: 70px;
+  color: rgba(247, 238, 220, 0.9);
+  font-family: Georgia, serif;
+  font-size: clamp(10px, 1vw, 13px);
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  line-height: 1.2;
+  text-shadow: 0 1px 3px #000;
 }
 
+.world-announcement-meta i,
 .world-announcement small i {
   margin-top: 2px;
   color: var(--world-accent);
-  font-size: 7px;
+  font-size: 9px;
   font-style: normal;
-  letter-spacing: 0.3em;
+  letter-spacing: 0.22em;
 }
 
-@keyframes world-announcement-enter {
+@keyframes world-announcement-atlas {
+  0%,
+  12.49% {
+    background-position: 0 0;
+  }
+  12.5%,
+  24.99% {
+    background-position: 33.333333% 0;
+  }
+  25%,
+  37.49% {
+    background-position: 66.666667% 0;
+  }
+  37.5%,
+  49.99% {
+    background-position: 100% 0;
+  }
+  50%,
+  62.49% {
+    background-position: 0 100%;
+  }
+  62.5%,
+  74.99% {
+    background-position: 33.333333% 100%;
+  }
+  75%,
+  87.49% {
+    background-position: 66.666667% 100%;
+  }
+  87.5%,
+  100% {
+    background-position: 100% 100%;
+  }
+}
+
+@keyframes world-announcement-mythic-enter {
   0% {
     opacity: 0;
-    transform: translate(-50%, -26px) scaleX(0.72);
-    filter: brightness(2);
+    transform: translate(-50%, -34px) scaleX(0.46) scaleY(0.82);
+    filter: brightness(2.6) saturate(1.4);
   }
-  65% {
+  58% {
     opacity: 1;
-    transform: translate(-50%, 3px) scaleX(1.015);
+    transform: translate(-50%, 4px) scaleX(1.025) scaleY(1.01);
   }
   100% {
-    transform: translate(-50%, 0) scaleX(1);
-    filter: brightness(1);
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+    filter: brightness(1) saturate(1);
   }
 }
 
-@keyframes world-announcement-sigil {
-  to {
-    transform: rotate(405deg);
+@keyframes world-announcement-cosmic-enter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -12px) perspective(520px) rotateX(-72deg) scale(0.74);
+    filter: blur(8px) brightness(3);
+  }
+  62% {
+    opacity: 1;
+    transform: translate(-50%, 2px) perspective(520px) rotateX(3deg) scale(1.018);
+    filter: blur(0) brightness(1.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) perspective(520px) rotateX(0) scale(1);
+    filter: blur(0) brightness(1);
+  }
+}
+
+@keyframes world-announcement-exit {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+    filter: brightness(1);
+  }
+  55% {
+    opacity: 0.86;
+    transform: translate(-50%, -2px) scaleX(1.035) scaleY(0.96);
+    filter: brightness(1.75);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -22px) scaleX(0.72) scaleY(0.35);
+    filter: brightness(2.5) blur(4px);
+  }
+}
+
+@keyframes world-announcement-particles {
+  0% {
+    transform: translate3d(-2px, 2px, 0) scale(0.98);
+    filter: brightness(0.85) drop-shadow(0 0 3px var(--world-accent));
+  }
+  100% {
+    transform: translate3d(2px, -3px, 0) scale(1.015);
+    filter: brightness(1.45) drop-shadow(0 0 7px var(--world-accent));
   }
 }
 
 @media (max-width: 700px) {
   .world-announcement {
-    grid-template-columns: 30px minmax(0, 1fr) auto;
-    gap: 9px;
-    min-height: 50px;
-    padding: 7px 10px;
+    grid-template-columns: minmax(58px, 18%) minmax(0, 1fr) minmax(42px, 12%);
+    gap: 4px;
+    padding: 0 18px;
   }
 
-  .world-announcement-flare {
-    width: 28px;
-    height: 28px;
+  .world-announcement-surface {
+    inset: 0;
+  }
+
+  .world-announcement-surface::before {
+    inset: 20% 8%;
   }
 
   .world-announcement-rarity {
-    left: 50px;
+    padding: 4px 5px 3px;
+    font-size: 9px;
+    letter-spacing: 0.05em;
   }
 
+  .world-announcement-copy,
   .world-announcement p {
-    font-size: 11px;
+    font-size: 13px;
   }
 
+  .world-announcement-copy b,
+  .world-announcement p b {
+    max-width: 54%;
+  }
+
+  .world-announcement-copy-tail {
+    display: none;
+  }
+
+  .world-announcement-meta,
   .world-announcement small {
-    min-width: 52px;
-    font-size: 8px;
+    min-width: 40px;
+    font-size: 9px;
+  }
+
+  .world-announcement-meta i,
+  .world-announcement small i {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .world-announcement-art {
+    left: 50%;
+    width: 608px;
+    transform: translateX(-50%);
   }
 }
 
@@ -231,25 +418,26 @@ button {
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-}
 
-/* Global announcement readability floor. */
-.world-announcement-rarity {
-  font-size: 10px;
-  line-height: 1.3;
-}
+  .world-announcement:not(.is-exiting) {
+    opacity: 1 !important;
+    transform: translate(-50%, 0) !important;
+    filter: none !important;
+  }
 
-.world-announcement p {
-  font-size: clamp(12px, 1.25vw, 17px);
-}
+  .world-announcement.is-exiting {
+    opacity: 0 !important;
+  }
 
-.world-announcement small {
-  min-width: 64px;
-  font-size: 11px;
-  line-height: 1.25;
-}
+  .world-announcement-art,
+  .world-announcement-atlas {
+    opacity: 1 !important;
+    background-position: 66.666667% 100% !important;
+    animation: none !important;
+  }
 
-.world-announcement small i {
-  font-size: 10px;
-  line-height: 1.2;
+  .world-announcement-particles {
+    opacity: 1 !important;
+    transform: none !important;
+  }
 }
