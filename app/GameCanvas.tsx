@@ -68,6 +68,7 @@ import {
   compactPositiveFieldInPlace,
   findNearestAliveEntity,
   findNearestUnhitAliveEntity,
+  projectileMotionInterpolationSamples,
   shouldDrawProjectileTrail,
   sweptCircleMayOverlap,
 } from "./runtime-performance";
@@ -9151,20 +9152,57 @@ export default function GameCanvas({
         speedScale;
       const pulse = 0.82 + Math.sin(clock * 12 + projectile.id * 1.71) * 0.18;
 
-      if (layer === "core" && projectile.vfxId) {
-        const definition = GAMEPLAY_VFX_MANIFEST[projectile.vfxId];
+      if (layer === "core") {
+        // Every moving core uses the dedicated 16-frame affinity atlas. The
+        // projectile's original vfxId remains available for its unique muzzle
+        // and impact artwork (overcharge, shrapnel, legendary powers, etc.).
+        const coreVfxId = projectileVfxId(projectile.affinity);
+        const definition = GAMEPLAY_VFX_MANIFEST[coreVfxId];
+        const interpolateArtwork =
+          projectile.hostile ||
+          projectileCount <= 120 ||
+          (projectileCount <= 220
+            ? Math.abs(projectile.id) % 2 === 0
+            : Math.abs(projectile.id) % 6 === 0);
+        const progress = loopingGameplayVfxProgress(projectile.age, definition);
+        const motionSamples = projectileMotionInterpolationSamples(
+          projectile.previousX,
+          projectile.previousY,
+          projectile.x,
+          projectile.y,
+          projectile.radius,
+          projectileCount,
+          projectile.hostile,
+        );
+        for (const sample of motionSamples) {
+          drawGameplayVfxFrame(
+            context,
+            imagesRef.current[gameplayVfxImageKey(coreVfxId)],
+            definition,
+            {
+              x: sample.x,
+              y: sample.y,
+              size: projectile.radius,
+              progress,
+              angle,
+              alpha: alpha * sample.alpha,
+              frameOffset: projectile.id,
+            },
+          );
+        }
         const authoredDrawn = drawGameplayVfxFrame(
           context,
-          imagesRef.current[gameplayVfxImageKey(projectile.vfxId)],
+          imagesRef.current[gameplayVfxImageKey(coreVfxId)],
           definition,
           {
             x: projectile.x,
             y: projectile.y,
             size: projectile.radius,
-            progress: loopingGameplayVfxProgress(projectile.age, definition),
+            progress,
             angle,
             alpha,
             frameOffset: projectile.id,
+            interpolateFrames: interpolateArtwork,
           },
         );
         // Do not paint the old circle/diamond core behind loaded authored art.

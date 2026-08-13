@@ -77,6 +77,35 @@ test("dense friendly projectile trails are budgeted while hostile warnings remai
   assert.equal(lateGameBudget, 81);
 });
 
+test("projectile motion interpolation bridges fast movement with a bounded dense-scene budget", async () => {
+  const { projectileMotionInterpolationSamples } = await importTypeScriptModule(
+    "app/runtime-performance.ts",
+  );
+
+  const sparse = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 40, false);
+  assert.ok(sparse.length > 0, "a fast projectile needs at least one in-between pose");
+  assert.ok(sparse.length <= 3, "one projectile must not create an unbounded draw cost");
+  let priorX = 0;
+  for (const sample of sparse) {
+    assert.ok(Number.isFinite(sample.x) && Number.isFinite(sample.y));
+    assert.ok(sample.x > priorX && sample.x < 48, "samples must stay between simulation poses");
+    assert.ok(sample.y > 0 && sample.y < 24);
+    assert.ok(Math.abs(sample.y - sample.x / 2) < 1e-9, "samples must follow the swept path");
+    priorX = sample.x;
+  }
+
+  const denseFriendly = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 300, false);
+  const denseHostile = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 300, true);
+  assert.ok(denseFriendly.length < sparse.length, "friendly interpolation must shed work when crowded");
+  assert.ok(denseHostile.length > 0, "hostile projectile readability remains protected");
+  assert.ok(denseHostile.length <= 3);
+  assert.deepEqual(
+    projectileMotionInterpolationSamples(12, 8, 12, 8, 6, 40, false),
+    [],
+    "stationary projectiles do not emit duplicate samples",
+  );
+});
+
 test("swept-circle broad phase keeps boundary hits and rejects distant targets", async () => {
   const { sweptCircleMayOverlap } = await importTypeScriptModule(
     "app/runtime-performance.ts",
@@ -150,6 +179,7 @@ test("expedition hot path wires caches and visual budgets without skipping cores
   );
   assert.match(source, /sweptCircleMayOverlap\([\s\S]*?distanceToSegment\(/);
   assert.match(source, /shouldDrawProjectileTrail\([\s\S]*?"trail"/);
+  assert.match(source, /projectileMotionInterpolationSamples\(/);
   assert.match(
     source,
     /for \(const projectile of world\.projectiles\) \{\s*drawProjectileVfx\(projectile, ambientTime, projectileCount, "core"\)/,

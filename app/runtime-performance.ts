@@ -103,6 +103,73 @@ export function shouldDrawProjectileTrail(
   return Math.abs(Math.trunc(projectileId)) % stride === 0;
 }
 
+export type ProjectileMotionInterpolationSample = Readonly<{
+  x: number;
+  y: number;
+  alpha: number;
+}>;
+
+/**
+ * Produces a tiny, bounded set of sub-frame positions between the last physics
+ * location and the current one. These bridge the visual gap left by a delayed
+ * animation frame without changing collision or projectile travel distance.
+ */
+export function projectileMotionInterpolationSamples(
+  previousX: number,
+  previousY: number,
+  currentX: number,
+  currentY: number,
+  radius: number,
+  projectileCount: number,
+  hostile: boolean,
+): readonly ProjectileMotionInterpolationSample[] {
+  if (
+    !Number.isFinite(previousX) ||
+    !Number.isFinite(previousY) ||
+    !Number.isFinite(currentX) ||
+    !Number.isFinite(currentY)
+  ) {
+    return [];
+  }
+  const deltaX = currentX - previousX;
+  const deltaY = currentY - previousY;
+  const travelDistance = Math.hypot(deltaX, deltaY);
+  if (travelDistance < 1) return [];
+
+  const dense = projectileCount > 120;
+  const overloaded = projectileCount > 220;
+  const sampleBudget = hostile
+    ? overloaded
+      ? 1
+      : dense
+        ? 2
+        : 3
+    : overloaded
+      ? 0
+      : dense
+        ? 1
+        : 2;
+  if (sampleBudget <= 0) return [];
+
+  const sampleSpacing = Math.max(8, Math.min(18, Math.max(1, radius) * 1.35));
+  const sampleCount = Math.min(
+    sampleBudget,
+    Math.max(0, Math.ceil(travelDistance / sampleSpacing) - 1),
+  );
+  if (sampleCount === 0) return [];
+
+  const samples: ProjectileMotionInterpolationSample[] = [];
+  for (let index = 1; index <= sampleCount; index += 1) {
+    const progress = index / (sampleCount + 1);
+    samples.push({
+      x: previousX + deltaX * progress,
+      y: previousY + deltaY * progress,
+      alpha: 0.1 + progress * 0.12,
+    });
+  }
+  return samples;
+}
+
 /**
  * Cheap conservative broad phase for swept projectile collision. A true result
  * still needs the exact segment-distance test; false safely rejects the common

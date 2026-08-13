@@ -162,8 +162,16 @@ export type DrawGameplayVfxFrameOptions = Readonly<{
   angle?: number;
   alpha?: number;
   frameOffset?: number;
+  /** Cross-fade the current atlas cell into the next instead of hard stepping. */
+  interpolateFrames?: boolean;
   endX?: number;
   endY?: number;
+}>;
+
+export type GameplayVfxFrameInterpolation = Readonly<{
+  currentFrame: number;
+  nextFrame: number;
+  frameBlend: number;
 }>;
 
 // 30 fps maps cleanly onto the common 60 Hz render cadence (one sprite frame
@@ -192,6 +200,31 @@ export function loopingGameplayVfxProgress(
   return ((loops % 1) + 1) % 1;
 }
 
+/**
+ * Resolve the two neighbouring atlas cells and their temporal blend. This is
+ * deliberately separate from canvas drawing so a 16-frame sheet is not merely
+ * sampled with a visible Math.floor step at runtime.
+ */
+export function gameplayVfxFrameInterpolation(
+  progress: number,
+  definition: GameplayVfxDefinition,
+  frameOffset = 0,
+): GameplayVfxFrameInterpolation {
+  const frames = Math.max(1, Math.trunc(definition.frames));
+  const normalizedProgress = Number.isFinite(progress)
+    ? Math.max(0, Math.min(0.999_999, progress))
+    : 0;
+  const framePosition = normalizedProgress * frames;
+  const baseFrame = Math.floor(framePosition);
+  const normalizedOffset = ((Math.trunc(frameOffset) % frames) + frames) % frames;
+  const currentFrame = (baseFrame + normalizedOffset) % frames;
+  return {
+    currentFrame,
+    nextFrame: (currentFrame + 1) % frames,
+    frameBlend: framePosition - baseFrame,
+  };
+}
+
 /** Draw an authored VFX sprite sheet. Returns false until it is loadable. */
 export function drawGameplayVfxFrame(
   context: CanvasRenderingContext2D,
@@ -211,15 +244,13 @@ export function drawGameplayVfxFrame(
     return false;
   }
 
-  const normalizedProgress = Math.max(0, Math.min(0.999_999, options.progress));
-  const frame =
-    (Math.floor(normalizedProgress * definition.frames) +
-      (options.frameOffset ?? 0)) %
-    definition.frames;
+  const { currentFrame, nextFrame, frameBlend } = gameplayVfxFrameInterpolation(
+    options.progress,
+    definition,
+    options.frameOffset,
+  );
   const sourceWidth = image.naturalWidth / definition.columns;
   const sourceHeight = image.naturalHeight / definition.rows;
-  const column = frame % definition.columns;
-  const row = Math.floor(frame / definition.columns);
   const hasBeamTarget =
     Number.isFinite(options.endX) && Number.isFinite(options.endY);
   const deltaX = hasBeamTarget ? options.endX! - options.x : 0;
@@ -236,20 +267,35 @@ export function drawGameplayVfxFrame(
     hasBeamTarget ? options.y + deltaY / 2 : options.y,
   );
   context.rotate(hasBeamTarget ? Math.atan2(deltaY, deltaX) : options.angle ?? 0);
-  context.globalAlpha = Math.max(0, Math.min(1, options.alpha ?? 1));
+  const baseAlpha = Math.max(0, Math.min(1, options.alpha ?? 1));
   context.globalCompositeOperation = definition.blendMode;
   context.imageSmoothingEnabled = true;
-  context.drawImage(
-    image,
-    column * sourceWidth,
-    row * sourceHeight,
-    sourceWidth,
-    sourceHeight,
-    -drawWidth / 2,
-    -drawHeight * definition.anchorY,
-    drawWidth,
-    drawHeight,
-  );
+  const drawFrame = (frame: number, alpha: number) => {
+    const column = frame % definition.columns;
+    const row = Math.floor(frame / definition.columns);
+    context.globalAlpha = baseAlpha * alpha;
+    context.drawImage(
+      image,
+      column * sourceWidth,
+      row * sourceHeight,
+      sourceWidth,
+      sourceHeight,
+      -drawWidth / 2,
+      -drawHeight * definition.anchorY,
+      drawWidth,
+      drawHeight,
+    );
+  };
+  if (
+    options.interpolateFrames &&
+    nextFrame !== currentFrame &&
+    frameBlend > 0.001
+  ) {
+    drawFrame(currentFrame, 1 - frameBlend);
+    drawFrame(nextFrame, frameBlend);
+  } else {
+    drawFrame(currentFrame, 1);
+  }
   context.restore();
   return true;
 }

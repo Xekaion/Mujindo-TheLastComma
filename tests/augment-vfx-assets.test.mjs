@@ -2,6 +2,19 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
+
+const importTypeScriptModule = async (url) => {
+  const source = await readFile(url, "utf8");
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022,
+    },
+    fileName: url.pathname,
+  }).outputText;
+  return import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
+};
 
 const gameSource = await readFile(new URL("../app/GameCanvas.tsx", import.meta.url), "utf8");
 const runtimeSource = await readFile(new URL("../app/augment-vfx.ts", import.meta.url), "utf8");
@@ -96,6 +109,90 @@ test("projectile artwork uses a smooth 16-frame contract at a stable cadence", (
   assert.match(runtimeSource, /PROJECTILE_VFX_FRAMES_PER_SECOND\s*=\s*30/);
   assert.match(gameSource, /loopingGameplayVfxProgress\(projectile\.age, definition\)/);
   assert.doesNotMatch(gameSource, /positiveModulo\(projectile\.age \* 8, 1\)/);
+});
+
+test("authored projectile frames are temporally blended instead of held as discrete cells", async () => {
+  const { drawGameplayVfxFrame } = await importTypeScriptModule(
+    new URL("../app/augment-vfx.ts", import.meta.url),
+  );
+  const drawCalls = [];
+  let alpha = 1;
+  const context = {
+    save() {},
+    restore() {},
+    translate() {},
+    rotate() {},
+    set globalAlpha(value) {
+      alpha = value;
+    },
+    get globalAlpha() {
+      return alpha;
+    },
+    set globalCompositeOperation(_value) {},
+    set imageSmoothingEnabled(_value) {},
+    drawImage(...args) {
+      drawCalls.push({ args, alpha });
+    },
+  };
+  const image = { complete: true, naturalWidth: 512, naturalHeight: 512 };
+  const definition = {
+    columns: 4,
+    rows: 4,
+    frames: 16,
+    anchorY: 0.5,
+    scale: 3.5,
+    blendMode: "lighter",
+  };
+
+  assert.equal(
+    drawGameplayVfxFrame(context, image, definition, {
+      x: 20,
+      y: 30,
+      size: 12,
+      // Frame 5 plus one quarter of the way to frame 6.
+      progress: 5.25 / 16,
+      alpha: 0.8,
+      interpolateFrames: true,
+    }),
+    true,
+  );
+  assert.equal(drawCalls.length, 2, "interpolation must sample adjacent atlas cells");
+  assert.deepEqual(
+    drawCalls.map(({ args }) => args.slice(1, 3)),
+    [[128, 128], [256, 128]],
+    "frame 5 must blend into frame 6",
+  );
+  assert.ok(Math.abs(drawCalls[0].alpha - 0.6) < 1e-9);
+  assert.ok(Math.abs(drawCalls[1].alpha - 0.2) < 1e-9);
+  assert.ok(Math.abs(drawCalls[0].alpha + drawCalls[1].alpha - 0.8) < 1e-9);
+
+  drawCalls.length = 0;
+  drawGameplayVfxFrame(context, image, definition, {
+    x: 20,
+    y: 30,
+    size: 12,
+    progress: 5.25 / 16,
+    alpha: 0.8,
+  });
+  assert.equal(drawCalls.length, 1, "stationary effects retain the single-frame path");
+  assert.ok(Math.abs(drawCalls[0].alpha - 0.8) < 1e-9);
+});
+
+test("every moving projectile uses its 16-frame affinity core while keeping its unique impact VFX", () => {
+  assert.match(
+    gameSource,
+    /if \(layer === "core"[\s\S]{0,900}projectileVfxId\(projectile\.affinity\)[\s\S]{0,1800}interpolateFrames:\s*interpolateArtwork/,
+  );
+  assert.match(
+    gameSource,
+    /const interpolateArtwork =\s*projectile\.hostile \|\|[\s\S]{0,300}projectileCount <= 120/,
+    "hostile and ordinary-density shots must always retain temporal blending",
+  );
+  assert.match(
+    gameSource,
+    /spawnCombatEffect\([\s\S]{0,500}projectile\.vfxId/,
+    "the distinct augment or legendary VFX must remain available for impacts",
+  );
 });
 
 test("runtime renders authored artwork first and keeps primitives as load-failure fallback", () => {
