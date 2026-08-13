@@ -5445,8 +5445,8 @@ test("freshly spawned gear counts down a pickup delay before collection", async 
   );
 });
 
-test("Harin's rebuilt atlas retains 32 grounded and anatomically alternating gait poses", async () => {
-  const relativePath = "public/assets/walk/harin-mannequin-v2.png";
+test("Harin's rebuilt atlas retains a dedicated stance and anatomically alternating gait", async () => {
+  const relativePath = "public/assets/walk/harin-mannequin-v5.png";
   const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
   assert.deepEqual([image.width, image.height], [1024, 1536]);
   assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green-screen contamination`);
@@ -5516,7 +5516,7 @@ test("shared character motion follows post-collision displacement and travelled 
 
   assert.deepEqual([...motion.HARIN_WALK_ROW_BY_FACING], [0, 7, 6, 3, 4, 5, 2, 1]);
   assert.equal(motion.CHARACTER_WALK_FRAME_COUNT, 4);
-  assert.equal(motion.CHARACTER_IDLE_FRAME, 0);
+  assert.equal(motion.CHARACTER_IDLE_FRAME, 1);
   assert.deepEqual([...motion.CHARACTER_CONTACT_FRAMES], [0, 2]);
   assert.deepEqual([...motion.CHARACTER_GAIT_PHASE_NAMES], [
     "left-contact",
@@ -5594,13 +5594,13 @@ test("shared character motion follows post-collision displacement and travelled 
     1.25,
     "a zero-duration frame must not advance the gait",
   );
-  assert.equal(motion.settleCharacterWalkCycle(1.4), 2);
-  assert.equal(motion.characterWalkFrameIndex(1.4, false), 2);
-  assert.equal(motion.settleCharacterWalkCycle(3.6), 0);
+  assert.equal(motion.settleCharacterWalkCycle(1.4), 1);
+  assert.equal(motion.characterWalkFrameIndex(1.4, false), 1);
+  assert.equal(motion.settleCharacterWalkCycle(3.6), 1);
   assert.equal(
     motion.settleCharacterWalkCycle(3),
-    0,
-    "a passing pose exactly between contacts must settle predictably without flipping feet",
+    1,
+    "every halted gait must settle on the authored balanced standing pose",
   );
 });
 
@@ -5729,7 +5729,7 @@ test("all hundred fitted wearable atlases are registered, crop-safe, and indepen
     const paths = paperdoll.PAPERDOLL_LAYER_PATHS[slot];
     assert.equal(paths.length, 10);
     for (const publicPath of paths) {
-      assert.match(publicPath, new RegExp(`/assets/paperdoll/v2/${slot}/`));
+      assert.match(publicPath, new RegExp(`/assets/paperdoll/v5/${slot}/`));
       const relativePath = `public${publicPath}`;
       const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
       assert.deepEqual([image.width, image.height], [1024, 1536]);
@@ -5846,8 +5846,8 @@ test("expedition and plaza render independent fitted layers and preserve public 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.match(paperdollSource, /harin-mannequin-v2\.png/);
-  assert.match(paperdollSource, /paperdoll\/v2/);
+  assert.match(paperdollSource, /harin-mannequin-v5\.png/);
+  assert.match(paperdollSource, /paperdoll\/v5/);
   assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
   assert.match(source, /getEquipmentRuntimeCache\(player\.equipment\)[\s\S]{0,120}?\.loadout/);
@@ -5893,7 +5893,7 @@ test("expedition and plaza render independent fitted layers and preserve public 
     source,
     /advanceCharacterWalkCycle\(\s*player\.walkCycle,\s*playerMotion\.distance/,
   );
-  assert.match(source, /characterWalkFrameIndex\(\s*player\.walkCycle,\s*player\.moving\s*,?\s*\)/);
+  assert.match(source, /characterRenderFrameIndex\(\s*player\.facing,\s*player\.walkCycle,\s*player\.moving\s*,?\s*\)/);
 
   const plazaMotionStart = plaza.indexOf("const previousPosition = positionRef.current;");
   const plazaCollision = plaza.indexOf(
@@ -5984,11 +5984,11 @@ test("PVP preserves grounded gait and renders only the local save through the sh
     "PVP must apply the shared elapsed-time cadence cap to interpolated movement",
   );
   assert.match(source, /settleCharacterWalkCycle\(rendered\.walkCycle\)/);
-  assert.match(source, /characterWalkFrameIndex\(rendered\.walkCycle,\s*moving\)/);
+  assert.match(source, /characterRenderFrameIndex\(\s*rendered\.facing,\s*rendered\.walkCycle,\s*moving\s*,?\s*\)/);
   assert.match(
     source,
-    /width:\s*157,\s*height:\s*118,/,
-    "the 256:192 paperdoll cell must retain its authored aspect in PVP",
+    /width:\s*PAPERDOLL_WORLD_RENDER_WIDTH,\s*height:\s*PAPERDOLL_WORLD_RENDER_HEIGHT,/,
+    "PVP must share the same fitted silhouette scale as expedition and plaza",
   );
 });
 

@@ -36,6 +36,8 @@ import {
 } from "../equipment";
 import {
   PAPERDOLL_BODY_PATH,
+  PAPERDOLL_WORLD_RENDER_HEIGHT,
+  PAPERDOLL_WORLD_RENDER_WIDTH,
   drawPaperdollCharacterDirect,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
@@ -53,7 +55,7 @@ import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
   characterFacingForVector,
-  characterWalkFrameIndex,
+  characterRenderFrameIndex,
   resolveCharacterMotion,
   settleCharacterWalkCycle,
 } from "../character-motion";
@@ -488,7 +490,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       renderedPositions.set(player.id, rendered);
       const accent = player.side === 0 ? "#65d9ee" : "#ff667f";
       const moving = motion.moving;
-      const frame = characterWalkFrameIndex(rendered.walkCycle, moving);
+      const frame = characterRenderFrameIndex(
+        rendered.facing,
+        rendered.walkCycle,
+        moving,
+      );
       const alpha = player.respawnMs > 0 ? 0.3 : 1;
       context.save();
       context.globalAlpha = alpha;
@@ -527,8 +533,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           // Match the legacy cell's authored foot baseline (top y-79,
           // bottom y+39) while keeping the exact 256:192 aspect.
           y: rendered.y + 34,
-          width: 157,
-          height: 118,
+          width: PAPERDOLL_WORLD_RENDER_WIDTH,
+          height: PAPERDOLL_WORLD_RENDER_HEIGHT,
         });
         if (appearanceDrawn && isLocalPlayer) {
           context.shadowBlur = 0;
@@ -541,8 +547,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
             timeMs: renderTime,
             x: rendered.x,
             y: rendered.y + 34,
-            width: 157,
-            height: 118,
+            width: PAPERDOLL_WORLD_RENDER_WIDTH,
+            height: PAPERDOLL_WORLD_RENDER_HEIGHT,
             context: "combat",
             alpha,
           });

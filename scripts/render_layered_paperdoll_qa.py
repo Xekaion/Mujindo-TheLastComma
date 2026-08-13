@@ -6,6 +6,8 @@ from pathlib import Path
 
 import json
 
+import argparse
+
 from PIL import Image, ImageDraw
 
 
@@ -26,9 +28,15 @@ def crop_alpha(alpha: Image.Image, column: int, row: int) -> Image.Image:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--version", default="v2")
+    parser.add_argument("--body", type=Path)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
-    mannequin = Image.open(root / "public/assets/walk/harin-mannequin-v2.png").convert("RGBA")
-    layer_root = root / "public/assets/paperdoll/v2"
+    body_path = args.body or root / f"public/assets/walk/harin-mannequin-{args.version}.png"
+    mannequin = Image.open(body_path).convert("RGBA")
+    layer_root = root / f"public/assets/paperdoll/{args.version}"
     layers = {
         (slot, variant): Image.open(layer_root / slot / f"{variant:02d}-{NAMES[variant]}.png").convert("RGBA")
         for slot in SLOTS
@@ -78,7 +86,7 @@ def main() -> None:
                 frame = frame.resize((tile_w, tile_h), Image.Resampling.NEAREST)
                 sheet.alpha_composite(frame, (build_index * tile_w, qa_row * tile_h))
                 draw.text((build_index * tile_w + 10, qa_row * tile_h + 8), f"{label} / row {authored_row} / phase {phase}", fill=(255, 240, 196, 255))
-    out = root / "tmp/paperdoll-layer-qa.png"
+    out = args.output or root / f"tmp/paperdoll-layer-qa-{args.version}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out)
     print(out)

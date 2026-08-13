@@ -33,7 +33,13 @@ export const CHARACTER_GAIT_PHASE_NAMES = [
   "neutral-return",
 ] as const;
 export const CHARACTER_CONTACT_FRAMES = [0, 2] as const;
-export const CHARACTER_IDLE_FRAME = CHARACTER_CONTACT_FRAMES[0];
+/**
+ * Dedicated balanced stance authored in column 1 of every registered atlas.
+ * It is never inferred from the current gait phase: a halted actor must stop
+ * looking as though one foot is still planted mid-stride.
+ */
+export const CHARACTER_IDLE_FRAME = 1;
+export const CHARACTER_CARDINAL_STANDING_FACINGS = [0, 4] as const;
 /** World-space distance covered by one complete four-pose gait. */
 export const CHARACTER_WALK_CYCLE_DISTANCE = 96;
 /**
@@ -162,23 +168,10 @@ export function advanceCharacterWalkCycle(
   );
 }
 
-/** Settles a halted gait on the nearest authored foot-contact pose (0 or 2). */
+/** Settles every halted gait on the dedicated balanced standing pose. */
 export function settleCharacterWalkCycle(walkCycle: number): number {
-  if (!Number.isFinite(walkCycle)) return CHARACTER_IDLE_FRAME;
-  const normalizedCycle = positiveModulo(
-    walkCycle,
-    CHARACTER_WALK_FRAME_COUNT,
-  );
-  const distanceToLeftContact = Math.min(
-    normalizedCycle,
-    CHARACTER_WALK_FRAME_COUNT - normalizedCycle,
-  );
-  const distanceToRightContact = Math.abs(
-    normalizedCycle - CHARACTER_CONTACT_FRAMES[1],
-  );
-  return distanceToRightContact < distanceToLeftContact
-    ? CHARACTER_CONTACT_FRAMES[1]
-    : CHARACTER_CONTACT_FRAMES[0];
+  void walkCycle;
+  return CHARACTER_IDLE_FRAME;
 }
 
 export function characterWalkFrameIndex(
@@ -191,4 +184,21 @@ export function characterWalkFrameIndex(
     Math.floor(walkCycle),
     CHARACTER_WALK_FRAME_COUNT,
   );
+}
+
+/**
+ * Cardinal directions own a newly authored straight standing pose. Diagonal
+ * and side directions retain their correctly angled neutral frame so halting
+ * never snaps the actor to a front/back silhouette.
+ */
+export function characterRenderFrameIndex(
+  facing: number,
+  walkCycle: number,
+  moving: boolean,
+): number {
+  if (moving) return characterWalkFrameIndex(walkCycle, true);
+  const normalizedFacing = normalizeCharacterFacing(facing);
+  return normalizedFacing === 0 || normalizedFacing === 4
+    ? CHARACTER_IDLE_FRAME
+    : 3;
 }

@@ -29,12 +29,14 @@ import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
   characterSpriteRowForFacing,
-  characterWalkFrameIndex,
+  characterRenderFrameIndex,
   resolveCharacterMotion,
   settleCharacterWalkCycle,
 } from "./character-motion";
 import {
   PAPERDOLL_BODY_PATH,
+  PAPERDOLL_WORLD_RENDER_HEIGHT,
+  PAPERDOLL_WORLD_RENDER_WIDTH,
   createPaperdollEquipmentSignature,
   createPaperdollGearSignature,
   drawPaperdollCharacter,
@@ -9611,15 +9613,16 @@ export default function GameCanvas({
       context.fill();
       const playerAlpha =
         player.invulnerable > 0 && Math.floor(performance.now() / 70) % 2 ? 0.35 : 1;
-      const playerWalkFrame = characterWalkFrameIndex(
+      const playerWalkFrame = characterRenderFrameIndex(
+        player.facing,
         player.walkCycle,
         player.moving,
       );
       const playerSpriteY = player.y + 8;
-      // Preserve the authored 256:192 cell aspect ratio. The former 118x128
-      // destination squeezed Harin horizontally and made every gait look wrong.
-      const playerSpriteWidth = 171;
-      const playerSpriteHeight = 128;
+      // Preserve 4:3 without scaling the transparent atlas cell as though all
+      // of it were character mass. This keeps Harin at common-enemy scale.
+      const playerSpriteWidth = PAPERDOLL_WORLD_RENDER_WIDTH;
+      const playerSpriteHeight = PAPERDOLL_WORLD_RENDER_HEIGHT;
       const equipmentRuntime = getEquipmentRuntimeCache(player.equipment);
       const playerPaperdollLoadout = equipmentRuntime.loadout;
       const playerPaperdollSignature = equipmentRuntime.signature;
@@ -10134,7 +10137,8 @@ export default function GameCanvas({
       data-player-x={Math.round(hud.player.x)}
       data-player-y={Math.round(hud.player.y)}
       data-player-moving={hud.player.moving}
-      data-walk-frame={characterWalkFrameIndex(
+      data-walk-frame={characterRenderFrameIndex(
+        hud.player.facing,
         hud.player.walkCycle,
         hud.player.moving,
       )}

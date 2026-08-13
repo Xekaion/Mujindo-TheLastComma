@@ -21,8 +21,12 @@ export const PAPERDOLL_CACHE_LIMIT = 256;
 export const PAPERDOLL_GROUND_BASELINE = 184;
 export const PAPERDOLL_GROUND_ANCHOR_RATIO =
   PAPERDOLL_GROUND_BASELINE / PAPERDOLL_FRAME_HEIGHT;
-export const PAPERDOLL_BODY_PATH = "/assets/walk/harin-mannequin-v2.png";
-export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v2";
+export const PAPERDOLL_BODY_PATH = "/assets/walk/harin-mannequin-v5.png";
+export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v5";
+
+/** One world-space silhouette contract shared by expedition, plaza and PvP. */
+export const PAPERDOLL_WORLD_RENDER_WIDTH = 136;
+export const PAPERDOLL_WORLD_RENDER_HEIGHT = 102;
 
 /** Runtime S,SW,W,NW,N,NE,E,SE -> authored S,SE,E,NW,N,NE,W,SW. */
 export const PAPERDOLL_DIRECTION_ROWS = [0, 7, 6, 3, 4, 5, 2, 1] as const;

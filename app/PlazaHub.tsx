@@ -27,12 +27,14 @@ import {
 import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
-  characterWalkFrameIndex,
+  characterRenderFrameIndex,
   resolveCharacterMotion,
   settleCharacterWalkCycle,
 } from "./character-motion";
 import {
   PAPERDOLL_BODY_PATH,
+  PAPERDOLL_WORLD_RENDER_HEIGHT,
+  PAPERDOLL_WORLD_RENDER_WIDTH,
   drawPaperdollCharacterDirect,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromVisualGear,
@@ -460,7 +462,11 @@ function drawPlayer(
   context.fill();
 
   const alpha = player.stale ? 0.44 : 1;
-  const frame = characterWalkFrameIndex(player.walkCycle, player.moving);
+  const frame = characterRenderFrameIndex(
+    player.facing,
+    player.walkCycle,
+    player.moving,
+  );
   const loadout = paperdollLoadoutFromVisualGear(
     player.gear,
     "common",
@@ -478,8 +484,8 @@ function drawPlayer(
         frame,
         x: player.x,
         y: player.y + 8,
-        width: 171,
-        height: 128,
+        width: PAPERDOLL_WORLD_RENDER_WIDTH,
+        height: PAPERDOLL_WORLD_RENDER_HEIGHT,
         alpha,
       }),
   );
@@ -495,8 +501,8 @@ function drawPlayer(
       timeMs,
       x: player.x,
       y: player.y + 8,
-      width: 171,
-      height: 128,
+      width: PAPERDOLL_WORLD_RENDER_WIDTH,
+      height: PAPERDOLL_WORLD_RENDER_HEIGHT,
       context: player.local ? "plaza-local" : "plaza-remote",
       alpha,
     });

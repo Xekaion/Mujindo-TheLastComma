@@ -69,7 +69,7 @@
         return "body";
       }
       function layerPath(slot, variant) {
-        return `/assets/paperdoll/v2/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
+        return `/assets/paperdoll/v5/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
       }
 
       for (const [name, loadout] of builds) {
@@ -98,7 +98,7 @@
         }
       }
 
-      const body = imageFor("/assets/walk/harin-mannequin-v2.png");
+      const body = imageFor("/assets/walk/harin-mannequin-v5.png");
       let frame = 0;
       function drawAtlasCell(context, image, row) {
         context.drawImage(image, frame * 256, row * 192, 256, 192, 0, 0, 256, 192);
