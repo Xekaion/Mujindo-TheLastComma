@@ -1576,6 +1576,9 @@ export function reconcileEquipmentLevelRequirements(
       if (isRecord(equipmentValue) && equipmentValue[slot] != null) repaired = true;
       continue;
     }
+    if (isRecord(equipmentValue) && !isGearItem(equipmentValue[slot])) {
+      repaired = true;
+    }
     if (seenIds.has(item.id)) {
       repaired = true;
       continue;
@@ -1599,6 +1602,7 @@ export function reconcileEquipmentLevelRequirements(
         repaired = true;
         continue;
       }
+      if (!isGearItem(value)) repaired = true;
       seenIds.add(item.id);
       inventory.push(item);
     }
@@ -1949,7 +1953,24 @@ function chooseRarity(rng: () => number, level: number): GearRarity {
   return "cosmic";
 }
 
-function affixValueForRollPercent(
+/**
+ * Direct boss-DPS options shared by legendary, mythic, and cosmic gear use
+ * non-overlapping rarity bands. A perfect legendary roll can therefore never
+ * tie or beat even the lowest mythic roll at the same item level, and the same
+ * invariant holds between mythic and cosmic.
+ */
+const THREE_TIER_DIRECT_DPS_AFFIX_STATS = new Set<GearAffixStat>([
+  "damagePercent",
+  "attackSpeedPercent",
+  "critChancePercent",
+  "critDamagePercent",
+  "eliteDamagePercent",
+  "bossDamagePercent",
+  "executeDamagePercent",
+]);
+
+/** Exact pre-band curve retained solely for persisted-item migration. */
+function legacyAffixValueForRollPercent(
   stat: GearAffixStat,
   level: number,
   rarity: GearRarity,
@@ -1965,6 +1986,79 @@ function affixValueForRollPercent(
   return roundValue(
     Math.min(definition.cap, raw * RARITY_AFFIX_MULTIPLIER[rarity]),
   );
+}
+
+export function affixValueForRollPercent(
+  stat: GearAffixStat,
+  level: number,
+  rarity: GearRarity,
+  rollPercent: number,
+): number {
+  const normalizedRoll = clamp(Math.round(rollPercent), 1, 100);
+  const percentile = (normalizedRoll - 1) / 99;
+
+  if (
+    THREE_TIER_DIRECT_DPS_AFFIX_STATS.has(stat) &&
+    (rarity === "mythic" || rarity === "cosmic")
+  ) {
+    const definition = GEAR_AFFIX_DEFINITIONS[stat];
+    const legendaryMinimum = legacyAffixValueForRollPercent(
+      stat,
+      level,
+      "legendary",
+      1,
+    );
+    const legendaryMaximum = legacyAffixValueForRollPercent(
+      stat,
+      level,
+      "legendary",
+      100,
+    );
+    // Keep percentile quality meaningful even after the old shared hard cap
+    // collapses the legendary range at very high item levels.
+    const uncappedWidth = Math.max(
+      1,
+      Math.round(
+        (definition.maxValue - definition.minValue) *
+          RARITY_AFFIX_MULTIPLIER.legendary,
+      ) + 1,
+    );
+    const bandWidth = Math.max(
+      uncappedWidth,
+      legendaryMaximum - legendaryMinimum + 1,
+    );
+    const rarityBand = rarity === "mythic" ? 1 : 2;
+    const bandMinimum =
+      legendaryMaximum + 1 + (rarityBand - 1) * bandWidth;
+    return roundValue(
+      bandMinimum + Math.round(percentile * Math.max(0, bandWidth - 1)),
+    );
+  }
+
+  // Additional projectiles begin at mythic. Cosmic rolls receive their own
+  // band above the complete mythic range instead of tying after integer
+  // rounding or the legacy shared cap.
+  if (stat === "projectileCountFlat" && rarity === "cosmic") {
+    const mythicMinimum = legacyAffixValueForRollPercent(
+      stat,
+      level,
+      "mythic",
+      1,
+    );
+    const mythicMaximum = legacyAffixValueForRollPercent(
+      stat,
+      level,
+      "mythic",
+      100,
+    );
+    const bandWidth = Math.max(1, mythicMaximum - mythicMinimum);
+    return roundValue(
+      mythicMaximum + 1 +
+        Math.round(percentile * Math.max(0, bandWidth - 1)),
+    );
+  }
+
+  return legacyAffixValueForRollPercent(stat, level, rarity, normalizedRoll);
 }
 
 export type GearImplicitInput = Pick<
@@ -2458,17 +2552,25 @@ export function rollGear(seed: GearSeed, options: RollGearOptions = {}): GearIte
   };
 }
 
-function inferAffixRollPercent(
+type AffixValueCurve = (
+  stat: GearAffixStat,
+  level: number,
+  rarity: GearRarity,
+  rollPercent: number,
+) => number;
+
+function inferAffixRollPercentWithCurve(
   stat: GearAffixStat,
   level: number,
   rarity: GearRarity,
   value: number,
+  curve: AffixValueCurve,
 ): number {
   let bestDelta = Number.POSITIVE_INFINITY;
   const bestRolls: number[] = [];
   for (let rollPercent = 1; rollPercent <= 100; rollPercent += 1) {
     const delta = Math.abs(
-      affixValueForRollPercent(stat, level, rarity, rollPercent) - value,
+      curve(stat, level, rarity, rollPercent) - value,
     );
     if (delta < bestDelta) {
       bestDelta = delta;
@@ -2483,6 +2585,77 @@ function inferAffixRollPercent(
     1,
     100,
   );
+}
+
+function inferAffixRollPercent(
+  stat: GearAffixStat,
+  level: number,
+  rarity: GearRarity,
+  value: number,
+): number {
+  return inferAffixRollPercentWithCurve(
+    stat,
+    level,
+    rarity,
+    value,
+    affixValueForRollPercent,
+  );
+}
+
+/**
+ * Attack speed was accepted on boots by an early save format even though new
+ * drops have always treated it as a weapon-only option. Preserve the item and
+ * its rolled percentile, but move that obsolete roll to the first available
+ * boots mobility option instead of leaving hidden weapon DPS on footwear.
+ */
+function repairLegacySlotIdentityAffixes(
+  affixes: readonly GearAffix[],
+  slot: EquipmentSlot,
+  rarity: GearRarity,
+  level: number,
+): GearAffix[] {
+  if (
+    slot !== "boots" ||
+    !affixes.some((affix) => affix.stat === "attackSpeedPercent")
+  ) {
+    return [...affixes];
+  }
+
+  const replacementOrder: readonly GearAffixStat[] = [
+    "moveSpeedPercent",
+    "dashSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "projectileSpeedPercent",
+    "damageReductionPercent",
+    "maxHpFlat",
+    "roomEntryShieldFlat",
+  ];
+  const usedStats = new Set(affixes.map((affix) => affix.stat));
+  usedStats.delete("attackSpeedPercent");
+
+  return affixes.map((affix) => {
+    if (affix.stat !== "attackSpeedPercent") return affix;
+    const replacementStat = replacementOrder.find(
+      (candidate) =>
+        GEAR_AFFIX_DROP_POOL_BY_SLOT.boots.includes(candidate) &&
+        !usedStats.has(candidate),
+    );
+    if (!replacementStat) return affix;
+    usedStats.add(replacementStat);
+    const value = affixValueForRollPercent(
+      replacementStat,
+      level,
+      rarity,
+      affix.rollPercent,
+    );
+    return {
+      stat: replacementStat,
+      value,
+      rollPercent: affix.rollPercent,
+      label: formatGearAffix(replacementStat, value),
+    };
+  });
 }
 
 const cosmicAffixStats = new Set<GearAffixStat>(GEAR_COSMIC_AFFIX_STATS);
@@ -2599,13 +2772,22 @@ function normalizeAffixes(
     if (
       typeof candidate.value !== "number" ||
       !Number.isSafeInteger(candidate.value) ||
-      candidate.value <= 0 ||
-      candidate.value > definition.cap
+      candidate.value <= 0
     ) {
       return null;
     }
     const stat = candidate.stat;
     const amount = candidate.value;
+    const currentMinimum = affixValueForRollPercent(stat, level, rarity, 1);
+    const currentMaximum = affixValueForRollPercent(stat, level, rarity, 100);
+    const legacyMinimum = legacyAffixValueForRollPercent(stat, level, rarity, 1);
+    const legacyMaximum = legacyAffixValueForRollPercent(stat, level, rarity, 100);
+    if (
+      amount >
+      Math.max(definition.cap, currentMaximum, legacyMaximum)
+    ) {
+      return null;
+    }
     const minimumSaveRarity =
       definition.minimumSaveRarity ?? definition.minimumDropRarity;
     const rarityAllowed =
@@ -2633,44 +2815,80 @@ function normalizeAffixes(
       continue;
     }
 
-    const minimum = affixValueForRollPercent(stat, level, rarity, 1);
-    const maximum = affixValueForRollPercent(stat, level, rarity, 100);
-    if (amount < minimum || amount > maximum) return null;
-
     let rollPercent: number;
+    let normalizedAmount: number;
     if (candidate.rollPercent === undefined) {
       // Legacy saves stored only the rounded value. Use the midpoint of every
       // percentile that can produce it, which avoids pretending a low roll is
       // perfect when several percentiles collapse to the same integer.
-      rollPercent = inferAffixRollPercent(stat, level, rarity, amount);
+      // A missing percentile is itself a legacy-save signature. Prefer the
+      // legacy curve when both integer ranges happen to share an endpoint, so
+      // an old perfect roll is not misread as a new low roll during migration.
+      if (amount >= legacyMinimum && amount <= legacyMaximum) {
+        rollPercent = inferAffixRollPercentWithCurve(
+          stat,
+          level,
+          rarity,
+          amount,
+          legacyAffixValueForRollPercent,
+        );
+      } else if (amount >= currentMinimum && amount <= currentMaximum) {
+        rollPercent = inferAffixRollPercent(stat, level, rarity, amount);
+      } else {
+        return null;
+      }
+      normalizedAmount = affixValueForRollPercent(
+        stat,
+        level,
+        rarity,
+        rollPercent,
+      );
     } else {
       if (
         typeof candidate.rollPercent !== "number" ||
         !Number.isSafeInteger(candidate.rollPercent) ||
         candidate.rollPercent < 1 ||
-        candidate.rollPercent > 100 ||
-        affixValueForRollPercent(
-          stat,
-          level,
-          rarity,
-          candidate.rollPercent,
-        ) !== amount
+        candidate.rollPercent > 100
+      ) {
+        return null;
+      }
+      const currentAmount = affixValueForRollPercent(
+        stat,
+        level,
+        rarity,
+        candidate.rollPercent,
+      );
+      const legacyAmount = legacyAffixValueForRollPercent(
+        stat,
+        level,
+        rarity,
+        candidate.rollPercent,
+      );
+      if (
+        (currentAmount !== amount && legacyAmount !== amount)
       ) {
         return null;
       }
       rollPercent = candidate.rollPercent;
+      normalizedAmount = currentAmount;
     }
 
     usedStats.add(stat);
     parsed.push({
       stat,
-      value: amount,
+      value: normalizedAmount,
       rollPercent,
-      label: formatGearAffix(stat, amount),
+      label: formatGearAffix(stat, normalizedAmount),
     });
   }
-  return repairRarityGatedAffixes(
+  const slotRepaired = repairLegacySlotIdentityAffixes(
     parsed,
+    slot,
+    rarity,
+    level,
+  );
+  return repairRarityGatedAffixes(
+    slotRepaired,
     itemId,
     slot,
     rarity,
