@@ -6712,7 +6712,7 @@ test("inventory salvage mode toggles whole cards and confirms single or batch ac
   assert.match(overlay, /onSalvageMany\??:\s*\(gearIds:\s*string\[\]\)\s*=>\s*void;/);
   assert.match(
     overlay,
-    /import[\s\S]{0,800}?getGearSalvageAshBreakdown[\s\S]{0,120}?from ["']\.\/equipment["']/,
+    /import[\s\S]{0,1200}?getGearSalvageAshBreakdown[\s\S]{0,240}?from ["']\.\/equipment["']/,
     "batch salvage previews must share the domain's exact base and enhancement-refund valuation",
   );
   assert.match(
@@ -6935,8 +6935,8 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   }
   assert.match(
     auraCss,
-    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*3;[\s\S]{0,120}?inset:\s*-10%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,220}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,500}?animation:\s*inventory-rarity-aura-frames-v3/,
-    "the generated border must sit above the icon clip and animate while idle",
+    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*1;[\s\S]{0,120}?inset:\s*-10%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,220}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,500}?animation:\s*inventory-rarity-aura-frames-v3/,
+    "the generated animation must stay behind the opaque icon plate and animate while idle",
   );
   assert.match(
     auraCss,
@@ -6945,8 +6945,13 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   );
   assert.match(
     auraCss,
+    /\.inventory-screen-rarity--rare\.inventory-screen-grid-item::before,[\s\S]{0,900}?opacity:\s*1;/,
+    "rare+ cards must retain the same fixed structural atlas frame as every other rarity",
+  );
+  assert.doesNotMatch(
+    auraCss,
     /\.inventory-screen-rarity--rare\.inventory-screen-grid-item::before,[\s\S]{0,900}?opacity:\s*0;/,
-    "rare+ cards must retire the competing static atlas frame",
+    "no rare+ rarity may disable the fixed structural frame",
   );
   assert.match(
     auraCss,
@@ -7043,8 +7048,8 @@ test("all eight inventory rarities use authored spectacle atlases without changi
   );
   assert.match(
     spectacleCss,
-    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*1;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4/,
-    "the spectacle must animate behind the z-index 2 icon and z-index 3 exact border",
+    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*0;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4/,
+    "the spectacle must animate behind the z-index 2 plate and z-index 4 fixed frame",
   );
   assert.match(spectacleCss, /\.inventory-screen-grid-cell--salvage-mode \.inventory-screen-rarity-spectacle\s*\{[^}]*visibility:\s*visible;[^}]*animation-play-state:\s*running;/);
   assert.match(game, /loot-toast-icon-stage[\s\S]{0,260}?inventory-screen-rarity-spectacle--\$\{lootNotice\.rarity\}[\s\S]{0,180}?<GearIcon item=\{lootNotice\}/);
@@ -7135,8 +7140,8 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.match(
     finalCss,
-    /\.inventory-screen-slot-clip\s*\{[\s\S]{0,240}?z-index:\s*auto;[\s\S]{0,220}?overflow:\s*hidden;/,
-    "the dark slot plate must not form a z2 rectangle over the rarity spectacle",
+    /\.inventory-screen-slot-clip\s*\{[\s\S]{0,240}?z-index:\s*2;[\s\S]{0,220}?overflow:\s*hidden;/,
+    "the dark z2 slot plate must mask frame-shaped pixels embedded in the animated effect atlases",
   );
   assert.match(
     finalCss,
@@ -7145,11 +7150,12 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.match(
     finalCss,
-    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,300}?z-index:\s*3;/,
-    "the exact rarity border must remain above the icon",
+    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,300}?z-index:\s*1;/,
+    "the animated aura must remain behind the opaque icon plate",
   );
   assert.match(finalCss, /Full names belong in the workbench[\s\S]{0,260}?\.inventory-screen-grid-name\s*\{\s*display:\s*none;/);
-  assert.match(finalCss, /rarity-frames\.png:[\s\S]{0,520}?inset:\s*-2\.632%;[\s\S]{0,180}?background-size:\s*800%\s+100%;/);
+  assert.match(finalCss, /Fixed structural frame contract V5[\s\S]{0,760}?\.inventory-screen-tooltip-crest::after[\s\S]{0,180}?z-index:\s*4;[\s\S]{0,80}?inset:\s*-2\.632%;[\s\S]{0,360}?background-size:\s*800%\s+100%;[\s\S]{0,180}?animation:\s*none;/);
+  assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*2;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
   assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
   assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/inventory-chrome\/tooltip-panel\.png"\)/);
   assert.match(finalCss, /@media \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);
@@ -7645,6 +7651,22 @@ test("inventory v2 artwork, eight rarity frames, and every rare+ authored animat
     assert.ok(metrics.height >= 302 && metrics.height <= 304, `rarity frame ${column} height must be normalized`);
     assert.ok(Math.abs(metrics.centerX - (frameWidth - 1) / 2) <= 1.5, `rarity frame ${column} drifts horizontally`);
     assert.ok(Math.abs(metrics.centerY - (frames.height - 1) / 2) <= 1.5, `rarity frame ${column} drifts vertically`);
+  }
+  const structuralMetrics = Array.from({ length: 8 }, (_, column) =>
+    alphaCellMetrics(frames, column, 0, 8, 1, `rarity frame column ${column}`),
+  );
+  const referenceFrame = structuralMetrics[0];
+  for (const [column, metrics] of structuralMetrics.entries()) {
+    assert.ok(
+      Math.abs(metrics.width - referenceFrame.width) <= 2 &&
+        Math.abs(metrics.height - referenceFrame.height) <= 2,
+      `rarity frame ${column} must fit the same structural slot bounds`,
+    );
+    assert.ok(
+      Math.abs(metrics.centerX - referenceFrame.centerX) <= 1.5 &&
+        Math.abs(metrics.centerY - referenceFrame.centerY) <= 1.5,
+      `rarity frame ${column} must share the structural frame centre`,
+    );
   }
 
   const assertEightFrameAura = (png, assetPath, tierName) => {

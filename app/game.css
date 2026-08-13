@@ -2734,10 +2734,9 @@ button.map-cell {
 }
 
 /* All-rarity authored spectacle V4 --------------------------------------
-   This is deliberately a second, transparent layer behind the clipped gear
-   icon. Rare+ keeps the exact 320px structural V3 border above it, so the
-   larger wings, circles, embers, and constellations can never redefine the
-   slot box or recreate the mismatched-frame defect. */
+   This is deliberately a transparent effect layer behind both the opaque
+   icon plate and the fixed rarity frame. Its changing flames, wings, circles,
+   and constellations must never become the structural slot border. */
 .inventory-screen-rarity-spectacle {
   --inventory-rarity-spectacle-image: none;
   --inventory-rarity-spectacle-duration: 4.8s;
@@ -2748,7 +2747,7 @@ button.map-cell {
   --inventory-rarity-spectacle-brightness: 1;
   --inventory-rarity-spectacle-saturation: 1;
   position: absolute;
-  z-index: 1;
+  z-index: 0;
   inset: -20%;
   display: block;
   overflow: visible;
@@ -2873,7 +2872,7 @@ button.map-cell {
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-rarity-spectacle {
-  z-index: 1;
+  z-index: 0;
   opacity: var(--inventory-rarity-spectacle-active-opacity);
 }
 
@@ -7640,7 +7639,7 @@ button.equipment-slot-card:hover {
   pointer-events: none;
   background-image: url("/assets/ui/rarity-frames.png");
   background-repeat: no-repeat;
-  background-size: 700% 100%;
+  background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
   opacity: 0.82;
 }
@@ -8366,7 +8365,7 @@ button.equipment-slot-card:hover {
   pointer-events: none;
   background-image: url("/assets/ui/rarity-frames.png");
   background-repeat: no-repeat;
-  background-size: 700% 100%;
+  background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
   opacity: 0.96;
 }
@@ -8971,7 +8970,7 @@ button.equipment-slot-card:hover {
   background-image:
     url("/assets/ui/inventory-chrome-atlas.png"),
     url("/assets/ui/rarity-frames.png");
-  background-size: 400% 200%, 700% 100%;
+  background-size: 400% 200%, 800% 100%;
   background-position: 100% 100%, var(--inventory-rarity-frame-x) center;
 }
 
@@ -9399,10 +9398,9 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-slot-clip {
   position: absolute;
-  /* Do not create a stacking context here. The dark slot plate stays at the
-     base, the z1 spectacle can paint over it, and the clipped z2 icon remains
-     above the spectacle. */
-  z-index: auto;
+  /* The opaque plate masks frame-shaped pixels embedded in the animated
+     effect atlases. Only their glow outside the slot remains visible. */
+  z-index: 2;
   inset: 0;
   display: grid;
   place-items: center;
@@ -9412,7 +9410,7 @@ button.equipment-slot-card:hover {
   background:
     radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--inventory-rarity, #bcb7aa) 10%, transparent), transparent 56%),
     linear-gradient(145deg, rgba(255, 240, 204, 0.035), transparent 42%),
-    rgba(3, 5, 6, 0.93);
+    rgb(3, 5, 6);
   box-shadow:
     inset 0 0 18px rgba(0, 0, 0, 0.66),
     inset 0 0 0 1px rgba(241, 216, 161, 0.025);
@@ -9468,18 +9466,30 @@ button.equipment-slot-card:hover {
   pointer-events: none;
 }
 
-/* rarity-frames.png: one 320px square cell with a 304px painted border. */
+/* Fixed structural frame contract V5 ------------------------------------
+   rarity-frames.png contains eight equal 320px cells whose outer painted
+   bounds are all 304px and share the same centre. This non-animated layer is
+   the single source of slot geometry for every rarity and every inventory
+   presentation; the animated layers stay behind it as light only. */
 .inventory-screen-equipment-card:not(.inventory-screen-equipment-card--empty)::before,
-.inventory-screen-grid-item::before {
+.inventory-screen-grid-item::before,
+.inventory-screen-tooltip-crest::after {
+  position: absolute;
   z-index: 4;
   inset: -2.632%;
   width: auto;
   height: auto;
   box-sizing: border-box;
+  border: 0;
+  content: "";
+  pointer-events: none;
+  background-image: url("/assets/ui/rarity-frames.png");
+  background-repeat: no-repeat;
   background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
   opacity: 1;
   transform: none;
+  animation: none;
 }
 
 /* Both equipped and backpack cards remain true squares. Their outer boxes are
@@ -10764,10 +10774,10 @@ button.equipment-slot-card:hover {
 }
 
 /* Rare+ authored aura contract V3 ---------------------------------------
-   This block intentionally closes the inventory cascade. Every generated
-   atlas is 1536x768: eight 384px square cells whose 320px painted border is
-   centered inside a 32px transparent gutter. Expanding this layer by 10%
-   maps that painted border exactly onto either square equipment slot. */
+   Every generated atlas is 1536x768: eight 384px square cells. The sheets
+   include frame-like pixels whose aperture and centre differ per animation
+   frame, so this layer is strictly a rear glow. The opaque z2 slot plate masks
+   its interior while the fixed z4 rarity frame remains perfectly still. */
 .inventory-screen-rarity-aura {
   --inventory-rarity-aura-image: none;
   --inventory-rarity-aura-duration: 2.8s;
@@ -10778,7 +10788,7 @@ button.equipment-slot-card:hover {
   --inventory-rarity-aura-brightness: 1;
   --inventory-rarity-aura-saturation: 1.04;
   position: absolute;
-  z-index: 3;
+  z-index: 1;
   inset: -10%;
   display: block;
   overflow: visible;
@@ -10851,9 +10861,8 @@ button.equipment-slot-card:hover {
   opacity: var(--inventory-rarity-aura-active-opacity);
 }
 
-/* The animated image is the only rare+ slot frame. Removing the clip border
-   and static atlas frame prevents the two differently shaped boxes seen in
-   the previous UI from overlapping. */
+/* The authored static atlas is the only structural frame. The straight clip
+   border is hidden, but the fixed z4 frame stays present for every rarity. */
 .inventory-screen-grid-item > .inventory-screen-slot-clip,
 .inventory-screen-equipment-card:not(.inventory-screen-equipment-card--empty) > .inventory-screen-slot-clip {
   border-color: transparent;
@@ -10869,7 +10878,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-rarity--legendary.inventory-screen-equipment-card::before,
 .inventory-screen-rarity--mythic.inventory-screen-equipment-card::before,
 .inventory-screen-rarity--cosmic.inventory-screen-equipment-card::before {
-  opacity: 0;
+  opacity: 1;
 }
 
 /* Legacy pseudo auras rendered below the opaque icon clip and only on hover.
@@ -10891,13 +10900,37 @@ button.equipment-slot-card:hover {
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-rarity-aura {
-  z-index: 3;
+  z-index: 1;
   opacity: 1;
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-gear-icon {
   position: relative;
+  z-index: 3;
+}
+
+.inventory-screen-tooltip-crest {
+  isolation: isolate;
+  overflow: visible;
+  border-color: transparent;
+  background: transparent;
+}
+
+.inventory-screen-tooltip-crest::before {
+  position: absolute;
   z-index: 2;
+  inset: 0;
+  border: 1px solid color-mix(in srgb, var(--inventory-rarity) 33%, #252822 67%);
+  border-radius: 2px;
+  content: "";
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--inventory-rarity) 10%, transparent), transparent 56%),
+    linear-gradient(145deg, rgba(255, 240, 204, 0.035), transparent 42%),
+    rgb(3, 5, 6);
+  box-shadow:
+    inset 0 0 18px rgba(0, 0, 0, 0.66),
+    inset 0 0 0 1px rgba(241, 216, 161, 0.025);
 }
 
 .inventory-screen-tooltip.inventory-screen-rarity--rare .inventory-screen-tooltip-crest,
@@ -10905,7 +10938,6 @@ button.equipment-slot-card:hover {
 .inventory-screen-tooltip.inventory-screen-rarity--legendary .inventory-screen-tooltip-crest,
 .inventory-screen-tooltip.inventory-screen-rarity--mythic .inventory-screen-tooltip-crest,
 .inventory-screen-tooltip.inventory-screen-rarity--cosmic .inventory-screen-tooltip-crest {
-  overflow: visible;
   border-color: transparent;
 }
 
