@@ -26,6 +26,17 @@ import {
 } from "./augment-balance";
 import { BASE_PLAYER_ATTACK_DAMAGE } from "./combat-balance";
 import {
+  GAMEPLAY_VFX_MANIFEST,
+  augmentIconAssetPath,
+  augmentVfxId,
+  drawGameplayVfxFrame,
+  gameplayVfxImageEntries,
+  gameplayVfxImageKey,
+  legendaryVfxId,
+  projectileVfxId,
+  type GameplayVfxId,
+} from "./augment-vfx";
+import {
   CHARACTER_IDLE_FRAME,
   advanceCharacterWalkCycle,
   characterSpriteRowForFacing,
@@ -383,6 +394,8 @@ type Augment = {
   flavor: string;
   color: string;
   icon: number;
+  /** New augments may provide authored art; the legacy 20 keep atlas indices. */
+  iconAsset?: string;
   tags: string[];
 };
 
@@ -493,6 +506,8 @@ type Projectile = {
   hostile: boolean;
   color: string;
   affinity: ProjectileAffinity;
+  /** Identifies the authored projectile sheet without changing combat affinity. */
+  vfxId?: GameplayVfxId;
   age: number;
   maxLife: number;
   previousX: number;
@@ -556,6 +571,8 @@ type VisualEffect = {
   angle?: number;
   endX?: number;
   endY?: number;
+  /** Stable gameplay identity used to resolve an authored four-frame sheet. */
+  vfxId?: GameplayVfxId;
 };
 
 const EQUIPMENT_RARITY_TIER: Readonly<Record<GearItem["rarity"], number>> = {
@@ -789,6 +806,8 @@ type Player = {
   ashboundShieldTime: number;
   phantomMarchMoveTime: number;
   phantomMarchTrailCooldown: number;
+  /** Cosmetic throttle for the elite/boss outline from 붉은 사냥의 문장. */
+  hunterSigilPulseCooldown?: number;
 };
 
 function pointInsideWalkableFloor(x: number, y: number) {
@@ -1013,7 +1032,7 @@ function normalizeSavedDungeonWorld(world: SaveData["world"]): {
   };
 }
 
-const AUGMENTS: Augment[] = [
+const AUGMENT_DEFINITIONS: Augment[] = [
   {
     id: "fang",
     name: "거인의 송곳니",
@@ -1465,6 +1484,16 @@ const AUGMENTS: Augment[] = [
     tags: ["수집", "범위"],
   },
 ];
+
+// The first 20 definitions are the shipped atlas set and must remain pixel-for-
+// pixel compatible with saved icon indices. Only the 30 later additions opt in
+// to individual authored icons; the atlas remains their load-failure fallback.
+const LEGACY_AUGMENT_ICON_COUNT = 20;
+const AUGMENTS: Augment[] = AUGMENT_DEFINITIONS.map((augment, index) =>
+  index < LEGACY_AUGMENT_ICON_COUNT
+    ? augment
+    : { ...augment, iconAsset: augmentIconAssetPath(augment.id) },
+);
 
 const SYNERGIES = [
   { name: "대화재", needs: ["ember", "oil"], color: "#ef6549" },
@@ -1918,6 +1947,7 @@ function applyPlayerDamage(
     if (hasLegendaryPower(player, "hunterSigil")) {
       multiplier *=
         1 + LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent / 100;
+      player.hunterSigilPulseCooldown = 0.18;
     }
   }
   if (boss) multiplier *= 1 + equipmentStats.bossDamagePercent / 100;
@@ -1953,21 +1983,47 @@ function applyPlayerDamage(
   return finalDealt;
 }
 
-function AugmentIcon({ icon, size = 76 }: { icon: number; size?: number }) {
-  const column = icon % 5;
-  const row = Math.floor(icon / 5);
-  return (
+function AugmentIcon({
+  icon,
+  iconAsset,
+  size = 76,
+}: {
+  icon: number;
+  iconAsset?: string;
+  size?: number;
+}) {
+  const atlasIcon = (
     <span
       className="augment-icon"
       style={{
         width: size,
         height: size,
         backgroundSize: `${size * 5}px ${size * 4}px`,
-        backgroundPosition: `${-column * size}px ${-row * size}px`,
+        backgroundPosition: `${-(icon % 5) * size}px ${-Math.floor(icon / 5) * size}px`,
       }}
       aria-hidden="true"
     />
   );
+  if (iconAsset) {
+    return (
+      <span className="augment-icon-asset-wrap" style={{ width: size, height: size }}>
+        {atlasIcon}
+        {/* eslint-disable-next-line @next/next/no-img-element -- asset failure must reveal the atlas fallback beneath */}
+        <img
+          className="augment-icon-asset"
+          src={iconAsset}
+          width={size}
+          height={size}
+          alt=""
+          aria-hidden="true"
+          onError={(event) => {
+            event.currentTarget.hidden = true;
+          }}
+        />
+      </span>
+    );
+  }
+  return atlasIcon;
 }
 
 function GearIcon({ item, size = 64 }: { item: GearItem; size?: number }) {
@@ -4218,6 +4274,9 @@ export default function GameCanvas({
       ui: "/assets/augment-ui-atlas.png",
       menu: "/assets/menu-title-background.png",
     };
+    for (const [name, source] of gameplayVfxImageEntries()) {
+      imagePaths[name] = source;
+    }
     for (const config of Object.values(EQUIPMENT_RARITY_VFX)) {
       imagePaths[config.imageKey] = config.imagePath;
     }
@@ -4466,6 +4525,7 @@ export default function GameCanvas({
       size: number,
       color: string,
       angle = 0,
+      vfxId?: GameplayVfxId,
     ) => {
       const world = worldRef.current;
       const activeLegendaryEffects = world.effects.reduce(
@@ -4492,6 +4552,7 @@ export default function GameCanvas({
         size,
         color,
         angle,
+        vfxId,
       });
     };
 
@@ -4554,6 +4615,8 @@ export default function GameCanvas({
             0.62,
             210,
             "#8df7ff",
+            0,
+            legendaryVfxId("mirrorAegis"),
           );
           playGameSfx("playerCrit", { playbackRate: 0.78, gain: 1.08 });
           setToast("전설 · 거울 심장이 열려 2초간 적 투사체를 반사합니다.");
@@ -4568,6 +4631,16 @@ export default function GameCanvas({
         player.hp = Math.max(1, player.maxHp * 0.4);
         player.shield += player.maxHp * 0.12;
         player.invulnerable = 1.1;
+        spawnLegendaryEffect(
+          "ashboundShield",
+          player.x,
+          player.y,
+          0.84,
+          132,
+          "#f4e5bb",
+          0,
+          legendaryVfxId("lastMemory"),
+        );
         setToast("전설 · 마지막으로 남은 기억이 치명상을 되감았습니다.");
         return;
       }
@@ -4615,6 +4688,7 @@ export default function GameCanvas({
         hostile: true,
         color: affinity === "boss" ? "#ff5961" : affinity === "witch" ? "#d66cff" : "#e14f55",
         affinity,
+        vfxId: projectileVfxId(affinity),
         age: 0,
         maxLife: life,
         previousX: startX,
@@ -4752,6 +4826,7 @@ export default function GameCanvas({
       angle = 0,
       endX?: number,
       endY?: number,
+      vfxId?: GameplayVfxId,
     ) => {
       const world = worldRef.current;
       const combatEffectCount = world.effects.reduce(
@@ -4783,6 +4858,7 @@ export default function GameCanvas({
         angle,
         endX,
         endY,
+        vfxId,
       });
       if (kind === "timeRiftTelegraph" || kind === "timeRiftBurst") {
         playGameSfx("timeRift", {
@@ -4959,6 +5035,10 @@ export default function GameCanvas({
           0.38,
           58 + Math.min(62, oil * 7),
           "#ff7047",
+          0,
+          undefined,
+          undefined,
+          augmentVfxId("oil"),
         );
         for (const other of world.enemies) {
           if (other.id !== enemy.id && distance(enemy.x, enemy.y, other.x, other.y) < 118) {
@@ -5003,6 +5083,7 @@ export default function GameCanvas({
             hostile: false,
             color: "#ead9b8",
             affinity: "arcane",
+            vfxId: augmentVfxId("shrapnel"),
             age: 0,
             maxLife: shardLife,
             previousX: enemy.x,
@@ -5117,6 +5198,17 @@ export default function GameCanvas({
               : poisonRank > 0
                 ? "poison"
                 : "arcane";
+      const attackVfxId: GameplayVfxId = overcharged
+        ? augmentVfxId("overcharge")
+        : stormRank > 0
+          ? augmentVfxId("storm")
+          : emberRank > 0
+            ? augmentVfxId("ember")
+            : frostRank > 0
+              ? augmentVfxId("frost")
+              : poisonRank > 0
+                ? augmentVfxId("poison")
+                : projectileVfxId("arcane");
       const projectileColor =
         projectileAffinity === "storm"
           ? "#b59aff"
@@ -5198,6 +5290,9 @@ export default function GameCanvas({
         28 + Math.min(18, visibleCount * 2),
         chargedColor,
         baseAngle,
+        undefined,
+        undefined,
+        attackVfxId,
       );
       for (let i = 0; i < visibleCount; i += 1) {
         const angle =
@@ -5220,6 +5315,7 @@ export default function GameCanvas({
           hostile: false,
           color: chargedColor,
           affinity: projectileAffinity,
+          vfxId: attackVfxId,
           age: 0,
           maxLife: projectileLife,
           previousX: player.x,
@@ -5254,6 +5350,7 @@ export default function GameCanvas({
             hostile: false,
             color: "#d0a9ee",
             affinity: "echo",
+            vfxId: augmentVfxId("time"),
             age: 0,
             maxLife: echoProjectileLife,
             previousX: player.x,
@@ -5287,6 +5384,7 @@ export default function GameCanvas({
             hostile: false,
             color: "#ff5f8f",
             affinity: "blood",
+            vfxId: legendaryVfxId("bloodwovenGrip"),
             age: 0,
             maxLife: projectileLife,
             previousX: player.x,
@@ -5303,6 +5401,7 @@ export default function GameCanvas({
           82,
           "#ff477f",
           baseAngle,
+          legendaryVfxId("bloodwovenGrip"),
         );
         playGameSfx("playerCrit", { playbackRate: 0.72, gain: 1.12 });
       }
@@ -5325,6 +5424,7 @@ export default function GameCanvas({
             hostile: false,
             color: "#f0b86e",
             affinity: "echo",
+            vfxId: legendaryVfxId("crescentEcho"),
             age: 0,
             maxLife: projectileLife,
             previousX: player.x,
@@ -5464,6 +5564,10 @@ export default function GameCanvas({
       player.riftTrailCooldown = Math.max(0, player.riftTrailCooldown - dt);
       player.mirrorAegisBarrierTime = Math.max(0, player.mirrorAegisBarrierTime - dt);
       player.starfallMantleTime = Math.max(0, player.starfallMantleTime - dt);
+      player.hunterSigilPulseCooldown = Math.max(
+        0,
+        (player.hunterSigilPulseCooldown ?? 0) - dt,
+      );
       player.phantomMarchTrailCooldown = Math.max(
         0,
         player.phantomMarchTrailCooldown - dt,
@@ -5548,11 +5652,25 @@ export default function GameCanvas({
             0.54,
             118,
             "#f8d98a",
+            0,
+            legendaryVfxId("starfallMantle"),
           );
           playGameSfx("playerDash", { playbackRate: 1.28, gain: 0.7 });
         }
         const voidRank = powerRankOf(player, "void");
         if (voidRank > 0) {
+          spawnCombatEffect(
+            "playerImpact",
+            player.x,
+            player.y,
+            0.42,
+            126,
+            "#8b5ecc",
+            0,
+            undefined,
+            undefined,
+            augmentVfxId("void"),
+          );
           const comet = activeSynergies(player).find(
             (synergy) => synergy.name === "혜성 자국",
           );
@@ -5597,7 +5715,18 @@ export default function GameCanvas({
           (1 + equipmentStats.damagePercent / 100) *
           0.4 *
           legendaryAttackMultiplier(player);
-        spawnCombatEffect("playerImpact", player.x, player.y + 8, 0.3, 52, "#bd6cff");
+        spawnCombatEffect(
+          "playerImpact",
+          player.x,
+          player.y + 8,
+          0.3,
+          52,
+          "#bd6cff",
+          0,
+          undefined,
+          undefined,
+          legendaryVfxId("riftStride"),
+        );
         for (const enemy of world.enemies) {
           if (distance(player.x, player.y, enemy.x, enemy.y) < 72) {
             applyPlayerDamage(player, enemy, riftDamage, equipmentStats);
@@ -5697,6 +5826,7 @@ export default function GameCanvas({
           74,
           "#a68cff",
           Math.atan2(actualMoveY, actualMoveX),
+          legendaryVfxId("phantomMarch"),
         );
         for (const enemy of world.enemies) {
           if (distance(previousPlayerX, previousPlayerY, enemy.x, enemy.y) < 54) {
@@ -6940,6 +7070,9 @@ export default function GameCanvas({
               projectile.radius * 4.5,
               "#d9b5ff",
               returnAngle,
+              undefined,
+              undefined,
+              augmentVfxId("return"),
             );
           }
         }
@@ -6987,6 +7120,9 @@ export default function GameCanvas({
             projectile.radius * 4.4,
             projectile.color,
             Math.atan2(projectile.vy, projectile.vx),
+            undefined,
+            undefined,
+            projectile.vfxId,
           );
           continue;
         }
@@ -7015,6 +7151,7 @@ export default function GameCanvas({
                 Math.max(42, projectile.radius * 7),
                 "#aefaff",
                 Math.atan2(projectile.vy, projectile.vx),
+                legendaryVfxId("mirrorAegis"),
               );
               playGameSfx("playerImpact", { playbackRate: 1.42, gain: 0.48 });
             } else {
@@ -7087,6 +7224,8 @@ export default function GameCanvas({
                   0.46,
                   88,
                   "#ff477f",
+                  0,
+                  legendaryVfxId("bloodwovenGrip"),
                 );
                 playGameSfx("playerCrit", { playbackRate: 0.82, gain: 1.04 });
                 setToast("전설 · 피로 짠 손아귀가 충전되어 다음 기본 공격이 증식합니다.");
@@ -7114,6 +7253,9 @@ export default function GameCanvas({
               projectile.radius * (projectile.pierce > 0 ? 4.4 : 6.2),
               projectile.color,
               Math.atan2(projectile.vy, projectile.vx),
+              undefined,
+              undefined,
+              projectile.vfxId,
             );
             const frost = powerRankOf(player, "frost");
             if (frost > 0) enemy.slow = 0.45 + frost * 0.08;
@@ -7163,6 +7305,7 @@ export default function GameCanvas({
                   0,
                   next.x,
                   next.y,
+                  augmentVfxId("storm"),
                 );
                 if (plagueStorm && enemy.poisonTime > 0) {
                   next.poisonDamage = Math.max(
@@ -7201,6 +7344,7 @@ export default function GameCanvas({
                   0,
                   next.x,
                   next.y,
+                  augmentVfxId("ricochet"),
                 );
               }
             }
@@ -7282,6 +7426,8 @@ export default function GameCanvas({
                 0.72,
                 112,
                 "#e7b268",
+                0,
+                legendaryVfxId("ashboundGirdle"),
               );
               playGameSfx("memoryPickup", { playbackRate: 0.7, gain: 1.12 });
               setToast("전설 · 기억의 재가 엮여 최대 생명력 8%의 방벽이 생성됩니다.");
@@ -7296,7 +7442,18 @@ export default function GameCanvas({
               (1 + equipmentStats.damagePercent / 100) *
               0.75 *
               legendaryAttackMultiplier(player);
-            spawnCombatEffect("muzzle", player.x, player.y, 0.46, 78, "#f0b86e");
+            spawnCombatEffect(
+              "muzzle",
+              player.x,
+              player.y,
+              0.46,
+              78,
+              "#f0b86e",
+              0,
+              undefined,
+              undefined,
+              legendaryVfxId("commaResonance"),
+            );
             const resonanceSpeed =
               520 *
               simpleAugmentMultiplier(
@@ -7334,6 +7491,7 @@ export default function GameCanvas({
                 hostile: false,
                 color: "#f0b86e",
                 affinity: "echo",
+                vfxId: legendaryVfxId("commaResonance"),
                 age: 0,
                 maxLife: resonanceLife,
                 previousX: player.x,
@@ -8282,6 +8440,27 @@ export default function GameCanvas({
       const progress = clamp(1 - effect.life / effect.duration, 0, 1);
       const fade = Math.sin(progress * Math.PI);
       const color = effect.color ?? "#ffffff";
+      if (effect.vfxId) {
+        const definition = GAMEPLAY_VFX_MANIFEST[effect.vfxId];
+        const authoredDrawn = drawGameplayVfxFrame(
+          context,
+          imagesRef.current[gameplayVfxImageKey(effect.vfxId)],
+          definition,
+          {
+            x: effect.x,
+            y: effect.y,
+            size: effect.size,
+            progress,
+            angle: effect.angle,
+            alpha: Math.min(1, fade * 1.38),
+            endX: effect.endX,
+            endY: effect.endY,
+          },
+        );
+        // Authored artwork replaces the former primitive path. A missing or
+        // undecodable asset safely falls through to the legacy renderer.
+        if (authoredDrawn) return true;
+      }
       context.save();
       context.globalCompositeOperation = "lighter";
       context.lineCap = "round";
@@ -8635,6 +8814,26 @@ export default function GameCanvas({
         (dense ? 0.76 : 1) *
         speedScale;
       const pulse = 0.82 + Math.sin(clock * 12 + projectile.id * 1.71) * 0.18;
+
+      if (layer === "core" && projectile.vfxId) {
+        const definition = GAMEPLAY_VFX_MANIFEST[projectile.vfxId];
+        const authoredDrawn = drawGameplayVfxFrame(
+          context,
+          imagesRef.current[gameplayVfxImageKey(projectile.vfxId)],
+          definition,
+          {
+            x: projectile.x,
+            y: projectile.y,
+            size: projectile.radius,
+            progress: positiveModulo(projectile.age * 8, 1),
+            angle,
+            alpha,
+            frameOffset: projectile.id,
+          },
+        );
+        // Do not paint the old circle/diamond core behind loaded authored art.
+        if (authoredDrawn) return;
+      }
 
       context.save();
       context.translate(projectile.x, projectile.y);
@@ -9530,6 +9729,28 @@ export default function GameCanvas({
           context.arc(enemy.x, enemy.y, enemy.radius, 0, Math.PI * 2);
           context.fill();
         }
+        if (
+          (enemy.elite || isBossKind(enemy.kind)) &&
+          hasLegendaryPower(player, "hunterSigil")
+        ) {
+          const hunterSigilVfxId = legendaryVfxId("hunterSigil");
+          drawGameplayVfxFrame(
+            context,
+            images[gameplayVfxImageKey(hunterSigilVfxId)],
+            GAMEPLAY_VFX_MANIFEST[hunterSigilVfxId],
+            {
+              x: enemy.x,
+              y: enemy.y,
+              size: Math.max(84, walkWidth * 0.72),
+              progress: positiveModulo(ambientTime * 0.78 + enemy.id * 0.17, 1),
+              alpha:
+                (player.hunterSigilPulseCooldown ?? 0) > 0
+                  ? 1
+                  : 0.58 + Math.sin(ambientTime * 3.2 + enemy.id) * 0.12,
+              frameOffset: enemy.id,
+            },
+          );
+        }
         const barWidth =
           isBossKind(enemy.kind) ? 180 : enemy.radius * 2;
         context.fillStyle = "rgba(0,0,0,.75)";
@@ -9591,6 +9812,24 @@ export default function GameCanvas({
         const angle = performance.now() / 620 + (Math.PI * 2 * i) / orbitCount;
         const ox = player.x + Math.cos(angle) * (62 + orbitPower * 2);
         const oy = player.y + Math.sin(angle) * (44 + orbitPower * 1.4);
+        const orbitVfxId = augmentVfxId("orbit");
+        if (
+          drawGameplayVfxFrame(
+            context,
+            images[gameplayVfxImageKey(orbitVfxId)],
+            GAMEPLAY_VFX_MANIFEST[orbitVfxId],
+            {
+              x: ox,
+              y: oy,
+              size: 13,
+              progress: positiveModulo(ambientTime * 2.4, 1),
+              angle: angle + Math.PI / 2,
+              frameOffset: i,
+            },
+          )
+        ) {
+          continue;
+        }
         context.save();
         context.translate(ox, oy);
         context.rotate(angle + Math.PI / 2);
@@ -9690,51 +9929,80 @@ export default function GameCanvas({
         context.fill();
       }
       if (player.mirrorAegisBarrierTime > 0) {
-        context.save();
-        context.globalCompositeOperation = "lighter";
-        context.strokeStyle = "rgba(174,250,255,.94)";
-        context.shadowColor = "#8df7ff";
-        context.shadowBlur = 18;
-        context.lineWidth = 2.4;
-        context.beginPath();
-        context.arc(
-          player.x,
-          player.y,
-          46,
-          ambientTime * 0.8,
-          ambientTime * 0.8 + Math.PI * 1.55,
+        const barrierVfxId = legendaryVfxId("mirrorAegis");
+        const barrierDrawn = drawGameplayVfxFrame(
+          context,
+          images[gameplayVfxImageKey(barrierVfxId)],
+          GAMEPLAY_VFX_MANIFEST[barrierVfxId],
+          {
+            x: player.x,
+            y: player.y,
+            size: 112,
+            progress: positiveModulo(ambientTime * 1.65, 1),
+            alpha: 0.94,
+          },
         );
-        context.stroke();
-        context.strokeStyle = "rgba(235,255,255,.72)";
-        context.lineWidth = 1.3;
-        context.beginPath();
-        context.arc(
-          player.x,
-          player.y,
-          41,
-          -ambientTime,
-          -ambientTime + Math.PI * 1.4,
+        if (!barrierDrawn) {
+          context.save();
+          context.globalCompositeOperation = "lighter";
+          context.strokeStyle = "rgba(174,250,255,.94)";
+          context.shadowColor = "#8df7ff";
+          context.shadowBlur = 18;
+          context.lineWidth = 2.4;
+          context.beginPath();
+          context.arc(player.x, player.y, 46, ambientTime * 0.8, ambientTime * 0.8 + Math.PI * 1.55);
+          context.stroke();
+          context.restore();
+        }
+      } else if (player.shield > 0) {
+        const shieldVfxId =
+          player.ashboundShieldTime > 0
+            ? legendaryVfxId("ashboundGirdle")
+            : augmentVfxId("ward");
+        const shieldDrawn = drawGameplayVfxFrame(
+          context,
+          images[gameplayVfxImageKey(shieldVfxId)],
+          GAMEPLAY_VFX_MANIFEST[shieldVfxId],
+          {
+            x: player.x,
+            y: player.y,
+            size: 106,
+            progress: positiveModulo(ambientTime * 1.25, 1),
+            alpha: 0.9,
+          },
         );
-        context.stroke();
-        context.restore();
+        if (!shieldDrawn) {
+          context.save();
+          context.strokeStyle = "rgba(174,250,255,.72)";
+          context.lineWidth = 2;
+          context.beginPath();
+          context.arc(player.x, player.y, 44, 0, Math.PI * 2);
+          context.stroke();
+          context.restore();
+        }
       }
       if (player.starfallMantleTime > 0) {
-        context.save();
-        context.globalCompositeOperation = "lighter";
-        context.fillStyle = "#ffeaa6";
-        context.shadowColor = "#f8d98a";
-        context.shadowBlur = 12;
-        for (let star = 0; star < 6; star += 1) {
-          const angle = ambientTime * 1.7 + (Math.PI * 2 * star) / 6;
-          const radius = 43 + Math.sin(ambientTime * 3 + star) * 3;
-          context.fillRect(
-            player.x + Math.cos(angle) * radius - 1.5,
-            player.y + Math.sin(angle) * radius * 0.7 - 1.5,
-            3,
-            3,
-          );
+        const mantleVfxId = legendaryVfxId("starfallMantle");
+        const mantleDrawn = drawGameplayVfxFrame(
+          context,
+          images[gameplayVfxImageKey(mantleVfxId)],
+          GAMEPLAY_VFX_MANIFEST[mantleVfxId],
+          {
+            x: player.x,
+            y: player.y,
+            size: 108,
+            progress: positiveModulo(ambientTime * 1.4, 1),
+            alpha: 0.92,
+          },
+        );
+        if (!mantleDrawn) {
+          context.save();
+          context.fillStyle = "#ffeaa6";
+          context.shadowColor = "#f8d98a";
+          context.shadowBlur = 12;
+          context.fillRect(player.x - 2, player.y - 48, 4, 4);
+          context.restore();
         }
-        context.restore();
       }
 
       if (!world.roomCleared && world.enemies.length) {
@@ -10414,7 +10682,7 @@ export default function GameCanvas({
                         key={augment.id}
                         style={{ "--augment-color": augment.color } as CSSProperties}
                       >
-                        <AugmentIcon icon={augment.icon} size={52} />
+                        <AugmentIcon icon={augment.icon} iconAsset={augment.iconAsset} size={52} />
                         <div>
                           <strong>{augment.name}</strong>
                           <small>
@@ -10750,7 +11018,7 @@ export default function GameCanvas({
                     <span className="choice-state">
                       {nextRank === 1 ? "NEW" : `STACK ×${nextRank}`}
                     </span>
-                    <AugmentIcon icon={augment.icon} size={104} />
+                    <AugmentIcon icon={augment.icon} iconAsset={augment.iconAsset} size={104} />
                     <small>{augment.tags.join(" · ")}</small>
                     <h3>{augment.name}</h3>
                     <strong>RANK {nextRank}</strong>
@@ -10848,7 +11116,11 @@ export default function GameCanvas({
               <span className="profession-ceremony-orbit profession-ceremony-orbit--inner" />
               <span className="profession-ceremony-core" />
               <div className="profession-ceremony-emblem">
-                <AugmentIcon icon={professionCeremony.augment.icon} size={136} />
+                <AugmentIcon
+                  icon={professionCeremony.augment.icon}
+                  iconAsset={professionCeremony.augment.iconAsset}
+                  size={136}
+                />
               </div>
               <div className="profession-ceremony-particles">
                 {PROFESSION_CEREMONY_PARTICLES.map((particle, index) => (

@@ -636,7 +636,7 @@ test("twenty new augments are unique, profession-ready, and wired into combat", 
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     importTypeScriptModule("app/professions.ts"),
   ]);
-  const catalog = source.match(/const AUGMENTS: Augment\[\] = \[([\s\S]*?)\n\];\n\nconst SYNERGIES/);
+  const catalog = source.match(/const AUGMENT_DEFINITIONS: Augment\[\] = \[([\s\S]*?)\n\];\n\n\/\/ The first 20 definitions/);
   assert.ok(catalog, "augment catalog must remain statically auditable");
   const catalogIds = [...catalog[1].matchAll(/\bid: "([a-z]+)"/g)].map((match) => match[1]);
   assert.equal(catalogIds.length, 50);
@@ -692,7 +692,7 @@ test("ten simple augments use exact card values and affect runtime calculations"
     importTypeScriptModule("app/professions.ts"),
     importTypeScriptModule("app/augment-balance.ts"),
   ]);
-  const catalog = source.match(/const AUGMENTS: Augment\[\] = \[([\s\S]*?)\n\];\n\nconst SYNERGIES/);
+  const catalog = source.match(/const AUGMENT_DEFINITIONS: Augment\[\] = \[([\s\S]*?)\n\];\n\n\/\/ The first 20 definitions/);
   assert.ok(catalog, "augment catalog must remain statically auditable");
   const catalogIds = [...catalog[1].matchAll(/\bid: "([a-z]+)"/g)].map((match) => match[1]);
   assert.deepEqual(catalogIds.slice(-10), balance.SIMPLE_AUGMENT_IDS);

@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFile, stat } from "node:fs/promises";
+import test from "node:test";
+
+const gameSource = await readFile(new URL("../app/GameCanvas.tsx", import.meta.url), "utf8");
+const runtimeSource = await readFile(new URL("../app/augment-vfx.ts", import.meta.url), "utf8");
+
+const legacyIds = [
+  "fang", "haste", "split", "pierce", "eye", "return", "ember", "oil", "frost", "storm",
+  "poison", "blood", "predator", "glass", "boots", "void", "orbit", "time", "magnet", "map",
+];
+const newIds = [
+  "focus", "caliber", "homing", "ricochet", "execution", "giantbane", "overcharge", "shrapnel", "leech", "armor",
+  "resolve", "regeneration", "ward", "bulwark", "momentum", "reflex", "scholar", "scavenger", "conquest", "frenzy",
+  "strength", "rapidfire", "range", "velocity", "expansion", "sprint", "defense", "recovery", "learning", "collection",
+];
+const augmentVfxIds = ["ember", "oil", "frost", "storm", "poison", "return", "void", "orbit", "time", "overcharge", "shrapnel", "ricochet", "ward"];
+const legendaryVfxIds = ["crescentEcho", "mirrorAegis", "hunterSigil", "starfallMantle", "lastMemory", "bloodwovenGrip", "ashboundGirdle", "phantomMarch", "riftStride", "commaResonance"];
+const projectileVfxIds = ["arcane", "blood", "ember", "storm", "frost", "poison", "echo", "enemy", "witch", "boss"];
+
+const sha256 = async (url) => createHash("sha256").update(await readFile(url)).digest("hex");
+
+test("the shipped 20-icon atlas stays byte-identical and only later augments opt into new art", async () => {
+  // Frozen value records the exact legacy atlas the user asked us not to alter.
+  assert.equal(
+    await sha256(new URL("../public/assets/augment-icons-v2.webp", import.meta.url)),
+    "feb526a68884128d068b512f06b011029d21113a0d97cb3bb2212e8ffe78069a",
+  );
+  assert.match(gameSource, /const LEGACY_AUGMENT_ICON_COUNT = 20;/);
+  assert.match(gameSource, /index < LEGACY_AUGMENT_ICON_COUNT\s*\? augment\s*:\s*\{ \.\.\.augment, iconAsset:/s);
+  for (const id of legacyIds) assert.match(gameSource, new RegExp(`id: "${id}"`));
+  for (const id of newIds) {
+    await stat(new URL(`../public/assets/augments/icons/${id}-v1.webp`, import.meta.url));
+  }
+});
+
+test("every effect-producing augment, legendary power, and projectile has an authored sheet", async () => {
+  for (const id of augmentVfxIds) {
+    await stat(new URL(`../public/assets/effects/augments/${id}-v1.png`, import.meta.url));
+    assert.match(runtimeSource, new RegExp(`"${id}"`));
+  }
+  for (const id of legendaryVfxIds) {
+    await stat(new URL(`../public/assets/effects/legendary/${id}-v1.png`, import.meta.url));
+    assert.match(runtimeSource, new RegExp(`"${id}"`));
+  }
+  for (const id of projectileVfxIds) {
+    await stat(new URL(`../public/assets/effects/projectiles/${id}-v1.png`, import.meta.url));
+    assert.match(runtimeSource, new RegExp(`"${id}"`));
+  }
+});
+
+test("runtime renders authored artwork first and keeps primitives as load-failure fallback", () => {
+  assert.match(gameSource, /if \(authoredDrawn\) return true;/);
+  assert.match(gameSource, /if \(authoredDrawn\) return;/);
+  assert.match(gameSource, /legendaryVfxId\("phantomMarch"\)/);
+  assert.match(gameSource, /legendaryVfxId\("hunterSigil"\)/);
+  assert.match(gameSource, /augmentVfxId\("ward"\)/);
+  assert.match(gameSource, /vfxId: projectileVfxId\(affinity\)/);
+});

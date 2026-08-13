@@ -1054,6 +1054,26 @@
   filter: saturate(0.9) contrast(1.05);
 }
 
+.augment-icon-asset-wrap {
+  position: relative;
+  display: inline-block;
+  flex: 0 0 auto;
+}
+
+.augment-icon-asset-wrap > .augment-icon,
+.augment-icon-asset {
+  position: absolute;
+  inset: 0;
+}
+
+.augment-icon-asset {
+  z-index: 1;
+  display: block;
+  border-radius: 7px;
+  object-fit: contain;
+  filter: saturate(0.96) contrast(1.04);
+}
+
 .toast {
   position: absolute;
   z-index: 8;
