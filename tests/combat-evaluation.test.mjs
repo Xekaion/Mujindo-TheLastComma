@@ -47,18 +47,25 @@ const baseline = Object.freeze({
 const rate = (overrides) =>
   evaluation.calculateCombatEvaluation({ ...baseline, ...overrides });
 
-test("version-one baseline preserves sheet attack and theoretical stat DPS", () => {
+test("version-two baseline is exactly the perfect-hit boss DPS rating", () => {
   const result = rate({});
-  assert.equal(evaluation.BOSS_CONVERSION_VERSION, 1);
-  assert.equal(result.version, 1);
+  assert.equal(evaluation.BOSS_CONVERSION_VERSION, 2);
+  assert.equal(result.version, 2);
   assert.equal(result.sheetAttackPower, 14);
   assert.ok(Math.abs(result.statAttackDps - 20.286) < 1e-12);
-  assert.ok(result.standardBossDps > 19 && result.standardBossDps < 20.286);
+  assert.equal(result.standardBossDps, result.statAttackDps);
+  assert.equal(result.hitRate, 1);
   assert.equal(
     result.standardBossDamage60,
     result.standardBossDps * 60,
   );
-  assert.ok(result.combatPower >= 980 && result.combatPower <= 1_010);
+  assert.equal(
+    result.combatPower,
+    Math.round(
+      result.standardBossDps * evaluation.COMBAT_POWER_PER_BOSS_DPS,
+    ),
+  );
+  assert.equal(result.combatPower, 1_000);
   assert.deepEqual(
     {
       distance: result.bossBreakdown.standardDistance,
@@ -75,6 +82,7 @@ test("attack speed raises DPS without rewriting sheet attack power", () => {
   assert.equal(fast.sheetAttackPower, normal.sheetAttackPower);
   assert.equal(fast.statAttackDps, normal.statAttackDps * 2);
   assert.equal(fast.standardBossDps, normal.standardBossDps * 2);
+  assert.equal(fast.combatPower, normal.combatPower * 2);
 });
 
 test("boss multiplier affects the boss conversion, not unconditional stat DPS", () => {
@@ -85,16 +93,74 @@ test("boss multiplier affects the boss conversion, not unconditional stat DPS", 
     Math.abs(bossGear.standardBossDps - normal.standardBossDps * 1.35) <
       1e-12,
   );
+  assert.ok(bossGear.combatPower > normal.combatPower);
 });
 
-test("survival budget changes only the composite combat power", () => {
-  const fragile = rate({ survivalBudget: 50 });
-  const sturdy = rate({ survivalBudget: 200 });
-  assert.equal(sturdy.sheetAttackPower, fragile.sheetAttackPower);
-  assert.equal(sturdy.statAttackDps, fragile.statAttackDps);
-  assert.equal(sturdy.standardBossDps, fragile.standardBossDps);
-  assert.equal(sturdy.hitRate, fragile.hitRate);
-  assert.ok(sturdy.combatPower > fragile.combatPower);
+test("every offensive boss-DPS source raises power on the exact linear scale", () => {
+  const reference = rate({});
+  for (const [label, overrides] of [
+    ["attack damage", { sheetAttackPower: 21 }],
+    ["attack speed", { theoreticalFireRate: 2.1 }],
+    ["projectile count", { theoreticalProjectileCount: 3 }],
+    ["critical chance", { critChance: 0.5 }],
+    ["critical damage", { critMultiplier: 2.5 }],
+    ["overcharge", { overchargeAverageMultiplier: 1.4 }],
+    ["primary condition", { standardPrimaryDamageMultiplier: 1.3 }],
+    ["final damage", { finalDamageMultiplier: 1.2 }],
+    ["boss damage", { bossMultiplier: 1.25 }],
+    ["execution", { executeThreshold: 0.3, executeMultiplier: 2 }],
+    ["time echo", { timeEchoBonus: 0.3 }],
+    ["returning projectile", { returnBonus: 0.4 }],
+    ["poison", { poisonDps: 12 }],
+    ["offensive legendary proc", { legendaryProcBonusDps: 12 }],
+  ]) {
+    const result = rate(overrides);
+    assert.ok(
+      result.standardBossDps > reference.standardBossDps,
+      `${label} must raise boss DPS`,
+    );
+    assert.ok(result.combatPower > reference.combatPower, `${label} must raise power`);
+    assert.equal(
+      result.combatPower,
+      Math.round(
+        result.standardBossDps * evaluation.COMBAT_POWER_PER_BOSS_DPS,
+      ),
+      `${label} must use the exact boss-DPS scale`,
+    );
+  }
+});
+
+test("every non-offense input leaves perfect-hit combat power unchanged", () => {
+  const reference = rate({});
+  const nonOffenseOverrides = [
+    ["survival budget", { survivalBudget: 1_000_000 }],
+    ["three-target throughput", { threeTargetDps: 1_000_000 }],
+    ["projectile render geometry", { projectileGeometryCount: 90 }],
+    ["spread", { projectileSpreadDegrees: 359 }],
+    ["projectile size", { projectileRadius: 500 }],
+    ["projectile speed", { projectileSpeed: 50_000 }],
+    ["projectile range", { projectileRange: 50_000 }],
+    ["homing", { homing: 1_000 }],
+    ["echo accuracy hint", { timeEchoHitRate: 0 }],
+    ["move speed", { moveSpeed: 10_000 }],
+    ["dash cooldown", { dashCooldown: 0.05 }],
+    ["dash distance", { dashDistance: 10_000 }],
+  ];
+
+  for (const [label, overrides] of nonOffenseOverrides) {
+    const result = rate(overrides);
+    assert.equal(result.hitRate, 1, `${label} must keep the perfect-hit contract`);
+    assert.equal(
+      result.standardBossDps,
+      reference.standardBossDps,
+      `${label} must not alter boss DPS`,
+    );
+    assert.equal(
+      result.combatPower,
+      reference.combatPower,
+      `${label} must not alter combat power`,
+    );
+  }
 });
 
 test("execute conversion uses the time-to-kill harmonic factor", () => {
@@ -117,11 +183,13 @@ test("standard-boss hit rate is monotone in size, homing, speed, and range", () 
     projectileRange: 180,
     homing: 0,
   };
-  const base = rate(geometry).hitRate;
-  const bigger = rate({ ...geometry, projectileRadius: 48 }).hitRate;
-  const homing = rate({ ...geometry, homing: 4 }).hitRate;
-  const faster = rate({ ...geometry, projectileSpeed: 900 }).hitRate;
-  const longer = rate({ ...geometry, projectileRange: 520 }).hitRate;
+  const hitRate = (overrides) =>
+    evaluation.calculateStandardBossHitRate({ ...geometry, ...overrides });
+  const base = hitRate({});
+  const bigger = hitRate({ projectileRadius: 48 });
+  const homing = hitRate({ homing: 4 });
+  const faster = hitRate({ projectileSpeed: 900 });
+  const longer = hitRate({ projectileRange: 520 });
   assert.ok(bigger >= base, `${bigger} should be >= ${base}`);
   assert.ok(homing >= base, `${homing} should be >= ${base}`);
   assert.ok(faster > base, `${faster} should be > ${base}`);
@@ -157,7 +225,10 @@ test("render geometry and applied damage-over-time stay separate from theoretica
     poisonDps: 10,
   });
   assert.equal(renderedNine.statAttackDps, renderedNinety.statAttackDps);
-  assert.notEqual(renderedNine.hitRate, renderedNinety.hitRate);
+  assert.equal(renderedNine.hitRate, 1);
+  assert.equal(renderedNinety.hitRate, 1);
+  assert.equal(renderedNine.standardBossDps, renderedNinety.standardBossDps);
+  assert.equal(renderedNine.combatPower, renderedNinety.combatPower);
   assert.equal(
     renderedNine.bossBreakdown.poisonDps,
     10,

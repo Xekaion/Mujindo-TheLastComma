@@ -519,6 +519,8 @@ async function queryListings(db: D1Database, query: ItemMarketQuery) {
     newest: "l.created_at DESC,l.id DESC",
     price_asc: "l.price_ash ASC,l.created_at DESC",
     price_desc: "l.price_ash DESC,l.created_at DESC",
+    power_desc: `CAST(COALESCE(json_extract(i.item_json, '$.powerScore'), 0) AS REAL) DESC,
+      i.item_level DESC,l.created_at DESC,l.id DESC`,
     level_desc: "i.item_level DESC,l.created_at DESC",
     rarity_desc: `CASE i.rarity
       WHEN 'cosmic' THEN 8 WHEN 'mythic' THEN 7 WHEN 'legendary' THEN 6 WHEN 'epic' THEN 5

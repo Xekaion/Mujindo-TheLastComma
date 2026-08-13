@@ -188,6 +188,15 @@ test("economy protocol rejects mass assignment, floats, overflow, and hash repla
     minPriceAsh: 100,
     maxPriceAsh: 50_000,
   });
+  assert.deepEqual(protocol.parseMarketQuery({
+    kind: "items",
+    limit: 60,
+    sort: "power_desc",
+  }), {
+    kind: "items",
+    limit: 60,
+    sort: "power_desc",
+  });
   assert.equal(protocol.parseMarketQuery({ kind: "items", minLevel: 90, maxLevel: 40 }), null);
   assert.equal(protocol.parseMarketQuery({ kind: "items", minPriceAsh: 1.5 }), null);
   assert.equal(protocol.parseMarketQuery({ kind: "items", accountId: UUID.a }), null);
@@ -242,6 +251,48 @@ test("secure market migration applies with normalized tables and immutable ledge
   db.prepare(`INSERT INTO economy_ledger(id,operation_id,account_id,currency,available_delta,reserved_delta,locked_delta,reason,reference_type,reference_id,created_at) VALUES('l1','op1',?,'ash',1,0,0,'test','test','x',1)`).run(UUID.a);
   assert.throws(() => db.prepare(`UPDATE economy_ledger SET available_delta=2 WHERE id='l1'`).run(), /immutable_ledger/);
   assert.throws(() => db.prepare(`DELETE FROM economy_ledger WHERE id='l1'`).run(), /immutable_ledger/);
+});
+
+test("item market power sort is numeric and has deterministic descending tie breaks", async () => {
+  const worker = await source("worker/economy-d1.ts");
+  const orderByMatch = worker.match(
+    /power_desc:\s*`([\s\S]*?)`,\s*\n\s*level_desc:/,
+  );
+  assert.ok(orderByMatch, "worker must expose the authoritative power_desc ordering");
+
+  const db = database();
+  db.exec(`
+    CREATE TABLE items (
+      id TEXT PRIMARY KEY,
+      item_level INTEGER NOT NULL,
+      item_json TEXT NOT NULL
+    );
+    CREATE TABLE listings (
+      id TEXT PRIMARY KEY,
+      item_id TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+  `);
+  const insertItem = db.prepare(
+    "INSERT INTO items(id,item_level,item_json) VALUES(?,?,json_object('powerScore',?))",
+  );
+  const insertListing = db.prepare(
+    "INSERT INTO listings(id,item_id,created_at) VALUES(?,?,?)",
+  );
+  for (const row of [
+    { id: "a", power: 900, level: 99, createdAt: 3 },
+    { id: "b", power: 1200, level: 1, createdAt: 1 },
+    { id: "c", power: 900, level: 100, createdAt: 1 },
+    { id: "d", power: 900, level: 100, createdAt: 2 },
+    { id: "e", power: 900, level: 100, createdAt: 2 },
+  ]) {
+    insertItem.run(row.id, row.level, row.power);
+    insertListing.run(row.id, row.id, row.createdAt);
+  }
+  const ids = db.prepare(
+    `SELECT l.id FROM listings l JOIN items i ON i.id=l.item_id ORDER BY ${orderByMatch[1]}`,
+  ).all().map((row) => row.id);
+  assert.deepEqual(ids, ["b", "e", "d", "c", "a"]);
 });
 
 test("Sites migrations stay parser-safe while runtime installs every authoritative trigger", async () => {
@@ -493,7 +544,11 @@ test("admin audit idempotency is immutable and rejects duplicate operator reques
 });
 
 test("worker gates live writes, strips spoofed headers, and exposes no local-save upload", async () => {
-  const [worker, entry] = await Promise.all([source("worker/economy-d1.ts"), source("worker/index.ts")]);
+  const [worker, entry, client] = await Promise.all([
+    source("worker/economy-d1.ts"),
+    source("worker/index.ts"),
+    source("app/economy-client.ts"),
+  ]);
   for (const route of ["/snapshot", "/market", "/command", "/auth/steam/start", "/auth/steam/callback", "/payments/steam/init", "/payments/steam/finalize", "/admin/sanctions", "/health"]) {
     assert.ok(worker.includes(route), `missing ${route}`);
   }
@@ -511,6 +566,11 @@ test("worker gates live writes, strips spoofed headers, and exposes no local-sav
   assert.match(worker, /enforceRequestRateLimit/);
   assert.match(worker, /stateClaim\.meta\.changes/);
   assert.match(worker, /route === "\/api\/economy\/market"/);
+  assert.match(client, /power:\s*"power_desc"/);
+  assert.match(
+    worker,
+    /power_desc:\s*`CAST\(COALESCE\(json_extract\(i\.item_json, '\$\.powerScore'\), 0\) AS REAL\) DESC,[\s\S]{0,120}?i\.item_level DESC,l\.created_at DESC,l\.id DESC`/,
+  );
   assert.match(worker, /\? await marketResponse\(request, db, auth\)/);
   assert.match(worker, /\? await executeCommand\(request, db, env, auth\)/);
   assert.doesNotMatch(worker, /route\.endsWith/);

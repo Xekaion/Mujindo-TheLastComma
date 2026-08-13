@@ -162,7 +162,7 @@ function SelectedEquipmentDetail({ item }: { item: GearItem | null }) {
 
       <dl className="plaza-character-profile__detail-power">
         <div>
-          <dt>장비 전투력</dt>
+          <dt>아이템 보스 화력</dt>
           <dd>{item.powerScore.toLocaleString("ko-KR")}</dd>
         </div>
         <div>
@@ -349,7 +349,7 @@ export default function PlazaCharacterProfile({
               <dl>
                 <div><dt>레벨</dt><dd>LV.{level}</dd></div>
                 <div><dt>탐사 심도</dt><dd>지하 {dungeonFloor.toLocaleString("ko-KR")}층</dd></div>
-                <div><dt>전체 장비 전투력</dt><dd>{equipmentPower.toLocaleString("ko-KR")}</dd></div>
+                <div><dt>전체 장비 보스 전투력</dt><dd>{equipmentPower.toLocaleString("ko-KR")}</dd></div>
               </dl>
             </div>
 

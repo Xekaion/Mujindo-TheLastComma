@@ -2196,18 +2196,19 @@ export type EquipmentCombatPowerBreakdown = {
   utilityIndex: number;
 };
 
-const COMBAT_POWER_WEIGHTS = {
-  offense: 600,
-  defense: 250,
-  sustain: 70,
-  mobility: 50,
-  utility: 30,
-} as const;
-
 const BASE_CRIT_CHANCE = 0.05;
 const BASE_CRIT_MULTIPLIER = 1.7;
 const BASE_CRIT_EXPECTATION =
   1 + BASE_CRIT_CHANCE * (BASE_CRIT_MULTIPLIER - 1);
+const EQUIPMENT_POWER_BASE_ATTACKS_PER_SECOND = 1.4;
+const EQUIPMENT_POWER_EXECUTE_HEALTH_SHARE = 0.2;
+export const EQUIPMENT_POWER_REFERENCE_BOSS_HITS_PER_SECOND = 1;
+export const EQUIPMENT_POWER_REFERENCE_PICKUPS_PER_SECOND = 1;
+const EQUIPMENT_POWER_REFERENCE_DASH_COOLDOWN_SECONDS = 1.35;
+const EQUIPMENT_POWER_REFERENCE_DASH_DURATION_SECONDS = 0.17;
+const EQUIPMENT_POWER_RIFT_TRAIL_INTERVAL_SECONDS = 0.055;
+const EQUIPMENT_POWER_RIFT_TRAIL_TICK_DAMAGE_MULTIPLIER = 0.4;
+const EQUIPMENT_POWER_PHANTOM_TRAIL_INTERVAL_SECONDS = 0.4;
 
 const hasPower = (
   powers: ReadonlySet<LegendaryPowerId>,
@@ -2215,9 +2216,21 @@ const hasPower = (
 ): boolean => powers.has(powerId);
 
 /**
- * Converts the same enhanced equipment totals consumed by combat into one
- * nonlinear score. Multiplicative DPS and EHP interactions are evaluated once
- * at loadout level, while runtime caps stop dead stats from adding fake power.
+ * Equipment power is one deliberately narrow benchmark: sustained damage to
+ * one standard boss while every emitted projectile connects. The empty
+ * loadout's expected DPS is exactly `BASE_EQUIPMENT_COMBAT_POWER`.
+ *
+ * This is not an EHP, clear-speed, farming, or handling score. Health,
+ * mitigation, recovery, movement, dash utility, pickup/XP/gear find,
+ * projectile speed/size/lifetime/homing, and pierce therefore contribute
+ * exactly zero. Public breakdown fields remain for save/UI compatibility, but
+ * every non-offense component and index is intentionally zero.
+ *
+ * Triggered offensive legendary powers use stable sustained-fight reference
+ * cadences: the boss lands one hit per second, one memory pickup is credited
+ * per second, movement trails connect on cooldown, and dash powers are used on
+ * cooldown. These assumptions value damage procs without smuggling their
+ * defensive, mobility, or utility portions back into the score.
  */
 export function calculateCombatPowerFromEquipmentStats(
   stats: Readonly<GearStatTotals>,
@@ -2227,17 +2240,13 @@ export function calculateCombatPowerFromEquipmentStats(
   const positive = (value: number) =>
     Number.isFinite(value) ? Math.max(0, value) : 0;
 
-  const attackPowerFactor =
-    (EQUIPMENT_POWER_BASE_ATTACK_DAMAGE + positive(stats.attackPowerFlat)) /
-    EQUIPMENT_POWER_BASE_ATTACK_DAMAGE;
-  const damageFactor = 1 + positive(stats.damagePercent) / 100;
-  const cosmicFinalDamageFactor =
-    1 + positive(stats.cosmicFinalDamagePercent) / 100;
-  const cosmicActionSpeedFactor =
-    1 + positive(stats.cosmicActionSpeedPercent) / 100;
-  const attackSpeedFactor =
+  const baseHitDamage =
+    (EQUIPMENT_POWER_BASE_ATTACK_DAMAGE + positive(stats.attackPowerFlat)) *
+    (1 + positive(stats.damagePercent) / 100);
+  const attackRate =
+    EQUIPMENT_POWER_BASE_ATTACKS_PER_SECOND *
     (1 + positive(stats.attackSpeedPercent) / 100) *
-    cosmicActionSpeedFactor;
+    (1 + positive(stats.cosmicActionSpeedPercent) / 100);
   const critChance = clamp(
     BASE_CRIT_CHANCE + positive(stats.critChancePercent) / 100,
     0,
@@ -2245,204 +2254,122 @@ export function calculateCombatPowerFromEquipmentStats(
   );
   const critMultiplier =
     BASE_CRIT_MULTIPLIER + positive(stats.critDamagePercent) / 100;
-  const critIndex =
-    (1 + critChance * (critMultiplier - 1)) / BASE_CRIT_EXPECTATION;
-  const projectileCountFactor = 1 + positive(stats.projectileCountFlat);
+  const criticalExpectation = 1 + critChance * (critMultiplier - 1);
+  // Runtime converts this count-like stat with Math.floor before firing. Under
+  // the all-hit assumption each real extra projectile contributes full DPS.
+  const projectilesPerAttack =
+    1 + Math.floor(positive(stats.projectileCountFlat));
+
+  let rawSustainedDps =
+    baseHitDamage * attackRate * projectilesPerAttack * criticalExpectation;
+
+  if (hasPower(powers, "crescentEcho")) {
+    const power = LEGENDARY_POWERS.crescentEcho.parameters;
+    rawSustainedDps +=
+      baseHitDamage *
+      criticalExpectation *
+      attackRate *
+      ((power.projectileCount * power.damageMultiplier) /
+        Math.max(1, power.everyShots));
+  }
+  if (hasPower(powers, "bloodwovenGrip")) {
+    const power = LEGENDARY_POWERS.bloodwovenGrip.parameters;
+    const procsPerSecond =
+      (attackRate * critChance) / Math.max(1, power.everyCriticalHits);
+    rawSustainedDps +=
+      baseHitDamage *
+      criticalExpectation *
+      procsPerSecond *
+      power.projectileCount *
+      power.damageMultiplier;
+  }
+  if (hasPower(powers, "mirrorAegis")) {
+    const power = LEGENDARY_POWERS.mirrorAegis.parameters;
+    rawSustainedDps +=
+      baseHitDamage *
+      power.damageMultiplier *
+      (EQUIPMENT_POWER_REFERENCE_BOSS_HITS_PER_SECOND /
+        Math.max(1, power.everyHits));
+  }
+  if (hasPower(powers, "phantomMarch")) {
+    const power = LEGENDARY_POWERS.phantomMarch.parameters;
+    rawSustainedDps +=
+      (baseHitDamage * power.trailDamageMultiplier) /
+      EQUIPMENT_POWER_PHANTOM_TRAIL_INTERVAL_SECONDS;
+  }
+  if (hasPower(powers, "riftStride")) {
+    const power = LEGENDARY_POWERS.riftStride.parameters;
+    const dashCooldown =
+      EQUIPMENT_POWER_REFERENCE_DASH_COOLDOWN_SECONDS /
+      ((1 + positive(stats.dashCooldownPercent) / 100) *
+        (1 + positive(power.dashCooldownPercent) / 100));
+    rawSustainedDps +=
+      (baseHitDamage *
+        EQUIPMENT_POWER_RIFT_TRAIL_TICK_DAMAGE_MULTIPLIER *
+        Math.max(
+          1,
+          EQUIPMENT_POWER_REFERENCE_DASH_DURATION_SECONDS /
+            EQUIPMENT_POWER_RIFT_TRAIL_INTERVAL_SECONDS,
+        )) /
+      dashCooldown;
+  }
+  if (hasPower(powers, "commaResonance")) {
+    const power = LEGENDARY_POWERS.commaResonance.parameters;
+    const procsPerSecond =
+      EQUIPMENT_POWER_REFERENCE_PICKUPS_PER_SECOND /
+      Math.max(1, power.everyPickups);
+    rawSustainedDps +=
+      baseHitDamage *
+      power.projectileCount *
+      power.damageMultiplier *
+      procsPerSecond;
+  }
+
+  // Starfall's four-second offensive window exceeds the 1.35-second reference
+  // dash cooldown, so sustained on-cooldown play keeps its damage buff active.
+  if (hasPower(powers, "starfallMantle")) {
+    rawSustainedDps *=
+      1 + LEGENDARY_POWERS.starfallMantle.parameters.damagePercent / 100;
+  }
+
+  // A standard boss is also an elite-class target in the live resolver.
+  rawSustainedDps *= 1 + positive(stats.eliteDamagePercent) / 100;
+  if (hasPower(powers, "hunterSigil")) {
+    rawSustainedDps *=
+      1 + LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent / 100;
+  }
+  rawSustainedDps *= 1 + positive(stats.bossDamagePercent) / 100;
+  rawSustainedDps *= 1 + positive(stats.cosmicFinalDamagePercent) / 100;
+
   const executeMultiplier =
     1 + positive(stats.executeDamagePercent) / 100;
   const executeFactor =
     executeMultiplier > 1
-      ? 1 / (0.8 + 0.2 / executeMultiplier)
+      ? 1 /
+        (1 -
+          EQUIPMENT_POWER_EXECUTE_HEALTH_SHARE +
+          EQUIPMENT_POWER_EXECUTE_HEALTH_SHARE / executeMultiplier)
       : 1;
-
-  let procFactor = 1;
-  if (hasPower(powers, "crescentEcho")) {
-    const power = LEGENDARY_POWERS.crescentEcho.parameters;
-    procFactor *=
-      1 +
-      (power.projectileCount * power.damageMultiplier) /
-        Math.max(1, power.everyShots);
-  }
-  // Runtime pickup cadence varies by room. Eight-percent expected DPS is a
-  // deliberately conservative reference value for its active eight-shot proc.
-  if (hasPower(powers, "commaResonance")) procFactor *= 1.08;
-  // Rift Stride's damaging trail is active in combat in addition to its dash
-  // cooldown effect; model its conservative average uptime separately.
-  if (hasPower(powers, "riftStride")) procFactor *= 1.06;
-  if (hasPower(powers, "mirrorAegis")) {
-    const power = LEGENDARY_POWERS.mirrorAegis.parameters;
-    // Damage is returned only after the hit counter completes. The 0.2
-    // reference contact rate keeps the inventory score conservative.
-    procFactor *=
-      1 +
-      (power.damageMultiplier / Math.max(1, power.everyHits)) * 0.2;
-  }
-  if (hasPower(powers, "starfallMantle")) {
-    const power = LEGENDARY_POWERS.starfallMantle.parameters;
-    // A quarter-uptime reference avoids valuing a dash-triggered window as
-    // though it were permanently active.
-    procFactor *= 1 + (power.damagePercent / 100) * 0.25;
-  }
-  if (hasPower(powers, "bloodwovenGrip")) {
-    const power = LEGENDARY_POWERS.bloodwovenGrip.parameters;
-    // Six critical attacks arm one bonus volley. The capped live critical
-    // chance preserves the intended multiplicative item synergy.
-    procFactor *=
-      1 +
-      critChance *
-        ((power.projectileCount * power.damageMultiplier) /
-          Math.max(1, power.everyCriticalHits));
-  }
-  if (hasPower(powers, "phantomMarch")) {
-    const power = LEGENDARY_POWERS.phantomMarch.parameters;
-    // Trail contact depends on pathing, so only a conservative reference
-    // fraction of its nominal damage is used by the context-free score.
-    procFactor *= 1 + power.trailDamageMultiplier * 0.05;
-  }
-
-  const normalDpsIndex =
-    attackPowerFactor *
-    damageFactor *
-    cosmicFinalDamageFactor *
-    attackSpeedFactor *
-    critIndex *
-    projectileCountFactor *
-    executeFactor *
-    procFactor;
-  const hunterEliteBonus = hasPower(powers, "hunterSigil")
-    ? LEGENDARY_POWERS.hunterSigil.parameters.eliteDamagePercent
-    : 0;
-  const eliteIndex =
-    normalDpsIndex *
-    (1 + (positive(stats.eliteDamagePercent) + hunterEliteBonus) / 100);
-  const bossIndex =
-    normalDpsIndex *
-    (1 +
-      (positive(stats.eliteDamagePercent) + hunterEliteBonus) /
-        100) *
-    (1 + positive(stats.bossDamagePercent) / 100);
-  const projectileSpeedHandling = Math.pow(
-    1 + positive(stats.projectileSpeedPercent) / 100,
-    0.08,
-  );
-  const projectileSizeHandling = Math.pow(
-    1 + Math.min(150, positive(stats.projectileSizePercent)) / 100,
-    0.08,
-  );
-  const projectileLifetimeHandling = Math.pow(
-    1 + positive(stats.projectileLifetimePercent) / 100,
-    0.06,
-  );
-  const homingHandling = Math.pow(
-    1 + Math.min(14, positive(stats.homingStrengthFlat)) / 10,
-    0.06,
-  );
-  const pierceHandling = 1 + positive(stats.pierceFlat) * 0.06;
-  const offenseIndex =
-    (normalDpsIndex * 0.75 + eliteIndex * 0.17 + bossIndex * 0.08) *
-    projectileSpeedHandling *
-    projectileSizeHandling *
-    projectileLifetimeHandling *
-    homingHandling *
-    pierceHandling;
-
-  const maxHp = 100 + positive(stats.maxHpFlat);
-  const damageReduction =
-    Math.min(65, positive(stats.damageReductionPercent)) / 100;
-  const cosmicAegisReduction =
-    Math.min(30, positive(stats.cosmicAegisPercent)) / 100;
-  const lastMemoryFactor = hasPower(powers, "lastMemory")
-    ? 1 + LEGENDARY_POWERS.lastMemory.parameters.restoreMaxHpRatio
-    : 1;
-  const mirrorBarrierFactor = hasPower(powers, "mirrorAegis")
-    ? 1 +
-      Math.min(
-        0.08,
-        (LEGENDARY_POWERS.mirrorAegis.parameters.barrierDurationSeconds /
-          Math.max(1, LEGENDARY_POWERS.mirrorAegis.parameters.everyHits)) *
-          0.3,
-      )
-    : 1;
-  const starfallDefenseFactor = hasPower(powers, "starfallMantle")
-    ? 1 +
-      (LEGENDARY_POWERS.starfallMantle.parameters.damageReductionPercent /
-        100) *
-        0.25
-    : 1;
-  const ashboundDefenseFactor = hasPower(powers, "ashboundGirdle")
-    ? 1 +
-      LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.35
-    : 1;
-  const defenseIndex =
-    ((maxHp + positive(stats.roomEntryShieldFlat) * 0.35) /
-      100 /
-      Math.max(0.01, (1 - damageReduction) * (1 - cosmicAegisReduction))) *
-    lastMemoryFactor *
-    mirrorBarrierFactor *
-    starfallDefenseFactor *
-    ashboundDefenseFactor;
-
-  const healPerHit = Math.min(1.5, positive(stats.lifeOnHitFlat) * 0.08);
-  const referenceHitsPerSecond = attackSpeedFactor * 1.4 * 0.65;
-  const ashboundSustainFactor = hasPower(powers, "ashboundGirdle")
-    ? 1 +
-      LEGENDARY_POWERS.ashboundGirdle.parameters.shieldMaxHpRatio * 0.25
-    : 1;
-  const sustainIndex =
-    (1 +
-      Math.min(
-        1,
-        (healPerHit * referenceHitsPerSecond * 10 +
-          positive(stats.hpRegenPerSecondFlat) * 10 +
-          positive(stats.roomClearHealFlat) * 0.35) /
-          maxHp,
-      )) *
-    ashboundSustainFactor;
-
-  const riftDashBonus = hasPower(powers, "riftStride")
-    ? LEGENDARY_POWERS.riftStride.parameters.dashCooldownPercent
-    : 0;
-  const phantomMoveSpeedBonus = hasPower(powers, "phantomMarch")
-    ? LEGENDARY_POWERS.phantomMarch.parameters.moveSpeedPercent * 0.5
-    : 0;
-  const moveFactor =
-    (1 + (positive(stats.moveSpeedPercent) + phantomMoveSpeedBonus) / 100) *
-    cosmicActionSpeedFactor;
-  const dashFactor =
-    1 + (positive(stats.dashCooldownPercent) + riftDashBonus) / 100;
-  const dashSpeedFactor = 1 + positive(stats.dashSpeedPercent) / 100;
-  const mobilityIndex =
-    Math.sqrt(moveFactor) *
-    Math.pow(dashFactor, 0.18) *
-    Math.pow(dashSpeedFactor, 0.25);
-
-  const xpFactor = 1 + positive(stats.xpGainPercent) / 100;
-  const gearFindFactor =
-    1 + Math.min(200, positive(stats.gearFindPercent)) / 100;
-  const pickupFactor = 1 + positive(stats.pickupRadiusPercent) / 100;
-  const utilityIndex =
-    Math.pow(xpFactor, 0.45) *
-    Math.pow(gearFindFactor, 0.45) *
-    Math.pow(pickupFactor, 0.1);
-
-  const offense = COMBAT_POWER_WEIGHTS.offense * offenseIndex;
-  const defense = COMBAT_POWER_WEIGHTS.defense * defenseIndex;
-  const sustain = COMBAT_POWER_WEIGHTS.sustain * sustainIndex;
-  const mobility = COMBAT_POWER_WEIGHTS.mobility * mobilityIndex;
-  const utility = COMBAT_POWER_WEIGHTS.utility * utilityIndex;
+  const standardBossDps = rawSustainedDps * executeFactor;
+  const emptyLoadoutDps =
+    EQUIPMENT_POWER_BASE_ATTACK_DAMAGE *
+    EQUIPMENT_POWER_BASE_ATTACKS_PER_SECOND *
+    BASE_CRIT_EXPECTATION;
+  const offenseIndex = standardBossDps / emptyLoadoutDps;
+  const offense = Math.round(BASE_EQUIPMENT_COMBAT_POWER * offenseIndex);
 
   return {
-    total: Math.round(offense + defense + sustain + mobility + utility),
-    offense: Math.round(offense),
-    defense: Math.round(defense),
-    sustain: Math.round(sustain),
-    mobility: Math.round(mobility),
-    utility: Math.round(utility),
+    total: offense,
+    offense,
+    defense: 0,
+    sustain: 0,
+    mobility: 0,
+    utility: 0,
     offenseIndex,
-    defenseIndex,
-    sustainIndex,
-    mobilityIndex,
-    utilityIndex,
+    defenseIndex: 0,
+    sustainIndex: 0,
+    mobilityIndex: 0,
+    utilityIndex: 0,
   };
 }
 
@@ -2477,7 +2404,7 @@ export function calculateGearPowerScore(item: PowerScoreInput): number {
     powerStatsForItem(item),
     item.legendaryPowerId ? [item.legendaryPowerId] : [],
   ).total;
-  return Math.max(1, power - BASE_EQUIPMENT_COMBAT_POWER);
+  return Math.max(0, power - BASE_EQUIPMENT_COMBAT_POWER);
 }
 
 /**
@@ -2937,7 +2864,7 @@ export function aggregateEquipmentStats(
   return totals;
 }
 
-/** Returns the absolute, synergy-aware power of the complete equipped build. */
+/** Returns the absolute, synergy-aware standard-boss DPS rating of the build. */
 export function calculateEquipmentCombatPowerBreakdown(
   equipment: EquipmentLoadout,
 ): EquipmentCombatPowerBreakdown {
@@ -2954,9 +2881,10 @@ export function calculateEquipmentCombatPower(
 }
 
 /**
- * Exact contextual comparison for inventory cards and tooltips. The candidate
- * replaces its own slot before the complete build is rescored, so critical,
- * attack-speed, mitigation, sustain, and legendary interactions are preserved.
+ * Exact contextual standard-boss DPS comparison for inventory cards and
+ * tooltips. The candidate replaces its own slot before the complete build is
+ * rescored, so offensive multiplicative and legendary interactions survive;
+ * defensive, sustain, mobility, handling, and utility stats remain zero.
  */
 export function calculateEquipmentPowerDelta(
   equipment: EquipmentLoadout,

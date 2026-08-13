@@ -4,7 +4,15 @@
  * dependency: theoretical projectiles and attacks are never reduced to an
  * on-screen rendering budget.
  */
-export const BOSS_CONVERSION_VERSION = 1 as const;
+export const BOSS_CONVERSION_VERSION = 2 as const;
+
+/**
+ * Combat power is an offensive ranking, not a general survivability score.
+ * The scale keeps the naked level-one reference build at exactly 1,000 while
+ * preserving a direct, monotone relationship with perfect-hit boss DPS.
+ */
+export const COMBAT_POWER_PER_BOSS_DPS =
+  1_000 / (14 * 1.4 * (1 + 0.05 * (1.7 - 1)));
 
 export const STANDARD_BOSS_PROFILE = Object.freeze({
   durationSeconds: 60,
@@ -13,7 +21,7 @@ export const STANDARD_BOSS_PROFILE = Object.freeze({
   defense: 0,
   lowHpUptime: 0.2,
   lowHpRatio: 0.35,
-  model: "full-health-kill-cycle" as const,
+  model: "perfect-hit-full-health-kill-cycle" as const,
 });
 
 export type CombatEvaluationInput = {
@@ -196,7 +204,11 @@ export const calculateExecuteFactor = (
   return 1 / ((1 - threshold) + threshold / multiplier);
 };
 
-/** Calculate the version-1 full-health kill-cycle boss conversion rating. */
+/**
+ * Calculate the version-2 perfect-hit boss rating. Every player projectile is
+ * assumed to connect, so geometry, range and homing never discount combat
+ * power. They remain in the input contract for live-stat/UI compatibility.
+ */
 export const calculateCombatEvaluation = (
   input: CombatEvaluationInput,
 ): CombatEvaluationRatings => {
@@ -229,21 +241,16 @@ export const calculateCombatEvaluation = (
     overchargeAverageMultiplier *
     standardPrimaryDamageMultiplier;
   const statAttackDps = preFinalStatAttackDps * finalDamageMultiplier;
-  const hitRate = calculateStandardBossHitRate(input);
+  const hitRate = 1;
   const executeFactor = calculateExecuteFactor(
     input.executeThreshold,
     input.executeMultiplier,
   );
   const bossMultiplier = finiteMultiplier(input.bossMultiplier);
   const bossScale = bossMultiplier * executeFactor;
-  const primaryDps = statAttackDps * hitRate * bossScale;
-  const timeEchoHitRate =
-    input.timeEchoHitRate === undefined
-      ? hitRate
-      : clamp(finiteNumber(input.timeEchoHitRate), 0, 1);
+  const primaryDps = statAttackDps * bossScale;
   const timeEchoDps =
     statAttackDps *
-    timeEchoHitRate *
     bossScale *
     finitePositive(input.timeEchoBonus, 0, 100);
   const returnDps = primaryDps * finitePositive(input.returnBonus, 0, 100);
@@ -254,29 +261,8 @@ export const calculateCombatEvaluation = (
   const standardBossDps =
     primaryDps + timeEchoDps + returnDps + poisonDps + legendaryProcDps;
 
-  const threeTargetDps =
-    finitePositive(input.threeTargetDps) * finalDamageMultiplier;
-  const generalDps =
-    0.35 * statAttackDps +
-    0.45 * standardBossDps +
-    0.2 * threeTargetDps;
-  const survivalBudget = finitePositive(input.survivalBudget);
-  const moveSpeed = finitePositive(input.moveSpeed);
-  const dashCooldown = clamp(
-    finiteNumber(input.dashCooldown, 1.35),
-    0.05,
-    MAX_MAGNITUDE,
-  );
-  const dashDistance = finitePositive(input.dashDistance);
-  const mobility =
-    Math.sqrt(moveSpeed / 245) *
-    Math.pow(1.35 / dashCooldown, 0.18) *
-    Math.pow(dashDistance / (900 * 0.17), 0.1);
   const combatPower = Math.round(
-    1_000 *
-      (0.65 * Math.pow(generalDps / 20.286, 0.72) +
-        0.27 * Math.pow(survivalBudget / 100, 0.62) +
-        0.08 * Math.pow(mobility, 0.45)),
+    standardBossDps * COMBAT_POWER_PER_BOSS_DPS,
   );
 
   const bossBreakdown: StandardBossBreakdown = {

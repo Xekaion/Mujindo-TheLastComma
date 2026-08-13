@@ -13,6 +13,7 @@ type JsonRecord = Record<string, unknown>;
 
 export type SaveRunPayload = JsonRecord & {
   savedAt: number;
+  expeditionPowerRatingVersion?: number;
   player: JsonRecord & {
     level: number;
     rooms?: number;
@@ -162,6 +163,12 @@ export function writeActiveSaveSlot(
 export function isSaveRunPayload(value: unknown): value is SaveRunPayload {
   if (!isRecord(value) || !isNonNegativeInteger(value.savedAt)) return false;
   if (!isRecord(value.player)) return false;
+  if (
+    value.expeditionPowerRatingVersion !== undefined &&
+    !isPositiveInteger(value.expeditionPowerRatingVersion)
+  ) {
+    return false;
+  }
   if (!isPositiveInteger(value.player.level)) return false;
   if (!isStackRecord(value.player.augments)) return false;
   if (!hasValidOptionalRooms(value.player)) return false;

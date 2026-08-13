@@ -195,12 +195,24 @@ test("the room power rating absorbs upgrades gradually and resists doorway strip
   );
 });
 
-test("GameCanvas snapshots comprehensive power once and every summon inherits it", async () => {
+test("GameCanvas snapshots standard-boss DPS power once and every summon inherits it", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
 
   assert.match(
     source,
     /const currentCombatPower = calculatePlayerStatsForRuntime\(player\)\.ratings\.combatPower;/,
+  );
+  assert.match(
+    source,
+    /expeditionPowerRatingVersion:\s*BOSS_CONVERSION_VERSION/,
+  );
+  assert.match(
+    source,
+    /const savedExpeditionPowerRatingIsCurrent =[\s\S]{0,220}?data\.expeditionPowerRatingVersion === BOSS_CONVERSION_VERSION[\s\S]{0,220}?hydratedPlayer\.expeditionPowerRating = savedExpeditionPowerRatingIsCurrent[\s\S]{0,120}?Math\.floor\(data\.player\.expeditionPowerRating\)[\s\S]{0,120}?: calculatePlayerStatsForRuntime\(hydratedPlayer\)\.ratings\.combatPower/,
+  );
+  assert.match(
+    source,
+    /if \(gearReconciliation\.repaired \|\| !savedExpeditionPowerRatingIsCurrent\)[\s\S]{0,360}?expeditionPowerRatingVersion:\s*BOSS_CONVERSION_VERSION/,
   );
   assert.match(
     source,

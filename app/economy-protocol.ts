@@ -703,7 +703,13 @@ export type ItemMarketQuery = {
   kind: "items";
   cursor?: string;
   limit: number;
-  sort: "newest" | "price_asc" | "price_desc" | "level_desc" | "rarity_desc";
+  sort:
+    | "newest"
+    | "price_asc"
+    | "price_desc"
+    | "power_desc"
+    | "level_desc"
+    | "rarity_desc";
   search?: string;
   slot?: EconomyEquipmentSlot;
   rarity?: EconomyGearRarity;
@@ -766,7 +772,14 @@ export function parseMarketQuery(value: unknown): MarketQuery | null {
     (cursor !== undefined && !isOpaqueCursor(cursor)) ||
     !isBoundedSafeInteger(limit, 1, ECONOMY_MAX_MARKET_PAGE_SIZE) ||
     !isOneOf(
-      ["newest", "price_asc", "price_desc", "level_desc", "rarity_desc"] as const,
+      [
+        "newest",
+        "price_asc",
+        "price_desc",
+        "power_desc",
+        "level_desc",
+        "rarity_desc",
+      ] as const,
       sort,
     ) ||
     (value.search !== undefined && search === null) ||

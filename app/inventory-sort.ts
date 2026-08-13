@@ -31,7 +31,7 @@ export const INVENTORY_SORT_OPTIONS: ReadonlyArray<{
   label: string;
   title: string;
 }> = [
-  { id: "power", label: "전투력", title: "전투력이 높은 장비부터 정렬" },
+  { id: "power", label: "보스 화력", title: "아이템 보스 화력이 높은 장비부터 정렬" },
   { id: "rarity", label: "등급", title: "높은 등급 장비부터 정렬" },
   { id: "level", label: "레벨", title: "아이템 레벨이 높은 장비부터 정렬" },
   { id: "slot", label: "부위", title: "장비 부위 순서로 묶어서 정렬" },

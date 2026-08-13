@@ -15,6 +15,7 @@ import ShopOverlay from "./ShopOverlay";
 import StatsOverlay from "./StatsOverlay";
 import { playGameSfx, playGearRaritySfx } from "./game-audio";
 import { calculatePlayerStatSnapshot } from "./player-stats";
+import { BOSS_CONVERSION_VERSION } from "./combat-evaluation";
 import {
   MAX_AUGMENT_STACKS,
   SIMPLE_AUGMENT_BONUSES,
@@ -943,6 +944,8 @@ type CartographyWorld = Pick<
 
 type SaveData = {
   player: Player;
+  /** Formula version that produced player.expeditionPowerRating. */
+  expeditionPowerRatingVersion?: number;
   world: Pick<
     World,
     "seed" | "roomX" | "roomY" | "rooms" | "visited"
@@ -2871,6 +2874,7 @@ export default function GameCanvas({
         x: WIDTH / 2,
         y: HEIGHT / 2,
       },
+      expeditionPowerRatingVersion: BOSS_CONVERSION_VERSION,
       world: {
         seed: world.seed,
         layoutVersion: world.layoutVersion,
@@ -3735,11 +3739,13 @@ export default function GameCanvas({
         playerRef.current.nextXp,
         xpThreshold(playerRef.current.level),
       );
-      hydratedPlayer.expeditionPowerRating =
+      const savedExpeditionPowerRatingIsCurrent =
+        data.expeditionPowerRatingVersion === BOSS_CONVERSION_VERSION &&
         Number.isFinite(data.player.expeditionPowerRating) &&
-        data.player.expeditionPowerRating >= 1_000
-          ? Math.floor(data.player.expeditionPowerRating)
-          : calculatePlayerStatsForRuntime(hydratedPlayer).ratings.combatPower;
+        data.player.expeditionPowerRating >= 1_000;
+      hydratedPlayer.expeditionPowerRating = savedExpeditionPowerRatingIsCurrent
+        ? Math.floor(data.player.expeditionPowerRating)
+        : calculatePlayerStatsForRuntime(hydratedPlayer).ratings.combatPower;
       const savedDungeon = normalizeSavedDungeonWorld(data.world);
       const world = makeWorld(data.world.seed, savedDungeon.dungeonFloor);
       world.rooms = savedDungeon.rooms;
@@ -3766,13 +3772,16 @@ export default function GameCanvas({
       setStarted(true);
       enterRoom(savedDungeon.roomX, savedDungeon.roomY, "left");
       setGameMode("playing");
-      if (gearReconciliation.repaired) {
-        // Persist canonical collections immediately so a crash before the next
-        // shelter save cannot resurrect malformed or level-locked equipment.
+      if (gearReconciliation.repaired || !savedExpeditionPowerRatingIsCurrent) {
+        // Persist canonical collections and one-time combat-rating migrations
+        // immediately so a crash before the next shelter save cannot restore
+        // malformed equipment or repeatedly reinterpret a legacy rating.
         writeSaveSlot(slot, {
           ...data,
+          expeditionPowerRatingVersion: BOSS_CONVERSION_VERSION,
           player: {
             ...data.player,
+            expeditionPowerRating: hydratedPlayer.expeditionPowerRating,
             equipment: cloneEquipment(normalizedEquipment),
             inventory: normalizedInventory.map(cloneGearItem),
           },
@@ -3901,7 +3910,7 @@ export default function GameCanvas({
       player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
       setSelectedGearId(replaced?.id ?? null);
       setToast(
-        `${GEAR_RARITY_META[item.rarity].label} ${EQUIPMENT_SLOT_LABELS[item.slot]} 장착 · 전투력 ${item.powerScore}`,
+        `${GEAR_RARITY_META[item.rarity].label} ${EQUIPMENT_SLOT_LABELS[item.slot]} 장착 · 아이템 보스 화력 ${item.powerScore}`,
       );
       syncHud();
     },
@@ -4105,7 +4114,7 @@ export default function GameCanvas({
         const powerGain = equippedSlot
           ? calculateEquipmentCombatPower(player.equipment) - previousEquipmentPower
           : enhancedItem.powerScore - item.powerScore;
-        const powerGainLabel = equippedSlot ? "장착 전투력" : "아이템 전투력";
+        const powerGainLabel = equippedSlot ? "장착 보스 전투력" : "아이템 보스 화력";
         setToast(
           `강화 성공 · ${formatGearDisplayName(enhancedItem)} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
         );
@@ -4166,7 +4175,7 @@ export default function GameCanvas({
       const powerGain = equippedSlot
         ? calculateEquipmentPowerDelta(player.equipment, previewItem)
         : previewItem.powerScore - item.powerScore;
-      const powerGainLabel = equippedSlot ? "장착 종합 전투력" : "아이템 전투력";
+      const powerGainLabel = equippedSlot ? "장착 보스 전투력" : "아이템 보스 화력";
       const implicitDisplay = getGearImplicitDisplay(item);
       const optionGainSummary = `${implicitDisplay.label} ${formatCompactGearLabel(implicitDisplay.nextStageGainLabel)}`;
       if (rule.destroyPercent <= 0) {
@@ -10232,7 +10241,7 @@ export default function GameCanvas({
         value: formatGearNumericValue(playerStats.ratings.sheetAttackPower),
       },
       {
-        label: "종합 전투력",
+        label: "보스 전투력",
         value: playerStats.ratings.combatPower.toLocaleString("ko-KR"),
       },
       {
@@ -10251,7 +10260,7 @@ export default function GameCanvas({
         label: "치명타",
         value: `${formatGearNumericValue(playerStats.offense.critChance * 100)}% · ×${formatGearNumericValue(playerStats.offense.critMultiplier)}`,
       },
-      { label: "장비 기여도", value: equippedPower.toLocaleString("ko-KR") },
+      { label: "장비 보스 화력", value: equippedPower.toLocaleString("ko-KR") },
       {
         label: "현재 피해 감소",
         value: `${formatGearNumericValue(playerStats.defense.currentDamageReduction * 100)}%`,
@@ -10844,7 +10853,7 @@ export default function GameCanvas({
                         <strong>{item ? formatGearDisplayName(item) : "비어 있음"}</strong>
                         <span>
                           {item
-                            ? `전투력 ${item.powerScore} · 품질 ${item.qualityScore}%`
+                            ? `보스 화력 ${item.powerScore} · 품질 ${item.qualityScore}%`
                             : "전리품을 장착하세요"}
                         </span>
                       </div>
@@ -10854,7 +10863,7 @@ export default function GameCanvas({
               </div>
               <div className="inventory-toolbar">
                 <span>가방 <strong>{hud.player.inventory.length}</strong> / {inventoryCapacity}</span>
-                <span>장착 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b></span>
+                <span>장착 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b></span>
               </div>
               <div className="inventory-grid">
                 {hud.player.inventory.length === 0 ? (
@@ -10873,7 +10882,7 @@ export default function GameCanvas({
                       <div>
                         <strong>{formatGearDisplayName(item)}</strong>
                         <small>아이템 레벨 {item.level} · 착용 필요 레벨 {getGearRequiredLevel(item)} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
-                        <span>전투력 {item.powerScore} · 품질 {item.qualityScore}%</span>
+                        <span>보스 화력 {item.powerScore} · 품질 {item.qualityScore}%</span>
                       </div>
                     </button>
                   ))
@@ -10890,7 +10899,7 @@ export default function GameCanvas({
                       className={`gear-power-delta ${selectedPowerDelta < 0 ? "is-negative" : ""}`}
                       data-negative={selectedPowerDelta < 0}
                     >
-                      {selectedPowerDelta >= 0 ? "+" : ""}{selectedPowerDelta} 전투력
+                      {selectedPowerDelta >= 0 ? "+" : ""}{selectedPowerDelta} 장착 보스 전투력
                     </span>
                   </div>
                   <p>
@@ -11047,7 +11056,7 @@ export default function GameCanvas({
           <div>
             <small>{GEAR_RARITY_META[lootNotice.rarity].label} 장비 획득</small>
             <strong>{formatGearDisplayName(lootNotice)}</strong>
-            <span>전투력 {lootNotice.powerScore} · 품질 {lootNotice.qualityScore}% · I에서 비교</span>
+            <span>보스 화력 {lootNotice.powerScore} · 품질 {lootNotice.qualityScore}% · I에서 비교</span>
           </div>
         </div>
       )}

@@ -292,7 +292,7 @@ function GearTooltip({
           </span>
         </div>
         <div className="inventory-screen-tooltip-power">
-          <span>전투력</span>
+          <span>아이템 보스 화력</span>
           <strong>{item.powerScore.toLocaleString("ko-KR")}</strong>
           {!equipped && (
             <em className={powerDeltaClass(powerDelta)}>
@@ -763,7 +763,7 @@ export default function InventoryOverlay({
               <div className="inventory-screen-section-heading">
                 <h3 id="inventory-screen-equipment-title">장착 장비</h3>
                 <span>
-                  총 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
+                  장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
                 </span>
               </div>
 
@@ -850,7 +850,7 @@ export default function InventoryOverlay({
                       </small>
                       <h4>{formatGearDisplayName(selectedItem)}</h4>
                       <span className={selectedLevelLocked ? "inventory-screen-level-requirement--locked" : undefined}>
-                        아이템 레벨 {selectedItem.level} · 착용 필요 레벨 {selectedRequiredLevel} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
+                        아이템 레벨 {selectedItem.level} · 착용 필요 레벨 {selectedRequiredLevel} · 보스 화력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
                       </span>
                     </div>
                     {!selectedIsEquipped && (
@@ -871,7 +871,7 @@ export default function InventoryOverlay({
                         <div className="inventory-screen-comparison">
                           <span>{comparisonItem ? formatGearDisplayName(comparisonItem) : "빈 슬롯"} 대비</span>
                           <strong className={powerDeltaClass(powerDelta)}>
-                            {formatPowerDelta(powerDelta)} 전투력
+                            {formatPowerDelta(powerDelta)} 장착 보스 전투력
                           </strong>
                         </div>
                       )}
@@ -972,7 +972,7 @@ export default function InventoryOverlay({
                             >
                               +{enhancementRule.target} 강화
                               <small>
-                                전투력 +{enhancementPowerGain.toLocaleString("ko-KR")} · 재 {enhancementRule.ashCost.toLocaleString("ko-KR")}
+                                장착 보스 전투력 +{enhancementPowerGain.toLocaleString("ko-KR")} · 재 {enhancementRule.ashCost.toLocaleString("ko-KR")}
                               </small>
                             </button>
                           </>
@@ -1237,7 +1237,7 @@ export default function InventoryOverlay({
                       onKeyDown={handleTooltipKeyDown}
                       aria-label={salvageModeActive
                         ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${formatGearDisplayName(item, { includeZero: true })}, 아이템 레벨 ${item.level}, 착용 필요 레벨 ${requiredLevel}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
+                        : `${formatGearDisplayName(item, { includeZero: true })}, 아이템 레벨 ${item.level}, 착용 필요 레벨 ${requiredLevel}, 아이템 보스 화력 ${item.powerScore}, 장착 보스 전투력 변화 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
                       aria-describedby={!salvageModeActive && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageModeActive ? checkedForSalvage : selected}
                     >

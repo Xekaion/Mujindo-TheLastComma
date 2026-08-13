@@ -336,7 +336,7 @@ export async function fetchMarketListings(
     recent: "newest",
     "price-low": "price_asc",
     "price-high": "price_desc",
-    power: "rarity_desc",
+    power: "power_desc",
     level: "level_desc",
   };
   if (search.sort) query.set("sort", sortMap[search.sort]);

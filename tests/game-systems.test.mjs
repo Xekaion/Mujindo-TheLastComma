@@ -473,6 +473,7 @@ class MemoryStorage {
 
 const sampleSave = {
   savedAt: 1_753_000_000_000,
+  expeditionPowerRatingVersion: 2,
   player: {
     level: 12,
     rooms: 27,
@@ -489,6 +490,24 @@ const sampleSave = {
   },
   stableAugments: { fang: 20, haste: 7 },
 };
+
+test("save slots preserve and validate the expedition power formula version", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  assert.equal(saves.writeSaveSlot(1, structuredClone(sampleSave), storage), true);
+  assert.equal(saves.readSaveSlot(1, storage).expeditionPowerRatingVersion, 2);
+
+  const legacy = structuredClone(sampleSave);
+  delete legacy.expeditionPowerRatingVersion;
+  assert.equal(saves.writeSaveSlot(2, legacy, storage), true);
+  assert.equal(saves.readSaveSlot(2, storage).expeditionPowerRatingVersion, undefined);
+
+  for (const invalidVersion of [0, -1, 1.5, "2"]) {
+    const malformed = structuredClone(sampleSave);
+    malformed.expeditionPowerRatingVersion = invalidVersion;
+    assert.equal(saves.writeSaveSlot(3, malformed, storage), false);
+  }
+});
 
 test("20-stack professions unlock across the fifty-augment catalog", async () => {
   const professions = await importTypeScriptModule("app/professions.ts");
@@ -3142,7 +3161,7 @@ test("gear text separates enhanced implicit options from fate-locked additional 
   );
 });
 
-test("comprehensive equipment power models every live stat, runtime caps, and multiplicative synergy", async () => {
+test("equipment power is only all-hit sustained standard-boss DPS", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   const makeItem = ({
     slot,
@@ -3172,11 +3191,10 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     for (const item of items) loadout[item.slot] = item;
     return loadout;
   };
-  const scoreStat = (stat, value) => {
-    const slot = equipment.GEAR_AFFIX_DEFINITIONS[stat].legacySlots[0];
-    return equipment.calculateEquipmentCombatPower(
-      loadoutOf(makeItem({ slot, stat, value })),
-    );
+  const scoreStats = (values) => {
+    const stats = equipment.createEmptyGearStatTotals();
+    Object.assign(stats, values);
+    return equipment.calculateCombatPowerFromEquipmentStats(stats);
   };
 
   const emptyPower = equipment.calculateEquipmentCombatPower(
@@ -3184,90 +3202,107 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
   );
   assert.equal(emptyPower, 1_000, "the documented equipment-only baseline must remain stable");
   assert.deepEqual(equipment.GEAR_STAT_KEYS, ["attackPowerFlat", ...equipment.GEAR_AFFIX_STATS]);
-  const lowAttack = equipment.createEmptyGearStatTotals();
-  lowAttack.attackPowerFlat = 4;
-  const highAttack = equipment.createEmptyGearStatTotals();
-  highAttack.attackPowerFlat = 12;
-  const lowAttackPower = equipment.calculateCombatPowerFromEquipmentStats(lowAttack).total;
-  const highAttackPower = equipment.calculateCombatPowerFromEquipmentStats(highAttack).total;
+  const baseline = scoreStats({});
+  assert.deepEqual(
+    {
+      total: baseline.total,
+      offense: baseline.offense,
+      defense: baseline.defense,
+      sustain: baseline.sustain,
+      mobility: baseline.mobility,
+      utility: baseline.utility,
+      defenseIndex: baseline.defenseIndex,
+      sustainIndex: baseline.sustainIndex,
+      mobilityIndex: baseline.mobilityIndex,
+      utilityIndex: baseline.utilityIndex,
+    },
+    {
+      total: 1_000,
+      offense: 1_000,
+      defense: 0,
+      sustain: 0,
+      mobility: 0,
+      utility: 0,
+      defenseIndex: 0,
+      sustainIndex: 0,
+      mobilityIndex: 0,
+      utilityIndex: 0,
+    },
+  );
+
+  const lowAttackPower = scoreStats({ attackPowerFlat: 4 }).total;
+  const highAttackPower = scoreStats({ attackPowerFlat: 12 }).total;
   assert.ok(lowAttackPower > emptyPower);
   assert.ok(
     highAttackPower > lowAttackPower,
-    "implicit weapon attack power must be monotonic in the comprehensive score",
+    "implicit weapon attack power must be monotonic in boss DPS",
   );
 
-  const monotonicRanges = {
+  const offensiveRanges = {
     damagePercent: [20, 80],
     attackSpeedPercent: [20, 80],
-    projectileSpeedPercent: [50, 150],
-    maxHpFlat: [50, 200],
-    damageReductionPercent: [15, 45],
-    moveSpeedPercent: [20, 80],
-    dashCooldownPercent: [30, 100],
-    pickupRadiusPercent: [100, 500],
-    xpGainPercent: [20, 100],
     critChancePercent: [15, 50],
     critDamagePercent: [50, 200],
-    projectileSizePercent: [50, 140],
     eliteDamagePercent: [50, 200],
-    lifeOnHitFlat: [5, 15],
-    gearFindPercent: [50, 150],
     projectileCountFlat: [1, 3],
-    pierceFlat: [1, 4],
-    projectileLifetimePercent: [30, 90],
-    homingStrengthFlat: [4, 12],
-    hpRegenPerSecondFlat: [5, 20],
-    roomClearHealFlat: [20, 100],
-    roomEntryShieldFlat: [50, 300],
-    dashSpeedPercent: [20, 55],
     bossDamagePercent: [30, 75],
     executeDamagePercent: [30, 90],
     cosmicFinalDamagePercent: [8, 30],
-    cosmicAegisPercent: [5, 20],
     cosmicActionSpeedPercent: [6, 22],
   };
-  assert.deepEqual(Object.keys(monotonicRanges), equipment.GEAR_AFFIX_STATS);
-  for (const stat of equipment.GEAR_AFFIX_STATS) {
-    const [lowerValue, higherValue] = monotonicRanges[stat];
-    const lowerPower = scoreStat(stat, lowerValue);
-    const higherPower = scoreStat(stat, higherValue);
-    assert.ok(lowerPower > emptyPower, `${stat} must contribute to comprehensive power`);
+  for (const [stat, [lowerValue, higherValue]] of Object.entries(offensiveRanges)) {
+    const lowerPower = scoreStats({ [stat]: lowerValue }).total;
+    const higherPower = scoreStats({ [stat]: higherValue }).total;
+    assert.ok(lowerPower > emptyPower, `${stat} must contribute to standard-boss DPS`);
     assert.ok(
       higherPower > lowerPower,
-      `${stat} must remain monotonic across realistic loadout totals`,
+      `${stat} must remain monotonic in standard-boss DPS`,
     );
   }
 
-  for (const [stat, cap, overflow] of [
-    ["damageReductionPercent", 65, 500],
-    ["critChancePercent", 70, 500],
-    ["projectileSizePercent", 150, 500],
-    ["lifeOnHitFlat", 18.75, 500],
-    ["gearFindPercent", 200, 500],
-    ["homingStrengthFlat", 14, 500],
-    ["cosmicAegisPercent", 30, 500],
-  ]) {
+  const zeroPowerStats = [
+    "projectileSpeedPercent",
+    "maxHpFlat",
+    "damageReductionPercent",
+    "moveSpeedPercent",
+    "dashCooldownPercent",
+    "pickupRadiusPercent",
+    "xpGainPercent",
+    "projectileSizePercent",
+    "lifeOnHitFlat",
+    "gearFindPercent",
+    "pierceFlat",
+    "projectileLifetimePercent",
+    "homingStrengthFlat",
+    "hpRegenPerSecondFlat",
+    "roomClearHealFlat",
+    "roomEntryShieldFlat",
+    "dashSpeedPercent",
+    "cosmicAegisPercent",
+  ];
+  assert.deepEqual(
+    [...Object.keys(offensiveRanges), ...zeroPowerStats].sort(),
+    [...equipment.GEAR_AFFIX_STATS].sort(),
+    "every equipment stat must be explicitly classified",
+  );
+  for (const stat of zeroPowerStats) {
     assert.equal(
-      scoreStat(stat, overflow),
-      scoreStat(stat, cap),
-      `${stat} must stop adding power at the same cap used by live combat`,
+      scoreStats({ [stat]: 999 }).total,
+      emptyPower,
+      `${stat} must add exactly zero equipment power`,
+    );
+    const slot = equipment.GEAR_AFFIX_DEFINITIONS[stat].legacySlots[0];
+    const plain = makeItem({ slot });
+    const rolled = makeItem({ slot, stat, value: 999 });
+    assert.equal(
+      equipment.calculateGearPowerScore(rolled),
+      equipment.calculateGearPowerScore(plain),
+      `${stat} must add exactly zero intrinsic item power`,
     );
   }
 
-  for (const [stat, formerScoreCap, stackedTotal] of [
-    ["projectileCountFlat", 3, 9],
-    ["pierceFlat", 4, 12],
-    ["projectileLifetimePercent", 90, 270],
-    ["roomEntryShieldFlat", 450, 900],
-    ["dashSpeedPercent", 55, 165],
-    ["bossDamagePercent", 75, 225],
-    ["executeDamagePercent", 90, 270],
-  ]) {
-    assert.ok(
-      scoreStat(stat, stackedTotal) > scoreStat(stat, formerScoreCap),
-      `${stat} must not lose legitimate multi-slot totals to a score-only cap`,
-    );
-  }
+  assert.equal(scoreStats({ projectileCountFlat: 0.99 }).total, emptyPower);
+  assert.equal(scoreStats({ projectileCountFlat: 1 }).total, emptyPower * 2);
 
   const stackedRegeneration = equipment.aggregateEquipmentStats(
     loadoutOf(
@@ -3304,10 +3339,15 @@ test("comprehensive equipment power models every live stat, runtime caps, and mu
     makeItem({ slot: "relic", stat: "critDamagePercent", value: 100 }),
     "critical chance and critical damage",
   );
-  assertMultiplicativeSynergy(
-    makeItem({ slot: "armor", stat: "maxHpFlat", value: 100 }),
-    makeItem({ slot: "belt", stat: "damageReductionPercent", value: 50 }),
-    "maximum health and damage reduction",
+  assert.equal(
+    equipment.calculateEquipmentCombatPower(
+      loadoutOf(
+        makeItem({ slot: "armor", stat: "maxHpFlat", value: 100 }),
+        makeItem({ slot: "belt", stat: "damageReductionPercent", value: 50 }),
+      ),
+    ),
+    emptyPower,
+    "defensive synergy must add exactly zero DPS power",
   );
 });
 
@@ -3341,22 +3381,32 @@ test("combat power values only implemented legendary effects and computes contex
     for (const item of items) loadout[item.slot] = item;
     return loadout;
   };
-  const activePowers = equipment.LEGENDARY_POWER_IDS;
+  const offensivePowers = new Set([
+    "crescentEcho",
+    "mirrorAegis",
+    "hunterSigil",
+    "starfallMantle",
+    "bloodwovenGrip",
+    "phantomMarch",
+    "riftStride",
+    "commaResonance",
+  ]);
 
-  for (const legendaryPowerId of activePowers) {
+  for (const legendaryPowerId of equipment.LEGENDARY_POWER_IDS) {
     const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
     const item = makeItem({ slot, rarity: "legendary", legendaryPowerId });
     const implicitOnlyItem = { ...item, legendaryPowerId: null };
-    assert.ok(
-      equipment.calculateEquipmentCombatPower(loadoutOf(item))
-        > equipment.calculateEquipmentCombatPower(loadoutOf(implicitOnlyItem)),
-      `${legendaryPowerId} is implemented at runtime and must contribute power`,
-    );
-    assert.ok(
-      equipment.calculateGearPowerScore(item)
-        > equipment.calculateGearPowerScore(implicitOnlyItem),
-      `${legendaryPowerId} must contribute to intrinsic item power too`,
-    );
+    const loadoutPower = equipment.calculateEquipmentCombatPower(loadoutOf(item));
+    const implicitPower = equipment.calculateEquipmentCombatPower(loadoutOf(implicitOnlyItem));
+    const itemPower = equipment.calculateGearPowerScore(item);
+    const implicitItemPower = equipment.calculateGearPowerScore(implicitOnlyItem);
+    if (offensivePowers.has(legendaryPowerId)) {
+      assert.ok(loadoutPower > implicitPower, `${legendaryPowerId} offensive proc must contribute DPS`);
+      assert.ok(itemPower > implicitItemPower, `${legendaryPowerId} offensive proc must contribute item DPS`);
+    } else {
+      assert.equal(loadoutPower, implicitPower, `${legendaryPowerId} non-offense must add zero power`);
+      assert.equal(itemPower, implicitItemPower, `${legendaryPowerId} non-offense must add zero item power`);
+    }
   }
   const equippedWeapon = makeItem({
     slot: "weapon",
@@ -3403,7 +3453,7 @@ test("enhancement power comes only from slot implicits and stale saves recompute
     enhancement: 0,
   };
   const implicitBasePower = equipment.calculateGearPowerScore(emptyItem);
-  assert.ok(implicitBasePower > 1, "every item must carry its slot's deterministic base option");
+  assert.ok(implicitBasePower > 0, "an offensive slot implicit must carry DPS power");
   assert.ok(
     equipment.calculateGearPowerScore({ ...emptyItem, enhancement: 10 })
       > implicitBasePower,
@@ -3464,7 +3514,7 @@ test("enhancement power comes only from slot implicits and stale saves recompute
   assert.equal(
     normalized.powerScore,
     equipment.calculateGearPowerScore(normalized),
-    "saved power is derived and must be recomputed under the comprehensive formula",
+    "saved power is derived and must be recomputed under the boss-DPS formula",
   );
   for (const normalizedAffix of normalized.affixes) {
     assert.equal(
@@ -4158,9 +4208,15 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     ...legendaryAnchor,
     enhancement: 1,
   }) - legendaryAnchorPower;
-  assert.ok(
-    commonPlusOneGain > 0 && legendaryPlusOneGain >= commonPlusOneGain * 2,
-    `legendary +1 gain ${legendaryPlusOneGain} must be at least twice common ${commonPlusOneGain}`,
+  assert.equal(
+    commonPlusOneGain,
+    0,
+    "common armor enhancement changes mitigation only and must add zero DPS power",
+  );
+  assert.equal(
+    legendaryPlusOneGain,
+    0,
+    "legendary armor enhancement changes mitigation only and must add zero DPS power",
   );
 
   const legacy = JSON.parse(JSON.stringify(baseItem));
@@ -4270,7 +4326,11 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
 
   const maxEnhanced = equipment.normalizeGearItem({ ...baseItem, enhancement: 10 });
   assert.ok(maxEnhanced);
-  assert.ok(maxEnhanced.powerScore > baseItem.powerScore);
+  assert.equal(
+    maxEnhanced.powerScore,
+    baseItem.powerScore,
+    "armor enhancement changes mitigation only and must add zero DPS power",
+  );
   const baseLoadout = equipment.createEmptyEquipment();
   baseLoadout.armor = baseItem;
   const enhancedLoadout = equipment.createEmptyEquipment();
@@ -6252,7 +6312,7 @@ test("inventory sorting is stable, display-only, and supports power, rarity, lev
   assert.deepEqual(sorter.INVENTORY_SLOT_ORDER, equipment.EQUIPMENT_SLOTS);
   assert.deepEqual(sorter.INVENTORY_RARITY_ORDER, equipment.GEAR_RARITIES);
   assert.deepEqual(sorter.INVENTORY_SORT_OPTIONS, [
-    { id: "power", label: "전투력", title: "전투력이 높은 장비부터 정렬" },
+    { id: "power", label: "보스 화력", title: "아이템 보스 화력이 높은 장비부터 정렬" },
     { id: "rarity", label: "등급", title: "높은 등급 장비부터 정렬" },
     { id: "level", label: "레벨", title: "아이템 레벨이 높은 장비부터 정렬" },
     { id: "slot", label: "부위", title: "장비 부위 순서로 묶어서 정렬" },

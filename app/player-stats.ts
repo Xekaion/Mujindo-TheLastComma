@@ -9,7 +9,6 @@ import {
   BOSS_CONVERSION_VERSION,
   STANDARD_BOSS_PROFILE,
   calculateCombatEvaluation,
-  calculateStandardBossHitRate,
   type CombatEvaluationRatings,
 } from "./combat-evaluation";
 import {
@@ -20,6 +19,8 @@ import {
   LEGENDARY_POWERS,
   aggregateEquipmentStats,
   calculateEquipmentCombatPowerBreakdown,
+  EQUIPMENT_POWER_REFERENCE_BOSS_HITS_PER_SECOND,
+  EQUIPMENT_POWER_REFERENCE_PICKUPS_PER_SECOND,
   equippedLegendaryPowers,
   type EquipmentCombatPowerBreakdown,
   type EquipmentLoadout,
@@ -501,10 +502,9 @@ export function calculatePlayerStatSnapshot(
   const voidRank = rank("void");
   const starfallUptime = powerSet.has("starfallMantle")
     ? Math.min(
-        0.65,
-        (LEGENDARY_POWERS.starfallMantle.parameters.durationSeconds /
-          Math.max(0.05, dashCooldown)) *
-          0.55,
+        1,
+        LEGENDARY_POWERS.starfallMantle.parameters.durationSeconds /
+          Math.max(0.05, dashCooldown),
       )
     : 0;
   const standardStarfallMultiplier =
@@ -520,15 +520,9 @@ export function calculatePlayerStatSnapshot(
     standardBloodMultiplier * standardStarfallMultiplier;
   const projectileSpreadDegrees =
     (Math.min(0.62, renderedProjectileCount * 0.07) * 180) / Math.PI;
-  const standardBossHitRate = calculateStandardBossHitRate({
-    theoreticalProjectileCount,
-    projectileGeometryCount: renderedProjectileCount,
-    projectileSpreadDegrees,
-    projectileRadius,
-    projectileSpeed,
-    projectileRange: projectileSpeed * projectileLifetime,
-    homing: homingStrength,
-  });
+  // Combat power uses a perfect-execution boss parse: every player projectile
+  // is credited as a hit, independent of visual lane count or projectile shape.
+  const standardBossHitRate = 1;
   const standardPrimaryHitEventsPerSecond =
     Math.min(12, standardBossFireRate) *
     renderedProjectileCount *
@@ -545,17 +539,6 @@ export function calculatePlayerStatSnapshot(
     baseAttack * (1 + equipmentStats.damagePercent / 100);
   let legendaryProcBonusDps = 0;
   if (powerSet.has("crescentEcho")) {
-    const crescentHitRate = calculateStandardBossHitRate({
-      theoreticalProjectileCount:
-        LEGENDARY_POWERS.crescentEcho.parameters.projectileCount,
-      projectileGeometryCount:
-        LEGENDARY_POWERS.crescentEcho.parameters.projectileCount,
-      projectileSpreadDegrees: (0.68 * 180) / Math.PI,
-      projectileRadius: 6 * projectileSizeMultiplier,
-      projectileSpeed: projectileSpeed * 0.94,
-      projectileRange: projectileSpeed * 0.94 * projectileLifetime,
-      homing: Math.min(12, homingStrength),
-    });
     legendaryProcBonusDps +=
       sheetAttackPower *
       (standardBossFireRate / LEGENDARY_POWERS.crescentEcho.parameters.everyShots) *
@@ -564,22 +547,12 @@ export function calculatePlayerStatSnapshot(
       LEGENDARY_POWERS.crescentEcho.parameters.damageMultiplier *
       expectedCriticalMultiplier *
       averageOverchargeMultiplier *
-      standardPrimaryDamageMultiplier *
-      crescentHitRate;
+      standardPrimaryDamageMultiplier;
   }
   if (powerSet.has("bloodwovenGrip")) {
     const power = LEGENDARY_POWERS.bloodwovenGrip.parameters;
     const criticalVolleyHitChance =
-      critChance * Math.min(1, standardBossHitRate * renderedProjectileCount);
-    const bloodwovenHitRate = calculateStandardBossHitRate({
-      theoreticalProjectileCount: power.projectileCount,
-      projectileGeometryCount: power.projectileCount,
-      projectileSpreadDegrees: (0.34 * 180) / Math.PI,
-      projectileRadius: 5.5 * projectileSizeMultiplier,
-      projectileSpeed: projectileSpeed * 1.04,
-      projectileRange: projectileSpeed * 1.04 * projectileLifetime,
-      homing: Math.min(13, homingStrength),
-    });
+      critChance;
     legendaryProcBonusDps +=
       (standardBossFireRate * criticalVolleyHitChance /
         Math.max(1, power.everyCriticalHits)) *
@@ -589,15 +562,13 @@ export function calculatePlayerStatSnapshot(
       power.damageMultiplier *
       expectedCriticalMultiplier *
       averageOverchargeMultiplier *
-      standardPrimaryDamageMultiplier *
-      bloodwovenHitRate;
+      standardPrimaryDamageMultiplier;
   }
   if (powerSet.has("phantomMarch")) {
     legendaryProcBonusDps +=
       (legendaryBaseDamage *
         LEGENDARY_POWERS.phantomMarch.parameters.trailDamageMultiplier /
         0.4) *
-      0.45 *
       standardStarfallMultiplier;
   }
   if (powerSet.has("riftStride")) {
@@ -609,14 +580,24 @@ export function calculatePlayerStatSnapshot(
         0.4 *
         Math.max(1, dashDuration / 0.055) /
         Math.max(0.05, dashCooldown)) *
-      0.45 *
       dashTriggeredStarfallMultiplier;
   }
   if (powerSet.has("mirrorAegis")) {
     legendaryProcBonusDps +=
       (legendaryBaseDamage *
         LEGENDARY_POWERS.mirrorAegis.parameters.damageMultiplier) /
-      (LEGENDARY_POWERS.mirrorAegis.parameters.everyHits * 1.5) *
+      (LEGENDARY_POWERS.mirrorAegis.parameters.everyHits /
+        EQUIPMENT_POWER_REFERENCE_BOSS_HITS_PER_SECOND) *
+      standardStarfallMultiplier;
+  }
+  if (powerSet.has("commaResonance")) {
+    const power = LEGENDARY_POWERS.commaResonance.parameters;
+    legendaryProcBonusDps +=
+      (legendaryBaseDamage *
+        power.projectileCount *
+        power.damageMultiplier /
+        (Math.max(1, power.everyPickups) /
+          EQUIPMENT_POWER_REFERENCE_PICKUPS_PER_SECOND)) *
       standardStarfallMultiplier;
   }
   if (orbitRank > 0) {
@@ -645,31 +626,10 @@ export function calculatePlayerStatSnapshot(
       ? (0.45 + timeRank * 0.07) /
         Math.max(2, 6 - Math.min(4, timeRank))
       : 0;
-  const timeEchoProjectileLifetime =
-    1.05 *
-    simpleAugmentMultiplier(
-      rangeRank,
-      SIMPLE_AUGMENT_BONUSES.rangeProjectileLifePerRank,
-    ) *
-    (1 + equipmentStats.projectileLifetimePercent / 100);
-  const timeEchoHitRate =
-    timeRank > 0
-      ? calculateStandardBossHitRate({
-          theoreticalProjectileCount,
-          projectileGeometryCount: renderedProjectileCount,
-          projectileSpreadDegrees,
-          projectileRadius:
-            (4 + Math.min(4, timeRank)) * projectileSizeMultiplier,
-          projectileSpeed: projectileSpeed * 0.92,
-          projectileRange:
-            projectileSpeed * 0.92 * timeEchoProjectileLifetime,
-          homing: Math.min(14, homingStrength),
-        })
-      : 0;
+  const timeEchoHitRate = timeRank > 0 ? 1 : 0;
   const returnBonus =
     returnRank > 0
-      ? (0.45 + returnRank * 0.1) *
-        Math.min(0.82, 0.55 + homingStrength * 0.02)
+      ? 0.45 + returnRank * 0.1
       : 0;
   const poisonApplicationRate =
     poisonRank > 0
@@ -762,7 +722,7 @@ export function calculatePlayerStatSnapshot(
     ...combatEvaluation,
     survivalBudget,
     threeTargetDps: threeTargetDps * finalDamageMultiplier,
-    conversionLabel: `표준 보스 v${BOSS_CONVERSION_VERSION} · 전 생명력 처치 환산`,
+    conversionLabel: `표준 보스 v${BOSS_CONVERSION_VERSION} · 전탄 적중 지속 DPS`,
   };
 
   const specials: PlayerSpecialStat[] = [];

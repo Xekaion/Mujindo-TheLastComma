@@ -101,14 +101,15 @@ test("the character sheet baseline matches the live combat constants exactly", a
   nearlyEqual(snapshot.offense.expectedPrimaryDps, 20.286);
   assert.equal(snapshot.ratings.sheetAttackPower, 14);
   nearlyEqual(snapshot.ratings.statAttackDps, 20.286);
-  assert.ok(snapshot.ratings.standardBossDps > 19);
-  assert.ok(snapshot.ratings.standardBossDps < snapshot.ratings.statAttackDps);
+  nearlyEqual(snapshot.ratings.standardBossDps, snapshot.ratings.statAttackDps);
+  assert.equal(snapshot.ratings.hitRate, 1);
   nearlyEqual(
     snapshot.ratings.standardBossDamage60,
     snapshot.ratings.standardBossDps * 60,
   );
-  assert.ok(snapshot.ratings.combatPower > 1_000);
-  assert.equal(snapshot.ratings.version, 1);
+  assert.equal(snapshot.ratings.combatPower, 1_000);
+  assert.equal(snapshot.ratings.version, 2);
+  assert.match(snapshot.ratings.conversionLabel, /전탄 적중 지속 DPS/);
 
   assert.equal(snapshot.resources.maxHp, 100);
   assert.equal(snapshot.resources.roomEntryShield, 10);
@@ -283,7 +284,8 @@ test("cosmic pinnacle options feed live sheet formulas and the special-option le
     aegis.defense.currentIncomingMultiplier,
     baseline.defense.currentIncomingMultiplier * 0.9,
   );
-  assert.ok(aegis.ratings.combatPower > baseline.ratings.combatPower);
+  assert.equal(aegis.ratings.standardBossDps, baseline.ratings.standardBossDps);
+  assert.equal(aegis.ratings.combatPower, baseline.ratings.combatPower);
 
   const actionSpeed = snapshotFor({ stat: "cosmicActionSpeedPercent", value: 10 });
   nearlyEqual(
@@ -410,7 +412,154 @@ test("the standard HP profile and rendered hit budget keep conversion honest", a
     overflowRendered.ratings.survivalBudget,
     nineRendered.ratings.survivalBudget,
   );
-  assert.match(overflowRendered.ratings.conversionLabel, /전 생명력 처치 환산/);
+  assert.match(overflowRendered.ratings.conversionLabel, /전탄 적중 지속 DPS/);
+});
+
+test("defense, mobility, utility, and projectile handling never inflate combat power", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const baseItem = {
+    ...equipment.rollGear("combat-power-non-offense-contract", {
+      level: 80,
+      slot: "weapon",
+      rarity: "common",
+    }),
+    affixes: [],
+  };
+  const snapshotFor = (stat = null, value = 0) => {
+    const loadout = equipment.createEmptyEquipment();
+    loadout.weapon = stat
+      ? {
+          ...baseItem,
+          affixes: [{
+            stat,
+            value,
+            rollPercent: 100,
+            label: equipment.formatGearAffix(stat, value),
+          }],
+        }
+      : baseItem;
+    return playerStats.calculatePlayerStatSnapshot({
+      level: 80,
+      hp: 100,
+      maxHp: 100,
+      shield: 0,
+      shotCounter: 0,
+      augments: {},
+      profession: null,
+      equipment: loadout,
+      synergies: [],
+      legendaryArmorReady: true,
+      ...dormantLegendaryRuntime,
+    });
+  };
+  const baseline = snapshotFor();
+  const nonOffenseStats = [
+    ["maxHpFlat", 1_000],
+    ["damageReductionPercent", 50],
+    ["lifeOnHitFlat", 50],
+    ["hpRegenPerSecondFlat", 100],
+    ["roomClearHealFlat", 1_000],
+    ["roomEntryShieldFlat", 1_000],
+    ["moveSpeedPercent", 200],
+    ["projectileSpeedPercent", 500],
+    ["projectileSizePercent", 150],
+    ["projectileLifetimePercent", 500],
+    ["homingStrengthFlat", 14],
+    ["pierceFlat", 10],
+    ["pickupRadiusPercent", 1_000],
+    ["xpGainPercent", 500],
+    ["gearFindPercent", 200],
+    ["cosmicAegisPercent", 20],
+  ];
+
+  for (const [stat, value] of nonOffenseStats) {
+    const snapshot = snapshotFor(stat, value);
+    assert.equal(snapshot.ratings.hitRate, 1, `${stat} must preserve perfect hit`);
+    assert.equal(
+      snapshot.ratings.standardBossDps,
+      baseline.ratings.standardBossDps,
+      `${stat} must not alter boss DPS`,
+    );
+    assert.equal(
+      snapshot.ratings.combatPower,
+      baseline.ratings.combatPower,
+      `${stat} must not alter combat power`,
+    );
+  }
+});
+
+test("equipment and character sheets share the same standard legendary proc cadences", async () => {
+  const { playerStats, equipment } = await loadPlayerStatsModules();
+  const snapshotFor = (legendaryPowerId = null) => {
+    const loadout = equipment.createEmptyEquipment();
+    if (legendaryPowerId) {
+      const slot = equipment.LEGENDARY_POWERS[legendaryPowerId].slot;
+      loadout[slot] = {
+        ...equipment.rollGear(`proc-cadence-${legendaryPowerId}`, {
+          level: 1,
+          slot,
+          rarity: "common",
+        }),
+        affixes: [],
+        legendaryPowerId,
+      };
+    }
+    return {
+      loadout,
+      snapshot: playerStats.calculatePlayerStatSnapshot({
+        level: 1,
+        hp: 100,
+        maxHp: 100,
+        shield: 0,
+        shotCounter: 0,
+        augments: {},
+        profession: null,
+        equipment: loadout,
+        synergies: [],
+        legendaryArmorReady: true,
+        ...dormantLegendaryRuntime,
+      }),
+    };
+  };
+  const baseline = snapshotFor();
+  const offensivePowers = [
+    "crescentEcho",
+    "mirrorAegis",
+    "hunterSigil",
+    "starfallMantle",
+    "bloodwovenGrip",
+    "phantomMarch",
+    "riftStride",
+    "commaResonance",
+  ];
+
+  for (const powerId of offensivePowers) {
+    const candidate = snapshotFor(powerId);
+    const characterGain =
+      candidate.snapshot.ratings.combatPower - baseline.snapshot.ratings.combatPower;
+    const equipmentGain =
+      equipment.calculateEquipmentCombatPower(candidate.loadout) -
+      equipment.calculateEquipmentCombatPower(baseline.loadout);
+    assert.equal(
+      characterGain,
+      equipmentGain,
+      `${powerId} must use the same standard sustained proc cadence in both ratings`,
+    );
+  }
+
+  for (const powerId of ["lastMemory", "ashboundGirdle"]) {
+    const candidate = snapshotFor(powerId);
+    assert.equal(
+      candidate.snapshot.ratings.combatPower,
+      baseline.snapshot.ratings.combatPower,
+      `${powerId} must add no character combat power`,
+    );
+    assert.equal(
+      equipment.calculateEquipmentCombatPower(candidate.loadout),
+      equipment.calculateEquipmentCombatPower(baseline.loadout),
+      `${powerId} must add no equipment combat power`,
+    );
+  }
 });
 
 test("the character sheet preserves caps, overflow throughput, and live conditional defense", async () => {

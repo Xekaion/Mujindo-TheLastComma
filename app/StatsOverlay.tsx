@@ -204,7 +204,7 @@ export default function StatsOverlay({
               <strong>{context.activeSynergyCount}</strong>
             </span>
             <span className="is-power">
-              <small>종합 전투력</small>
+              <small>보스 전투력</small>
               <strong>{integerFormatter.format(ratings.combatPower)}</strong>
             </span>
           </div>
@@ -227,27 +227,27 @@ export default function StatsOverlay({
             <span>조건 없는 비치명 기본탄 1발</span>
           </article>
           <article className="is-combat-power">
-            <small>종합 전투력</small>
+            <small>보스 전투력</small>
             <strong>{integerFormatter.format(ratings.combatPower)}</strong>
-            <span>공격 65% · 생존 27% · 기동 8%</span>
+            <span>전탄 적중 보스 지속 DPS 단일 기준</span>
           </article>
           <article className="is-boss-conversion">
             <small>환산 보스 DPS</small>
             <strong>{formatNumber(ratings.standardBossDps)}</strong>
-            <span>{ratings.conversionLabel} · 명중 {formatPercent(ratings.hitRate)}</span>
+            <span>{ratings.conversionLabel} · 적중 가정 {formatPercent(ratings.hitRate)}</span>
           </article>
         </section>
 
         <div className="stats-content">
-          <StatsSection eyebrow="CONVERSION V1" title="환산 분석" icon="◎">
+          <StatsSection eyebrow={`CONVERSION V${ratings.version}`} title="환산 분석" icon="◎">
             <StatRow label="스탯 공격력" value={formatNumber(ratings.sheetAttackPower)} detail="조건·공속·치명·대상 보정 없는 1발" />
             <StatRow label="이론 일반 DPS" value={formatNumber(ratings.statAttackDps)} detail="이론 공속·투사체·치명·과부하 기대값" />
             <StatRow label="보스 처치 환산 DPS" value={formatNumber(ratings.standardBossDps)} detail={ratings.conversionLabel} />
             <StatRow label="60초 등가 피해" value={formatNumber(ratings.standardBossDamage60)} detail="전 생명력 처치 계수 · 방어력 0 · 거리 260px" />
-            <StatRow label="표준 명중 신뢰도" value={formatPercent(ratings.hitRate)} detail="이동 표적을 가정한 퍼짐·크기·탄속·사거리·유도 모델" meter={ratings.hitRate * 100} />
+            <StatRow label="전투력 적중 가정" value={formatPercent(ratings.hitRate)} detail="모든 기본탄·파생탄·전설 투사체가 보스에 적중" meter={ratings.hitRate * 100} />
             <StatRow label="보스 대상 배율" value={formatMultiplier(offense.bossMultiplier)} detail="거인 파문·장비·사냥 문장" />
             <StatRow label="처형 시간 보정" value={formatMultiplier(ratings.executeFactor)} detail={`임계 ${formatPercent(offense.executeThreshold)} · 피해 ${formatMultiplier(offense.executeMultiplier)}`} />
-            <StatRow label="환산 생존 예산" value={formatNumber(ratings.survivalBudget)} detail="유효 생명력+60초 회복, 회복 기여 상한 50%" />
+            <StatRow label="참고 생존 예산" value={formatNumber(ratings.survivalBudget)} detail="전투력에는 반영되지 않는 별도 생존 지표" />
           </StatsSection>
 
           <StatsSection eyebrow="OFFENSE" title="공격" icon="✦">
@@ -322,9 +322,9 @@ export default function StatsOverlay({
             </header>
             <div className="stats-equipment-power">
               <strong>{integerFormatter.format(equipment.power.total)}</strong>
-              <span>장비 전투력</span>
+              <span>장비 보스 전투력</span>
               <small>
-                공격 {integerFormatter.format(equipment.power.offense)} · 방어 {integerFormatter.format(equipment.power.defense)} · 유지 {integerFormatter.format(equipment.power.sustain)} · 기동 {integerFormatter.format(equipment.power.mobility)} · 탐사 {integerFormatter.format(equipment.power.utility)}
+                공격 DPS만 반영 · 생명력·방어·회복·기동·탐사 기여 0
               </small>
             </div>
             <dl className="stats-equipment-grid">
@@ -370,7 +370,7 @@ export default function StatsOverlay({
             )}
           </div>
           <p>
-            스탯 공격력은 안정적인 1발 기준, 종합 전투력은 공격·생존·기동 기준입니다. 환산 보스 DPS는 표준 보스 v{ratings.version}의 전 생명력 처치 주기를 60초 등가치로 바꾸며 도트·처형·전설 발동까지 별도 합산합니다.
+            스탯 공격력은 안정적인 1발 기준입니다. 전투력은 표준 보스 v{ratings.version}에게 모든 투사체를 맞힌 지속 DPS만 환산하며, 생명력·방어력·회복·기동력은 전혀 더하지 않습니다. 도트·처형·공격형 전설 발동 피해는 보스 DPS에 합산합니다.
           </p>
         </footer>
       </div>
