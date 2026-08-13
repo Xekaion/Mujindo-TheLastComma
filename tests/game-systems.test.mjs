@@ -7287,75 +7287,93 @@ test("all eight field-loot atlases are safe, unique, lightweight, and finite", a
   assert.match(arrivalRenderer, /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,/);
 });
 
-test("persistent loot-ground V1 atlases are tracked, chroma-free, padded four-frame RGBA loops", async () => {
+test("persistent loot-pillar V2 atlases are tracked, transparent, tall four-frame RGBA loops", async () => {
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
-  const manifestPath = "public/assets/effects/loot-ground-v1.build.json";
-  const builderPath = "scripts/build_legacy_loot_ground_assets.py";
+  const manifestPath = "public/assets/effects/loot-pillar-v2.build.json";
+  const builderPath = "scripts/build_loot_pillar_v2_assets.py";
   const [manifestText, builder, ...assetBuffers] = await Promise.all([
     readFile(path.join(root, manifestPath), "utf8"),
     readFile(path.join(root, builderPath), "utf8"),
     ...rarities.map((rarity) =>
-      readFile(path.join(root, `public/assets/effects/loot-ground-${rarity}-v1.png`)),
+      readFile(path.join(root, `public/assets/effects/loot-pillar-${rarity}-v2.png`)),
     ),
   ]);
   const manifest = JSON.parse(manifestText);
 
-  assert.equal(manifest.version, 1);
+  assert.equal(manifest.version, 2);
   assert.equal(manifest.builder, builderPath);
-  assert.deepEqual(manifest.layout, {
+  assert.deepEqual(manifest.atlas, {
     columns: 4,
     rows: 1,
-    frames: 4,
-    logicalCellSize: 128,
-    outputCellSize: 256,
-    width: 1024,
-    height: 256,
+    cell: [256, 512],
   });
   assert.deepEqual(manifest.pipeline.alphaLevels, [0, 64, 128, 192, 255]);
-  assert.equal(manifest.pipeline.minimumOutputGutterPixels, 16);
-  assert.match(builder, /SOURCE_ROOT\s*=\s*ROOT\s*\/\s*"asset-sources"\s*\/\s*"legacy-arpg"\s*\/\s*"loot-drop-v6"/);
-  assert.match(builder, /row\s*=\s*SOURCE_ROWS\s*-\s*1/);
+  assert.deepEqual(manifest.pipeline.logicalCell, [128, 256]);
+  assert.equal(manifest.pipeline.anchor, "bottom-centre");
+  assert.match(builder, /SOURCE_ROOT\s*=\s*ROOT\s*\/\s*"asset-sources"\s*\/\s*"legacy-arpg"\s*\/\s*"loot-pillar-v2"/);
+  assert.match(builder, /CELL_WIDTH\s*=\s*256/);
+  assert.match(builder, /CELL_HEIGHT\s*=\s*512/);
+  assert.match(builder, /target_width\s*=\s*min\([\s\S]{0,140}?size\s*=\s*\(target_width, max_height\)/);
   assert.match(builder, /Image\.Resampling\.NEAREST/);
-  assert.match(builder, /ALPHA_LEVELS\s*=\s*np\.array\(\[0, 64, 128, 192, 255\]/);
-  assert.match(builder, /chroma_residual/);
+  assert.match(builder, /ALPHA_LEVELS\s*=\s*np\.array\(\(0, 64, 128, 192, 255\)/);
 
   const raritySupportHashes = [];
   for (const [index, rarity] of rarities.entries()) {
-    const assetPath = `public/assets/effects/loot-ground-${rarity}-v1.png`;
-    const sourcePath = `asset-sources/legacy-arpg/loot-drop-v6/${rarity}-source.png`;
+    const assetPath = `public/assets/effects/loot-pillar-${rarity}-v2.png`;
+    const sourcePath = `asset-sources/legacy-arpg/loot-pillar-v2/${index < 4 ? "low" : "high"}-rarities-source.png`;
     const png = assetBuffers[index];
-    assert.ok(png.byteLength <= 650_000, `${assetPath} exceeds the 650 KB decode budget`);
+    assert.ok(png.byteLength <= 750_000, `${assetPath} exceeds the 750 KB decode budget`);
     await readFile(path.join(root, sourcePath));
 
     const image = decodeRgbaPng(png, assetPath);
-    assert.deepEqual([image.width, image.height], [1024, 256], `${assetPath} must be a 4x1 atlas`);
+    assert.deepEqual([image.width, image.height], [1024, 512], `${assetPath} must be a portrait-cell 4x1 atlas`);
     const frameHashes = [];
     const atlasSupport = new Uint8Array(image.width * image.height);
     const alphaLevels = new Set();
+    let transparentRgbLeak = 0;
     for (let pixel = 0; pixel < atlasSupport.length; pixel += 1) {
       const alpha = image.pixels[pixel * 4 + 3];
       alphaLevels.add(alpha);
       atlasSupport[pixel] = alpha >= 64 ? 1 : 0;
+      if (
+        alpha === 0 &&
+        (image.pixels[pixel * 4] !== 0 ||
+          image.pixels[pixel * 4 + 1] !== 0 ||
+          image.pixels[pixel * 4 + 2] !== 0)
+      ) {
+        transparentRgbLeak += 1;
+      }
     }
     assert.deepEqual([...alphaLevels].sort((a, b) => a - b), [0, 64, 128, 192, 255]);
+    assert.equal(transparentRgbLeak, 0, `${assetPath} must not retain hidden chroma RGB`);
     raritySupportHashes.push(createHash("sha256").update(atlasSupport).digest("hex"));
 
     for (let column = 0; column < 4; column += 1) {
-      const label = `${rarity} persistent ground frame ${column}`;
+      const label = `${rarity} persistent pillar frame ${column}`;
       const metrics = alphaCellMetrics(image, column, 0, 4, 1, label);
-      assert.ok(metrics.left >= 16, `${label} needs a 16px left gutter`);
-      assert.ok(metrics.right >= 16, `${label} needs a 16px right gutter`);
-      assert.ok(metrics.top >= 16, `${label} needs a 16px top gutter`);
-      assert.ok(metrics.bottom >= 16, `${label} needs a 16px bottom gutter`);
+      assert.ok(metrics.left >= 8, `${label} needs a safe left gutter`);
+      assert.ok(metrics.right >= 8, `${label} needs a safe right gutter`);
+      assert.ok(metrics.top >= 8, `${label} needs a safe top gutter`);
+      assert.ok(metrics.bottom >= 8, `${label} needs a safe bottom gutter`);
+      assert.ok(metrics.height >= 480, `${label} must remain a tall beacon, not ground clutter`);
 
-      const support = new Uint8Array(256 * 256);
+      const support = new Uint8Array(256 * 512);
       let supportOffset = 0;
-      for (let y = 0; y < 256; y += 1) {
+      let brightPixels = 0;
+      for (let y = 0; y < 512; y += 1) {
         for (let x = column * 256; x < (column + 1) * 256; x += 1) {
-          support[supportOffset] = image.pixels[(y * image.width + x) * 4 + 3] >= 64 ? 1 : 0;
+          const offset = (y * image.width + x) * 4;
+          const alpha = image.pixels[offset + 3];
+          support[supportOffset] = alpha >= 64 ? 1 : 0;
+          const luminance =
+            image.pixels[offset] * 0.299 +
+            image.pixels[offset + 1] * 0.587 +
+            image.pixels[offset + 2] * 0.114;
+          if (alpha >= 64 && luminance >= 205) brightPixels += 1;
           supportOffset += 1;
         }
       }
+      assert.ok(brightPixels >= 120, `${label} needs a white-hot light core`);
       frameHashes.push(createHash("sha256").update(support).digest("hex"));
     }
     assert.equal(new Set(frameHashes).size, 4, `${assetPath} needs four unique loop frames`);
@@ -7363,57 +7381,57 @@ test("persistent loot-ground V1 atlases are tracked, chroma-free, padded four-fr
     const record = manifest.rarities[rarity];
     assert.equal(record.source, sourcePath);
     assert.equal(record.output, assetPath);
-    assert.deepEqual(record.sourceRowsUsed, [2]);
-    assert.equal(record.width, 1024);
-    assert.equal(record.height, 256);
     assert.equal(record.bytes, png.byteLength);
-    assert.equal(record.chromaResidualPixels, 0);
-    assert.deepEqual(record.alphaLevels, [0, 64, 128, 192, 255]);
-    assert.equal(record.cells.length, 4);
-    assert.ok(record.cells.every((cell) => Math.min(...Object.values(cell.gutters)) >= 16));
-    assert.ok(record.cells.every((cell) => cell.visiblePixels > 0));
+    assert.equal(record.frames.length, 4);
+    assert.ok(record.frames.every((frame) => frame.bbox[3] - frame.bbox[1] >= 480));
+    assert.ok(record.frames.every((frame) => frame.brightPixelRatio >= 0.12));
   }
   assert.equal(
     new Set(raritySupportHashes).size,
     rarities.length,
-    "persistent ground loops must use eight genuinely distinct silhouettes",
+    "persistent pillar loops must use eight genuinely distinct silhouettes",
   );
 });
 
-test("persistent gear drops draw only authored four-frame ground sprites", async () => {
+test("persistent gear drops draw only authored four-frame portrait pillar sprites", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
   for (const rarity of rarities) {
     assert.match(
       source,
-      new RegExp(`groundImagePath:\\s*["']/assets/effects/loot-ground-${rarity}-v1\\.png["']`),
-      `${rarity} must preload its dedicated persistent ground loop`,
+      new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-v2\\.png["']`),
+      `${rarity} must preload its dedicated persistent pillar loop`,
     );
   }
-  assert.match(source, /imagePaths\[config\.groundImageKey\]\s*=\s*config\.groundImagePath/);
+  assert.match(source, /imagePaths\[config\.pillarImageKey\]\s*=\s*config\.pillarImagePath/);
 
   const drawStart = source.lastIndexOf("for (const drop of world.gearDrops)");
   const drawEnd = source.indexOf("for (const orb of world.orbs)", drawStart);
   assert.ok(drawStart >= 0 && drawEnd > drawStart, "the persistent gear-drop renderer is missing");
   const drawDrops = source.slice(drawStart, drawEnd);
-  const groundStart = drawDrops.indexOf("const groundVfxImage =");
-  const iconStart = drawDrops.indexOf("if (itemReveal > 0.001) {", groundStart + 1);
-  assert.ok(groundStart >= 0 && iconStart > groundStart, "the ground sprite block is not isolated from the icon block");
-  const groundRenderer = drawDrops.slice(groundStart, iconStart);
+  const pillarStart = drawDrops.indexOf("const pillarVfxImage =");
+  const iconStart = drawDrops.indexOf("if (itemReveal > 0.001) {", pillarStart + 1);
+  assert.ok(pillarStart >= 0 && iconStart > pillarStart, "the pillar sprite block is not isolated from the icon block");
+  const pillarRenderer = drawDrops.slice(pillarStart, iconStart);
 
-  assert.match(groundRenderer, /const groundFrame = positiveModulo\([\s\S]{0,160}?Math\.floor\(ambientTime \* rarityVfx\.groundFps \+ drop\.id\)[\s\S]{0,40}?,\s*4,/);
-  assert.match(groundRenderer, /const sourceWidth = groundVfxImage\.naturalWidth \/ 4;/);
-  assert.match(groundRenderer, /const sourceHeight = groundVfxImage\.naturalHeight;/);
-  assert.match(groundRenderer, /context\.globalCompositeOperation = "source-over";/);
-  assert.match(groundRenderer, /context\.imageSmoothingEnabled = false;/);
+  assert.match(pillarRenderer, /const pillarFrame = positiveModulo\([\s\S]{0,160}?Math\.floor\(ambientTime \* rarityVfx\.pillarFps \+ drop\.id\)[\s\S]{0,40}?,\s*4,/);
+  assert.match(pillarRenderer, /const sourceWidth = pillarVfxImage\.naturalWidth \/ 4;/);
+  assert.match(pillarRenderer, /const sourceHeight = pillarVfxImage\.naturalHeight;/);
+  assert.match(pillarRenderer, /context\.globalCompositeOperation = "lighter";/);
+  assert.match(pillarRenderer, /context\.imageSmoothingEnabled = false;/);
   assert.match(
-    groundRenderer,
-    /context\.drawImage\(\s*groundVfxImage,\s*groundFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,/,
+    pillarRenderer,
+    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*drop\.y \+ 12 - rarityVfx\.pillarHeight,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
   );
   assert.doesNotMatch(
-    groundRenderer,
+    pillarRenderer,
     /context\.(?:beginPath|ellipse|arc|moveTo|lineTo|closePath|stroke|fill|fillRect|createLinearGradient|createRadialGradient)\s*\(/,
-    "persistent ground VFX must not synthesize canvas geometry or gradients",
+    "persistent pillar VFX must not synthesize canvas geometry or gradients",
+  );
+  assert.match(
+    drawDrops.slice(iconStart, drawDrops.indexOf("context.restore();", iconStart)),
+    /context\.globalCompositeOperation = "source-over";[\s\S]{0,220}?const equipmentIcons = images\.equipmentIcons;/,
+    "the icon must restore normal compositing after the additive pillar",
   );
 });
 
@@ -7456,7 +7474,7 @@ test("the V5 field-loot builder keeps authored frame scale and never recolors on
   assert.match(fieldBuild[0], /len\(set\(support_hashes\)\) != len\(RARITIES\)/);
 });
 
-test("field drops keep eight V5 arrival patterns and reveal persistent ground art with the item", async () => {
+test("field drops keep eight V5 arrival patterns and reveal persistent pillar art with the item", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const config = source.match(
     /const EQUIPMENT_RARITY_VFX:[\s\S]*?= \{([\s\S]*?)\n\};\n\nconst EQUIPMENT_RARITIES/,
@@ -7499,22 +7517,22 @@ test("field drops keep eight V5 arrival patterns and reveal persistent ground ar
   assert.match(drawDrops, /appearanceProgress - rarityVfx\.itemRevealAt/);
   assert.match(
     drawDrops,
-    /const groundRevealRaw = clamp\([\s\S]{0,180}?drop\.appearanceAge[\s\S]{0,120}?rarityVfx\.awakeningDuration[\s\S]{0,180}?const groundReveal =[\s\S]{0,240}?const groundVfxImage = images\[rarityVfx\.groundImageKey\];[\s\S]{0,180}?groundReveal > 0\.001[\s\S]{0,800}?context\.drawImage\(\s*groundVfxImage,/,
-    "persistent ground art must fade in only after the authored arrival completes",
+    /const pillarRevealRaw = clamp\([\s\S]{0,180}?drop\.appearanceAge[\s\S]{0,120}?rarityVfx\.awakeningDuration[\s\S]{0,180}?const pillarReveal =[\s\S]{0,240}?const pillarVfxImage = images\[rarityVfx\.pillarImageKey\];[\s\S]{0,180}?pillarReveal > 0\.001[\s\S]{0,900}?context\.drawImage\(\s*pillarVfxImage,/,
+    "persistent pillar art must fade in only after the authored arrival completes",
   );
   assert.match(
     drawDrops,
-    /context\.globalAlpha = itemReveal;[\s\S]{0,180}?const equipmentIcons = images\.equipmentIcons;[\s\S]{0,900}?context\.drawImage\(/,
+    /context\.globalAlpha = itemReveal;[\s\S]{0,320}?const equipmentIcons = images\.equipmentIcons;[\s\S]{0,900}?context\.drawImage\(/,
     "the equipment icon must materialize only after its rarity cue",
   );
   assert.match(
     drawDrops,
-    /const groundFrame = positiveModulo\([\s\S]{0,180}?,\s*4,/,
-    "persistent ground art must loop all four authored frames",
+    /const pillarFrame = positiveModulo\([\s\S]{0,180}?,\s*4,/,
+    "persistent pillar art must loop all four authored frames",
   );
   assert.match(
     drawDrops,
-    /if \(itemReveal > 0\.001\) \{[\s\S]{0,180}?const equipmentIcons = images\.equipmentIcons/,
+    /if \(itemReveal > 0\.001\) \{[\s\S]{0,320}?const equipmentIcons = images\.equipmentIcons/,
     "hidden item icons must skip their atlas draw path",
   );
   assert.match(drawDrops, /const riseOffset = rarityVfx\.itemRisePx \* \(1 - itemReveal\)/);

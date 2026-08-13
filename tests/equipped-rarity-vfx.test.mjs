@@ -253,8 +253,8 @@ test("equipped rarity VFX preserves the coarse pre-render style at runtime", asy
   assert.equal(canvas.drawStates.length, 2);
   assert.deepEqual(
     canvas.drawStates.map(({ globalCompositeOperation }) => globalCompositeOperation),
-    ["source-over", "screen"],
-    "cosmic must retain normal compositing while only mythic uses its transparent flash blend",
+    ["screen", "screen"],
+    "both bright transparent rarity flashes must remain luminous over dark equipment",
   );
   for (const state of canvas.drawStates) {
     assert.equal(
@@ -368,53 +368,108 @@ function frameMetrics(image, column, label) {
   };
 }
 
-test("cosmic equipped aura retains four padded, unique legacy-style RGBA frames", async () => {
-  for (const tier of ["cosmic"]) {
-    const relativePath = `public/assets/effects/equipped-${tier}-aura-v2.png`;
-    const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
-    assert.deepEqual([image.width, image.height], [1024, 256]);
-    const frames = Array.from({ length: 4 }, (_, column) =>
-      frameMetrics(image, column, `${tier} frame ${column}`),
-    );
-    assert.equal(
-      new Set(frames.map(({ hash }) => hash)).size,
-      4,
-      `${tier} animation must contain four visually distinct frames`,
-    );
-    for (const [column, frame] of frames.entries()) {
-      assert.ok(frame.left >= 12, `${tier} frame ${column} lacks left alpha padding`);
-      assert.ok(frame.right >= 12, `${tier} frame ${column} lacks right alpha padding`);
-      assert.ok(frame.top >= 12, `${tier} frame ${column} lacks top alpha padding`);
-      assert.ok(frame.bottom >= 12, `${tier} frame ${column} lacks bottom alpha padding`);
-      assert.ok(Math.abs(frame.centerX - 128) <= 24, `${tier} frame ${column} is off-center on x`);
-      assert.ok(Math.abs(frame.centerY - 128) <= 12, `${tier} frame ${column} is off-center on y`);
-    }
+test("cosmic v3 flash is a bright padded cyan-white-violet four-frame galaxy", async () => {
+  const relativePath = "public/assets/effects/equipped-cosmic-flash-v3.png";
+  const manifestPath = "public/assets/effects/equipped-cosmic-flash-v3.build.json";
+  const sourcePath = "asset-sources/legacy-arpg/equipped-cosmic-flash-source-v3.png";
+  const [png, manifestBytes, sourceBytes] = await Promise.all([
+    readFile(path.join(root, relativePath)),
+    readFile(path.join(root, manifestPath)),
+    readFile(path.join(root, sourcePath)),
+  ]);
+  const image = decodeRgbaPng(png, relativePath);
+  const manifest = JSON.parse(manifestBytes.toString("utf8"));
+  assert.deepEqual([image.width, image.height], [1024, 256]);
+  assert.equal(manifest.version, 3);
+  assert.equal(manifest.builder, "scripts/build_equipped_cosmic_flash_v3.py");
+  assert.equal(manifest.source, sourcePath);
+  assert.equal(manifest.output, relativePath);
+  assert.equal(manifest.format, "RGBA PNG");
+  assert.deepEqual(manifest.atlas, { columns: 4, rows: 1, cell: [256, 256] });
+  assert.deepEqual(manifest.pipeline.logicalCell, [128, 128]);
+  assert.equal(manifest.pipeline.upscale, "nearest-neighbour-2x");
+  assert.deepEqual(manifest.pipeline.alphaLevels, [0, 72, 128, 192, 255]);
+  assert.equal(manifest.pipeline.centreTreatment, "transparent radial core");
+  assert.equal(manifest.outputSha256, createHash("sha256").update(png).digest("hex"));
+  assert.equal(manifest.sourceSha256, createHash("sha256").update(sourceBytes).digest("hex"));
 
-    const visibleAlphaLevels = new Set();
+  const hashes = [];
+  const brightRatios = [];
+  const visibleAlphaLevels = new Set();
+  for (let column = 0; column < 4; column += 1) {
+    const frameBytes = Buffer.alloc(256 * 256 * 4);
+    let frameOffset = 0;
     let visiblePixels = 0;
-    let overlyBrightPixels = 0;
-    for (let index = 0; index < image.pixels.length; index += 4) {
-      const alpha = image.pixels[index + 3];
-      visibleAlphaLevels.add(alpha);
-      if (alpha === 0) continue;
-      visiblePixels += 1;
-      const luminance = Math.round(
-        image.pixels[index] * 0.299 +
-        image.pixels[index + 1] * 0.587 +
-        image.pixels[index + 2] * 0.114
-      );
-      if (luminance >= 220) overlyBrightPixels += 1;
+    let brightPixels = 0;
+    let whitePixels = 0;
+    let cyanPixels = 0;
+    let violetPixels = 0;
+    let blackPixels = 0;
+    let centrePixels = 0;
+    let minimumX = 256;
+    let maximumX = -1;
+    let minimumY = 256;
+    let maximumY = -1;
+    for (let y = 0; y < 256; y += 1) {
+      for (let x = 0; x < 256; x += 1) {
+        const source = (y * image.width + column * 256 + x) * 4;
+        const red = image.pixels[source];
+        const green = image.pixels[source + 1];
+        const blue = image.pixels[source + 2];
+        const alpha = image.pixels[source + 3];
+        frameBytes[frameOffset++] = red;
+        frameBytes[frameOffset++] = green;
+        frameBytes[frameOffset++] = blue;
+        frameBytes[frameOffset++] = alpha;
+        visibleAlphaLevels.add(alpha);
+        if (alpha < 72) continue;
+        visiblePixels += 1;
+        minimumX = Math.min(minimumX, x);
+        maximumX = Math.max(maximumX, x);
+        minimumY = Math.min(minimumY, y);
+        maximumY = Math.max(maximumY, y);
+        const luminance = red * 0.299 + green * 0.587 + blue * 0.114;
+        if (luminance >= 205) brightPixels += 1;
+        if (red >= 210 && green >= 210 && blue >= 210) whitePixels += 1;
+        if (green >= red * 1.08 && blue >= red * 1.12) cyanPixels += 1;
+        if (red >= 110 && blue >= green * 1.03) violetPixels += 1;
+        if (luminance < 10) blackPixels += 1;
+        if (x >= 94 && x < 162 && y >= 94 && y < 162) centrePixels += 1;
+      }
     }
-    assert.deepEqual(
-      [...visibleAlphaLevels].sort((left, right) => left - right),
-      [0, 72, 128, 192, 255],
-      `${tier} must use authored stepped alpha instead of a continuous modern glow`,
-    );
-    assert.ok(
-      overlyBrightPixels / visiblePixels <= 0.02,
-      `${tier} must keep bright pixels as sparse highlights`,
-    );
+    const reported = manifest.frames[column];
+    const bbox = [minimumX, minimumY, maximumX + 1, maximumY + 1];
+    const brightRatio = brightPixels / visiblePixels;
+    const cyanRatio = cyanPixels / visiblePixels;
+    const violetRatio = violetPixels / visiblePixels;
+    const centreCoverage = centrePixels / (68 * 68);
+    const frameHash = createHash("sha256").update(frameBytes).digest("hex");
+
+    assert.ok(visiblePixels >= 16_000, `cosmic frame ${column} is unexpectedly sparse`);
+    assert.ok(minimumX >= 10 && 255 - maximumX >= 10, `cosmic frame ${column} lacks x padding`);
+    assert.ok(minimumY >= 10 && 255 - maximumY >= 10, `cosmic frame ${column} lacks y padding`);
+    assert.ok(Math.abs((minimumX + maximumX) / 2 - 128) <= 3, `cosmic frame ${column} is off-center on x`);
+    assert.ok(Math.abs((minimumY + maximumY) / 2 - 128) <= 3, `cosmic frame ${column} is off-center on y`);
+    assert.ok(brightRatio >= 0.025 && brightRatio <= 0.55, `cosmic frame ${column} lacks controlled white sparkle`);
+    assert.ok(whitePixels / visiblePixels >= 0.01, `cosmic frame ${column} needs visible white stars`);
+    assert.ok(cyanRatio >= 0.35, `cosmic frame ${column} needs a strong cyan galaxy band`);
+    assert.ok(violetRatio >= 0.08, `cosmic frame ${column} needs visible violet energy`);
+    assert.ok(centreCoverage <= 0.02, `cosmic frame ${column} obscures the equipped item centre`);
+    assert.equal(blackPixels, 0, `cosmic frame ${column} contains an opaque black rectangle`);
+    assert.deepEqual(reported.bbox, bbox);
+    assert.equal(reported.visiblePixels, visiblePixels);
+    assert.ok(Math.abs(reported.brightRatio - brightRatio) < 0.000001);
+    assert.ok(Math.abs(reported.cyanRatio - cyanRatio) < 0.000001);
+    assert.ok(Math.abs(reported.violetRatio - violetRatio) < 0.000001);
+    assert.ok(Math.abs(reported.centreCoverage - centreCoverage) < 0.000001);
+    assert.equal(reported.pixelHash, frameHash);
+    hashes.push(frameHash);
+    brightRatios.push(brightRatio);
   }
+  assert.equal(new Set(hashes).size, 4, "cosmic v3 needs four distinct temporal poses");
+  assert.deepEqual([...visibleAlphaLevels].sort((left, right) => left - right), [0, 72, 128, 192, 255]);
+  assert.ok(brightRatios[2] > brightRatios[0] * 8, "cosmic peak frame must greatly outshine frame zero");
+  assert.ok(brightRatios[2] > brightRatios[3] * 5, "cosmic peak frame must greatly outshine recovery");
 });
 
 test("mythic v3 flash is padded, transparent, stepped, and peaks visibly in frame two", async () => {
@@ -491,10 +546,10 @@ test("mythic v3 flash is padded, transparent, stepped, and peaks visibly in fram
   assert.equal(manifest.pipeline.minimumPadding, 12);
 });
 
-test("equipped rarity VFX paths isolate mythic v3 while preserving cosmic v2", async () => {
+test("equipped rarity VFX paths isolate the mythic and cosmic v3 flashes", async () => {
   const vfx = await importVfxModule();
   assert.deepEqual(vfx.EQUIPPED_RARITY_VFX_PATHS, {
     mythic: "/assets/effects/equipped-mythic-flash-v3.png",
-    cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
+    cosmic: "/assets/effects/equipped-cosmic-flash-v3.png",
   });
 });

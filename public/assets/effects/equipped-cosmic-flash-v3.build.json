@@ -1,0 +1,94 @@
+{
+  "version": 3,
+  "builder": "scripts/build_equipped_cosmic_flash_v3.py",
+  "source": "asset-sources/legacy-arpg/equipped-cosmic-flash-source-v3.png",
+  "sourceSha256": "5247d90a9101808e448907b436cebef5c4e888cbbcb47e588c4128e76329d68c",
+  "output": "public/assets/effects/equipped-cosmic-flash-v3.png",
+  "outputSha256": "c398717234bf526bf270643aa858835e5d1417a42b0fcd9a772840be95381533",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      256
+    ]
+  },
+  "pipeline": {
+    "logicalCell": [
+      128,
+      128
+    ],
+    "upscale": "nearest-neighbour-2x",
+    "alphaLevels": [
+      0,
+      72,
+      128,
+      192,
+      255
+    ],
+    "centreTreatment": "transparent radial core"
+  },
+  "frames": [
+    {
+      "frame": 0,
+      "bbox": [
+        12,
+        10,
+        244,
+        246
+      ],
+      "visiblePixels": 16832,
+      "brightRatio": 0.03327,
+      "cyanRatio": 0.645437,
+      "violetRatio": 0.098622,
+      "centreCoverage": 0.0,
+      "pixelHash": "426b58d4dd428ae910f705e87cadae24dd959ae6500e25a7c3b0445b9e267785"
+    },
+    {
+      "frame": 1,
+      "bbox": [
+        14,
+        10,
+        242,
+        242
+      ],
+      "visiblePixels": 22972,
+      "brightRatio": 0.093505,
+      "cyanRatio": 0.376807,
+      "violetRatio": 0.335887,
+      "centreCoverage": 0.00346,
+      "pixelHash": "babf621f414e3cf6e02ea270bd942e6bfd71e4141b959dc1ddd110c18565d153"
+    },
+    {
+      "frame": 2,
+      "bbox": [
+        36,
+        14,
+        218,
+        242
+      ],
+      "visiblePixels": 21044,
+      "brightRatio": 0.500285,
+      "cyanRatio": 0.41532,
+      "violetRatio": 0.516632,
+      "centreCoverage": 0.015571,
+      "pixelHash": "bbfb1b62116766446d2776b11f3a1e3bb20f4115858128f9d1ea82ff633b3ecb"
+    },
+    {
+      "frame": 3,
+      "bbox": [
+        20,
+        10,
+        234,
+        244
+      ],
+      "visiblePixels": 21280,
+      "brightRatio": 0.074248,
+      "cyanRatio": 0.434023,
+      "violetRatio": 0.298684,
+      "centreCoverage": 0.002595,
+      "pixelHash": "6c101ea57bcc3aeb90ea70cc1002b61c0b56103340f5fa3614ccf0a790ed582f"
+    }
+  ]
+}

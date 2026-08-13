@@ -606,8 +606,8 @@ const EQUIPMENT_RARITY_TIER: Readonly<Record<GearItem["rarity"], number>> = {
 type EquipmentRarityVfxConfig = {
   imageKey: string;
   imagePath: string;
-  groundImageKey: string;
-  groundImagePath: string;
+  pillarImageKey: string;
+  pillarImagePath: string;
   arrivalPattern:
     | "dustSeal"
     | "arcaneTriangle"
@@ -628,14 +628,15 @@ type EquipmentRarityVfxConfig = {
   moteCount: number;
   accentSides: number;
   spinDirection: 1 | -1;
-  groundSize: number;
-  groundFps: number;
+  pillarWidth: number;
+  pillarHeight: number;
+  pillarFps: number;
 };
 
-// The authored awakening is a one-shot reveal. Persistent ground art must not
+// The authored awakening is a one-shot reveal. Persistent pillar art must not
 // overlap it: that was the source of the old circle/triangle marker suddenly
 // appearing during the otherwise-finished arrival animation.
-const LOOT_GROUND_VFX_REVEAL_SECONDS = 0.16;
+const LOOT_PILLAR_VFX_REVEAL_SECONDS = 0.16;
 
 const EQUIPMENT_RARITY_VFX: Readonly<
   Record<GearItem["rarity"], EquipmentRarityVfxConfig>
@@ -643,8 +644,8 @@ const EQUIPMENT_RARITY_VFX: Readonly<
   common: {
     imageKey: "lootAwakeningCommon",
     imagePath: "/assets/effects/loot-awakening-common-v5.png",
-    groundImageKey: "lootGroundCommon",
-    groundImagePath: "/assets/effects/loot-ground-common-v1.png",
+    pillarImageKey: "lootPillarCommon",
+    pillarImagePath: "/assets/effects/loot-pillar-common-v2.png",
     arrivalPattern: "dustSeal",
     beamHeight: 68,
     beamWidth: 7,
@@ -657,14 +658,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 4,
     accentSides: 4,
     spinDirection: 1,
-    groundSize: 86,
-    groundFps: 4,
+    pillarWidth: 74,
+    pillarHeight: 96,
+    pillarFps: 4,
   },
   magic: {
     imageKey: "lootAwakeningMagic",
     imagePath: "/assets/effects/loot-awakening-magic-v5.png",
-    groundImageKey: "lootGroundMagic",
-    groundImagePath: "/assets/effects/loot-ground-magic-v1.png",
+    pillarImageKey: "lootPillarMagic",
+    pillarImagePath: "/assets/effects/loot-pillar-magic-v2.png",
     arrivalPattern: "arcaneTriangle",
     beamHeight: 78,
     beamWidth: 8,
@@ -677,14 +679,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 6,
     accentSides: 3,
     spinDirection: 1,
-    groundSize: 98,
-    groundFps: 4,
+    pillarWidth: 82,
+    pillarHeight: 108,
+    pillarFps: 4,
   },
   superior: {
     imageKey: "lootAwakeningSuperior",
     imagePath: "/assets/effects/loot-awakening-superior-v5.png",
-    groundImageKey: "lootGroundSuperior",
-    groundImagePath: "/assets/effects/loot-ground-superior-v1.png",
+    pillarImageKey: "lootPillarSuperior",
+    pillarImagePath: "/assets/effects/loot-pillar-superior-v2.png",
     arrivalPattern: "thornBloom",
     beamHeight: 90,
     beamWidth: 10,
@@ -697,14 +700,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 7,
     accentSides: 6,
     spinDirection: -1,
-    groundSize: 110,
-    groundFps: 5,
+    pillarWidth: 92,
+    pillarHeight: 124,
+    pillarFps: 5,
   },
   rare: {
     imageKey: "lootAwakeningRare",
     imagePath: "/assets/effects/loot-awakening-rare-v5.png",
-    groundImageKey: "lootGroundRare",
-    groundImagePath: "/assets/effects/loot-ground-rare-v1.png",
+    pillarImageKey: "lootPillarRare",
+    pillarImagePath: "/assets/effects/loot-pillar-rare-v2.png",
     arrivalPattern: "compassBloom",
     beamHeight: 108,
     beamWidth: 12,
@@ -717,14 +721,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 9,
     accentSides: 8,
     spinDirection: 1,
-    groundSize: 124,
-    groundFps: 5,
+    pillarWidth: 104,
+    pillarHeight: 146,
+    pillarFps: 5,
   },
   epic: {
     imageKey: "lootAwakeningEpic",
     imagePath: "/assets/effects/loot-awakening-epic-v5.png",
-    groundImageKey: "lootGroundEpic",
-    groundImagePath: "/assets/effects/loot-ground-epic-v1.png",
+    pillarImageKey: "lootPillarEpic",
+    pillarImagePath: "/assets/effects/loot-pillar-epic-v2.png",
     arrivalPattern: "reverseVortex",
     beamHeight: 132,
     beamWidth: 16,
@@ -737,14 +742,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 11,
     accentSides: 5,
     spinDirection: -1,
-    groundSize: 142,
-    groundFps: 6,
+    pillarWidth: 120,
+    pillarHeight: 174,
+    pillarFps: 6,
   },
   legendary: {
     imageKey: "lootAwakeningLegendary",
     imagePath: "/assets/effects/loot-awakening-legendary-v5.png",
-    groundImageKey: "lootGroundLegendary",
-    groundImagePath: "/assets/effects/loot-ground-legendary-v1.png",
+    pillarImageKey: "lootPillarLegendary",
+    pillarImagePath: "/assets/effects/loot-pillar-legendary-v2.png",
     arrivalPattern: "solarCoronation",
     beamHeight: 174,
     beamWidth: 22,
@@ -757,14 +763,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 14,
     accentSides: 12,
     spinDirection: 1,
-    groundSize: 168,
-    groundFps: 6,
+    pillarWidth: 144,
+    pillarHeight: 216,
+    pillarFps: 6,
   },
   mythic: {
     imageKey: "lootAwakeningMythic",
     imagePath: "/assets/effects/loot-awakening-mythic-v5.png",
-    groundImageKey: "lootGroundMythic",
-    groundImagePath: "/assets/effects/loot-ground-mythic-v1.png",
+    pillarImageKey: "lootPillarMythic",
+    pillarImagePath: "/assets/effects/loot-pillar-mythic-v2.png",
     arrivalPattern: "mythicCoronation",
     beamHeight: 228,
     beamWidth: 30,
@@ -777,14 +784,15 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 17,
     accentSides: 7,
     spinDirection: -1,
-    groundSize: 198,
-    groundFps: 7,
+    pillarWidth: 174,
+    pillarHeight: 274,
+    pillarFps: 7,
   },
   cosmic: {
     imageKey: "lootAwakeningCosmic",
     imagePath: "/assets/effects/loot-awakening-cosmic-v5.png",
-    groundImageKey: "lootGroundCosmic",
-    groundImagePath: "/assets/effects/loot-ground-cosmic-v1.png",
+    pillarImageKey: "lootPillarCosmic",
+    pillarImagePath: "/assets/effects/loot-pillar-cosmic-v2.png",
     arrivalPattern: "nebulaCollapse",
     beamHeight: 296,
     beamWidth: 42,
@@ -797,8 +805,9 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 20,
     accentSides: 16,
     spinDirection: -1,
-    groundSize: 226,
-    groundFps: 8,
+    pillarWidth: 210,
+    pillarHeight: 344,
+    pillarFps: 8,
   },
 };
 
@@ -4358,7 +4367,7 @@ export default function GameCanvas({
     }
     for (const config of Object.values(EQUIPMENT_RARITY_VFX)) {
       imagePaths[config.imageKey] = config.imagePath;
-      imagePaths[config.groundImageKey] = config.groundImagePath;
+      imagePaths[config.pillarImageKey] = config.pillarImagePath;
     }
     for (const [name, source] of Object.entries(imagePaths)) {
       const image = new Image();
@@ -9706,45 +9715,48 @@ export default function GameCanvas({
         );
         const itemReveal =
           itemRevealRaw * itemRevealRaw * (3 - 2 * itemRevealRaw);
-        const groundRevealRaw = clamp(
+        const pillarRevealRaw = clamp(
           ((drop.appearanceAge ?? 0) - rarityVfx.awakeningDuration) /
-            LOOT_GROUND_VFX_REVEAL_SECONDS,
+            LOOT_PILLAR_VFX_REVEAL_SECONDS,
           0,
           1,
         );
-        const groundReveal =
-          groundRevealRaw * groundRevealRaw * (3 - 2 * groundRevealRaw);
+        const pillarReveal =
+          pillarRevealRaw * pillarRevealRaw * (3 - 2 * pillarRevealRaw);
         context.save();
-        const groundVfxImage = images[rarityVfx.groundImageKey];
+        const pillarVfxImage = images[rarityVfx.pillarImageKey];
         if (
-          groundReveal > 0.001 &&
-          groundVfxImage?.complete &&
-          groundVfxImage.naturalWidth &&
-          groundVfxImage.naturalHeight
+          pillarReveal > 0.001 &&
+          pillarVfxImage?.complete &&
+          pillarVfxImage.naturalWidth &&
+          pillarVfxImage.naturalHeight
         ) {
-          const groundFrame = positiveModulo(
-            Math.floor(ambientTime * rarityVfx.groundFps + drop.id),
+          const pillarFrame = positiveModulo(
+            Math.floor(ambientTime * rarityVfx.pillarFps + drop.id),
             4,
           );
-          const sourceWidth = groundVfxImage.naturalWidth / 4;
-          const sourceHeight = groundVfxImage.naturalHeight;
-          context.globalAlpha = groundReveal;
-          context.globalCompositeOperation = "source-over";
+          const sourceWidth = pillarVfxImage.naturalWidth / 4;
+          const sourceHeight = pillarVfxImage.naturalHeight;
+          context.globalAlpha = pillarReveal;
+          context.globalCompositeOperation = "lighter";
           context.imageSmoothingEnabled = false;
           context.drawImage(
-            groundVfxImage,
-            groundFrame * sourceWidth,
+            pillarVfxImage,
+            pillarFrame * sourceWidth,
             0,
             sourceWidth,
             sourceHeight,
-            drop.x - rarityVfx.groundSize / 2,
-            drop.y - rarityVfx.groundSize * 0.72,
-            rarityVfx.groundSize,
-            rarityVfx.groundSize,
+            drop.x - rarityVfx.pillarWidth / 2,
+            drop.y + 12 - rarityVfx.pillarHeight,
+            rarityVfx.pillarWidth,
+            rarityVfx.pillarHeight,
           );
         }
         if (itemReveal > 0.001) {
           context.globalAlpha = itemReveal;
+          // Additive blending belongs only to the authored pillar. Restore
+          // normal compositing so the equipment icon and label stay crisp.
+          context.globalCompositeOperation = "source-over";
           const equipmentIcons = images.equipmentIcons;
           if (equipmentIcons?.complete && equipmentIcons.naturalWidth) {
             const { column, row } = gearIconCell(drop.item.iconIndex);

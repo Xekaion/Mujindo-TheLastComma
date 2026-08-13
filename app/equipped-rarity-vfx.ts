@@ -14,7 +14,7 @@ export const EQUIPPED_RARITY_VFX_FRAME_SIZE = 256;
 export const EQUIPPED_RARITY_VFX_FRAME_COUNT = 4;
 export const EQUIPPED_RARITY_VFX_PATHS = {
   mythic: "/assets/effects/equipped-mythic-flash-v3.png",
-  cosmic: "/assets/effects/equipped-cosmic-aura-v2.png",
+  cosmic: "/assets/effects/equipped-cosmic-flash-v3.png",
 } as const;
 
 export type EquippedRarityVfxTier = keyof typeof EQUIPPED_RARITY_VFX_PATHS;
@@ -225,9 +225,9 @@ export function drawEquippedRarityVfx(
 
   canvas.save();
   // Nearest-neighbour scaling preserves the deliberately coarse pre-rendered
-  // pixels at combat scale. Cosmic keeps its authored dark nebula via normal
-  // compositing; the transparent mythic flash alone uses screen blending so
-  // its short ivory peak reads against both dark armour and dungeon floors.
+  // pixels at combat scale. Both transparent flash atlases use screen blending:
+  // mythic keeps its ivory-magenta peak while cosmic's cyan, white, and violet
+  // galaxy sparks stay luminous against dark armour and dungeon floors.
   canvas.imageSmoothingEnabled = false;
   for (let index = 0; index < pieceCount; index += 1) {
     const piece = options.plan.pieces[index];
@@ -255,7 +255,7 @@ export function drawEquippedRarityVfx(
     // retain their original color density in every surface. Only an explicit
     // character-state alpha (death/stale/respawn) may fade the composite.
     canvas.globalAlpha = alpha * CONTEXT_ALPHA[context];
-    canvas.globalCompositeOperation = piece.tier === "mythic" ? "screen" : "source-over";
+    canvas.globalCompositeOperation = "screen";
     canvas.drawImage(
       source,
       sourceFrame * EQUIPPED_RARITY_VFX_FRAME_SIZE,

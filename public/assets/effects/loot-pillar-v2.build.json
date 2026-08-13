@@ -1,0 +1,495 @@
+{
+  "version": 2,
+  "builder": "scripts/build_loot_pillar_v2_assets.py",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      512
+    ]
+  },
+  "pipeline": {
+    "logicalCell": [
+      128,
+      256
+    ],
+    "upscale": "nearest-neighbour-2x",
+    "alphaLevels": [
+      0,
+      64,
+      128,
+      192,
+      255
+    ],
+    "maxPaletteColours": 96,
+    "anchor": "bottom-centre"
+  },
+  "sources": {
+    "low-rarities-source.png": {
+      "sha256": "9922ccc30e1347f4c51679c35f122aaac1a068239b156a41b1fcd3203cc7b9eb",
+      "size": [
+        1241,
+        1268
+      ]
+    },
+    "high-rarities-source.png": {
+      "sha256": "3cbca19d536c7f01d6582755fc8df9434ff3dd63abed73de5a47df20b97c18aa",
+      "size": [
+        1241,
+        1267
+      ]
+    }
+  },
+  "rarities": {
+    "common": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-common-v2.png",
+      "outputSha256": "164ef34798b61fb970309805472e9d4a20023bbd2af61b2a802bcf23ae25fc5e",
+      "bytes": 131854,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            14,
+            232,
+            504
+          ],
+          "visiblePixels": 37196,
+          "brightPixelRatio": 0.188085,
+          "pixelHash": "e2599964d2688cee572f8393540d7cda2609984a152faed3a477e57c94aca7c7"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            24,
+            12,
+            232,
+            496
+          ],
+          "visiblePixels": 44036,
+          "brightPixelRatio": 0.202562,
+          "pixelHash": "b4a80aded45ab6d589a7860509c06ad0e454525c40afbd13bac1c638c337e96b"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 42100,
+          "brightPixelRatio": 0.19848,
+          "pixelHash": "f8e266b2f984e789d4f064ead4a93868105dc9652c2ed642db1198cf2d301bbc"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            16,
+            232,
+            504
+          ],
+          "visiblePixels": 40532,
+          "brightPixelRatio": 0.201816,
+          "pixelHash": "c52bac28dcb7cfd1f9bbb078dad90e81bdb52bd66440d97d8328321014ea8220"
+        }
+      ]
+    },
+    "magic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-magic-v2.png",
+      "outputSha256": "d301f6f70e0f0de2d9490990f9db3e37e0fa15fced913579099d6254dc546d5e",
+      "bytes": 125771,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            16,
+            232,
+            504
+          ],
+          "visiblePixels": 38960,
+          "brightPixelRatio": 0.16848,
+          "pixelHash": "504ab6fc4a0f033d19001e809b2bbe2bf9bb2ae91e3d46d8782e8b4c6d7ddde6"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            228,
+            504
+          ],
+          "visiblePixels": 43628,
+          "brightPixelRatio": 0.204089,
+          "pixelHash": "5c01146e704b029cd5f79b05b416b510fc865090558b7a664192b5bdca4b9ad7"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            14,
+            228,
+            504
+          ],
+          "visiblePixels": 42892,
+          "brightPixelRatio": 0.179707,
+          "pixelHash": "08dcb105bd72a5bfb9e206c3c332cac66e4efa046f7bb09a90a1303a80e801fb"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            12,
+            232,
+            504
+          ],
+          "visiblePixels": 40796,
+          "brightPixelRatio": 0.166389,
+          "pixelHash": "88e476e079da7b98f4ca431a1d9ff98595170f33af5aa2916b4e119865cd5e2e"
+        }
+      ]
+    },
+    "superior": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-superior-v2.png",
+      "outputSha256": "ae96414b624eafedc5cbeb2020a9f19cb1f982d22953a138616b76e4c791ffc9",
+      "bytes": 138608,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            10,
+            230,
+            504
+          ],
+          "visiblePixels": 41328,
+          "brightPixelRatio": 0.173926,
+          "pixelHash": "c1a63000c805b70ee18692a835e2026e973254ca44440bd868c44bfa5a560237"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            24,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 52620,
+          "brightPixelRatio": 0.187153,
+          "pixelHash": "45644f2836c9465230b1a7c9e188bfc8a7d4c1effcca2865133414ce2a796276"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            24,
+            8,
+            228,
+            504
+          ],
+          "visiblePixels": 48988,
+          "brightPixelRatio": 0.149506,
+          "pixelHash": "a4d46da1f1ed7f9c6ccd401ce06309dd8f765039335f982a18ff27d5567a231c"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            26,
+            8,
+            228,
+            504
+          ],
+          "visiblePixels": 39792,
+          "brightPixelRatio": 0.165862,
+          "pixelHash": "b7d898a2fe6760d434609a3a50eb665be0de06ef05c93b70eaf116836a1a8363"
+        }
+      ]
+    },
+    "rare": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-rare-v2.png",
+      "outputSha256": "a5b794dc4d3e1599b10cffb04c068758af7acd31ffbfad398677780ffc994c08",
+      "bytes": 150194,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 43948,
+          "brightPixelRatio": 0.126786,
+          "pixelHash": "40f7859217757bb09b32465c81ba5f7a3cda2a5b227663d8a212644da32c2f85"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            230,
+            504
+          ],
+          "visiblePixels": 52428,
+          "brightPixelRatio": 0.170748,
+          "pixelHash": "426f5199bfe441edb55eff54073d4a1dc204b0b088a30c384b11cf689682480a"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 50968,
+          "brightPixelRatio": 0.135458,
+          "pixelHash": "9f16117254fc1055c6e91d118449d00fd2a787ee5886f2901d14ced0bb35fe7a"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            28,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 47088,
+          "brightPixelRatio": 0.125637,
+          "pixelHash": "892fa0542c1738dfd6bf1b4531a5d8059576bed73e325861291b5dca07b3eceb"
+        }
+      ]
+    },
+    "epic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-epic-v2.png",
+      "outputSha256": "6f55730cad133af5b9557356ae6e737c8aebb2f9308039cf53245abb6af5ee4d",
+      "bytes": 126556,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            230,
+            504
+          ],
+          "visiblePixels": 37444,
+          "brightPixelRatio": 0.175409,
+          "pixelHash": "f1b8009eec1706bbab241a0fefdcea0601dbaceef1e22e3dd5ff0407be1aa1c3"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            12,
+            232,
+            504
+          ],
+          "visiblePixels": 37780,
+          "brightPixelRatio": 0.170143,
+          "pixelHash": "c0ac6abf7fb25009b824438d3ea862e387afa1f5d6a32c9a787cce41deca49d7"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            10,
+            232,
+            504
+          ],
+          "visiblePixels": 42372,
+          "brightPixelRatio": 0.224488,
+          "pixelHash": "262a9a95efc678a482bafa279565f3fb88dac38f1afc14eb3a15326a918acc1a"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            230,
+            504
+          ],
+          "visiblePixels": 35408,
+          "brightPixelRatio": 0.16211,
+          "pixelHash": "3f5af8ec9517b54c515545877dc31a3a692ae7fef0375bfb833dc0b4d6c9d1eb"
+        }
+      ]
+    },
+    "legendary": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-legendary-v2.png",
+      "outputSha256": "833612530d90fc8efff8b9fec0207eb6250b70c327a2e0dca2c556f092ae82b1",
+      "bytes": 130673,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 42104,
+          "brightPixelRatio": 0.263538,
+          "pixelHash": "cc25fa5281026fa478429c66a4e2fbf4a69cad4b8c60a17f25bec9c656c25baa"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 41976,
+          "brightPixelRatio": 0.237183,
+          "pixelHash": "7866a6c0bef048c086624b846c55ada5ea7288ef4ec34dbbb41a607cf5e569b4"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            26,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 49936,
+          "brightPixelRatio": 0.342518,
+          "pixelHash": "010eb1496ca8a99e801d4d2d341ff358c92b3ea768a6b5b7b7feeec6adba5200"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 39848,
+          "brightPixelRatio": 0.256173,
+          "pixelHash": "3b98cc1f66a9f7ea5d8168feaf068c30038dde9fd2ce126768eea42fdcc93f81"
+        }
+      ]
+    },
+    "mythic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-mythic-v2.png",
+      "outputSha256": "239819b763308d41ec005a4f4acb7d69b399cb45da670d9174660bf61fcfcf2a",
+      "bytes": 148705,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 47980,
+          "brightPixelRatio": 0.24752,
+          "pixelHash": "187ec53e49404cf7255b0936dfb5cf166c4ec4fe2c6248311a89f9692902a73c"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 49600,
+          "brightPixelRatio": 0.234032,
+          "pixelHash": "7f9161c1ea95ba45d886bb04305827a71a41b2b70c4592edfa46ca76be8194db"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            230,
+            504
+          ],
+          "visiblePixels": 57368,
+          "brightPixelRatio": 0.292149,
+          "pixelHash": "5d56c812acc314fddcd13a47c874757a073d21cca5ff708d0292d094513cbe09"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 46976,
+          "brightPixelRatio": 0.246935,
+          "pixelHash": "b3c10bd92463627aa7a9b7b8b78af2d07e35b8ac8af75965dc30165f59c1d3ff"
+        }
+      ]
+    },
+    "cosmic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "output": "public/assets/effects/loot-pillar-cosmic-v2.png",
+      "outputSha256": "1df6fca58dcdb8d534253a9fd2691b6292c1c04c5ef77c47daf9b0319d9c619b",
+      "bytes": 171792,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            502
+          ],
+          "visiblePixels": 57476,
+          "brightPixelRatio": 0.34985,
+          "pixelHash": "66549bd01fe647324ab41bbc09797b9393622902f648ae05797c863c23e9923a"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 52480,
+          "brightPixelRatio": 0.339558,
+          "pixelHash": "cbb5956db682f06386c035e10e687f7d54edabe30dca96ee773eee23c47331c9"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            502
+          ],
+          "visiblePixels": 64568,
+          "brightPixelRatio": 0.392702,
+          "pixelHash": "8d0e7c3122c0aedb37539f41fcbb880f4dd4b462bdef9286fee7115e612a5282"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            36,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 50840,
+          "brightPixelRatio": 0.355862,
+          "pixelHash": "266a1477ee90095fe2faa820184326e08d5b79ebca4823708b536178c6cfb4f9"
+        }
+      ]
+    }
+  }
+}
