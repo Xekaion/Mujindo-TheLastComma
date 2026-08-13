@@ -35,6 +35,28 @@ test("the expedition canvas caches its CSS scale and keeps combat labels readabl
   );
 });
 
+test("ordinary shield points stay in the HUD without drawing a persistent ring around the player", async () => {
+  const source = await readSource("app/GameCanvas.tsx");
+  const playerRenderStart = source.lastIndexOf("const playerDrawn =");
+  const mirrorBarrierStart = source.indexOf(
+    "if (player.mirrorAegisBarrierTime > 0)",
+    playerRenderStart,
+  );
+
+  assert.ok(playerRenderStart >= 0 && mirrorBarrierStart > playerRenderStart);
+  const ordinaryPlayerRender = source.slice(playerRenderStart, mirrorBarrierStart);
+  assert.doesNotMatch(
+    ordinaryPlayerRender,
+    /if \(player\.shield > 0\)[\s\S]{0,320}?context\.(?:arc|stroke)\(/,
+    "ordinary shield points must not draw a circle beneath or around the player",
+  );
+  assert.match(
+    source,
+    /hud\.player\.shield > 0[\s\S]{0,100}?Math\.ceil\(hud\.player\.shield\)/,
+    "the shield amount must remain visible in the combat HUD",
+  );
+});
+
 test("the PVP canvas applies the same scale floor to names, respawn text, and countdown copy", async () => {
   const source = await readSource("app/pvp/PvpArena.tsx");
 

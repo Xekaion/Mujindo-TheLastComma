@@ -9383,16 +9383,6 @@ export default function GameCanvas({
         context.arc(player.x, player.y, player.radius, 0, Math.PI * 2);
         context.fill();
       }
-      if (player.shield > 0) {
-        context.beginPath();
-        context.strokeStyle =
-          player.ashboundShieldTime > 0
-            ? "rgba(236,181,104,.94)"
-            : "rgba(116,220,203,.8)";
-        context.lineWidth = player.ashboundShieldTime > 0 ? 3 : 2;
-        context.arc(player.x, player.y, player.ashboundShieldTime > 0 ? 38 : 34, 0, Math.PI * 2);
-        context.stroke();
-      }
       if (player.mirrorAegisBarrierTime > 0) {
         context.save();
         context.globalCompositeOperation = "lighter";
