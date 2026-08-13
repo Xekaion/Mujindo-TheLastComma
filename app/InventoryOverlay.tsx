@@ -287,7 +287,7 @@ function GearTooltip({
           </small>
           <h4>{formatGearDisplayName(item)}</h4>
           <span className={levelLocked ? "inventory-screen-level-requirement--locked" : undefined}>
-            아이템 레벨 {item.level} · 착용 레벨 {requiredLevel}
+            아이템 레벨 {item.level} · 착용 필요 레벨 {requiredLevel}
             {levelLocked && <b> · 레벨 부족</b>}
           </span>
         </div>
@@ -850,7 +850,7 @@ export default function InventoryOverlay({
                       </small>
                       <h4>{formatGearDisplayName(selectedItem)}</h4>
                       <span className={selectedLevelLocked ? "inventory-screen-level-requirement--locked" : undefined}>
-                        아이템 LV.{selectedItem.level} · 착용 LV.{selectedRequiredLevel} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
+                        아이템 레벨 {selectedItem.level} · 착용 필요 레벨 {selectedRequiredLevel} · 전투력 <b>{selectedItem.powerScore.toLocaleString("ko-KR")}</b>
                       </span>
                     </div>
                     {!selectedIsEquipped && (
@@ -1237,7 +1237,7 @@ export default function InventoryOverlay({
                       onKeyDown={handleTooltipKeyDown}
                       aria-label={salvageModeActive
                         ? `${formatGearDisplayName(item, { includeZero: true })} 일괄 분해 ${checkedForSalvage ? "선택 해제" : "선택"}`
-                        : `${formatGearDisplayName(item, { includeZero: true })}, 아이템 레벨 ${item.level}, 착용 요구 레벨 ${requiredLevel}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
+                        : `${formatGearDisplayName(item, { includeZero: true })}, 아이템 레벨 ${item.level}, 착용 필요 레벨 ${requiredLevel}, 전투력 ${item.powerScore}, 장착품 대비 ${formatPowerDelta(itemPowerDelta)}, 품질 ${item.qualityScore}점`}
                       aria-describedby={!salvageModeActive && hoveredItem?.id === item.id ? "inventory-screen-hover-tooltip" : undefined}
                       aria-pressed={salvageModeActive ? checkedForSalvage : selected}
                     >

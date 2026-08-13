@@ -3883,7 +3883,7 @@ export default function GameCanvas({
       if (!canEquipGearAtLevel(player.level, item)) {
         setSelectedGearId(item.id);
         setToast(
-          `장착 레벨 부족 · LV.${item.level} 장비는 캐릭터 LV.${requiredLevel}부터 장착할 수 있습니다.`,
+          `착용 필요 레벨 부족 · 아이템 레벨 ${item.level} 장비는 캐릭터 LV.${requiredLevel}부터 장착할 수 있습니다.`,
         );
         return;
       }
@@ -10872,7 +10872,7 @@ export default function GameCanvas({
                       <GearIcon item={item} size={42} />
                       <div>
                         <strong>{formatGearDisplayName(item)}</strong>
-                        <small>아이템 LV.{item.level} · 착용 LV.{getGearRequiredLevel(item)} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
+                        <small>아이템 레벨 {item.level} · 착용 필요 레벨 {getGearRequiredLevel(item)} · {EQUIPMENT_SLOT_LABELS[item.slot]}</small>
                         <span>전투력 {item.powerScore} · 품질 {item.qualityScore}%</span>
                       </div>
                     </button>

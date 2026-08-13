@@ -72,6 +72,10 @@ test("right-click character inspection publishes only canonical equipped gear", 
   assert.match(profile, /EQUIPMENT_SLOTS\.map\(\(slot\) =>/);
   assert.match(profile, /InventoryPaperdollFigure equipment=\{equipment\}/);
   assert.match(profile, /getGearRequiredLevel\(item\)/);
+  assert.match(
+    profile,
+    /아이템 레벨 \{item\.level\} · 착용 필요 레벨 \{getGearRequiredLevel\(item\)\}/,
+  );
   assert.match(profile, /reconcileEquipmentLevelRequirements\(\s*profile\?\.level \?\? 1/);
   assert.match(profile, /role="dialog"/);
   assert.match(profile, /aria-modal="true"/);

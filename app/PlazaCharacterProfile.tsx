@@ -155,7 +155,7 @@ function SelectedEquipmentDetail({ item }: { item: GearItem | null }) {
           </small>
           <h3>{formatGearDisplayName(item, { includeZero: true })}</h3>
           <span>
-            아이템 LV.{item.level} · 착용 LV.{getGearRequiredLevel(item)} · 품질 {item.qualityScore}/100
+            아이템 레벨 {item.level} · 착용 필요 레벨 {getGearRequiredLevel(item)} · 품질 {item.qualityScore}/100
           </span>
         </div>
       </div>

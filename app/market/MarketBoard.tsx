@@ -198,7 +198,7 @@ function formatMarketGearName(item: MarketVaultItem): string {
 }
 
 function formatMarketGearLevel(item: MarketVaultItem): string {
-  return `아이템 LV.${item.level} · 착용 LV.${getGearRequiredLevel(item)}`;
+  return `아이템 레벨 ${item.level} · 착용 필요 레벨 ${getGearRequiredLevel(item)}`;
 }
 
 function BalanceCard({

@@ -3756,13 +3756,20 @@ test("every equip gesture is protected by the shared level requirement", async (
     equipHandler[1],
     /const requiredLevel = getGearRequiredLevel\(item\);[\s\S]{0,180}?if \(!canEquipGearAtLevel\(player\.level, item\)\) \{[\s\S]{0,300}?setToast\([\s\S]{0,240}?return;/,
   );
+  assert.match(
+    equipHandler[1],
+    /착용 필요 레벨 부족 · 아이템 레벨 \$\{item\.level\}/,
+  );
   assert.ok(
     equipHandler[1].indexOf("canEquipGearAtLevel(player.level, item)")
       < equipHandler[1].indexOf("player.equipment[item.slot] = item"),
     "the level gate must run before any equipment or inventory mutation",
   );
   assert.match(overlay, /playerLevel: number;/);
-  assert.match(overlay, /아이템 LV\.\{selectedItem\.level\} · 착용 LV\.\{selectedRequiredLevel\}/);
+  assert.match(
+    overlay,
+    /아이템 레벨 \{selectedItem\.level\} · 착용 필요 레벨 \{selectedRequiredLevel\}/,
+  );
   assert.match(overlay, /disabled=\{selectedLevelLocked\}/);
   assert.match(
     overlay,
@@ -6014,6 +6021,21 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   assert.match(overlay, /aria-describedby=\{[^}]*inventory-screen-hover-tooltip/);
   assert.match(overlay, /id=["']inventory-screen-hover-tooltip["']/);
   assert.match(overlay, /role=["']tooltip["']/);
+  assert.match(
+    overlay,
+    /아이템 레벨 \{item\.level\} · 착용 필요 레벨 \{requiredLevel\}/,
+    "the item description must label the equip gate as 착용 필요 레벨",
+  );
+  assert.match(
+    overlay,
+    /아이템 레벨 \{selectedItem\.level\} · 착용 필요 레벨 \{selectedRequiredLevel\}/,
+    "the selected-item description must use the same requirement label",
+  );
+  assert.doesNotMatch(
+    overlay,
+    /착용 레벨|착용 요구 레벨|착용 LV/,
+    "legacy requirement labels must not remain in item descriptions",
+  );
   assert.match(
     overlay,
     /hoveredItem\s*&&[\s\S]{0,500}?createPortal\([\s\S]{0,300}?<(?:Item|Gear)Tooltip[\s\S]{0,300}?item=\{hoveredItem\}[\s\S]{0,300}?position=\{tooltipPosition\}/,

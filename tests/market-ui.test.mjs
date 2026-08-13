@@ -116,6 +116,11 @@ test("market equipment names show enhancement without mutating trade commands", 
   );
   assert.match(
     board,
+    /아이템 레벨 \$\{item\.level\} · 착용 필요 레벨 \$\{getGearRequiredLevel\(item\)\}/,
+    "market item descriptions must use the canonical requirement label",
+  );
+  assert.match(
+    board,
     /market-listing-item[\s\S]{0,500}?formatMarketGearName\(listing\.item\)/,
     "auction rows must append the enhancement stage to the visible item name",
   );
