@@ -20,6 +20,32 @@ const legendaryVfxIds = ["crescentEcho", "mirrorAegis", "hunterSigil", "starfall
 const projectileVfxIds = ["arcane", "blood", "ember", "storm", "frost", "poison", "echo", "enemy", "witch", "boss"];
 
 const sha256 = async (url) => createHash("sha256").update(await readFile(url)).digest("hex");
+const pngDimensions = async (url) => {
+  const bytes = await readFile(url);
+  assert.equal(bytes.subarray(1, 4).toString("ascii"), "PNG");
+  return {
+    width: bytes.readUInt32BE(16),
+    height: bytes.readUInt32BE(20),
+  };
+};
+
+const pngFramePayloads = async (url) => {
+  const sharp = (await import("sharp")).default;
+  const image = sharp(await readFile(url)).ensureAlpha();
+  const frames = [];
+  for (let row = 0; row < 4; row += 1) {
+    for (let column = 0; column < 4; column += 1) {
+      frames.push(
+        await image
+          .clone()
+          .extract({ left: column * 128, top: row * 128, width: 128, height: 128 })
+          .raw()
+          .toBuffer(),
+      );
+    }
+  }
+  return frames;
+};
 
 test("the shipped 20-icon atlas stays byte-identical and only later augments opt into new art", async () => {
   // Frozen value records the exact legacy atlas the user asked us not to alter.
@@ -45,9 +71,31 @@ test("every effect-producing augment, legendary power, and projectile has an aut
     assert.match(runtimeSource, new RegExp(`"${id}"`));
   }
   for (const id of projectileVfxIds) {
-    await stat(new URL(`../public/assets/effects/projectiles/${id}-v1.png`, import.meta.url));
+    const assetUrl = new URL(`../public/assets/effects/projectiles/${id}-v2.png`, import.meta.url);
+    await stat(assetUrl);
+    const dimensions = await pngDimensions(assetUrl);
+    assert.equal(dimensions.width, 512, `${id} projectile atlas width`);
+    assert.equal(dimensions.height, 512, `${id} projectile atlas height`);
+    assert.equal(dimensions.width % 4, 0, `${id} projectile atlas columns`);
+    assert.equal(dimensions.height % 4, 0, `${id} projectile atlas rows`);
+    const frames = await pngFramePayloads(assetUrl);
+    assert.equal(
+      new Set(frames.map((frame) => createHash("sha256").update(frame).digest("hex"))).size,
+      16,
+      `${id} must contain sixteen genuinely distinct frames`,
+    );
     assert.match(runtimeSource, new RegExp(`"${id}"`));
   }
+});
+
+test("projectile artwork uses a smooth 16-frame contract at a stable cadence", () => {
+  assert.match(runtimeSource, /projectiles\/\$\{affinity\}-v2\.png/);
+  assert.match(runtimeSource, /columns:\s*4/);
+  assert.match(runtimeSource, /rows:\s*4/);
+  assert.match(runtimeSource, /frames:\s*16/);
+  assert.match(runtimeSource, /PROJECTILE_VFX_FRAMES_PER_SECOND\s*=\s*30/);
+  assert.match(gameSource, /loopingGameplayVfxProgress\(projectile\.age, definition\)/);
+  assert.doesNotMatch(gameSource, /positiveModulo\(projectile\.age \* 8, 1\)/);
 });
 
 test("runtime renders authored artwork first and keeps primitives as load-failure fallback", () => {

@@ -1,4 +1,4 @@
-export const ROOM_DOOR_FRAME_COUNT = 4;
+export const ROOM_DOOR_FRAME_COUNT = 6;
 export const ROOM_DOOR_CLOSING_SECONDS = 0.2;
 export const ROOM_DOOR_OPENING_SECONDS = 0.52;
 
@@ -55,7 +55,7 @@ export function advanceRoomDoorMotion(
 
 /**
  * Atlas cells are authored from completely closed (0) to completely raised
- * (3). Closing deliberately traverses the same cells in reverse, so the art
+ * (5). Closing deliberately traverses the same cells in reverse, so the art
  * cannot jitter between two independently drawn animations.
  */
 export function roomDoorFrame(motion: RoomDoorMotion): number {

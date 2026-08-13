@@ -23,46 +23,46 @@ async function importRoomDoors() {
 
 const doors = await importRoomDoors();
 
-test("an uncleared room closes through the same four authored frames", () => {
+test("an uncleared room closes through the same six authored frames", () => {
   let motion = doors.createRoomDoorMotion(false);
   assert.equal(motion.phase, "closing");
-  assert.equal(doors.roomDoorFrame(motion), 3);
+  assert.equal(doors.roomDoorFrame(motion), 5);
   assert.equal(doors.roomDoorsPassable(motion), false);
 
   const frames = [doors.roomDoorFrame(motion)];
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < 5; index += 1) {
     motion = doors.advanceRoomDoorMotion(
       motion,
-      doors.ROOM_DOOR_CLOSING_SECONDS / 4,
+      doors.ROOM_DOOR_CLOSING_SECONDS / 6,
     );
     frames.push(doors.roomDoorFrame(motion));
   }
   motion = doors.advanceRoomDoorMotion(
     motion,
-    doors.ROOM_DOOR_CLOSING_SECONDS / 4,
+    doors.ROOM_DOOR_CLOSING_SECONDS / 6 + Number.EPSILON,
   );
   frames.push(doors.roomDoorFrame(motion));
 
-  assert.deepEqual(frames, [3, 3, 2, 1, 0]);
+  assert.deepEqual(frames, [5, 5, 4, 3, 2, 1, 0]);
   assert.equal(motion.phase, "closed");
   assert.equal(doors.roomDoorsPassable(motion), false);
 });
 
-test("room clear raises four frames and unlocks traversal only when fully open", () => {
+test("room clear raises six frames and unlocks traversal only when fully open", () => {
   let motion = doors.beginRoomDoorOpening(doors.createClosedRoomDoorMotion());
   const frames = [doors.roomDoorFrame(motion)];
   const passable = [doors.roomDoorsPassable(motion)];
-  for (let index = 0; index < 4; index += 1) {
+  for (let index = 0; index < 6; index += 1) {
     motion = doors.advanceRoomDoorMotion(
       motion,
-      doors.ROOM_DOOR_OPENING_SECONDS / 4,
+      doors.ROOM_DOOR_OPENING_SECONDS / 6,
     );
     frames.push(doors.roomDoorFrame(motion));
     passable.push(doors.roomDoorsPassable(motion));
   }
 
-  assert.deepEqual(frames, [0, 0, 1, 2, 3]);
-  assert.deepEqual(passable, [false, false, false, false, true]);
+  assert.deepEqual(frames, [0, 0, 1, 2, 3, 4, 5]);
+  assert.deepEqual(passable, [false, false, false, false, false, false, true]);
   assert.equal(motion.phase, "open");
 });
 
@@ -82,7 +82,7 @@ test("door animation is refresh-rate invariant and invalid time cannot skip it",
   for (const hz of [30, 60, 144]) {
     const motion = simulate(hz);
     assert.equal(motion.phase, "open", `${hz}Hz`);
-    assert.equal(doors.roomDoorFrame(motion), 3, `${hz}Hz`);
+    assert.equal(doors.roomDoorFrame(motion), 5, `${hz}Hz`);
   }
 
   const opening = doors.beginRoomDoorOpening(doors.createClosedRoomDoorMotion());
@@ -94,7 +94,7 @@ test("door animation is refresh-rate invariant and invalid time cannot skip it",
 test("cleared revisits are immediately open while a fresh world can start closed", () => {
   const revisited = doors.createRoomDoorMotion(true);
   assert.equal(revisited.phase, "open");
-  assert.equal(doors.roomDoorFrame(revisited), 3);
+  assert.equal(doors.roomDoorFrame(revisited), 5);
   assert.equal(doors.roomDoorsPassable(revisited), true);
 
   const boot = doors.createClosedRoomDoorMotion();

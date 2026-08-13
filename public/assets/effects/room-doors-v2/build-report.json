@@ -1,0 +1,1818 @@
+{
+  "source": "room-portcullis-source-v1.png",
+  "sourceSha256": "5f848704960815b549a86141b53638119bb8f1bba7e5027a1b1bbf82374e88f8",
+  "cell": {
+    "width": 256,
+    "height": 192
+  },
+  "columns": 6,
+  "rows": [
+    "north",
+    "east",
+    "south",
+    "west"
+  ],
+  "frameOrder": "closed to fully raised",
+  "rooms": {
+    "room-battle": {
+      "output": "room-battle-doors-v2.webp",
+      "outputSha256": "1a7cde051e6fd61f612f176f1cdf55a889f7681ab37e5995f19dac0117e2a78f",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 17547,
+          "pixelHash": "b03ef5bb272cd088bafc7431a06b3f01a7e9f92c9446630cbcd73462e20ca689"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13861,
+          "pixelHash": "b65e9e2f08325bccd665e7610b69793904803e1e0cf6f677a9d129cada3d5fd9"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9406,
+          "pixelHash": "858834ae649c3daab9ad97e813b5fde661ff2e5198f0abc4032cbe0678087d5a"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5273,
+          "pixelHash": "b09186c99dcae7f81010075790800816cbc6e0045a2c63985891e18b8dc7b5db"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1179,
+          "pixelHash": "6fb37f42f6be34656b84e3945175401c0b3feac35475fa29d0f404817d0491e1"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13024,
+          "pixelHash": "34877dbfbf0b50be755cbbe1dfea7f3a2882ed370ab1512f9ed22c41e71fb009"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11365,
+          "pixelHash": "7da4e18198e2b3585908cd4f55308796b9a61243ca56666336019b0f8f67b679"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7384,
+          "pixelHash": "c77957d82c87216cae49c1112feb1b9017eec90220100628093fae1e721cfbd5"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3292,
+          "pixelHash": "ead678ce300283b8d5813650783ee3746e942e29a931784b1cee9fd6e993de2d"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 223,
+          "pixelHash": "f4b8b7dbaa0a6c714a14733eaace195a79957f51d268fcffdef5fa53f0ed7d07"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18694,
+          "pixelHash": "0f9f55ab1db28fb6ffcae8edfe8699c2cacf866852da645127e9e313bf316d1b"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13871,
+          "pixelHash": "bd4a851b12538185989fa5317157ac19c316c2076e12fad3102f463e4f568c69"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9259,
+          "pixelHash": "5d5fbc1be8fa44a78a592b701b548e89d1d6609f4c6c42a41b008c6aac2b4012"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5821,
+          "pixelHash": "16706bf425f17d2fedde8c8fc5ca8f3b23c1ba74fca457d261749cfd7b294533"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1334,
+          "pixelHash": "b8ded547906a14e39969c0f5dcfd408f74f8a01fbbcc12141eea36f30b533a44"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13046,
+          "pixelHash": "3d5037e3c20d0260adb1e1ae542ec5c47e91181dff67ecce04b00b9c34125e35"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11376,
+          "pixelHash": "6a251c675de3136b7a47a908e16ad4614e8468ceac67dfb041e77736920af7de"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7383,
+          "pixelHash": "dd5f84d4fb020509f373b659d162b5aed2033c5a2ab31ec8a850114a25ad49e7"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3283,
+          "pixelHash": "c348463a117bde85cabe0f7221b6d60a76d68cb22b1d29465c5041978525a08c"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 224,
+          "pixelHash": "d6a0448d049ca2337a89d3322342fa67833759b6adc33a5642a1c77a8f82505c"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-horde": {
+      "output": "room-horde-doors-v2.webp",
+      "outputSha256": "cabc30525c86fbd5c1fc4bd14481f2f24fa6c2f3618c02ff71d8cc2574581d4b",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 17941,
+          "pixelHash": "7442aef97cb4b243b6105ee8fffcdb23cca7ac5f85eeeb828d1108897bf43601"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14163,
+          "pixelHash": "b4804b241924fe3a441365f8b6f4a58770ade771a164539b8af0885316bdaa57"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9629,
+          "pixelHash": "a6d989cee718abc1be06c99cc3e27004053ed5d304bee5ffab1c74141df52344"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5382,
+          "pixelHash": "7efed1d50725b5d881702fd0cd04f785bc5ce850e48893d9c41b8a846db66a14"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1199,
+          "pixelHash": "e47080e2b1dc70475bfafc87e429c21f704ea5cd7bc848f928af60f84719b7da"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13276,
+          "pixelHash": "3b10a8908e5c3d38d951a56da9cb6b38fcc74ad6520ce09a8291da730b176a27"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11568,
+          "pixelHash": "339fd3b07889a1338157239021fcd59f0aeef28137411c5080f92a57b3c2b7ac"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7504,
+          "pixelHash": "798669ff597d494880aaecfb3a7dc5e5d10944a0a5641d09e10d5394397c6cff"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3333,
+          "pixelHash": "921024b73281dd554134232bb5e0a53305b7f1bc7e574059a0b2253878967d8f"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 226,
+          "pixelHash": "979b1bdaaa087883eba2b3b077d8d368cf99c00429e248d5e72351c73236ff3a"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19082,
+          "pixelHash": "b2ffd02e644ff3fbbd2ffeb57abf759ff803c053e90ef698fb464e4545eaf8a2"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14161,
+          "pixelHash": "282879e0e3e7b5857b34940cf02cf18441d5cd0c9554e2f52d945a09b16756d3"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9465,
+          "pixelHash": "dcb0b0aa4500843aaaf77e30027dca8b2f522ada4e745a71d7399780e3c05154"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5945,
+          "pixelHash": "c0368ff02db1fe87bf1781292e890039c240b98331b1be506bb02aac7c78d120"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1361,
+          "pixelHash": "f2e2d34e7c65cd1df75c416eb7e759ed2b1fae9b448346a02e6489a5eb31dfb2"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13294,
+          "pixelHash": "1f71ef2655750af58e51b7020bb69ea522793d646166b059479213420c09a730"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11584,
+          "pixelHash": "fe902ddab3d67a976f7a02f5c5c16fd10d45e31de9ca489d5c8896bb8e0f6ec1"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7525,
+          "pixelHash": "e81176530af7e4e88d5dc0b541020a574f342ed64ae10016e120c4e025f5d868"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3342,
+          "pixelHash": "1e88683439a7cea7fe4295d5dc13dfd4dac8c30e974b7be38ec870e4ce41d2ff"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 229,
+          "pixelHash": "a2b162f0e6bc77a9e9b7faaab94b46f98163435dfc4b90990079f472317b27d0"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-elite": {
+      "output": "room-elite-doors-v2.webp",
+      "outputSha256": "87988ad3700775dbe319ddfbadf99ca66bcceac1595a8ceafe5e9413cefc3687",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18243,
+          "pixelHash": "31908e14b6cb42817d540ca19afb971bb8313031c72748809e92410b778b58eb"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14413,
+          "pixelHash": "c921a1e9cdc4ab2c2f46876d55a6ac75162126711a21275e5483e87ca3953def"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9836,
+          "pixelHash": "170582f6bf2be495315f50e42da68b8c7d1c08b58d7526042102ea61fc7f8080"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5515,
+          "pixelHash": "181ba1304096fc1684c21bd4216599a9f8540bc0f61f2c7ef8a10ce52b908223"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1220,
+          "pixelHash": "b6b357cac603ab9ccf1c30dc118675a4be49b1ed544ed2b0e9934916e26852a9"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13560,
+          "pixelHash": "1a82d405d04dcdeba93cf48e574d33ea208b6ca73cca65ec83629f51c2ce519c"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11831,
+          "pixelHash": "1bdf5e65fba2439fe33fecfa3468594c8d0cc77ce8fb91d48b1c0e36c4fbc027"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7667,
+          "pixelHash": "520e11a2e306a253023c64858fa11808b7ef7838a1cdef28c7064026e44947b1"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3402,
+          "pixelHash": "64bc1d9dfdef0190aa3c85fc92c89ceb5957e25149b3b25bf00a95ad7480c119"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 232,
+          "pixelHash": "57e7579afdbf6ee52ac9a9305ef28d32e1243cc9148527895487e938ab6ba233"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19451,
+          "pixelHash": "9046b2246a5f5b7d04fa9ad1f29c7481205dba4d49e46983369b35caab91563c"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14411,
+          "pixelHash": "693a96e368165f4f0b49e6e90e9ab7c12ed4e31ec54bedd350f2b9be5012b460"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9630,
+          "pixelHash": "244960c246f51608d74351d801b7e85845057fd716f8839a37576c4de72e91a1"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 6035,
+          "pixelHash": "55fa223aab847a50cbb41e3ba93e5be941a265c941bbd44ddeeddca086963a69"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1387,
+          "pixelHash": "a3bca0f0959857d62f15c2b95607723bd57fbf3765afbc3f2262474a4534c6e8"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13588,
+          "pixelHash": "dbb60bac519efdb8daf03df337a5835578d0497acc7021410fefe9811c76605d"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11852,
+          "pixelHash": "e1173c7f1fb8e2a821a2d97ece63803d267b79bbbc165af6b4d9901cbe863f11"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7669,
+          "pixelHash": "7da87b09798fa2ae3d203c24aa9b9e294b95df39a294adc757f0b4431066a2a1"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3406,
+          "pixelHash": "f7ad98900d1eb1d9b672149440e2564ea6dbb32e72244f8231af7e040b009071"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 233,
+          "pixelHash": "17c2eaef8fb68bb2c643f9b6667b08b1f1770c2027faeda7c865d0c7c3b978e9"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-memory": {
+      "output": "room-memory-doors-v2.webp",
+      "outputSha256": "5f122763922c3bae8a7b8f0f465296fc6925c58d4df87f9a24c8812ce32f0f99",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18582,
+          "pixelHash": "9f95ca7f6a9e87d6d44ef6d02fac0ecd8ef92207ec219fe7af2a3b6077b2c6cd"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14709,
+          "pixelHash": "44e5f4d1f29f7b120af309135ac097d45f651d1508f01830eebb7d7efb96f1be"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 10019,
+          "pixelHash": "36334f187886e412dddb82d6ec64f9a7c46fdfec82e27d4c952b1862124e88eb"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5600,
+          "pixelHash": "9910068299e361255a9844602d35a7a384109478c945c8e91bb237741f66e004"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1246,
+          "pixelHash": "c6d3f58554afdb4c647f666a13052264ead7d6f4c161c4e40e354adeb1fc116c"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13759,
+          "pixelHash": "c64e78679e4bf75bae3f3deddca8e518742cbe243bc57e5f4e15df2ea146d4df"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 12002,
+          "pixelHash": "24d2d794d8b23480a2e6b1e6091abd7a507cb453ff67f057d60a5abf059faa33"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7784,
+          "pixelHash": "8ac6f8233522ee686322474d1ce8016158720190274c9e19c8cfcd166c0125dd"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3468,
+          "pixelHash": "38ea7009a6ee74f5ba7dc4abfef0d46ffbf442be1a81aa78e98ba74c2167275e"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 232,
+          "pixelHash": "171de3b9989e58eb1b7302774cb68fb2ee5897c6c830d6fc723c7993fe6469d3"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19810,
+          "pixelHash": "24f52d114d51132df56d5e8ccbe789ca097efbdba145b59f67881a55d61faaa2"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14723,
+          "pixelHash": "623c104f0b3365ea08b36af3fb1bb86c33b8f3be55620fce2d1ee808654af740"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9833,
+          "pixelHash": "49742b10f16e14519dcf3edc46378641eebb8d00bdcee94299d01b3d7a48212a"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 6162,
+          "pixelHash": "ebb5addd1ecfeec4579338f628b513a645e4b3668b131cfb416dd7135e3c6c5e"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1398,
+          "pixelHash": "acb12815621a7f41f2895addb919c6a1ff7eb1a7b70a5c11ed8b0b06b3c8df4a"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13757,
+          "pixelHash": "3dd8a9e4c082d41881da0f4df8f96f1a0197807bb53eed9aa82b6a018f39e394"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 12003,
+          "pixelHash": "01ccbba7a925f4bc72f27d7b451c952f3718d30ac0e01df8d4868b1bfbc85c62"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7780,
+          "pixelHash": "6f5c57e19bc9d5931c441b8a419a046d865ab41664cd823df0dd92908c284980"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3460,
+          "pixelHash": "89568766e60ccbea34eac9fe17a6e80bb52aabec29de8186379d2a09516a5a6f"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 227,
+          "pixelHash": "9faf88b5afc68c88c5229a8e2c1ca9c81b4d31c45101e931643fbc9b5a2d9161"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-shelter": {
+      "output": "room-shelter-doors-v2.webp",
+      "outputSha256": "bc26f9b30e021fb668be2924ca4be53ba390d91b2c911c19221012a38e16db7c",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 17547,
+          "pixelHash": "4fc944bd468946894c6713c3b8acce3c8b68971fc98e4fc213ec697e4cf49094"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13861,
+          "pixelHash": "b5727e05a8ea11cf6ba049cae3a2c18fbeaee11aa3a3e3ac3778edea733f80e9"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9406,
+          "pixelHash": "b12ccdca3416e7bca6cdc7fd28ed39c9adb2c528210df14dbd7153b85fcc8ce3"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5273,
+          "pixelHash": "0f056a2afba5a63f53daef936d815dc4731ca9a6bf88bddffecc10ef99ce7192"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1179,
+          "pixelHash": "0845ad54bf8db345959da61d2bb8bf67c934ca31f1a3f6bd91d03c95a8ddcef8"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13024,
+          "pixelHash": "5cfa85e0c337abda5aa6bf00086410417b5401a4a5ba65dff0ea9d3544254987"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11365,
+          "pixelHash": "3ee23b2a275876fe6f0b5bda30a7fca10bf888e52735273f7ea8cf36d21184a8"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7384,
+          "pixelHash": "a3326e6bfc113437382d7059cbef0304f7a2418c64c002ba0b14ddfdb2280dbc"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3292,
+          "pixelHash": "db9fb70ef0d4e321a5e7dac4118b93b646f12c6645036d3b1fba55bd2cf49735"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 223,
+          "pixelHash": "8f0a64798e17b3ad0501110a2ca9116520988b54016446990b8ee51062d46ff1"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18694,
+          "pixelHash": "3c99c9067a0ea7bd2fe7b63d94c629dde66fecb77a0c1e1b1ccf5f450d94d24c"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13871,
+          "pixelHash": "1cb9796fc10f2f0a931f9daadcc165c4239dc4ef4f7100fb769ce0e9c95f29ca"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9259,
+          "pixelHash": "4a77b219da4a06bd46e5142e4d3f3feb6f2b5d219e9fd2458b77c0d7174c3e05"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5821,
+          "pixelHash": "3c14139cef1d9af4040691ba912ae255ca57eacb851e9e7ca99c3b571679b1c5"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1334,
+          "pixelHash": "98fd7e8719d56401c212e058e5ce625d69905856ca9c98a050d455c7ee80b52f"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13046,
+          "pixelHash": "448d8506a34a3d5816295c561136bed4520615c9e83146f8712ad77e583c6df1"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11376,
+          "pixelHash": "2c73eca7d1a0f777222da12c3692377f73e799ad9f37b2c68c4730d3d73cb280"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7383,
+          "pixelHash": "e29bbf46060658dba75b643a8a74ab42fa187c61960c9bd050abaa2d5a263263"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3283,
+          "pixelHash": "9133b8f9187d36f07400fd162a110170ad1425e8770f34842a7259cba89855a9"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 224,
+          "pixelHash": "9260ad93d73214beb5ded27bdb0b2e426974c89e929717b81bc26dd24f6a9abb"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-boss": {
+      "output": "room-boss-doors-v2.webp",
+      "outputSha256": "b809fb63de921b8b61dc9f3b057cdf14bf02fcec6ecb9691f8ea905f18ce4146",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 17941,
+          "pixelHash": "4c9967bd6582300d4989f23abc62048fc77551209276036d7a29405a7fb11ddb"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14163,
+          "pixelHash": "54e34a35daebe97cc9e0b38a4203ec16cb6ec84a475e6a4bfea1e6ebbb960bc7"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9629,
+          "pixelHash": "621e7b4c9194981776d834f2124f8ec0f29188a7b2f73d4e7109f9094976a409"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5382,
+          "pixelHash": "274aadd71222a62b3bd319b29f440d795c1d7c1f287018c04e182457ec31454c"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1199,
+          "pixelHash": "077a68534111012279e2b10250c81924ce07b3630b94869c61ba033f33b143e4"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13276,
+          "pixelHash": "69bca42bb04a61ebc7e745e6a6fb2419339b8fc88e4d8b594f8bdee118bd5aa3"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11568,
+          "pixelHash": "d73bc2b8ae121e2bd3609c6f4e551a26c671cf7f28e7efad2f9643497027d8f7"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7504,
+          "pixelHash": "42be674d7a8a889f4dc4701a1444281a5761c30719fef66aeca3bc6482b6d4b1"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3333,
+          "pixelHash": "4c887099fb4f9037e008b659f078dc53f64ee689ac011201a58df08ab77fc8fc"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 226,
+          "pixelHash": "23197b8b1d0379d54499c69b50881e68a70f05f9869628f1f593eb7c146df7b5"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19082,
+          "pixelHash": "6cfb3a923305efb6c5f4fb2ef9f3f41846219f1a0847915da608432c61f76085"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14161,
+          "pixelHash": "403bfc7c0f7946934163b2b0829a09bd08dd347f467f650c12a972b61ca987eb"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9465,
+          "pixelHash": "ebe744bc14a1cfada3a42d464ddfe6e97b569eaba9666828adc3c6d05e7acaab"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5945,
+          "pixelHash": "4f2fb70c47df614e335c4e8ddb9acdef1bb21499914b2e2464e4b97cc3c69f30"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1361,
+          "pixelHash": "d25ee3dc9be95d5182eef94852e36e4b316d4c6243dbbf3623443cfdc3d3f324"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13294,
+          "pixelHash": "d0255c0eccd0e4371b06d78825fda0081f0e1115ad2a2be8039bd4f165a14fdf"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11584,
+          "pixelHash": "ea99a63622f89e8f4a912fff0ba63d660f116148d45c3a850a5f824ea39b5564"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7525,
+          "pixelHash": "c3e07ea82273e8e514f16bac861c174da25058579ba2fb3d6acacec131ad66d5"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3342,
+          "pixelHash": "97a629312d6f671f3b26d8c6f5e99eb243381158b01bf575473632df2aaf3415"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 229,
+          "pixelHash": "371575809cc4cf22d9b437874ecda4057f62fa5299aa6ecac37e1e8e0a8ba06e"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-drowned-archive": {
+      "output": "room-drowned-archive-doors-v2.webp",
+      "outputSha256": "620ffd1735131b67f4a8752d3768560cd5814bd4de67d99a7ca3b5b95a226223",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18243,
+          "pixelHash": "7246c393ec677a9b58197e79379042cd3b63a0875419b797203e64ff97553f9a"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14413,
+          "pixelHash": "e698a36a0c93815b67edaf824119151745a466f66fb2271b2c61b2f2388ed93a"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9836,
+          "pixelHash": "ccbe4843be8649beeccba0000ab200cd95bea7bd750c551e72b68061ab4a8f2b"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5515,
+          "pixelHash": "89e7f5a655d8ffb2a1ffbfc71226148e24e0b487dd584448f2d63034d3b3e499"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1220,
+          "pixelHash": "876637e9eaea96a21f67cffb15d78e814a1b72ee5bd5a318d372d2daca4d4c91"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13560,
+          "pixelHash": "e46cbfa0894f52ab2f3ab6f107d2adf3fead72f33e3b8004dd6f821e7bb9ab39"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11831,
+          "pixelHash": "e5cc38126a451a94346d1942cf9330745e09e167d59a8b2c3ea26e2cc783e9f3"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7667,
+          "pixelHash": "8c547342987a59d1fe58f6661c892dd52d476d8a950d73a8d9c19aab55759691"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3402,
+          "pixelHash": "3640d5435432c1e0de748996ebf96868ffc99d65763a584e98ccf68547dcf580"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 232,
+          "pixelHash": "e811d2c91ce9df7119f6ecef7005862f118c80fc774b917c933efba221991b36"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19451,
+          "pixelHash": "bfd7ab90498177b9162d8a4a36a5977177fc6d326ab92d54723f29300a13a40c"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14411,
+          "pixelHash": "4e3cd7cbba0317e17f720a63511be43da895f53da360c9331aa8dadad220fdae"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9630,
+          "pixelHash": "369b1d1376fef1f936ed86b0e98c8a025d5165aeb71412bedc9daa843d39f403"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 6035,
+          "pixelHash": "c4a3748c4f74230cdb80f694a7d67dabbdb4181a9c69ed1ce003be471116d38e"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1387,
+          "pixelHash": "ba20f47e5e347ff401c60b5c69a8ad49974db8876ae33c43ec348121e5cc942f"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13588,
+          "pixelHash": "b2b4eea3ef4e50475a96e88614444f61befc7cd62b681f0ce0cb832e678f9292"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11852,
+          "pixelHash": "e02ad27db0b3eaf798e4f543904cad0d4de66c7e0b41af86c0fec2cc777f561c"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7669,
+          "pixelHash": "f4e02e4c2e152b28dc2ca114153eadd121fbe11459b670f3184926dc6b7d0f0e"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3406,
+          "pixelHash": "584ab88de3002108965fa139d6ed0b88210e96f7a39c92a97dde3ea0c48673ce"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 233,
+          "pixelHash": "ce07f916528261f195ed65b8c6cae75788aeb247d1501c021cfa2c231706bb70"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-rootbound-ossuary": {
+      "output": "room-rootbound-ossuary-doors-v2.webp",
+      "outputSha256": "e806f112310e2b0dd65afa76d46f1d768a47f237f63c8c9818771745eae19cc6",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18582,
+          "pixelHash": "6e86129515b7e4451d50b468cab020df73046fb18ec684285efe8f60ca8bd37b"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14709,
+          "pixelHash": "2db783eaef62a630ee983f3011600caeb078fbe6ae4a1b42321fa2db72b12361"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 10019,
+          "pixelHash": "9a9c09481dc44735fe1fb0aa19bd5d2f1399fdbd2d025520e7f2ee5974821db9"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5600,
+          "pixelHash": "83e2571a9ca0a537d68ffb4abeacd661caf1548ffe05e65e90819e23c3ba0887"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1246,
+          "pixelHash": "7aca47a65c42843e6745f66c1f14ab89f6160d8039e93c664c5e0982396207af"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13759,
+          "pixelHash": "d3681c46ea96c028f0e64e1d658cf1b71b4e75b192b7fbcfb2ba79fc32833ca8"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 12002,
+          "pixelHash": "eb930d243c0197995afc2aaccf5c270b43acb8a49be482622ba3a89ee07716fc"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7784,
+          "pixelHash": "a5539e754f41bbdd733da7456d733932d0dca51800878a4ff2c277199727453d"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3468,
+          "pixelHash": "e8e2702736191c9d609a350b0117fa8fe706ec394f58f0b4a9cc46e87bc3a54d"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 232,
+          "pixelHash": "a43195ab13438519f06cf3487414bcfd3069ea9ee05d319ea41098a62485c305"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 19810,
+          "pixelHash": "b8f4a097489216016378fd8144c419a98afe136b28616de73ac3b058aaf18dfb"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 14723,
+          "pixelHash": "570e9d8086249af6397c29d0ced649dcf9cb146137724dea82feeba9b6ab018e"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9833,
+          "pixelHash": "28c8beb6c5cb1db6f084c89ed5b0206c8d3807bf1d1d24eeca3fe018e21a0050"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 6162,
+          "pixelHash": "ac09cac74dd210df5b160f0858cd02e75e8b56cc20ce5dc58b4c4cf3bd383903"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1398,
+          "pixelHash": "220fde84d4b12724f70c1bee04e802e668ba516deb6ab6981781b7c082ea38f0"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13757,
+          "pixelHash": "d98ba68c3a98b373fa549ceda3e18e3cce4d21b83570d13be469b45538829575"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 12003,
+          "pixelHash": "d17965767d013449b9df9c3d7d5311c13d050c5111e99e83c1a28197b40af7cb"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7780,
+          "pixelHash": "4a66af3564b1ee2b903802cca57e485932a51b25a16776239bd2540ae5a2fc3b"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3460,
+          "pixelHash": "4974d7fcfa37d91a01975638f8a3d4f04f21bfa91f1d1cda85213151dce970d3"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 227,
+          "pixelHash": "38fd0b882aa0beee88437ef4eb4a91fb50bdcb88c087cea025498491e57d9226"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    },
+    "room-shattered-astrarium": {
+      "output": "room-shattered-astrarium-doors-v2.webp",
+      "outputSha256": "ef2077bb11a3ed9672f1b0ca3d6bc55755f3202d9d47403affd6310ffd86feb3",
+      "sourceCrops1600x900": {
+        "north": [
+          718,
+          0,
+          164,
+          128
+        ],
+        "east": [
+          1444,
+          374,
+          156,
+          152
+        ],
+        "south": [
+          706,
+          770,
+          188,
+          130
+        ],
+        "west": [
+          0,
+          374,
+          156,
+          152
+        ]
+      },
+      "frames": [
+        {
+          "side": "north",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 17547,
+          "pixelHash": "14effa6a9dbd6f667bdb0b2703e8a2869f1307697add73e2d9f7371df916a478"
+        },
+        {
+          "side": "north",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13861,
+          "pixelHash": "8026e759e3a41e49556dc46235230be90174d2ad095773ab7b7362e38c91c153"
+        },
+        {
+          "side": "north",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9406,
+          "pixelHash": "55563825be16adcc5fc81c0e311ddb4839a2b4725b3ac3e259f2737d20d3f1f3"
+        },
+        {
+          "side": "north",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5273,
+          "pixelHash": "1c6cc7218f2febc90b77fc52f052a6772b94dd6bd4348c82bfed734321cf669d"
+        },
+        {
+          "side": "north",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1179,
+          "pixelHash": "962ca7d6ab60a407175c906a7481de0be4e2df2ce5340735227a8c8910dd9555"
+        },
+        {
+          "side": "north",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "east",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13024,
+          "pixelHash": "c66a2450235e250e46bad10bf49b45ec4de25750e39d0a0f9bfae6dc1234cbfb"
+        },
+        {
+          "side": "east",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11365,
+          "pixelHash": "21ba9cb7650ccaa9df456ef6a479c09f9aa9efda302bef13d2eddca7af5674af"
+        },
+        {
+          "side": "east",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7384,
+          "pixelHash": "de6be3c21292470a0dd654adb1c0f5c48b76b0b44ff105b76167287a01bd86d7"
+        },
+        {
+          "side": "east",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3292,
+          "pixelHash": "c516b9995f796c324e06908976621f9070a9a06ce0c7b8b61a17c23d82ed64f0"
+        },
+        {
+          "side": "east",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 223,
+          "pixelHash": "0803479ead628034a7b9c2cbeae3eff3b78842f4d97721681f6bf128b71c29fb"
+        },
+        {
+          "side": "east",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "south",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 18694,
+          "pixelHash": "673453ccc82ac924d9167823a48c3714f0f50c90ea77c2fe541dd783add4a8a4"
+        },
+        {
+          "side": "south",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 13871,
+          "pixelHash": "a1ac0b4d227043efe88fb20b82ca09a4e115b048d7e265bcb4c80b833a244235"
+        },
+        {
+          "side": "south",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 9259,
+          "pixelHash": "53da92c98f431cec7a1c416b96a7a772eec7392d15436b24500081071baf3f4c"
+        },
+        {
+          "side": "south",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 5821,
+          "pixelHash": "5e2e2853fa26d5cd143d0d426eca2d3f508acc3dd746b1a2201a23d617fdbf21"
+        },
+        {
+          "side": "south",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 1334,
+          "pixelHash": "d6b8b12516e7c43a40ff240a0b116e3bf2e58aec119d758caac63aa3defd4137"
+        },
+        {
+          "side": "south",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        },
+        {
+          "side": "west",
+          "frame": 0,
+          "progressPercent": 0,
+          "opaquePixels": 13046,
+          "pixelHash": "4d3d118fd8d8854df952e97f7e529cf2609564b3830a0d5d9f8f7cf2e2638583"
+        },
+        {
+          "side": "west",
+          "frame": 1,
+          "progressPercent": 20,
+          "opaquePixels": 11376,
+          "pixelHash": "fdcebc7868a3dd940ac460bb68c47e25a772ef650ccd20e9c616d4246b606c08"
+        },
+        {
+          "side": "west",
+          "frame": 2,
+          "progressPercent": 40,
+          "opaquePixels": 7383,
+          "pixelHash": "a3a411d8c297df08cf637cde15703f03429da546c5c5b59b359e981a12fc13da"
+        },
+        {
+          "side": "west",
+          "frame": 3,
+          "progressPercent": 60,
+          "opaquePixels": 3283,
+          "pixelHash": "c88d71e01e30b7c0c0afe197df295b4f14b4642d5ea3338b382a0344f350019b"
+        },
+        {
+          "side": "west",
+          "frame": 4,
+          "progressPercent": 80,
+          "opaquePixels": 224,
+          "pixelHash": "44a990b729f1e4ce6718d6460d27a05db43a8201e10930492d9872c878f34984"
+        },
+        {
+          "side": "west",
+          "frame": 5,
+          "progressPercent": 100,
+          "opaquePixels": 0,
+          "pixelHash": "3381de4ca9f3a477f25989dfc8b744e7916046b7aa369f61a9a2f7dc0963ec9e"
+        }
+      ]
+    }
+  }
+}

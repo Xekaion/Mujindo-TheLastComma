@@ -4357,9 +4357,10 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.match(game, /verticalDoorLeft: WIDTH \/ 2 - 74/);
   assert.match(game, /player\.x < ROOM_GEOMETRY\.transitionInsetX/);
   assert.match(game, /player\.y < ROOM_GEOMETRY\.transitionInsetY/);
-  assert.match(game, /roomPortcullis: ROOM_DOOR_ASSET_PATH/);
-  assert.match(game, /ROOM_DOOR_PLACEMENTS\.forEach\(drawRoomDoor\)/);
-  assert.match(game, /frame \* ROOM_DOOR_ATLAS_CELL_SIZE/);
+  assert.match(game, /ROOM_DOOR_VISUALS\[roomArtKey\]/);
+  assert.match(game, /roomDoorAtlasSourceRect\(authoredSide, frame\)/);
+  assert.match(game, /roomDoorCanvasRect\(/);
+  assert.doesNotMatch(game, /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis/);
   assert.doesNotMatch(game, /drawDoorWard|traceDiamond/);
   assert.match(game, /transitionOpacity = clamp\(world\.transition \/ 0\.55, 0, 1\)/);
   assert.doesNotMatch(game, /context\.strokeRect\(68, 64, WIDTH - 136, HEIGHT - 128\)/);
@@ -4720,50 +4721,19 @@ test("player movement is constrained to the walkable floor while open door corri
   );
 });
 
-test("room gates use one four-frame asset for closing, opening, rendering, and traversal", async () => {
+test("room gates use authored room-specific perspective assets for closing, opening, rendering, and traversal", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const doorSource = await readFile(path.join(root, "app/room-doors.ts"), "utf8");
-  const relativePath = "public/assets/effects/room-portcullis-v1.png";
-  const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
 
-  assert.deepEqual([image.width, image.height], [1024, 256]);
-  const hashes = [];
-  const opaqueCounts = [];
-  for (let column = 0; column < 4; column += 1) {
-    const metrics = alphaCellMetrics(image, column, 0, 4, 1, `room door ${column}`);
-    assert.ok(
-      metrics.opaquePixels > (column === 3 ? 500 : 1_000),
-      `room door ${column} cannot be empty`,
-    );
-    assert.ok(metrics.left >= 8, `room door ${column} bleeds left`);
-    assert.ok(metrics.right >= 8, `room door ${column} bleeds right`);
-    const bytes = Buffer.alloc(256 * 256);
-    let cursor = 0;
-    for (let y = 0; y < 256; y += 1) {
-      for (let x = column * 256; x < (column + 1) * 256; x += 1) {
-        bytes[cursor] = image.pixels[(y * image.width + x) * 4 + 3];
-        cursor += 1;
-      }
-    }
-    hashes.push(createHash("sha256").update(bytes).digest("hex"));
-    opaqueCounts.push(metrics.opaquePixels);
-  }
-  assert.equal(new Set(hashes).size, 4, "all four door cells must differ");
-  assert.ok(
-    opaqueCounts.every((count, index) => index === 0 || count <= opaqueCounts[index - 1]) &&
-      opaqueCounts.at(-1) < opaqueCounts[0] * 0.15,
-    `gate coverage must never grow and the final doorway must be clear: ${opaqueCounts.join(",")}`,
-  );
-
-  assert.match(doorSource, /ROOM_DOOR_FRAME_COUNT = 4/);
+  assert.match(doorSource, /ROOM_DOOR_FRAME_COUNT = 6/);
+  assert.match(source, /ROOM_DOOR_VISUALS\[roomArtKey\]/);
+  assert.doesNotMatch(source, /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis/);
   assert.match(source, /world\.doorMotion = createRoomDoorMotion\(world\.roomCleared\)/);
   assert.match(source, /world\.doorMotion = beginRoomDoorOpening\(world\.doorMotion\)/);
   assert.match(source, /world\.doorMotion = advanceRoomDoorMotion\(world\.doorMotion, dt\)/);
   assert.match(source, /world\.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION/);
-  assert.match(source, /y: WALKABLE_FLOOR_POLYGON\[0\]\.y/);
-  assert.match(source, /x: WALKABLE_FLOOR_POLYGON\[2\]\.x/);
-  assert.match(source, /y: WALKABLE_FLOOR_POLYGON\[4\]\.y/);
-  assert.match(source, /x: WALKABLE_FLOOR_POLYGON\[6\]\.x/);
+  assert.match(source, /roomDoorCanvasRect\(/);
+  assert.match(source, /roomDoorVisual\.sides\[authoredSide\]/);
   assert.match(source, /const animatedDoorFrame = roomDoorFrame\(world\.doorMotion\)/);
   assert.match(source, /roomDoorsPassable\(world\.doorMotion\) && world\.transition <= 0/);
   assert.doesNotMatch(

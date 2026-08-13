@@ -32,6 +32,7 @@ import {
   drawGameplayVfxFrame,
   gameplayVfxImageEntries,
   gameplayVfxImageKey,
+  loopingGameplayVfxProgress,
   legendaryVfxId,
   projectileVfxId,
   type GameplayVfxId,
@@ -157,12 +158,21 @@ import {
   type RoomDoorMotion,
 } from "./room-doors";
 import {
+  ROOM_DOOR_SIDES,
+  ROOM_DOOR_VISUALS,
+  mirroredRoomDoorSide,
+  roomDoorAtlasSourceRect,
+  roomDoorCanvasRect,
+  roomDoorVisualImageKey,
+} from "./room-door-visuals";
+import {
   ROOM_ART_NAMES,
   ROOM_ART_PATHS,
   ROOM_STAIR_ART_PATHS,
   ROOM_STAIR_ASSET_ANCHOR,
   resolveRoomArtKey,
   resolveStairRoomArtKey,
+  type RoomArtKey,
   type RoomStairArtKey,
 } from "./room-visuals";
 import {
@@ -342,26 +352,10 @@ const ROOM_GEOMETRY = {
   openInsetX: 24,
   openInsetY: 24,
 } as const;
-const ROOM_DOOR_ATLAS_CELL_SIZE = 256;
-const ROOM_DOOR_DRAW_WIDTH = 224;
-const ROOM_DOOR_DRAW_HEIGHT = 148;
 const ROOM_DOOR_CLOSE_REVEAL_TRANSITION = 0.24;
-const ROOM_DOOR_ASSET_PATH = "/assets/effects/room-portcullis-v1.png";
 const EMPTY_EQUIPMENT_RUNTIME_STATS = aggregateEquipmentStats(
   createEmptyEquipment(),
 );
-type DoorSide = "west" | "east" | "north" | "south";
-const ROOM_DOOR_PLACEMENTS: ReadonlyArray<{
-  side: DoorSide;
-  x: number;
-  y: number;
-  angle: number;
-}> = [
-  { side: "north", x: WIDTH / 2, y: WALKABLE_FLOOR_POLYGON[0].y, angle: 0 },
-  { side: "east", x: WALKABLE_FLOOR_POLYGON[2].x, y: HEIGHT / 2, angle: Math.PI / 2 },
-  { side: "south", x: WIDTH / 2, y: WALKABLE_FLOOR_POLYGON[4].y, angle: Math.PI },
-  { side: "west", x: WALKABLE_FLOOR_POLYGON[6].x, y: HEIGHT / 2, angle: -Math.PI / 2 },
-];
 type GameMode =
   | "menu"
   | "playing"
@@ -2256,6 +2250,11 @@ export default function GameCanvas({
     Partial<Record<RoomStairArtKey, { attempts: number; retryAt: number }>>
   >({});
   const stairRoomArtLastUsedRef = useRef(new Map<RoomStairArtKey, number>());
+  const decodedRoomDoorVisualRef = useRef(new Set<RoomArtKey>());
+  const roomDoorVisualRetryRef = useRef<
+    Partial<Record<RoomArtKey, { attempts: number; retryAt: number }>>
+  >({});
+  const roomDoorVisualLastUsedRef = useRef(new Map<RoomArtKey, number>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const equipmentRuntimeCacheRef = useRef<{
     equipment: EquipmentLoadout | null;
@@ -3222,20 +3221,6 @@ export default function GameCanvas({
       world.roomCleared = world.rooms[key].cleared;
       world.doorMotion = createRoomDoorMotion(world.roomCleared);
       world.doorEffects = [];
-      if (!world.roomCleared) {
-        for (const placement of ROOM_DOOR_PLACEMENTS) {
-          world.doorEffects.push({
-            id: idRef.current++,
-            kind: "playerImpact",
-            x: placement.x,
-            y: placement.y,
-            life: 0.28,
-            duration: 0.28,
-            size: 46,
-            color: "#9d342f",
-          });
-        }
-      }
       world.clearHandled = world.roomCleared;
       world.projectiles = [];
       world.orbs = [];
@@ -4263,7 +4248,6 @@ export default function GameCanvas({
       silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v1.png",
       palimpsestArchivistPatterns:
         "/assets/effects/palimpsest-archivist-patterns-v1.png",
-      roomPortcullis: ROOM_DOOR_ASSET_PATH,
       equippedMythicAura: EQUIPPED_RARITY_VFX_PATHS.mythic,
       equippedCosmicAura: EQUIPPED_RARITY_VFX_PATHS.cosmic,
       summonEffect: "/assets/effects/summon-rift.png",
@@ -8825,7 +8809,7 @@ export default function GameCanvas({
             x: projectile.x,
             y: projectile.y,
             size: projectile.radius,
-            progress: positiveModulo(projectile.age * 8, 1),
+            progress: loopingGameplayVfxProgress(projectile.age, definition),
             angle,
             alpha,
             frameOffset: projectile.id,
@@ -9189,44 +9173,141 @@ export default function GameCanvas({
       }
       context.restore();
 
-      const doorImage = images.roomPortcullis;
+      const roomDoorVisual = ROOM_DOOR_VISUALS[roomArtKey];
+      const roomDoorVisualKey = roomDoorVisualImageKey(roomArtKey);
+      const roomDoorRetryState = roomDoorVisualRetryRef.current[roomArtKey];
+      let roomDoorVisualImage = images[roomDoorVisualKey];
+      if (
+        !roomDoorVisualImage &&
+        (!roomDoorRetryState ||
+          (roomDoorRetryState.attempts < 2 &&
+            performance.now() >= roomDoorRetryState.retryAt))
+      ) {
+        const attempts = (roomDoorRetryState?.attempts ?? 0) + 1;
+        roomDoorVisualImage = new Image();
+        const requestedImage = roomDoorVisualImage;
+        requestedImage.decoding = "async";
+        requestedImage.onload = async () => {
+          try {
+            await requestedImage.decode();
+          } catch {
+            // A loaded image can still be drawn when decode() is unavailable.
+          }
+          if (!requestedImage.naturalWidth || !requestedImage.naturalHeight) return;
+          decodedRoomDoorVisualRef.current.add(roomArtKey);
+          delete roomDoorVisualRetryRef.current[roomArtKey];
+          roomDoorVisualLastUsedRef.current.set(roomArtKey, performance.now());
+
+          const activeWorld = worldRef.current;
+          const activeRoomArtKey = resolveRoomArtKey({
+            seed: activeWorld.seed,
+            dungeonFloor: activeWorld.dungeonFloor,
+            roomX: activeWorld.roomX,
+            roomY: activeWorld.roomY,
+            roomKind: activeWorld.roomKind,
+          });
+          const retainedKeys = new Set<RoomArtKey>([activeRoomArtKey]);
+          for (const [recentKey] of [
+            ...roomDoorVisualLastUsedRef.current.entries(),
+          ]
+            .filter(([key]) => key !== activeRoomArtKey)
+            .sort((left, right) => right[1] - left[1])
+            .slice(0, 1)) {
+            retainedKeys.add(recentKey);
+          }
+          for (const decodedKey of decodedRoomDoorVisualRef.current) {
+            if (retainedKeys.has(decodedKey)) continue;
+            delete imagesRef.current[roomDoorVisualImageKey(decodedKey)];
+            decodedRoomDoorVisualRef.current.delete(decodedKey);
+            roomDoorVisualLastUsedRef.current.delete(decodedKey);
+          }
+        };
+        requestedImage.onerror = () => {
+          if (imagesRef.current[roomDoorVisualKey] === requestedImage) {
+            delete imagesRef.current[roomDoorVisualKey];
+          }
+          decodedRoomDoorVisualRef.current.delete(roomArtKey);
+          roomDoorVisualRetryRef.current[roomArtKey] = {
+            attempts,
+            retryAt: performance.now() + 1500,
+          };
+        };
+        requestedImage.src = roomDoorVisual.imagePath;
+        images[roomDoorVisualKey] = requestedImage;
+      }
+
+      const roomDoorVisualReady = Boolean(
+        roomDoorVisualImage?.complete &&
+          roomDoorVisualImage.naturalWidth &&
+          roomDoorVisualImage.naturalHeight &&
+          decodedRoomDoorVisualRef.current.has(roomArtKey),
+      );
       const animatedDoorFrame = roomDoorFrame(world.doorMotion);
-      const drawRoomDoor = ({ side, x, y, angle }: (typeof ROOM_DOOR_PLACEMENTS)[number]) => {
-        // The 99x99 perimeter has no neighboring room. Keep that authored gate
-        // fully lowered even after the current encounter is cleared.
-        const frame = existingDoorways[side] ? animatedDoorFrame : 0;
+
+      if (roomDoorVisualReady && roomDoorVisualImage) {
         context.save();
-        context.translate(x, y);
-        context.rotate(angle);
-        if (doorImage?.complete && doorImage.naturalWidth && doorImage.naturalHeight) {
-          context.imageSmoothingEnabled = true;
-          context.imageSmoothingQuality = "high";
-          context.drawImage(
-            doorImage,
-            frame * ROOM_DOOR_ATLAS_CELL_SIZE,
-            0,
-            ROOM_DOOR_ATLAS_CELL_SIZE,
-            ROOM_DOOR_ATLAS_CELL_SIZE,
-            -ROOM_DOOR_DRAW_WIDTH / 2,
-            -ROOM_DOOR_DRAW_HEIGHT,
-            ROOM_DOOR_DRAW_WIDTH,
-            ROOM_DOOR_DRAW_HEIGHT,
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        if (mirrorRoom) {
+          context.translate(WIDTH, 0);
+          context.scale(-1, 1);
+        }
+        for (const physicalSide of ROOM_DOOR_SIDES) {
+          if (physicalSide === "south") continue;
+          const authoredSide = mirrorRoom
+            ? mirroredRoomDoorSide(physicalSide)
+            : physicalSide;
+          const frame = existingDoorways[physicalSide]
+            ? animatedDoorFrame
+            : 0;
+          const source = roomDoorAtlasSourceRect(authoredSide, frame);
+          const destination = roomDoorCanvasRect(
+            roomDoorVisual.sides[authoredSide],
+            WIDTH,
+            HEIGHT,
           );
-        } else {
-          // Asset loading failure stays physically honest: an opaque emergency
-          // shutter is safer than showing an open corridor that is still solid.
-          context.fillStyle = "rgba(12,14,16,.96)";
-          context.fillRect(
-            -ROOM_DOOR_DRAW_WIDTH / 2,
-            -ROOM_DOOR_DRAW_HEIGHT,
-            ROOM_DOOR_DRAW_WIDTH,
-            ROOM_DOOR_DRAW_HEIGHT,
+          context.drawImage(
+            roomDoorVisualImage,
+            source.x,
+            source.y,
+            source.width,
+            source.height,
+            destination.x,
+            destination.y,
+            destination.width,
+            destination.height,
           );
         }
         context.restore();
-      };
-
-      ROOM_DOOR_PLACEMENTS.forEach(drawRoomDoor);
+      } else {
+        // Keep the exact painted door openings dark during the first decode
+        // frame. Never flash the old front-facing gate rotated onto side walls.
+        context.save();
+        context.fillStyle = "rgba(5,7,9,.96)";
+        if (mirrorRoom) {
+          context.translate(WIDTH, 0);
+          context.scale(-1, 1);
+        }
+        for (const physicalSide of ROOM_DOOR_SIDES) {
+          if (physicalSide === "south") continue;
+          if (existingDoorways[physicalSide] && animatedDoorFrame > 0) continue;
+          const authoredSide = mirrorRoom
+            ? mirroredRoomDoorSide(physicalSide)
+            : physicalSide;
+          const destination = roomDoorCanvasRect(
+            roomDoorVisual.sides[authoredSide],
+            WIDTH,
+            HEIGHT,
+          );
+          context.fillRect(
+            destination.x,
+            destination.y,
+            destination.width,
+            destination.height,
+          );
+        }
+        context.restore();
+      }
 
       if (inputRef.current.hasMoveTarget) {
         const pulse = 12 + Math.sin(performance.now() / 140) * 3;
@@ -10003,6 +10084,42 @@ export default function GameCanvas({
           context.fillRect(player.x - 2, player.y - 48, 4, 4);
           context.restore();
         }
+      }
+
+      // The southern doorway belongs to the foreground wall. Draw its exact
+      // authored crop after actors so a character approaching the exit passes
+      // behind the raised ironwork instead of floating over the room facade.
+      if (roomDoorVisualReady && roomDoorVisualImage) {
+        const physicalSide = "south" as const;
+        const authoredSide = physicalSide;
+        const frame = existingDoorways[physicalSide]
+          ? animatedDoorFrame
+          : 0;
+        const source = roomDoorAtlasSourceRect(authoredSide, frame);
+        const destination = roomDoorCanvasRect(
+          roomDoorVisual.sides[authoredSide],
+          WIDTH,
+          HEIGHT,
+        );
+        context.save();
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        if (mirrorRoom) {
+          context.translate(WIDTH, 0);
+          context.scale(-1, 1);
+        }
+        context.drawImage(
+          roomDoorVisualImage,
+          source.x,
+          source.y,
+          source.width,
+          source.height,
+          destination.x,
+          destination.y,
+          destination.width,
+          destination.height,
+        );
+        context.restore();
       }
 
       if (!world.roomCleared && world.enemies.length) {

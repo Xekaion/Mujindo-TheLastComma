@@ -1,9 +1,10 @@
 /**
  * Runtime contract for authored augment, legendary-power, and projectile VFX.
  *
- * Every asset is a transparent 2 x 2 sheet containing four animation frames in
- * reading order.  GameCanvas keeps its old vector drawing as a load-failure
- * fallback, but an available authored image always wins.
+ * Augment and legendary assets are transparent 2 x 2 sheets containing four
+ * animation frames in reading order. Projectile assets use a denser 4 x 4,
+ * 16-frame sheet so fast-moving shots remain fluid. GameCanvas keeps its old
+ * vector drawing as a load-failure fallback, but available authored art wins.
  */
 
 export const EFFECT_PRODUCING_AUGMENT_IDS = [
@@ -63,9 +64,9 @@ export type GameplayVfxId =
 
 export type GameplayVfxDefinition = Readonly<{
   assetPath: string;
-  columns: 2;
-  rows: 2;
-  frames: 4;
+  columns: number;
+  rows: number;
+  frames: number;
   anchorY: number;
   scale: number;
   blendMode: GlobalCompositeOperation;
@@ -74,13 +75,16 @@ export type GameplayVfxDefinition = Readonly<{
 const makeDefinition = (
   assetPath: string,
   options: Partial<
-    Pick<GameplayVfxDefinition, "anchorY" | "scale" | "blendMode">
+    Pick<
+      GameplayVfxDefinition,
+      "columns" | "rows" | "frames" | "anchorY" | "scale" | "blendMode"
+    >
   > = {},
 ): GameplayVfxDefinition => ({
   assetPath,
-  columns: 2,
-  rows: 2,
-  frames: 4,
+  columns: options.columns ?? 2,
+  rows: options.rows ?? 2,
+  frames: options.frames ?? 4,
   anchorY: options.anchorY ?? 0.5,
   scale: options.scale ?? 1,
   blendMode: options.blendMode ?? "lighter",
@@ -108,7 +112,10 @@ const projectileEntries = PROJECTILE_VFX_AFFINITIES.map(
   (affinity) =>
     [
       `projectile:${affinity}`,
-      makeDefinition(`/assets/effects/projectiles/${affinity}-v1.png`, {
+      makeDefinition(`/assets/effects/projectiles/${affinity}-v2.png`, {
+        columns: 4,
+        rows: 4,
+        frames: 16,
         anchorY: 0.5,
         scale: 3.5,
       }),
@@ -159,7 +166,33 @@ export type DrawGameplayVfxFrameOptions = Readonly<{
   endY?: number;
 }>;
 
-/** Draw an authored four-frame VFX sheet. Returns false until it is loadable. */
+// 30 fps maps cleanly onto the common 60 Hz render cadence (one sprite frame
+// every two canvas frames), avoiding the uneven 2/3-frame holds of 24 fps.
+export const PROJECTILE_VFX_FRAMES_PER_SECOND = 30;
+
+/**
+ * Convert projectile age to a stable sprite-sheet loop. Keeping the desired
+ * frame rate separate from the sheet size prevents 16-frame art from being
+ * raced through at the old four-frame cadence.
+ */
+export function loopingGameplayVfxProgress(
+  elapsedSeconds: number,
+  definition: GameplayVfxDefinition,
+  framesPerSecond = PROJECTILE_VFX_FRAMES_PER_SECOND,
+): number {
+  if (
+    !Number.isFinite(elapsedSeconds) ||
+    !Number.isFinite(framesPerSecond) ||
+    definition.frames <= 0 ||
+    framesPerSecond <= 0
+  ) {
+    return 0;
+  }
+  const loops = (elapsedSeconds * framesPerSecond) / definition.frames;
+  return ((loops % 1) + 1) % 1;
+}
+
+/** Draw an authored VFX sprite sheet. Returns false until it is loadable. */
 export function drawGameplayVfxFrame(
   context: CanvasRenderingContext2D,
   image: HTMLImageElement | undefined,
@@ -169,7 +202,11 @@ export function drawGameplayVfxFrame(
   if (
     !image?.complete ||
     image.naturalWidth <= 0 ||
-    image.naturalHeight <= 0
+    image.naturalHeight <= 0 ||
+    image.naturalWidth % definition.columns !== 0 ||
+    image.naturalHeight % definition.rows !== 0 ||
+    definition.frames <= 0 ||
+    definition.frames > definition.columns * definition.rows
   ) {
     return false;
   }
