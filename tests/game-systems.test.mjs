@@ -7293,6 +7293,28 @@ test("all eight field-loot atlases are safe, unique, lightweight, and finite", a
   assert.match(arrivalRenderer, /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,/);
 });
 
+const PERSISTENT_PILLAR_HEIGHTS = {
+  common: 96,
+  magic: 108,
+  superior: 124,
+  rare: 146,
+  epic: 174,
+  legendary: 216,
+  mythic: 274,
+  cosmic: 344,
+};
+
+const PERSISTENT_PILLAR_GROUND_OFFSETS = {
+  common: 4,
+  magic: 3,
+  superior: 2,
+  rare: 1,
+  epic: 0,
+  legendary: 0,
+  mythic: 0,
+  cosmic: 0,
+};
+
 test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent four-frame loops", async () => {
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
   const manifestPath = "public/assets/effects/loot-pillar-v3.build.json";
@@ -7367,6 +7389,8 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
 
   const raritySupportHashes = [];
   const meanRgbByRarity = {};
+  const adjustedTailByRarity = {};
+  const adjustedFrameTailsByRarity = {};
   for (const [index, rarity] of rarities.entries()) {
     const assetPath = `public/assets/effects/loot-pillar-${rarity}-v3.png`;
     const [sourcePath, sourceRow, colourFamily] = expectedSources[rarity];
@@ -7447,6 +7471,42 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
           .reduce((sum, value) => sum + value, 0) / 2 / 512 * 10_000,
       ) / 10_000,
     );
+    const q99Rows = [];
+    for (let column = 0; column < 4; column += 1) {
+      const rowEnergies = [];
+      for (let y = 256; y < 512; y += 1) {
+        let energy = 0;
+        for (let x = column * 256; x < (column + 1) * 256; x += 1) {
+          const offset = (y * image.width + x) * 4;
+          const luminance =
+            image.pixels[offset] * 0.299 +
+            image.pixels[offset + 1] * 0.587 +
+            image.pixels[offset + 2] * 0.114;
+          energy += luminance * image.pixels[offset + 3];
+        }
+        rowEnergies.push(energy);
+      }
+      const targetEnergy = rowEnergies.reduce((sum, value) => sum + value, 0) * 0.99;
+      let cumulativeEnergy = 0;
+      let q99Y = 511;
+      for (let index = 0; index < rowEnergies.length; index += 1) {
+        cumulativeEnergy += rowEnergies[index];
+        if (cumulativeEnergy >= targetEnergy) {
+          q99Y = 256 + index;
+          break;
+        }
+      }
+      q99Rows.push(q99Y);
+    }
+    adjustedFrameTailsByRarity[rarity] = q99Rows.map(
+      (q99Y) =>
+        ((q99Y - record.groundAnchor * 512) * PERSISTENT_PILLAR_HEIGHTS[rarity]) /
+          512 +
+        PERSISTENT_PILLAR_GROUND_OFFSETS[rarity],
+    );
+    adjustedTailByRarity[rarity] =
+      adjustedFrameTailsByRarity[rarity].reduce((sum, value) => sum + value, 0) /
+      adjustedFrameTailsByRarity[rarity].length;
     meanRgbByRarity[rarity] = record.frames
       .reduce(
         (sum, frame) => sum.map((value, channel) => value + frame.meanRgb[channel]),
@@ -7469,6 +7529,25 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
     epicBlue > epicRed && epicRed > epicGreen * 1.65,
     "epic must inherit the former rare violet pillar",
   );
+  const epicTail = adjustedTailByRarity.epic;
+  for (const rarity of ["common", "magic", "superior", "rare"]) {
+    assert.ok(
+      Math.abs(adjustedTailByRarity[rarity] - epicTail) <= 0.25,
+      `${rarity} lower glow tail must align with the unchanged epic baseline`,
+    );
+    assert.ok(
+      adjustedFrameTailsByRarity[rarity].every(
+        (tail) => Math.abs(tail - epicTail) <= 1.5,
+      ),
+      `${rarity} must stay close to the epic baseline in every animation frame`,
+    );
+  }
+  for (const rarity of ["legendary", "mythic", "cosmic"]) {
+    assert.ok(
+      adjustedTailByRarity[rarity] > epicTail + 10,
+      `${rarity} already has a longer lower glow tail and must not be shifted farther down`,
+    );
+  }
 });
 
 test("persistent gear drops draw only authored four-frame portrait pillar sprites", async () => {
@@ -7499,12 +7578,17 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   assert.match(pillarRenderer, /context\.imageSmoothingEnabled = false;/);
   assert.match(
     pillarRenderer,
-    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*[\s\S]{0,180}?drop\.y - rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
+    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*[\s\S]{0,220}?drop\.y \+\s*rarityVfx\.pillarGroundOffsetPx\s*-\s*rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
   );
   assert.match(
     source,
     /pillarGroundAnchor:\s*number;/,
     "persistent pillar placement needs a semantic authored-floor anchor",
+  );
+  assert.match(
+    source,
+    /pillarGroundOffsetPx:\s*number;/,
+    "persistent pillar placement needs a separate visual floor correction",
   );
   const expectedGroundAnchors = {
     common: 0.9297,
@@ -7516,6 +7600,8 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     mythic: 0.8066,
     cosmic: 0.8828,
   };
+  const expectedGroundOffsets = PERSISTENT_PILLAR_GROUND_OFFSETS;
+  const actualGroundOffsets = {};
   for (const [rarity, anchor] of Object.entries(expectedGroundAnchors)) {
     assert.match(
       source,
@@ -7523,12 +7609,34 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
       `${rarity} must register its measured visible flare-floor origin`,
     );
     assert.ok(anchor > 0.75 && anchor < 0.95, `${rarity} floor anchor must stay inside the lower flare`);
+    const rarityBlock = source.match(
+      new RegExp(`${rarity}:\\s*\\{([\\s\\S]{0,960}?)\\n\\s*\\},`),
+    );
+    assert.ok(rarityBlock, `${rarity} VFX configuration is missing`);
+    const offset = rarityBlock[1].match(
+      /\bpillarGroundOffsetPx:\s*(-?\d+(?:\.\d+)?)\s*,/,
+    );
+    assert.ok(offset, `${rarity} visual floor correction is missing`);
+    actualGroundOffsets[rarity] = Number(offset[1]);
+    const height = rarityBlock[1].match(/\bpillarHeight:\s*(\d+(?:\.\d+)?)\s*,/);
+    assert.ok(height, `${rarity} persistent pillar height is missing`);
+    assert.equal(
+      Number(height[1]),
+      PERSISTENT_PILLAR_HEIGHTS[rarity],
+      `${rarity} tail-alignment test height must match the production renderer`,
+    );
   }
+  assert.deepEqual(
+    actualGroundOffsets,
+    expectedGroundOffsets,
+    "short low-tier flare tails must step down to the unchanged epic baseline",
+  );
   const legendaryHeight = 216;
   const oldLegendaryHotspotY =
     12 - legendaryHeight + expectedGroundAnchors.legendary * legendaryHeight;
   const correctedLegendaryHotspotY =
-    -legendaryHeight * expectedGroundAnchors.legendary +
+    expectedGroundOffsets.legendary -
+    legendaryHeight * expectedGroundAnchors.legendary +
     legendaryHeight * expectedGroundAnchors.legendary;
   assert.ok(
     oldLegendaryHotspotY < -24,
@@ -7539,15 +7647,48 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     0,
     "the authored legendary flare must meet drop.y exactly",
   );
+  const commonVisualContactY =
+    expectedGroundOffsets.common -
+    96 * expectedGroundAnchors.common +
+    96 * expectedGroundAnchors.common;
+  assert.equal(
+    commonVisualContactY,
+    4,
+    "the short common flare must render four pixels below its authored anchor",
+  );
   assert.doesNotMatch(
     pillarRenderer,
     /context\.(?:beginPath|ellipse|arc|moveTo|lineTo|closePath|stroke|fill|fillRect|createLinearGradient|createRadialGradient)\s*\(/,
     "persistent pillar VFX must not synthesize canvas geometry or gradients",
   );
+  const iconRenderer = drawDrops.slice(
+    iconStart,
+    drawDrops.indexOf("context.restore();", iconStart),
+  );
   assert.match(
-    drawDrops.slice(iconStart, drawDrops.indexOf("context.restore();", iconStart)),
+    iconRenderer,
     /context\.globalCompositeOperation = "source-over";[\s\S]{0,220}?const equipmentIcons = images\.equipmentIcons;/,
     "the icon must restore normal compositing after the additive pillar",
+  );
+  assert.match(
+    iconRenderer,
+    /drop\.y - drawSize \* 0\.68 \+ bob \+ riseOffset/,
+    "the item position must stay unchanged while only the pillar moves",
+  );
+  assert.match(
+    iconRenderer,
+    /context\.fillText\(groundLabel, drop\.x, drop\.y \+ 28\)/,
+    "the ground label must stay unchanged while only the pillar moves",
+  );
+  assert.doesNotMatch(
+    iconRenderer,
+    /pillarGroundOffsetPx/,
+    "the visual correction must affect only the persistent pillar",
+  );
+  assert.equal(
+    source.match(/rarityVfx\.pillarGroundOffsetPx/g)?.length,
+    1,
+    "the visual correction must not leak into the one-shot awakening renderer",
   );
 });
 

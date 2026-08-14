@@ -634,6 +634,8 @@ type EquipmentRarityVfxConfig = {
   pillarFps: number;
   /** Normalized source Y where the authored flare visually meets the floor. */
   pillarGroundAnchor: number;
+  /** Screen-space correction that lowers short flare tails to the epic baseline. */
+  pillarGroundOffsetPx: number;
 };
 
 // The authored awakening is a one-shot reveal. Persistent pillar art must not
@@ -665,6 +667,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 96,
     pillarFps: 4,
     pillarGroundAnchor: 0.9297,
+    pillarGroundOffsetPx: 4,
   },
   magic: {
     imageKey: "lootAwakeningMagic",
@@ -687,6 +690,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 108,
     pillarFps: 4,
     pillarGroundAnchor: 0.9082,
+    pillarGroundOffsetPx: 3,
   },
   superior: {
     imageKey: "lootAwakeningSuperior",
@@ -709,6 +713,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 124,
     pillarFps: 5,
     pillarGroundAnchor: 0.8965,
+    pillarGroundOffsetPx: 2,
   },
   rare: {
     imageKey: "lootAwakeningRare",
@@ -731,6 +736,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 146,
     pillarFps: 5,
     pillarGroundAnchor: 0.9219,
+    pillarGroundOffsetPx: 1,
   },
   epic: {
     imageKey: "lootAwakeningEpic",
@@ -753,6 +759,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 174,
     pillarFps: 6,
     pillarGroundAnchor: 0.9277,
+    pillarGroundOffsetPx: 0,
   },
   legendary: {
     imageKey: "lootAwakeningLegendary",
@@ -775,6 +782,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 216,
     pillarFps: 6,
     pillarGroundAnchor: 0.8281,
+    pillarGroundOffsetPx: 0,
   },
   mythic: {
     imageKey: "lootAwakeningMythic",
@@ -797,6 +805,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 274,
     pillarFps: 7,
     pillarGroundAnchor: 0.8066,
+    pillarGroundOffsetPx: 0,
   },
   cosmic: {
     imageKey: "lootAwakeningCosmic",
@@ -819,6 +828,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 344,
     pillarFps: 8,
     pillarGroundAnchor: 0.8828,
+    pillarGroundOffsetPx: 0,
   },
 };
 
@@ -9795,9 +9805,11 @@ export default function GameCanvas({
             sourceWidth,
             sourceHeight,
             drop.x - rarityVfx.pillarWidth / 2,
-            // Anchor the authored flare's visible floor contact—not the PNG's
-            // transparent canvas bottom—to the same world point as the drop.
-            drop.y - rarityVfx.pillarHeight * rarityVfx.pillarGroundAnchor,
+            // Keep the authored flare anchor intact, then lower only the short
+            // low-tier tails until their item overlap matches the epic baseline.
+            drop.y +
+              rarityVfx.pillarGroundOffsetPx -
+              rarityVfx.pillarHeight * rarityVfx.pillarGroundAnchor,
             rarityVfx.pillarWidth,
             rarityVfx.pillarHeight,
           );
