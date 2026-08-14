@@ -107,6 +107,7 @@ export default function GameEntryFlow({
     useState<LocalEnemyVfxShowcaseMode | null>(null);
   const [localLootVfxShowcase, setLocalLootVfxShowcase] =
     useState<LocalLootVfxShowcaseMode | null>(null);
+  const [localPlazaMotionShowcase, setLocalPlazaMotionShowcase] = useState(false);
   const [localVfxShowcaseChecked, setLocalVfxShowcaseChecked] = useState(
     !localVfxShowcaseRequested,
   );
@@ -135,6 +136,7 @@ export default function GameEntryFlow({
         const search = new URLSearchParams(window.location.search);
         const requestedEnemyMode = search.get("enemyVfxShowcase");
         const requestedLootMode = search.get("lootVfxShowcase");
+        const requestedPlazaMotionShowcase = search.get("plazaMotionShowcase");
         if (
           requestedEnemyMode === "margin-severer" ||
           requestedEnemyMode === "silent-librarian"
@@ -143,6 +145,9 @@ export default function GameEntryFlow({
         }
         if (isLocalLootVfxShowcaseMode(requestedLootMode)) {
           setLocalLootVfxShowcase(requestedLootMode);
+        }
+        if (requestedPlazaMotionShowcase === "1") {
+          setLocalPlazaMotionShowcase(true);
         }
       }
       setLocalVfxShowcaseChecked(true);
@@ -155,6 +160,7 @@ export default function GameEntryFlow({
       !localVfxShowcaseChecked ||
       localEnemyVfxShowcase ||
       localLootVfxShowcase ||
+      localPlazaMotionShowcase ||
       !returnToTown ||
       selection !== null
     ) {
@@ -176,6 +182,7 @@ export default function GameEntryFlow({
   }, [
     localEnemyVfxShowcase,
     localLootVfxShowcase,
+    localPlazaMotionShowcase,
     localVfxShowcaseChecked,
     returnToTown,
     selection,
@@ -454,6 +461,26 @@ export default function GameEntryFlow({
     );
   }
 
+  if (localPlazaMotionShowcase) {
+    return (
+      <div
+        className="game-entry-flow"
+        data-entry-view="local-plaza-motion-showcase"
+      >
+        <PlazaHub
+          character={{
+            characterId: "local-plaza-motion-showcase",
+            displayName: "GROUND QA",
+            level: 99,
+            dungeonFloor: 99,
+            saveSlot: 1,
+          }}
+          connectionState="offline"
+        />
+      </div>
+    );
+  }
+
   if (selection === null) {
     return <CharacterEntryGate accountName={accountName} onEnter={enterCharacter} />;
   }
@@ -520,6 +547,7 @@ export default function GameEntryFlow({
         remotePlayers={hubSnapshot?.nearbyPlayers ?? []}
         onlineCount={hubSnapshot?.online ?? 1}
         localAuthoritativePosition={self ? { x: self.x, y: self.y } : null}
+        localAuthoritativeMoving={self?.moving ?? false}
         connectionState={connectionForPlaza(hubConnection)}
         paused={shopOpen || inventoryOpen || profileState !== null}
         onMoveIntent={moveInPlaza}

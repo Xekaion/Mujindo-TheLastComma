@@ -105,3 +105,67 @@ test("PlazaHub uses the generated map, authoritative intent, and accessible cont
     /\}, \[guidedPortalId, normalizedCharacter, onMoveIntent\]\);/,
   );
 });
+
+test("plaza paperdolls contact their shadows instead of floating above them", async () => {
+  const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
+  const readConstant = (name) => {
+    const match = source.match(new RegExp(`export const ${name} = (\\d+);`));
+    assert.ok(match, `${name} is missing`);
+    return Number(match[1]);
+  };
+  const ground = readConstant("PLAZA_PLAYER_GROUND_OFFSET_Y");
+  const shadowCenter = readConstant("PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y");
+  const shadowRadius = readConstant("PLAZA_PLAYER_SHADOW_RADIUS_Y");
+
+  assert.ok(
+    shadowCenter - shadowRadius <= ground,
+    "the top of the plaza shadow must meet or overlap the authored foot baseline",
+  );
+  assert.ok(
+    ground - (shadowCenter - shadowRadius) <= 3,
+    "the shadow must not climb far enough to cover the lower body",
+  );
+  assert.match(source, /y: player\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/g);
+  assert.match(
+    source,
+    /player\.y \+ PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y,[\s\S]{0,100}?PLAZA_PLAYER_SHADOW_RADIUS_Y/,
+  );
+  assert.doesNotMatch(source, /context\.ellipse\(player\.x, player\.y \+ 24/);
+});
+
+test("plaza reconciliation stays frame-driven and settles without idle sliding", async () => {
+  const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
+  assert.match(
+    source,
+    /authoritativePositionRef\.current = localAuthoritativePosition[\s\S]{0,180}?authoritativeMovingRef\.current = Boolean\(localAuthoritativeMoving\)/,
+  );
+  assert.doesNotMatch(source, /positionRef\.current = \{[\s\S]{0,100}?\* 0\.34/);
+  assert.match(
+    source,
+    /!hasMovementInput &&[\s\S]{0,80}?authoritativeTarget &&[\s\S]{0,80}?!authoritativeMovingRef\.current/,
+  );
+  assert.match(
+    source,
+    /const correctionAlpha = 1 - Math\.exp\(-dt \* LOCAL_CORRECTION_RESPONSE_PER_SECOND\);[\s\S]{0,180}?resolvePlazaMovement/,
+  );
+  assert.match(
+    source,
+    /const cameraLerp = 1 - Math\.exp\(-dt \* CAMERA_RESPONSE_PER_SECOND\)/,
+  );
+  assert.match(
+    source,
+    /!player\.moving && remainingDistance <= REMOTE_SETTLE_DISTANCE[\s\S]{0,160}?previousRenderX = renderPoint\.x;[\s\S]{0,80}?previousRenderY = renderPoint\.y/,
+  );
+
+  const responseMatch = source.match(/const CAMERA_RESPONSE_PER_SECOND = ([\d.]+);/);
+  assert.ok(responseMatch);
+  const response = Number(responseMatch[1]);
+  const afterOneSecond = (fps) => {
+    let value = 0;
+    const alpha = 1 - Math.exp(-(1 / fps) * response);
+    for (let frame = 0; frame < fps; frame += 1) value += (1 - value) * alpha;
+    return value;
+  };
+  const samples = [30, 60, 144].map(afterOneSecond);
+  assert.ok(Math.max(...samples) - Math.min(...samples) < 1e-12);
+});

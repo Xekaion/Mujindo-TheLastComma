@@ -118,6 +118,28 @@ test("localhost loot VFX QA bypasses slot hydration and remains memory-only", as
   assert.match(canvas, /readShopEntitlements\(null\)/);
 });
 
+test("localhost plaza motion QA renders directly without touching a save or hub session", async () => {
+  const [page, flow] = await Promise.all([
+    readFile(path.join(root, "app/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+  ]);
+
+  assert.match(page, /query\.plazaMotionShowcase !== undefined/);
+  assert.match(flow, /const requestedPlazaMotionShowcase = search\.get\("plazaMotionShowcase"\);/);
+  assert.match(flow, /requestedPlazaMotionShowcase === "1"/);
+  const directEntry = flow.indexOf("if (localPlazaMotionShowcase)");
+  const characterEntry = flow.indexOf("if (selection === null)", directEntry);
+  assert.ok(directEntry >= 0 && characterEntry > directEntry);
+  const directBlock = flow.slice(directEntry, characterEntry);
+  assert.match(directBlock, /data-entry-view="local-plaza-motion-showcase"/);
+  assert.match(directBlock, /<PlazaHub/);
+  assert.match(directBlock, /connectionState="offline"/);
+  assert.doesNotMatch(
+    directBlock,
+    /getMemoryPlazaClient|readSaveSlot|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+});
+
 test("the character portrait asset and responsive entry treatment are present", async () => {
   const css = await readFile(path.join(root, "app/character-entry.css"), "utf8");
   await access(path.join(root, "public/assets/ui/inventory-paperdoll-figure.png"));

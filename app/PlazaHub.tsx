@@ -62,9 +62,16 @@ import {
 // Keep optimistic movement aligned with the worker's authoritative budget.
 const PLAYER_SPEED = HUB_PLAYER_SPEED;
 const MOVEMENT_SEND_INTERVAL_MS = 66;
-const CAMERA_LERP = 0.13;
+const CAMERA_RESPONSE_PER_SECOND = 8.4;
+const LOCAL_CORRECTION_RESPONSE_PER_SECOND = 10;
+const LOCAL_CORRECTION_DEAD_ZONE = 0.5;
+const LOCAL_HARD_SNAP_DISTANCE = 240;
+const REMOTE_SETTLE_DISTANCE = 0.75;
 const PORTAL_PULSE_SECONDS = 2.4;
 const PLAZA_MAP_PATH = "/assets/maps/memory-plaza-v1.png";
+export const PLAZA_PLAYER_GROUND_OFFSET_Y = 8;
+export const PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y = 18;
+export const PLAZA_PLAYER_SHADOW_RADIUS_Y = 12;
 /** Keep characters just outside the camera warm without drawing the whole plaza. */
 export const PLAZA_REMOTE_RENDER_MARGIN = 220;
 /** Hard upper bound for paperdoll work when many players overlap one screen. */
@@ -103,6 +110,7 @@ export type PlazaHubProps = {
   onlineCount?: number;
   initialPosition?: PlazaPoint;
   localAuthoritativePosition?: PlazaPoint | null;
+  localAuthoritativeMoving?: boolean;
   connectionState?: PlazaConnectionState;
   paused?: boolean;
   onMoveIntent?: (intent: PlazaMoveIntent) => void;
@@ -458,7 +466,15 @@ function drawPlayer(
   const shadowWidth = player.local ? 34 : 30;
   context.fillStyle = "rgba(0, 0, 0, .58)";
   context.beginPath();
-  context.ellipse(player.x, player.y + 24, shadowWidth, 12, 0, 0, Math.PI * 2);
+  context.ellipse(
+    player.x,
+    player.y + PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y,
+    shadowWidth,
+    PLAZA_PLAYER_SHADOW_RADIUS_Y,
+    0,
+    0,
+    Math.PI * 2,
+  );
   context.fill();
 
   const alpha = player.stale ? 0.44 : 1;
@@ -483,7 +499,7 @@ function drawPlayer(
         direction: player.facing,
         frame,
         x: player.x,
-        y: player.y + 8,
+        y: player.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
         width: PAPERDOLL_WORLD_RENDER_WIDTH,
         height: PAPERDOLL_WORLD_RENDER_HEIGHT,
         alpha,
@@ -500,7 +516,7 @@ function drawPlayer(
       frame,
       timeMs,
       x: player.x,
-      y: player.y + 8,
+      y: player.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
       width: PAPERDOLL_WORLD_RENDER_WIDTH,
       height: PAPERDOLL_WORLD_RENDER_HEIGHT,
       context: player.local ? "plaza-local" : "plaza-remote",
@@ -546,6 +562,7 @@ export default function PlazaHub({
   onlineCount = remotePlayers.length + 1,
   initialPosition = PLAZA_SPAWN_POINT,
   localAuthoritativePosition = null,
+  localAuthoritativeMoving = false,
   connectionState = "offline",
   paused = false,
   onMoveIntent,
@@ -559,6 +576,12 @@ export default function PlazaHub({
   const rootRef = useRef<HTMLElement | null>(null);
   const positionRef = useRef<PlazaPoint>(sanitizePlazaPoint(initialPosition));
   const cameraRef = useRef<PlazaPoint>(sanitizePlazaPoint(initialPosition));
+  const authoritativePositionRef = useRef<PlazaPoint | null>(
+    localAuthoritativePosition
+      ? sanitizePlazaPoint(localAuthoritativePosition)
+      : null,
+  );
+  const authoritativeMovingRef = useRef(localAuthoritativeMoving);
   const facingRef = useRef(4);
   const movingRef = useRef(false);
   const walkCycleRef = useRef<number>(CHARACTER_IDLE_FRAME);
@@ -704,6 +727,7 @@ export default function PlazaHub({
       if (Math.hypot(player.x - existing.x, player.y - existing.y) > 320) {
         existing.x = player.x;
         existing.y = player.y;
+        remoteWalkCyclesRef.current.set(player.characterId, CHARACTER_IDLE_FRAME);
       }
       existing.targetX = player.x;
       existing.targetY = player.y;
@@ -716,20 +740,11 @@ export default function PlazaHub({
   }, [visibleRemotePlayers]);
 
   useEffect(() => {
-    if (!localAuthoritativePosition) return;
-    const authoritative = sanitizePlazaPoint(localAuthoritativePosition);
-    const current = positionRef.current;
-    const error = Math.hypot(authoritative.x - current.x, authoritative.y - current.y);
-    if (error > 240) {
-      positionRef.current = authoritative;
-      pointerTargetRef.current = null;
-    } else if (error > 8) {
-      positionRef.current = {
-        x: current.x + (authoritative.x - current.x) * 0.34,
-        y: current.y + (authoritative.y - current.y) * 0.34,
-      };
-    }
-  }, [localAuthoritativePosition]);
+    authoritativePositionRef.current = localAuthoritativePosition
+      ? sanitizePlazaPoint(localAuthoritativePosition)
+      : null;
+    authoritativeMovingRef.current = Boolean(localAuthoritativeMoving);
+  }, [localAuthoritativeMoving, localAuthoritativePosition]);
 
   const activatePortal = useCallback(
     (portal: PlazaPortalDefinition) => {
@@ -944,6 +959,20 @@ export default function PlazaHub({
       const dt = Math.min(0.05, Math.max(0, (now - previous) / 1000));
       previousTimeRef.current = now;
       const time = now / 1000;
+      const authoritativeTarget = authoritativePositionRef.current;
+      if (
+        authoritativeTarget &&
+        Math.hypot(
+          authoritativeTarget.x - positionRef.current.x,
+          authoritativeTarget.y - positionRef.current.y,
+        ) > LOCAL_HARD_SNAP_DISTANCE
+      ) {
+        positionRef.current = { ...authoritativeTarget };
+        cameraRef.current = { ...authoritativeTarget };
+        pointerTargetRef.current = null;
+        movingRef.current = false;
+        walkCycleRef.current = settleCharacterWalkCycle(walkCycleRef.current);
+      }
       const keys = keysRef.current;
       let moveX =
         (keys.has("d") || keys.has("arrowright") ? 1 : 0) -
@@ -974,31 +1003,56 @@ export default function PlazaHub({
         }
       }
 
+      const previousPosition = { ...positionRef.current };
       const magnitude = Math.hypot(moveX, moveY);
-      if (magnitude > 0.01) {
+      const hasMovementInput = magnitude > 0.01;
+      if (hasMovementInput) {
         moveX /= Math.max(1, magnitude);
         moveY /= Math.max(1, magnitude);
-        const previousPosition = positionRef.current;
         positionRef.current = resolvePlazaMovement(positionRef.current, {
           x: moveX * PLAYER_SPEED * dt,
           y: moveY * PLAYER_SPEED * dt,
         });
-        const motion = resolveCharacterMotion(
-          positionRef.current.x - previousPosition.x,
-          positionRef.current.y - previousPosition.y,
-          facingRef.current,
-          0.01,
+      }
+
+      if (
+        !hasMovementInput &&
+        authoritativeTarget &&
+        !authoritativeMovingRef.current
+      ) {
+        const correctionX = authoritativeTarget.x - positionRef.current.x;
+        const correctionY = authoritativeTarget.y - positionRef.current.y;
+        const correctionDistance = Math.hypot(correctionX, correctionY);
+        if (correctionDistance <= LOCAL_CORRECTION_DEAD_ZONE) {
+          positionRef.current = { ...authoritativeTarget };
+        } else {
+          const correctionAlpha = 1 - Math.exp(-dt * LOCAL_CORRECTION_RESPONSE_PER_SECOND);
+          positionRef.current = resolvePlazaMovement(positionRef.current, {
+            x: correctionX * correctionAlpha,
+            y: correctionY * correctionAlpha,
+          });
+        }
+      }
+
+      const motion = resolveCharacterMotion(
+        positionRef.current.x - previousPosition.x,
+        positionRef.current.y - previousPosition.y,
+        facingRef.current,
+        0.01,
+      );
+      if (motion.moving) {
+        if (hasMovementInput) {
+          // Tiny authoritative settling steps must not turn the character back
+          // toward an older server sample after the player releases a key.
+          facingRef.current = motion.facing;
+        }
+        movingRef.current = true;
+        walkCycleRef.current = advanceCharacterWalkCycle(
+          walkCycleRef.current,
+          motion.distance,
+          undefined,
+          dt,
         );
-        facingRef.current = motion.facing;
-        movingRef.current = motion.moving;
-        walkCycleRef.current = motion.moving
-          ? advanceCharacterWalkCycle(
-              walkCycleRef.current,
-              motion.distance,
-              undefined,
-              dt,
-            )
-          : settleCharacterWalkCycle(walkCycleRef.current);
       } else {
         movingRef.current = false;
         walkCycleRef.current = settleCharacterWalkCycle(walkCycleRef.current);
@@ -1046,8 +1100,9 @@ export default function PlazaHub({
       const maxCameraY = Math.max(PLAZA_WORLD_HEIGHT / 2, PLAZA_WORLD_HEIGHT - height / 2);
       const desiredCameraX = Math.min(maxCameraX, Math.max(minCameraX, positionRef.current.x));
       const desiredCameraY = Math.min(maxCameraY, Math.max(minCameraY, positionRef.current.y));
-      cameraRef.current.x += (desiredCameraX - cameraRef.current.x) * CAMERA_LERP;
-      cameraRef.current.y += (desiredCameraY - cameraRef.current.y) * CAMERA_LERP;
+      const cameraLerp = 1 - Math.exp(-dt * CAMERA_RESPONSE_PER_SECOND);
+      cameraRef.current.x += (desiredCameraX - cameraRef.current.x) * cameraLerp;
+      cameraRef.current.y += (desiredCameraY - cameraRef.current.y) * cameraLerp;
       refreshRenderableRemotePlayers(now);
 
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1079,11 +1134,22 @@ export default function PlazaHub({
       const remoteLerp = 1 - Math.exp(-dt * 11);
       const players: DrawPlayer[] = renderableRemotePlayers.map((player) => {
         const renderPoint = remoteRenderPointsRef.current.get(player.characterId);
-        const previousRenderX = renderPoint?.x ?? player.x;
-        const previousRenderY = renderPoint?.y ?? player.y;
+        let previousRenderX = renderPoint?.x ?? player.x;
+        let previousRenderY = renderPoint?.y ?? player.y;
         if (renderPoint) {
-          renderPoint.x += (renderPoint.targetX - renderPoint.x) * remoteLerp;
-          renderPoint.y += (renderPoint.targetY - renderPoint.y) * remoteLerp;
+          const remainingDistance = Math.hypot(
+            renderPoint.targetX - renderPoint.x,
+            renderPoint.targetY - renderPoint.y,
+          );
+          if (!player.moving && remainingDistance <= REMOTE_SETTLE_DISTANCE) {
+            renderPoint.x = renderPoint.targetX;
+            renderPoint.y = renderPoint.targetY;
+            previousRenderX = renderPoint.x;
+            previousRenderY = renderPoint.y;
+          } else {
+            renderPoint.x += (renderPoint.targetX - renderPoint.x) * remoteLerp;
+            renderPoint.y += (renderPoint.targetY - renderPoint.y) * remoteLerp;
+          }
         }
         const remoteMotion = resolveCharacterMotion(
           (renderPoint?.x ?? player.x) - previousRenderX,

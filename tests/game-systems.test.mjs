@@ -6394,22 +6394,29 @@ test("expedition and plaza render independent fitted layers and preserve public 
   );
   assert.match(source, /characterRenderFrameIndex\(\s*player\.facing,\s*player\.walkCycle,\s*player\.moving\s*,?\s*\)/);
 
-  const plazaMotionStart = plaza.indexOf("const previousPosition = positionRef.current;");
+  const plazaMotionStart = plaza.indexOf("const previousPosition = { ...positionRef.current };");
   const plazaCollision = plaza.indexOf(
     "positionRef.current = resolvePlazaMovement(",
     plazaMotionStart,
   );
-  const plazaMotionResolve = plaza.indexOf(
-    "const motion = resolveCharacterMotion(",
+  const plazaCorrection = plaza.indexOf(
+    "const correctionX = authoritativeTarget.x - positionRef.current.x;",
     plazaCollision,
   );
+  const plazaMotionResolve = plaza.indexOf(
+    "const motion = resolveCharacterMotion(",
+    plazaCorrection,
+  );
   assert.ok(
-    plazaMotionStart >= 0 && plazaCollision > plazaMotionStart && plazaMotionResolve > plazaCollision,
-    "plaza motion must be sampled from the movement that survived plaza collision",
+    plazaMotionStart >= 0 &&
+      plazaCollision > plazaMotionStart &&
+      plazaCorrection > plazaCollision &&
+      plazaMotionResolve > plazaCorrection,
+    "plaza motion must sample input, collision, and server settling as one final displacement",
   );
   assert.match(
-    plaza.slice(plazaMotionResolve, plazaMotionResolve + 620),
-    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,300}?advanceCharacterWalkCycle\(\s*walkCycleRef\.current,\s*motion\.distance,\s*undefined,\s*dt\s*,?\s*\)/,
+    plaza.slice(plazaMotionResolve, plazaMotionResolve + 900),
+    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,700}?advanceCharacterWalkCycle\(\s*walkCycleRef\.current,\s*motion\.distance,\s*undefined,\s*dt\s*,?\s*\)/,
   );
   assert.doesNotMatch(plaza, /Math\.floor\(time\s*\*\s*8\.5\)/);
   assert.match(
