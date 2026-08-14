@@ -5758,6 +5758,13 @@ test("the paperdoll compositor consumes ten registered 32-frame wearable layers 
     height: 192,
   });
   assert.equal(paperdoll.PAPERDOLL_GROUND_ANCHOR_RATIO, 184 / 192);
+  assert.ok(
+    Math.abs(
+      paperdoll.paperdollVisualCenterY(8, paperdoll.PAPERDOLL_WORLD_RENDER_HEIGHT) +
+        38.75,
+    ) < 1e-9,
+    "the expedition ground baseline must resolve to the audited paperdoll body centre",
+  );
   assert.equal(paperdoll.paperdollLayerPathsForLoadout(loadout).length, 10);
 
   const sorted = paperdoll.sortPaperdollPieces(loadout, 6);

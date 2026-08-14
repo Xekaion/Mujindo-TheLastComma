@@ -203,3 +203,52 @@ test("runtime renders authored artwork first and keeps primitives as load-failur
   assert.match(gameSource, /augmentVfxId\("ward"\)/);
   assert.match(gameSource, /vfxId: projectileVfxId\(affinity\)/);
 });
+
+test("player-attached augment and legendary VFX use the paperdoll body centre", () => {
+  assert.match(
+    gameSource,
+    /const combatPlayerBodyCenterY = \(playerY: number\) =>\s*paperdollVisualCenterY\(\s*playerY \+ PLAYER_SPRITE_GROUND_OFFSET_Y,\s*PAPERDOLL_WORLD_RENDER_HEIGHT/,
+  );
+  for (const kind of ["mirrorWave", "ashboundShield", "bloodwovenBurst", "starfallBurst"]) {
+    assert.match(
+      gameSource,
+      new RegExp(`"${kind}",\\s*player\\.x,\\s*combatPlayerBodyCenterY\\(player\\.y\\)`),
+      `${kind} must originate at the player's visual body centre`,
+    );
+  }
+  assert.match(
+    gameSource,
+    /"playerImpact",\s*player\.x,\s*combatPlayerBodyCenterY\(player\.y\),[\s\S]{0,180}?augmentVfxId\("void"\)/,
+    "the self-cast void burst must not remain pinned to the feet",
+  );
+  assert.match(
+    gameSource,
+    /"muzzle",\s*player\.x,\s*combatPlayerBodyCenterY\(player\.y\),[\s\S]{0,180}?attackVfxId/,
+    "augment-powered weapon flashes must originate on the player silhouette",
+  );
+  assert.match(
+    gameSource,
+    /"muzzle",\s*player\.x,\s*combatPlayerBodyCenterY\(player\.y\),[\s\S]{0,180}?legendaryVfxId\("commaResonance"\)/,
+    "item-powered resonance flashes must originate on the player silhouette",
+  );
+  assert.equal(
+    (gameSource.match(/y: playerBodyCenterY,/g) ?? []).length,
+    3,
+    "mirror, ward/ashbound, and starfall persistent layers must share one body anchor",
+  );
+  assert.equal(
+    (gameSource.match(/combatPlayerBodyCenterY\(player\.y\) \+\s*Math\.sin\(angle\)/g) ?? []).length,
+    2,
+    "orbit collision and rendering must use the same body-centred ellipse",
+  );
+  assert.match(
+    gameSource,
+    /legendaryVfxId\("riftStride"\)/,
+    "the ground-bound dash trail remains a distinct effect",
+  );
+  assert.match(
+    gameSource,
+    /"phantomTrail",\s*previousPlayerX,\s*previousPlayerY \+ 8/,
+    "the ground-bound phantom trail must stay at the player's previous foot point",
+  );
+});

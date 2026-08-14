@@ -32,6 +32,19 @@ export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v1";
 export const PAPERDOLL_WORLD_RENDER_WIDTH = 136;
 export const PAPERDOLL_WORLD_RENDER_HEIGHT = 102;
 
+/**
+ * Converts the rig's authored ground baseline into the visual centre of its
+ * rendered frame. Player collision coordinates sit near the feet, so effects
+ * attached to the character must use this point instead of the ground origin.
+ */
+export function paperdollVisualCenterY(
+  groundAnchorY: number,
+  height: number,
+  groundAnchorRatio = PAPERDOLL_GROUND_ANCHOR_RATIO,
+): number {
+  return groundAnchorY + height * (0.5 - groundAnchorRatio);
+}
+
 /** Runtime S,SW,W,NW,N,NE,E,SE -> authored S,SE,E,NW,N,NE,W,SW. */
 export const PAPERDOLL_DIRECTION_ROWS = [0, 7, 6, 3, 4, 5, 2, 1] as const;
 

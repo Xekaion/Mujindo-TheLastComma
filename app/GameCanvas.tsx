@@ -53,6 +53,7 @@ import {
   createPaperdollEquipmentSignature,
   createPaperdollGearSignature,
   drawPaperdollCharacter,
+  paperdollVisualCenterY,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
   clearPaperdollCaches,
@@ -336,6 +337,12 @@ import {
 
 const WIDTH = 1280;
 const HEIGHT = 720;
+const PLAYER_SPRITE_GROUND_OFFSET_Y = 8;
+const combatPlayerBodyCenterY = (playerY: number) =>
+  paperdollVisualCenterY(
+    playerY + PLAYER_SPRITE_GROUND_OFFSET_Y,
+    PAPERDOLL_WORLD_RENDER_HEIGHT,
+  );
 const LOCAL_RARITY_SHOWCASE_SLOTS = [
   "boots",
   "gloves",
@@ -4721,7 +4728,7 @@ export default function GameCanvas({
           spawnLegendaryEffect(
             "mirrorWave",
             player.x,
-            player.y,
+            combatPlayerBodyCenterY(player.y),
             0.62,
             210,
             "#8df7ff",
@@ -4744,7 +4751,7 @@ export default function GameCanvas({
         spawnLegendaryEffect(
           "ashboundShield",
           player.x,
-          player.y,
+          combatPlayerBodyCenterY(player.y),
           0.84,
           132,
           "#f4e5bb",
@@ -5395,7 +5402,7 @@ export default function GameCanvas({
       spawnCombatEffect(
         "muzzle",
         player.x,
-        player.y - 8,
+        combatPlayerBodyCenterY(player.y),
         0.2,
         28 + Math.min(18, visibleCount * 2),
         chargedColor,
@@ -5506,7 +5513,7 @@ export default function GameCanvas({
         spawnLegendaryEffect(
           "bloodwovenBurst",
           player.x,
-          player.y - 8,
+          combatPlayerBodyCenterY(player.y),
           0.42,
           82,
           "#ff477f",
@@ -5758,7 +5765,7 @@ export default function GameCanvas({
           spawnLegendaryEffect(
             "starfallBurst",
             player.x,
-            player.y,
+            combatPlayerBodyCenterY(player.y),
             0.54,
             118,
             "#f8d98a",
@@ -5772,7 +5779,7 @@ export default function GameCanvas({
           spawnCombatEffect(
             "playerImpact",
             player.x,
-            player.y,
+            combatPlayerBodyCenterY(player.y),
             0.42,
             126,
             "#8b5ecc",
@@ -7234,7 +7241,9 @@ export default function GameCanvas({
           for (let i = 0; i < orbitCount; i += 1) {
             const angle = now / 620 + (Math.PI * 2 * i) / orbitCount;
             const ox = player.x + Math.cos(angle) * (62 + orbitRank * 2);
-            const oy = player.y + Math.sin(angle) * (44 + orbitRank * 1.4);
+            const oy =
+              combatPlayerBodyCenterY(player.y) +
+              Math.sin(angle) * (44 + orbitRank * 1.4);
             if (distance(ox, oy, enemy.x, enemy.y) < enemy.radius + 13) {
               applyPlayerDamage(
                 player,
@@ -7631,7 +7640,7 @@ export default function GameCanvas({
               spawnLegendaryEffect(
                 "ashboundShield",
                 player.x,
-                player.y,
+                combatPlayerBodyCenterY(player.y),
                 0.72,
                 112,
                 "#e7b268",
@@ -7654,7 +7663,7 @@ export default function GameCanvas({
             spawnCombatEffect(
               "muzzle",
               player.x,
-              player.y,
+              combatPlayerBodyCenterY(player.y),
               0.46,
               78,
               "#f0b86e",
@@ -10193,7 +10202,9 @@ export default function GameCanvas({
       for (let i = 0; i < orbitCount; i += 1) {
         const angle = performance.now() / 620 + (Math.PI * 2 * i) / orbitCount;
         const ox = player.x + Math.cos(angle) * (62 + orbitPower * 2);
-        const oy = player.y + Math.sin(angle) * (44 + orbitPower * 1.4);
+        const oy =
+          combatPlayerBodyCenterY(player.y) +
+          Math.sin(angle) * (44 + orbitPower * 1.4);
         const orbitVfxId = augmentVfxId("orbit");
         if (
           drawGameplayVfxFrame(
@@ -10239,11 +10250,15 @@ export default function GameCanvas({
         player.walkCycle,
         player.moving,
       );
-      const playerSpriteY = player.y + 8;
       // Preserve 4:3 without scaling the transparent atlas cell as though all
       // of it were character mass. This keeps Harin at common-enemy scale.
       const playerSpriteWidth = PAPERDOLL_WORLD_RENDER_WIDTH;
       const playerSpriteHeight = PAPERDOLL_WORLD_RENDER_HEIGHT;
+      const playerSpriteY = player.y + PLAYER_SPRITE_GROUND_OFFSET_Y;
+      const playerBodyCenterY = paperdollVisualCenterY(
+        playerSpriteY,
+        playerSpriteHeight,
+      );
       const equipmentRuntime = getEquipmentRuntimeCache(player.equipment);
       const playerPaperdollLoadout = equipmentRuntime.loadout;
       const playerPaperdollSignature = equipmentRuntime.signature;
@@ -10286,7 +10301,7 @@ export default function GameCanvas({
           images.sprites,
           0,
           player.x,
-          player.y + 8,
+          playerSpriteY,
           86,
           112,
           playerAlpha,
@@ -10318,7 +10333,7 @@ export default function GameCanvas({
           GAMEPLAY_VFX_MANIFEST[barrierVfxId],
           {
             x: player.x,
-            y: player.y,
+            y: playerBodyCenterY,
             size: 112,
             progress: positiveModulo(ambientTime * 1.65, 1),
             alpha: 0.94,
@@ -10332,7 +10347,13 @@ export default function GameCanvas({
           context.shadowBlur = 18;
           context.lineWidth = 2.4;
           context.beginPath();
-          context.arc(player.x, player.y, 46, ambientTime * 0.8, ambientTime * 0.8 + Math.PI * 1.55);
+          context.arc(
+            player.x,
+            playerBodyCenterY,
+            46,
+            ambientTime * 0.8,
+            ambientTime * 0.8 + Math.PI * 1.55,
+          );
           context.stroke();
           context.restore();
         }
@@ -10347,7 +10368,7 @@ export default function GameCanvas({
           GAMEPLAY_VFX_MANIFEST[shieldVfxId],
           {
             x: player.x,
-            y: player.y,
+            y: playerBodyCenterY,
             size: 106,
             progress: positiveModulo(ambientTime * 1.25, 1),
             alpha: 0.9,
@@ -10358,7 +10379,7 @@ export default function GameCanvas({
           context.strokeStyle = "rgba(174,250,255,.72)";
           context.lineWidth = 2;
           context.beginPath();
-          context.arc(player.x, player.y, 44, 0, Math.PI * 2);
+          context.arc(player.x, playerBodyCenterY, 44, 0, Math.PI * 2);
           context.stroke();
           context.restore();
         }
@@ -10371,7 +10392,7 @@ export default function GameCanvas({
           GAMEPLAY_VFX_MANIFEST[mantleVfxId],
           {
             x: player.x,
-            y: player.y,
+            y: playerBodyCenterY,
             size: 108,
             progress: positiveModulo(ambientTime * 1.4, 1),
             alpha: 0.92,
@@ -10382,7 +10403,7 @@ export default function GameCanvas({
           context.fillStyle = "#ffeaa6";
           context.shadowColor = "#f8d98a";
           context.shadowBlur = 12;
-          context.fillRect(player.x - 2, player.y - 48, 4, 4);
+          context.fillRect(player.x - 2, playerBodyCenterY - 2, 4, 4);
           context.restore();
         }
       }
