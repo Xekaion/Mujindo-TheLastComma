@@ -24,15 +24,15 @@ const equipmentPromise = importTypeScriptModule("app/equipment.ts");
 
 const EXPECTED_HIGH_TIER_RESONANCE = [
   [15, 15, 0],
-  [20, 20, 10],
-  [22, 22, 12],
-  [24, 24, 14],
-  [26, 26, 16],
-  [28, 28, 18],
-  [30, 30, 20],
-  [32, 32, 22],
-  [34, 34, 24],
-  [36, 36, 27],
+  [25, 25, 15],
+  [35, 35, 25],
+  [45, 45, 35],
+  [55, 55, 45],
+  [65, 65, 55],
+  [75, 75, 65],
+  [85, 85, 75],
+  [95, 95, 85],
+  [105, 105, 95],
 ].map(([damagePercent, attackSpeedPercent, bossDamagePercent], index) => ({
   count: index + 1,
   damagePercent,
@@ -108,6 +108,13 @@ test("rarity resonance exports the exact cumulative H1-H10 and C1-C10 tables", a
     EXPECTED_COSMIC_TRANSCENDENCE,
     "cosmic rows are cumulative totals, not per-step additions",
   );
+  for (let index = 2; index < EXPECTED_HIGH_TIER_RESONANCE.length; index += 1) {
+    const previous = EXPECTED_HIGH_TIER_RESONANCE[index - 1];
+    const current = EXPECTED_HIGH_TIER_RESONANCE[index];
+    assert.equal(current.damagePercent - previous.damagePercent, 10);
+    assert.equal(current.attackSpeedPercent - previous.attackSpeedPercent, 10);
+    assert.equal(current.bossDamagePercent - previous.bossDamagePercent, 10);
+  }
 });
 
 test("cosmic equipment counts toward both H and C while legendary counts toward neither", async () => {
@@ -158,15 +165,15 @@ test("threshold bonuses use the selected cumulative row and enter aggregate stat
   const raw = rawEquipmentStats(equipment, loadout);
   const aggregate = equipment.aggregateEquipmentStats(loadout);
 
-  assert.equal(aggregate.damagePercent - raw.damagePercent, 22);
-  assert.equal(aggregate.attackSpeedPercent - raw.attackSpeedPercent, 22);
-  assert.equal(aggregate.bossDamagePercent - raw.bossDamagePercent, 12);
+  assert.equal(aggregate.damagePercent - raw.damagePercent, 35);
+  assert.equal(aggregate.attackSpeedPercent - raw.attackSpeedPercent, 35);
+  assert.equal(aggregate.bossDamagePercent - raw.bossDamagePercent, 25);
   assert.equal(aggregate.cosmicFinalDamagePercent - raw.cosmicFinalDamagePercent, 10);
   assert.equal(aggregate.cosmicActionSpeedPercent - raw.cosmicActionSpeedPercent, 3);
   assert.notEqual(
     aggregate.damagePercent - raw.damagePercent,
-    15 + 20 + 22,
-    "H3 is +22%, not H1 + H2 + H3",
+    15 + 25 + 35,
+    "H3 is +35%, not H1 + H2 + H3",
   );
 
   const directlyApplied = equipment.applyEquipmentRarityResonance(raw, loadout);

@@ -4,7 +4,9 @@
  * dependency: theoretical projectiles and attacks are never reduced to an
  * on-screen rendering budget.
  */
-export const BOSS_CONVERSION_VERSION = 2 as const;
+// V3 invalidates expedition-power caches created before the stronger H2-H10
+// mythic resonance curve, while preserving every persisted item and save field.
+export const BOSS_CONVERSION_VERSION = 3 as const;
 
 /**
  * Combat power is an offensive ranking, not a general survivability score.

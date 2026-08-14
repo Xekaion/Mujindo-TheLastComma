@@ -47,10 +47,10 @@ const baseline = Object.freeze({
 const rate = (overrides) =>
   evaluation.calculateCombatEvaluation({ ...baseline, ...overrides });
 
-test("version-two baseline is exactly the perfect-hit boss DPS rating", () => {
+test("version-three baseline is exactly the perfect-hit boss DPS rating", () => {
   const result = rate({});
-  assert.equal(evaluation.BOSS_CONVERSION_VERSION, 2);
-  assert.equal(result.version, 2);
+  assert.equal(evaluation.BOSS_CONVERSION_VERSION, 3);
+  assert.equal(result.version, 3);
   assert.equal(result.sheetAttackPower, 14);
   assert.ok(Math.abs(result.statAttackDps - 20.286) < 1e-12);
   assert.equal(result.standardBossDps, result.statAttackDps);

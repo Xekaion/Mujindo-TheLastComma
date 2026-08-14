@@ -108,7 +108,7 @@ test("the character sheet baseline matches the live combat constants exactly", a
     snapshot.ratings.standardBossDps * 60,
   );
   assert.equal(snapshot.ratings.combatPower, 1_000);
-  assert.equal(snapshot.ratings.version, 2);
+  assert.equal(snapshot.ratings.version, 3);
   assert.match(snapshot.ratings.conversionLabel, /전탄 적중 지속 DPS/);
 
   assert.equal(snapshot.resources.maxHp, 100);

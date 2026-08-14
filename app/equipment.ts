@@ -1325,15 +1325,17 @@ export type CosmicTranscendenceBonus = {
  */
 export const HIGH_TIER_RESONANCE_THRESHOLDS: readonly HighTierResonanceBonus[] = [
   { count: 1, damagePercent: 15, attackSpeedPercent: 15, bossDamagePercent: 0 },
-  { count: 2, damagePercent: 20, attackSpeedPercent: 20, bossDamagePercent: 10 },
-  { count: 3, damagePercent: 22, attackSpeedPercent: 22, bossDamagePercent: 12 },
-  { count: 4, damagePercent: 24, attackSpeedPercent: 24, bossDamagePercent: 14 },
-  { count: 5, damagePercent: 26, attackSpeedPercent: 26, bossDamagePercent: 16 },
-  { count: 6, damagePercent: 28, attackSpeedPercent: 28, bossDamagePercent: 18 },
-  { count: 7, damagePercent: 30, attackSpeedPercent: 30, bossDamagePercent: 20 },
-  { count: 8, damagePercent: 32, attackSpeedPercent: 32, bossDamagePercent: 22 },
-  { count: 9, damagePercent: 34, attackSpeedPercent: 34, bossDamagePercent: 24 },
-  { count: 10, damagePercent: 36, attackSpeedPercent: 36, bossDamagePercent: 27 },
+  { count: 2, damagePercent: 25, attackSpeedPercent: 25, bossDamagePercent: 15 },
+  // H2 establishes the full three-stat bonus. Every further equipped piece
+  // raises all three cumulative totals by exactly ten percentage points.
+  { count: 3, damagePercent: 35, attackSpeedPercent: 35, bossDamagePercent: 25 },
+  { count: 4, damagePercent: 45, attackSpeedPercent: 45, bossDamagePercent: 35 },
+  { count: 5, damagePercent: 55, attackSpeedPercent: 55, bossDamagePercent: 45 },
+  { count: 6, damagePercent: 65, attackSpeedPercent: 65, bossDamagePercent: 55 },
+  { count: 7, damagePercent: 75, attackSpeedPercent: 75, bossDamagePercent: 65 },
+  { count: 8, damagePercent: 85, attackSpeedPercent: 85, bossDamagePercent: 75 },
+  { count: 9, damagePercent: 95, attackSpeedPercent: 95, bossDamagePercent: 85 },
+  { count: 10, damagePercent: 105, attackSpeedPercent: 105, bossDamagePercent: 95 },
 ] as const;
 
 /** Cosmic-only totals, applied in addition to high-tier resonance. */
