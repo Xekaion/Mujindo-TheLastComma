@@ -1,0 +1,35 @@
+{
+  "asset": "silent-librarian-echo-v4",
+  "generatedAt": "2026-08-15",
+  "tool": "image_gen.imagegen built-in",
+  "useCase": "stylized-concept followed by precise-object-edit",
+  "inputReferences": [
+    "asset-sources/imagegen/silent-librarian-echo-components-v3-source.png",
+    "public/assets/walk/silent-librarian-walk-v2.png"
+  ],
+  "generationOutput": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-0f7a855c-2b1b-42dd-adb0-9bee04ff790a.png",
+  "matteCleanupOutput": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-61fb2761-0f17-4448-b2ea-f9ff53270aa9.png",
+  "source": "asset-sources/imagegen/silent-librarian-echo-v4-source.png",
+  "keyedSource": "asset-sources/imagegen/silent-librarian-echo-v4-keyed.png",
+  "builder": "scripts/build_silent_librarian_echo_v4.py",
+  "output": "public/assets/effects/silent-librarian-echo-v4.png",
+  "chromaRemoval": {
+    "requestedKey": "#ff00ff",
+    "sampledKey": "#f505f2",
+    "helper": "$CODEX_HOME/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ],
+    "transparentPixels": 1263734,
+    "partiallyTransparentPixels": 28809
+  },
+  "generationPrompt": "Use case: stylized-concept\nAsset type: production game VFX sprite-sheet source for a 2D three-quarter top-down gothic ARPG\nInput images: Image 1 is a palette/material motif reference only; do NOT preserve its large C-shaped arc or repeated geometry. Image 2 is the Silent Librarian character/style reference.\nPrimary request: create one exact 4-column by 2-row sprite sheet containing eight genuinely different chronological animation poses for the Silent Librarian's forbidden-book echo skill.\nScene/backdrop: one perfectly uniform flat solid #ff00ff magenta chroma-key background across the entire canvas, with no gutters, borders, shadows, texture, gradient, halo, floor plane or lighting variation in the background.\nTop row, left to right: (1) compact sealed grimoire held upright, dark and dormant; (2) bronze clasps cracking as thin corpse-cyan runes ignite; (3) book half-opening with several distinct pages lifting and ink threads gathering; (4) fully open book releasing a sharp restrained ivory/cyan rune pulse and a few page splinters. Keep the book centered, same physical footprint and same three-quarter top-down camera in every frame; animate hinges, clasps, pages, ink and light rather than scaling the whole book.\nBottom row, left to right: four chronological poses of ONE small directional travelling echo fragment: (1) compact wedge of torn vellum, bronze spine chips and one dim rune; (2) fragment unfurling forward into a narrow crooked ink-and-rune slash; (3) slash splitting into several distinct page slivers, bronze flecks and corpse-cyan glyph sparks; (4) dissipating into sparse tiny runes, soot specks and vellum crumbs. Each fragment must remain a small open directional streak with a genuinely different silhouette and roughly constant footprint.\nStyle/medium: authentic early-2000s pre-rendered dark gothic dungeon ARPG sprite art, grimy, chunky, pixel-downsample friendly, materially detailed but readable at 45-120 gameplay pixels.\nColor palette: soot black, tarnished antique bronze, dirty vellum, dried-blood brown; pale corpse-cyan and ivory only as localized magical accents.\nComposition/framing: exact eight equal cells, four across and two down; generous crop-safe padding inside every cell; no overlap between cells; every pose centered consistently.\nConstraints: animation is driven by articulated book motion and changing fragment silhouettes, never by resizing one complete image; no readable text, character, full circular ring, C-shaped hook, necklace, portal, perfect halo, large smoke mass, large black opaque disk, sci-fi hologram, anime, glossy mobile-game VFX, logo or watermark; do not use magenta anywhere inside the artwork.",
+  "matteCleanupPrompt": "Use case: precise-object-edit\nAsset type: production game VFX sprite-sheet source\nInput images: Image 1 is the exact edit target.\nPrimary request: perform production chroma-matte cleanup only.\nConstraints: preserve the exact 4-column by 2-row layout, every book and travelling-fragment pose, their geometry, scale, position, three-quarter perspective, bronze/vellum/soot/corpse-cyan palette, cell spacing, padding and all animation differences. Change only the background into one perfectly uniform flat solid RGB #FF00FF field across every pixel outside the artwork: no gradient, vignette, bloom tint, texture, shadow, halo, antialias haze, compression variation or reflected magenta. Remove any pink/magenta rim or reflected magenta from inside the artwork while keeping the original crisp edges and localized cyan/ivory light. Do not add, remove, resize, shift, rotate, repaint or restyle any sprite. No text, borders, guides, logo or watermark."
+}

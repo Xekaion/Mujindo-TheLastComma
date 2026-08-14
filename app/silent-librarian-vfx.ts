@@ -2,20 +2,22 @@ import {
   SILENT_LIBRARIAN_RECOVERY_SECONDS,
   SILENT_LIBRARIAN_TELEGRAPH_SECONDS,
   SILENT_LIBRARIAN_WAVE_END_RADIUS,
-  SILENT_LIBRARIAN_WAVE_SECONDS,
   SILENT_LIBRARIAN_WAVE_START_RADIUS,
   silentLibrarianWaveProgress,
   silentLibrarianWaveRadius,
 } from "./silent-librarian";
 
 export const SILENT_LIBRARIAN_ECHO_VFX_PATH =
-  "/assets/effects/silent-librarian-echo-v3.png";
+  "/assets/effects/silent-librarian-echo-v4.png";
 
-const SHEET_COLUMNS = 2;
+const SHEET_COLUMNS = 4;
 const SHEET_ROWS = 2;
+const SHEET_CELL_SIZE = 128;
 const TAU = Math.PI * 2;
-const MIN_WAVE_STAMPS = 4;
-const MAX_WAVE_STAMPS = 24;
+const WAVE_SLOT_COUNT = 12;
+const BOOK_FRAME_START = 0;
+const WAVE_FRAME_START = 4;
+const SEQUENCE_FRAME_COUNT = 4;
 
 export type SilentLibrarianEchoPhase =
   | "echoWindup"
@@ -23,12 +25,15 @@ export type SilentLibrarianEchoPhase =
   | "recover";
 
 export type SilentLibrarianEchoStamp = {
+  slotIndex: number;
   x: number;
   y: number;
   angle: number;
   size: number;
   alpha: number;
-  frameIndex: 2 | 3;
+  frameIndex: 4 | 5 | 6 | 7;
+  nextFrameIndex: 4 | 5 | 6 | 7;
+  frameBlend: number;
 };
 
 type SilentLibrarianClipBounds = {
@@ -52,21 +57,48 @@ type DrawSilentLibrarianEchoOptions = {
 
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
+const smoothstep = (value: number) => {
+  const clamped = clamp01(value);
+  return clamped * clamped * (3 - 2 * clamped);
+};
+
 const seededUnit = (seed: number, index: number, salt: number) => {
   const value = Math.sin((seed + 1) * 91.739 + index * 37.117 + salt * 11.731) * 43758.5453;
   return value - Math.floor(value);
 };
 
-export const silentLibrarianEchoStampCount = (radius: number) =>
-  Math.max(
-    MIN_WAVE_STAMPS,
-    Math.min(MAX_WAVE_STAMPS, Math.round((TAU * Math.max(0, radius)) / 88)),
+export const silentLibrarianEchoStampCount = (radius: number) => {
+  void radius;
+  return WAVE_SLOT_COUNT;
+};
+
+const sequenceFramePair = <Start extends 0 | 4>(
+  frameStart: Start,
+  progress: number,
+) => {
+  const sequencePosition = clamp01(progress) * SEQUENCE_FRAME_COUNT;
+  const frameOffset = Math.min(
+    SEQUENCE_FRAME_COUNT - 1,
+    Math.floor(sequencePosition),
   );
+  const nextFrameOffset = Math.min(SEQUENCE_FRAME_COUNT - 1, frameOffset + 1);
+  const frameBlend =
+    frameOffset === nextFrameOffset
+      ? 0
+      : smoothstep(sequencePosition - frameOffset);
+
+  return {
+    frameIndex: frameStart + frameOffset,
+    nextFrameIndex: frameStart + nextFrameOffset,
+    frameBlend,
+  };
+};
 
 /**
- * The wave travels by moving fixed-size authored fragments around the gameplay
- * radius. Their world size never derives from radius; only their count and
- * positions change as the circumference expands.
+ * Every cast owns twelve stable authored-fragment slots. Slot identity and
+ * angle never depend on the changing radius, so the wave expands continuously
+ * instead of rebuilding the ring whenever its circumference crosses a count
+ * threshold.
  */
 export const silentLibrarianEchoStampLayout = ({
   radius,
@@ -81,29 +113,32 @@ export const silentLibrarianEchoStampLayout = ({
 }): SilentLibrarianEchoStamp[] => {
   const safeProgress = clamp01(progress);
   const dissolve = clamp01(dissolveProgress);
-  const count = silentLibrarianEchoStampCount(radius);
-  const baseAngle = seededUnit(seed, 0, 17) * TAU + safeProgress * 0.22;
+  const baseAngle = seededUnit(seed, 0, 17) * TAU;
+  const framePair = sequenceFramePair(WAVE_FRAME_START, safeProgress) as {
+    frameIndex: 4 | 5 | 6 | 7;
+    nextFrameIndex: 4 | 5 | 6 | 7;
+    frameBlend: number;
+  };
 
-  return Array.from({ length: count }, (_, index) => {
+  return Array.from({ length: WAVE_SLOT_COUNT }, (_, index) => {
     const radialNoise = seededUnit(seed, index, 3);
     const angularNoise = seededUnit(seed, index, 5);
     const frameNoise = seededUnit(seed, index, 7);
-    const sizeStep = Math.floor(seededUnit(seed, index, 11) * 3);
     const angle =
       baseAngle +
-      (index / count) * TAU +
-      (angularNoise - 0.5) * Math.min(0.16, Math.PI / count);
-    const outwardDrift = dissolve * (8 + radialNoise * 16);
-    const stampRadius = radius + (radialNoise - 0.5) * 10 + outwardDrift;
-    const frameIndex: 2 | 3 = frameNoise < dissolve ? 3 : 2;
+      (index / WAVE_SLOT_COUNT) * TAU +
+      (angularNoise - 0.5) * 0.08;
+    const outwardDrift = dissolve * (6 + radialNoise * 10);
+    const stampRadius = Math.max(0, radius) + (radialNoise - 0.5) * 8 + outwardDrift;
 
     return {
+      slotIndex: index,
       x: Math.cos(angle) * stampRadius,
       y: Math.sin(angle) * stampRadius,
       angle: angle + Math.PI / 2 + (angularNoise - 0.5) * 0.34,
-      size: 70 + sizeStep * 4,
-      alpha: (0.7 + frameNoise * 0.24) * (1 - dissolve * 0.42),
-      frameIndex,
+      size: SHEET_CELL_SIZE,
+      alpha: (0.66 + frameNoise * 0.2) * (1 - dissolve * 0.5),
+      ...framePair,
     };
   });
 };
@@ -112,25 +147,29 @@ export const silentLibrarianWindupRadius = (progress: number) =>
   SILENT_LIBRARIAN_WAVE_START_RADIUS + (1 - clamp01(progress)) * 30;
 
 export const silentLibrarianWindupBookPlan = (progress: number) => {
-  const safeProgress = clamp01(progress);
+  const framePair = sequenceFramePair(BOOK_FRAME_START, progress);
   return [
     {
-      frameIndex: 0 as const,
-      size: 132,
-      alpha: clamp01(1 - Math.max(0, safeProgress - 0.34) / 0.38),
-      angle: -0.055 + safeProgress * 0.07,
+      frameIndex: framePair.frameIndex,
+      size: SHEET_CELL_SIZE,
+      alpha: 1 - framePair.frameBlend,
+      angle: 0,
     },
     {
-      frameIndex: 1 as const,
-      size: 132,
-      alpha: clamp01((safeProgress - 0.24) / 0.4),
-      angle: 0.04 - safeProgress * 0.055,
+      frameIndex: framePair.nextFrameIndex,
+      size: SHEET_CELL_SIZE,
+      alpha: framePair.frameBlend,
+      angle: 0,
     },
   ];
 };
 
 const canDrawImage = (image: HTMLImageElement | undefined): image is HTMLImageElement =>
-  Boolean(image?.complete && image.naturalWidth && image.naturalHeight);
+  Boolean(
+    image?.complete &&
+      image.naturalWidth === SHEET_COLUMNS * SHEET_CELL_SIZE &&
+      image.naturalHeight === SHEET_ROWS * SHEET_CELL_SIZE,
+  );
 
 const drawSheetFrame = (
   context: CanvasRenderingContext2D,
@@ -138,12 +177,12 @@ const drawSheetFrame = (
   frameIndex: number,
   x: number,
   y: number,
-  size: number,
   angle: number,
   alpha: number,
 ) => {
-  const sourceWidth = image.naturalWidth / SHEET_COLUMNS;
-  const sourceHeight = image.naturalHeight / SHEET_ROWS;
+  if (alpha <= 0) return;
+  const sourceWidth = SHEET_CELL_SIZE;
+  const sourceHeight = SHEET_CELL_SIZE;
   context.save();
   context.translate(x, y);
   context.rotate(angle);
@@ -154,10 +193,10 @@ const drawSheetFrame = (
     Math.floor(frameIndex / SHEET_COLUMNS) * sourceHeight,
     sourceWidth,
     sourceHeight,
-    -size / 2,
-    -size / 2,
-    size,
-    size,
+    -SHEET_CELL_SIZE / 2,
+    -SHEET_CELL_SIZE / 2,
+    SHEET_CELL_SIZE,
+    SHEET_CELL_SIZE,
   );
   context.restore();
 };
@@ -177,14 +216,14 @@ const drawBrokenRing = (
   context.setLineDash([21, 9, 5, 11]);
   context.lineDashOffset = -(timeSeconds * 19 + dashOffset);
 
-  context.strokeStyle = "rgba(9, 7, 5, 0.94)";
-  context.lineWidth = 10;
+  context.strokeStyle = "rgba(9, 7, 5, 0.76)";
+  context.lineWidth = 5;
   context.beginPath();
   context.arc(x, y, radius, 0, TAU);
   context.stroke();
 
   context.strokeStyle = "rgba(151, 105, 58, 0.96)";
-  context.lineWidth = 3.5;
+  context.lineWidth = 2.25;
   context.beginPath();
   context.arc(x, y, radius, 0, TAU);
   context.stroke();
@@ -192,7 +231,7 @@ const drawBrokenRing = (
   context.setLineDash([8, 14, 3, 18]);
   context.lineDashOffset = timeSeconds * 13 + dashOffset * 0.7;
   context.strokeStyle = "rgba(142, 225, 211, 0.98)";
-  context.lineWidth = 2.15;
+  context.lineWidth = 1.15;
   context.beginPath();
   context.arc(x, y, radius, 0, TAU);
   context.stroke();
@@ -295,8 +334,8 @@ export const drawSilentLibrarianEchoVfx = ({
     drawConvergingMotes(context, x, y, seed, progress);
 
     if (canDrawImage(image)) {
-      const bookX = x + 50 - progress * 6;
-      const bookY = y - 58 + Math.sin(timeSeconds * 5.4 + seed) * 2;
+      const bookX = x;
+      const bookY = y - 82 + Math.sin(timeSeconds * 5.4 + seed) * 2;
       for (const book of silentLibrarianWindupBookPlan(progress)) {
         if (book.alpha <= 0) continue;
         drawSheetFrame(
@@ -305,7 +344,6 @@ export const drawSilentLibrarianEchoVfx = ({
           book.frameIndex,
           bookX,
           bookY,
-          book.size,
           book.angle,
           book.alpha * (0.78 + progress * 0.18),
         );
@@ -334,9 +372,17 @@ export const drawSilentLibrarianEchoVfx = ({
           stamp.frameIndex,
           x + stamp.x,
           y + stamp.y,
-          stamp.size,
           stamp.angle,
-          stamp.alpha * waveAlpha,
+          stamp.alpha * waveAlpha * (1 - stamp.frameBlend),
+        );
+        drawSheetFrame(
+          context,
+          image,
+          stamp.nextFrameIndex,
+          x + stamp.x,
+          y + stamp.y,
+          stamp.angle,
+          stamp.alpha * waveAlpha * stamp.frameBlend,
         );
       }
 
@@ -345,11 +391,10 @@ export const drawSilentLibrarianEchoVfx = ({
         drawSheetFrame(
           context,
           image,
-          1,
-          x + 44,
-          y - 58,
-          132,
-          -0.015 + progress * 0.16,
+          3,
+          x,
+          y - 82,
+          0,
           releaseAlpha * 0.9,
         );
       }
@@ -370,12 +415,20 @@ export const drawSilentLibrarianEchoVfx = ({
         drawSheetFrame(
           context,
           image,
-          3,
+          stamp.frameIndex,
           x + stamp.x,
           y + stamp.y,
-          stamp.size,
-          stamp.angle + recoveryProgress * 0.28,
-          stamp.alpha * recoveryAlpha,
+          stamp.angle,
+          stamp.alpha * recoveryAlpha * (1 - stamp.frameBlend),
+        );
+        drawSheetFrame(
+          context,
+          image,
+          stamp.nextFrameIndex,
+          x + stamp.x,
+          y + stamp.y,
+          stamp.angle,
+          stamp.alpha * recoveryAlpha * stamp.frameBlend,
         );
       }
     }

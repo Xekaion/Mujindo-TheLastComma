@@ -135,7 +135,10 @@ export default function GameEntryFlow({
         const search = new URLSearchParams(window.location.search);
         const requestedEnemyMode = search.get("enemyVfxShowcase");
         const requestedLootMode = search.get("lootVfxShowcase");
-        if (requestedEnemyMode === "margin-severer") {
+        if (
+          requestedEnemyMode === "margin-severer" ||
+          requestedEnemyMode === "silent-librarian"
+        ) {
           setLocalEnemyVfxShowcase(requestedEnemyMode);
         }
         if (isLocalLootVfxShowcaseMode(requestedLootMode)) {

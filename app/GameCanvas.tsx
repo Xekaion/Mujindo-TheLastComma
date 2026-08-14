@@ -2342,7 +2342,7 @@ type GameCanvasProps = {
   localLootVfxShowcase?: LocalLootVfxShowcaseMode;
 };
 
-export type LocalEnemyVfxShowcaseMode = "margin-severer";
+export type LocalEnemyVfxShowcaseMode = "margin-severer" | "silent-librarian";
 export type LocalLootVfxShowcaseMode =
   | "common"
   | "magic"
@@ -2458,7 +2458,7 @@ export default function GameCanvas({
   const gameConfirmationActionRef = useRef<() => void>(() => undefined);
   const inventoryFullToastRef = useRef(0);
   const lootVfxShowcaseSpawnedRef = useRef(false);
-  const marginSeverShowcaseSpawnedRef = useRef(false);
+  const enemyVfxShowcaseSpawnedRef = useRef(false);
   const initialSaveSlotHandledRef = useRef(false);
   const firstRoomGearDroppedRef = useRef(false);
 
@@ -4038,7 +4038,7 @@ export default function GameCanvas({
     pendingStoryRef.current = null;
     pendingEndingRef.current = false;
     lootVfxShowcaseSpawnedRef.current = false;
-    marginSeverShowcaseSpawnedRef.current = false;
+    enemyVfxShowcaseSpawnedRef.current = false;
     setEndingChapterIndex(0);
     setLootNotice(null);
     playerRef.current = makePlayer();
@@ -5048,32 +5048,47 @@ export default function GameCanvas({
 
     const spawnLocalEnemyVfxShowcase = () => {
       if (
-        marginSeverShowcaseSpawnedRef.current ||
-        enemyVfxShowcaseMode !== "margin-severer" ||
+        enemyVfxShowcaseSpawnedRef.current ||
+        (enemyVfxShowcaseMode !== "margin-severer" &&
+          enemyVfxShowcaseMode !== "silent-librarian") ||
         modeRef.current !== "playing"
       ) {
         return;
       }
-      marginSeverShowcaseSpawnedRef.current = true;
+      enemyVfxShowcaseSpawnedRef.current = true;
       const world = worldRef.current;
+      const silentLibrarianShowcase = enemyVfxShowcaseMode === "silent-librarian";
       const enemy = makeEnemy(
-        MARGIN_SEVERER_KIND,
+        silentLibrarianShowcase ? SILENT_LIBRARIAN_KIND : MARGIN_SEVERER_KIND,
         WIDTH / 2,
-        210,
-        Math.max(playerRef.current.rooms, MARGIN_SEVERER_UNLOCK_DEPTH),
+        silentLibrarianShowcase ? HEIGHT / 2 + 30 : 210,
+        Math.max(
+          playerRef.current.rooms,
+          silentLibrarianShowcase
+            ? SILENT_LIBRARIAN_UNLOCK_DEPTH
+            : MARGIN_SEVERER_UNLOCK_DEPTH,
+        ),
       );
       enemy.speed = 0;
       enemy.damage = 0;
       enemy.hp = 1_000_000;
       enemy.maxHp = enemy.hp;
-      enemy.patternPhase = "inscribe";
-      enemy.patternTimer = MARGIN_SEVERER_TELEGRAPH_SECONDS;
+      enemy.patternPhase = silentLibrarianShowcase ? "echoWindup" : "inscribe";
+      enemy.patternTimer = silentLibrarianShowcase
+        ? SILENT_LIBRARIAN_TELEGRAPH_SECONDS
+        : MARGIN_SEVERER_TELEGRAPH_SECONDS;
       enemy.patternTargetX = WIDTH / 2;
       enemy.patternTargetY = HEIGHT / 2 + 70;
       enemy.patternX = 1;
       enemy.patternY = 0;
       enemy.patternHit = false;
       enemy.moving = false;
+      if (silentLibrarianShowcase) {
+        playerRef.current.x = WIDTH * 0.18;
+        playerRef.current.y = HEIGHT * 0.54;
+        playerRef.current.fireCooldown = Number.POSITIVE_INFINITY;
+        inputRef.current.hasMoveTarget = false;
+      }
       world.enemies = [enemy];
       world.projectiles = [];
       world.roomCleared = false;
@@ -7299,11 +7314,20 @@ export default function GameCanvas({
             enemy.moving = false;
             enemy.walkCycle = 1;
             if ((enemy.patternTimer ?? 0) <= 0) {
-              enemy.patternPhase = "orbit";
-              enemy.patternTimer =
-                2.8 + hash(world.seed, enemy.id, player.rooms, player.kills + 10007) * 0.8;
+              const loopLocalSilentLibrarianShowcase =
+                enemyVfxShowcaseMode === "silent-librarian";
+              enemy.patternPhase = loopLocalSilentLibrarianShowcase
+                ? "echoWindup"
+                : "orbit";
+              enemy.patternTimer = loopLocalSilentLibrarianShowcase
+                ? SILENT_LIBRARIAN_TELEGRAPH_SECONDS
+                : 2.8 +
+                  hash(world.seed, enemy.id, player.rooms, player.kills + 10007) *
+                    0.8;
               enemy.patternHit = false;
-              enemy.strafeDirection = enemy.strafeDirection === -1 ? 1 : -1;
+              if (!loopLocalSilentLibrarianShowcase) {
+                enemy.strafeDirection = enemy.strafeDirection === -1 ? 1 : -1;
+              }
             }
           }
         } else {
