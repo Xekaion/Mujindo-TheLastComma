@@ -1,0 +1,28 @@
+{
+  "asset": "silent-librarian-echo-components-v3",
+  "generatedAt": "2026-08-14",
+  "tool": "image_gen.imagegen built-in",
+  "useCase": "stylized-concept",
+  "inputReferences": [
+    "public/assets/effects/silent-librarian-echo-v2.png",
+    "public/assets/walk/silent-librarian-walk-v2.png"
+  ],
+  "source": "asset-sources/imagegen/silent-librarian-echo-components-v3-source.png",
+  "chromaRemoval": {
+    "requestedKey": "#ff00ff",
+    "sampledKey": "#fa03f9",
+    "output": "asset-sources/imagegen/silent-librarian-echo-components-v3-keyed.png",
+    "helper": "$CODEX_HOME/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ]
+  },
+  "prompt": "Create a redesigned four-component sprite sheet for the Silent Librarian's forbidden-book echo wave in a 2D 3/4 top-down gothic ARPG. Use the current echo only as a motif reference and avoid its four simply scaled complete circles. Arrange an exact 2x2 grid on a perfectly flat solid #ff00ff chroma background: top-left a compact sealed forbidden book with tarnished bronze clasps, dirty vellum, black ink scars and sparse corpse-cyan runes; top-right the seal breaking open with crooked bronze quills, page slivers and a restrained ivory/cyan core; bottom-left one isolated open-ended curved travelling wave segment made from broken bronze book-spine pieces, ragged parchment ribbons, black ink and sparse runes; bottom-right a distinct shattered and dissipating open arc segment with vellum chips, ink splinters, bronze fragments and fading glyphs. Authentic pre-rendered early-2000s dark gothic dungeon ARPG sprite art, grimy, chunky, dithered and pixel-downsample friendly. Soot black, oxidized bronze, dirty vellum, dried-blood brown and only localized pale corpse-cyan emission. Every quadrant must have a genuinely different silhouette with generous crop-safe padding and no overlap. No readable text, logos, watermark, magenta in the subject, shadows, perfect neon circles, generic portals, smooth halos, glossy mobile-game VFX, sci-fi holograms, anime, or four size variants of one image."
+}

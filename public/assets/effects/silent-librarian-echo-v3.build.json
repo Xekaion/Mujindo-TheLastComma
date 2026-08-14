@@ -1,0 +1,144 @@
+{
+  "version": 3,
+  "format": "RGBA PNG",
+  "sheet": {
+    "columns": 2,
+    "rows": 2,
+    "size": [
+      1254,
+      1254
+    ]
+  },
+  "sourceOriginal": "asset-sources/imagegen/silent-librarian-echo-components-v3-source.png",
+  "sourceOriginalSha256": "c4b48dfcdef057046b605fb88016196fd462f10f81265e1eb938e89b98f662e6",
+  "sourceKeyed": "asset-sources/imagegen/silent-librarian-echo-components-v3-keyed.png",
+  "sourceKeyedSha256": "01a601307a781e6c9061f2af822341398b6156bbaef27436ce36bbe7dc76d7f9",
+  "promptMetadata": "asset-sources/imagegen/silent-librarian-echo-components-v3.prompt.json",
+  "promptMetadataSha256": "8dd2f832509696610893378c3ecdf304907072beb06c1f4843d8df771ec20240",
+  "output": "public/assets/effects/silent-librarian-echo-v3.png",
+  "outputSha256": "4ebbadb63fe954b64c169c144e7ba1e75f9a0ec8a4952db97a647e1057df9f22",
+  "pipeline": {
+    "cellPadding": 24,
+    "paletteSize": 47,
+    "alphaLevels": [
+      0,
+      48,
+      96,
+      144,
+      192,
+      224,
+      255
+    ],
+    "halfResolutionAuthoring": true
+  },
+  "frames": [
+    {
+      "index": 0,
+      "role": "sealed-forbidden-book",
+      "alphaBounds": [
+        118,
+        122,
+        509,
+        503
+      ],
+      "padding": [
+        118,
+        122,
+        118,
+        124
+      ],
+      "visiblePixels": 84395,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "pixelHash": "4023811bcf281e55356b861c3d5848ec5224321eee93ba706e2580d2777a5148"
+    },
+    {
+      "index": 1,
+      "role": "ruptured-forbidden-book",
+      "alphaBounds": [
+        60,
+        60,
+        565,
+        567
+      ],
+      "padding": [
+        60,
+        60,
+        62,
+        60
+      ],
+      "visiblePixels": 101601,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "pixelHash": "35c8d938b883878b738e93f7cb09db4ab01c9d73a61fc7150ec28d3b0e1f86b9"
+    },
+    {
+      "index": 2,
+      "role": "travelling-broken-arc",
+      "alphaBounds": [
+        96,
+        66,
+        531,
+        561
+      ],
+      "padding": [
+        96,
+        66,
+        96,
+        66
+      ],
+      "visiblePixels": 66304,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "pixelHash": "ce4d64467f9a1ff21f21afb4d2ed6d21619fe6ca2a9fffc765fe222ac9f203ca"
+    },
+    {
+      "index": 3,
+      "role": "dissipating-arc-fragments",
+      "alphaBounds": [
+        98,
+        48,
+        527,
+        581
+      ],
+      "padding": [
+        98,
+        48,
+        100,
+        46
+      ],
+      "visiblePixels": 30212,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "pixelHash": "eed817a82b81a88f7ced843d028727ef7727401d191ec7e9d404b7c336ae4543"
+    }
+  ]
+}

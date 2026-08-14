@@ -107,10 +107,13 @@ import {
   SILENT_LIBRARIAN_TELEGRAPH_SECONDS,
   SILENT_LIBRARIAN_UNLOCK_DEPTH,
   SILENT_LIBRARIAN_WAVE_SECONDS,
-  silentLibrarianWaveProgress,
   silentLibrarianWaveRadius,
   sweptEchoRingHits,
 } from "./silent-librarian";
+import {
+  SILENT_LIBRARIAN_ECHO_VFX_PATH,
+  drawSilentLibrarianEchoVfx,
+} from "./silent-librarian-vfx";
 import { fitSpriteFrameWithin } from "./sprite-frame";
 import { experienceRequiredForLevel } from "./progression";
 import {
@@ -4375,7 +4378,7 @@ export default function GameCanvas({
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
       marginSeverLine: "/assets/effects/margin-sever-line-v2.png",
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
-      silentLibrarianEcho: "/assets/effects/silent-librarian-echo-v2.png",
+      silentLibrarianEcho: SILENT_LIBRARIAN_ECHO_VFX_PATH,
       palimpsestArchivistPatterns:
         "/assets/effects/palimpsest-archivist-patterns-v1.png",
       inkboundMagistratePatterns:
@@ -8159,66 +8162,6 @@ export default function GameCanvas({
       return true;
     };
 
-    const drawSilentLibrarianEcho = (
-      image: HTMLImageElement | undefined,
-      enemy: Enemy,
-    ) => {
-      const phase = enemy.patternPhase;
-      if (phase !== "echoWindup" && phase !== "echoWave") return false;
-      const isWave = phase === "echoWave";
-      const progress = isWave
-        ? silentLibrarianWaveProgress(enemy.patternTimer ?? 0)
-        : clamp(
-            1 - (enemy.patternTimer ?? 0) / SILENT_LIBRARIAN_TELEGRAPH_SECONDS,
-            0,
-            0.999,
-          );
-      const radius = isWave
-        ? silentLibrarianWaveRadius(enemy.patternTimer ?? 0)
-        : 48 + progress * 28;
-      const frameIndex = isWave ? (progress < 0.82 ? 2 : 3) : progress < 0.56 ? 0 : 1;
-      const drawSize = isWave ? Math.max(128, radius * 2.18) : 150 + progress * 68;
-
-      context.save();
-      context.beginPath();
-      context.rect(
-        ROOM_GEOMETRY.left,
-        ROOM_GEOMETRY.top,
-        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
-        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
-      );
-      context.clip();
-      context.globalCompositeOperation = "source-over";
-      context.globalAlpha = isWave ? (frameIndex === 3 ? 0.72 : 0.94) : 0.58 + progress * 0.3;
-      context.shadowColor = "transparent";
-      context.shadowBlur = 0;
-      context.imageSmoothingEnabled = false;
-      if (image?.complete && image.naturalWidth && image.naturalHeight) {
-        const sourceWidth = image.naturalWidth / 2;
-        const sourceHeight = image.naturalHeight / 2;
-        context.drawImage(
-          image,
-          (frameIndex % 2) * sourceWidth,
-          Math.floor(frameIndex / 2) * sourceHeight,
-          sourceWidth,
-          sourceHeight,
-          enemy.x - drawSize / 2,
-          enemy.y - drawSize / 2,
-          drawSize,
-          drawSize,
-        );
-      }
-      context.strokeStyle = isWave ? "#c8fbff" : "#b89155";
-      context.lineWidth = isWave ? 3.5 : 2;
-      context.beginPath();
-      // This ring is the exact world-space collision boundary. Keep it circular;
-      // a perspective ellipse would teach a different dodge timing than the hit test.
-      context.arc(enemy.x, enemy.y, radius, 0, Math.PI * 2);
-      context.stroke();
-      context.restore();
-      return true;
-    };
-
     const drawFinalBinderPattern = (
       image: HTMLImageElement | undefined,
       enemy: Enemy,
@@ -9930,7 +9873,17 @@ export default function GameCanvas({
         } else if (enemy.kind === INKBOUND_MAGISTRATE_KIND) {
           drawInkboundMagistratePattern(images.inkboundMagistratePatterns, enemy);
         } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
-          drawSilentLibrarianEcho(images.silentLibrarianEcho, enemy);
+          drawSilentLibrarianEchoVfx({
+            context,
+            image: images.silentLibrarianEcho,
+            phase: enemy.patternPhase,
+            remainingSeconds: enemy.patternTimer ?? 0,
+            x: enemy.x,
+            y: enemy.y,
+            seed: enemy.id,
+            timeSeconds: ambientTime,
+            clipBounds: ROOM_GEOMETRY,
+          });
         }
       }
 

@@ -1713,7 +1713,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
     ["public/assets/effects/margin-sever-line-v2.png", [1254, 1254]],
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
-    ["public/assets/effects/silent-librarian-echo-v2.png", [1254, 1254]],
+    ["public/assets/effects/silent-librarian-echo-v3.png", [1254, 1254]],
     ["public/assets/effects/palimpsest-archivist-patterns-v1.png", [2048, 1024]],
     ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
@@ -2146,17 +2146,38 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   );
 });
 
-test("the Silent Librarian uses a bounded swept echo ring and production-safe atlases", async () => {
-  const [balance, source] = await Promise.all([
-    importTypeScriptModule("app/silent-librarian.ts"),
-    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
-  ]);
+test("the Silent Librarian uses authored fixed-size fragments instead of scaling one echo image", async () => {
+  const balanceUrl = await typeScriptModuleUrl("app/silent-librarian.ts");
+  const [balance, vfx, source, vfxSource, builderSource, buildText, promptText] =
+    await Promise.all([
+      import(balanceUrl),
+      importTypeScriptModule("app/silent-librarian-vfx.ts", {
+        "./silent-librarian": balanceUrl,
+      }),
+      readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+      readFile(path.join(root, "app/silent-librarian-vfx.ts"), "utf8"),
+      readFile(path.join(root, "scripts/build_silent_librarian_echo_v3.py"), "utf8"),
+      readFile(
+        path.join(root, "public/assets/effects/silent-librarian-echo-v3.build.json"),
+        "utf8",
+      ),
+      readFile(
+        path.join(
+          root,
+          "asset-sources/imagegen/silent-librarian-echo-components-v3.prompt.json",
+        ),
+        "utf8",
+      ),
+    ]);
   const walkPath = "public/assets/walk/silent-librarian-walk-v2.png";
-  const echoPath = "public/assets/effects/silent-librarian-echo-v2.png";
-  const [walk, echo] = await Promise.all([
+  const echoPath = "public/assets/effects/silent-librarian-echo-v3.png";
+  const buildReport = JSON.parse(buildText);
+  const promptMetadata = JSON.parse(promptText);
+  const [walk, echoBytes] = await Promise.all([
     readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
-    readFile(path.join(root, echoPath)).then((png) => decodeRgbaPng(png, echoPath)),
+    readFile(path.join(root, echoPath)),
   ]);
+  const echo = decodeRgbaPng(echoBytes, echoPath);
 
   assert.equal(balance.SILENT_LIBRARIAN_KIND, 10);
   assert.equal(balance.SILENT_LIBRARIAN_UNLOCK_DEPTH, 8);
@@ -2200,22 +2221,116 @@ test("the Silent Librarian uses a bounded swept echo ring and production-safe at
   for (let row = 0; row < 2; row += 1) {
     for (let column = 0; column < 2; column += 1) {
       const metrics = alphaCellMetrics(echo, column, row, 2, 2, `echo ${row},${column}`);
-      assert.ok(metrics.opaquePixels >= 1_000, "every echo frame needs visible authored pixels");
+      assert.ok(metrics.opaquePixels >= 20_000, "every echo component needs visible authored pixels");
       assert.ok(metrics.left >= 16 && metrics.right >= 16, "echo frames must not touch cell sides");
       assert.ok(metrics.top >= 16 && metrics.bottom >= 16, "echo frames must not touch cell edges");
     }
   }
   assert.equal(countGreenChromaPixels(echo), 0, `${echoPath} retains green-screen contamination`);
+  let remainingMagenta = 0;
+  const alphaLevels = new Set();
+  for (let index = 0; index < echo.pixels.length; index += 4) {
+    const red = echo.pixels[index];
+    const green = echo.pixels[index + 1];
+    const blue = echo.pixels[index + 2];
+    const alpha = echo.pixels[index + 3];
+    alphaLevels.add(alpha);
+    if (alpha > 8 && red > 180 && blue > 180 && green + 70 < Math.min(red, blue)) {
+      remainingMagenta += 1;
+    }
+  }
+  assert.equal(remainingMagenta, 0, `${echoPath} retains its ImageGen chroma key`);
+  assert.deepEqual([...alphaLevels].sort((left, right) => left - right), [
+    0,
+    48,
+    96,
+    144,
+    192,
+    224,
+    255,
+  ]);
+
+  assert.equal(vfx.SILENT_LIBRARIAN_ECHO_VFX_PATH, "/assets/effects/silent-librarian-echo-v3.png");
+  assert.equal(vfx.silentLibrarianEchoStampCount(44), 4);
+  assert.equal(vfx.silentLibrarianEchoStampCount(340), 24);
+  assert.equal(vfx.silentLibrarianWindupRadius(1), 44);
+  const openingLayout = vfx.silentLibrarianEchoStampLayout({
+    radius: 44,
+    progress: 0,
+    seed: 71,
+  });
+  const expandedLayout = vfx.silentLibrarianEchoStampLayout({
+    radius: 340,
+    progress: 1,
+    seed: 71,
+  });
+  assert.deepEqual(
+    openingLayout.map((stamp) => stamp.size),
+    expandedLayout.slice(0, openingLayout.length).map((stamp) => stamp.size),
+    "wave radius may change fragment positions and count, never fragment world size",
+  );
+  for (const stamp of [...openingLayout, ...expandedLayout]) {
+    assert.ok([70, 74, 78].includes(stamp.size), `unexpected radius-derived size ${stamp.size}`);
+    assert.equal(stamp.frameIndex, 2, "the travelling component must lead the wave");
+  }
+  const dissolvedLayout = vfx.silentLibrarianEchoStampLayout({
+    radius: 340,
+    progress: 1,
+    seed: 71,
+    dissolveProgress: 1,
+  });
+  assert.ok(
+    dissolvedLayout.every((stamp) => stamp.frameIndex === 3 && stamp.size <= 78),
+    "the authored fragment frame must replace the travelling arc without enlarging it",
+  );
+  assert.deepEqual(
+    vfx.silentLibrarianWindupBookPlan(0).map(({ size }) => size),
+    vfx.silentLibrarianWindupBookPlan(1).map(({ size }) => size),
+    "windup must crossfade authored book states at fixed sizes",
+  );
+
+  assert.equal(buildReport.version, 3);
+  assert.deepEqual(buildReport.sheet, { columns: 2, rows: 2, size: [1254, 1254] });
+  assert.deepEqual(
+    buildReport.frames.map(({ role }) => role),
+    [
+      "sealed-forbidden-book",
+      "ruptured-forbidden-book",
+      "travelling-broken-arc",
+      "dissipating-arc-fragments",
+    ],
+  );
+  assert.equal(new Set(buildReport.frames.map(({ pixelHash }) => pixelHash)).size, 4);
+  assert.equal(
+    createHash("sha256").update(echoBytes).digest("hex"),
+    buildReport.outputSha256,
+  );
+  for (const [relativePath, expectedHash] of [
+    [buildReport.sourceOriginal, buildReport.sourceOriginalSha256],
+    [buildReport.sourceKeyed, buildReport.sourceKeyedSha256],
+    [buildReport.promptMetadata, buildReport.promptMetadataSha256],
+  ]) {
+    const bytes = await readFile(path.join(root, relativePath));
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), expectedHash, relativePath);
+  }
+  assert.equal(promptMetadata.tool, "image_gen.imagegen built-in");
+  assert.match(promptMetadata.prompt, /avoid its four simply scaled complete circles/i);
+  assert.match(builderSource, /travelling-broken-arc/);
+  assert.match(builderSource, /dissipating-arc-fragments/);
 
   assert.match(source, /walkSilentLibrarian:\s*["']\/assets\/walk\/silent-librarian-walk-v2\.png["']/);
-  assert.match(source, /silentLibrarianEcho:\s*["']\/assets\/effects\/silent-librarian-echo-v2\.png["']/);
-  const rendererStart = source.indexOf("const drawSilentLibrarianEcho = (");
-  const rendererEnd = source.indexOf("const drawFinalBinderPattern = (", rendererStart);
-  const renderer = source.slice(rendererStart, rendererEnd);
-  assert.match(renderer, /context\.globalCompositeOperation = ["']source-over["']/);
-  assert.match(renderer, /context\.imageSmoothingEnabled = false/);
-  assert.match(renderer, /context\.shadowBlur = 0/);
-  assert.doesNotMatch(renderer, /context\.globalCompositeOperation = ["']lighter["']/);
+  assert.match(source, /silentLibrarianEcho:\s*SILENT_LIBRARIAN_ECHO_VFX_PATH/);
+  assert.match(source, /drawSilentLibrarianEchoVfx\(\{/);
+  assert.match(vfxSource, /context\.globalCompositeOperation = ["']source-over["']/);
+  assert.match(vfxSource, /context\.imageSmoothingEnabled = false/);
+  assert.match(vfxSource, /context\.shadowBlur = 0/);
+  assert.match(vfxSource, /for \(const stamp of stamps\)/);
+  assert.match(vfxSource, /size:\s*70 \+ sizeStep \* 4/);
+  assert.doesNotMatch(vfxSource, /drawSize|radius\s*\*\s*2\.18/);
+  assert.doesNotMatch(vfxSource, /context\.globalCompositeOperation = ["']lighter["']/);
+  const floorDrawIndex = source.indexOf("drawSilentLibrarianEchoVfx({");
+  const actorDrawIndex = source.indexOf("const sortedEnemies = [...world.enemies]", floorDrawIndex);
+  assert.ok(floorDrawIndex >= 0 && actorDrawIndex > floorDrawIndex);
   assert.match(source, /enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,5000}?sweptEchoRingHits/);
   assert.match(source, /silentLibrarianCount >= SILENT_LIBRARIAN_MAX_PER_ROOM/);
   assert.match(source, /enemy\.kind !== SILENT_LIBRARIAN_KIND/);
