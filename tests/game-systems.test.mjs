@@ -2650,6 +2650,27 @@ test("the Margin Severer uses eight aspect-safe authored sever stages instead of
   assert.ok(Math.abs(layout.width / 768 - layout.height / 160) < 1e-12);
   assert.ok(Math.abs(layout.width * (728 / 768) - balance.MARGIN_SEVERER_LINE_LENGTH) < 1e-9);
   assert.ok(layout.height > 110 && layout.height < 116, "the native wide cell should stay legible");
+  const inscribeGlowStart = vfx.marginSeverVfxGlowStyle("inscribe", 0);
+  const inscribeGlowPeak = vfx.marginSeverVfxGlowStyle("inscribe", 0.999);
+  const severGlowPeak = vfx.marginSeverVfxGlowStyle("sever", 0.4);
+  const severGlowDissolve = vfx.marginSeverVfxGlowStyle("sever", 0.999);
+  assert.equal(inscribeGlowStart.color, "#f2c36f");
+  assert.equal(severGlowPeak.color, "#ddfbff");
+  assert.ok(inscribeGlowPeak.blur > inscribeGlowStart.blur);
+  assert.ok(inscribeGlowPeak.alpha > inscribeGlowStart.alpha);
+  assert.ok(severGlowPeak.blur > inscribeGlowPeak.blur);
+  assert.ok(severGlowPeak.alpha > inscribeGlowPeak.alpha);
+  assert.ok(severGlowDissolve.blur < severGlowPeak.blur);
+  assert.ok(severGlowDissolve.alpha < severGlowPeak.alpha);
+  for (const style of [
+    inscribeGlowStart,
+    inscribeGlowPeak,
+    severGlowPeak,
+    severGlowDissolve,
+  ]) {
+    assert.ok(Number.isFinite(style.blur) && style.blur > 0);
+    assert.ok(Number.isFinite(style.alpha) && style.alpha > 0 && style.alpha < 1);
+  }
 
   assert.deepEqual(buildReport.sheet, {
     columns: 2,
@@ -2689,11 +2710,24 @@ test("the Margin Severer uses eight aspect-safe authored sever stages instead of
   const renderer = source.slice(rendererStart, rendererEnd);
   assert.match(renderer, /marginSeverVfxFrameIndex\(phase, progress\)/);
   assert.match(renderer, /const vfxLayout = marginSeverVfxLayout\(lineLength\);/);
+  assert.match(renderer, /const glowStyle = marginSeverVfxGlowStyle\(phase, progress\);/);
   assert.match(renderer, /const sourceWidth = image\.naturalWidth \/ MARGIN_SEVERER_VFX_COLUMNS;/);
   assert.match(renderer, /const sourceHeight = image\.naturalHeight \/ MARGIN_SEVERER_VFX_ROWS;/);
-  assert.match(renderer, /context\.globalCompositeOperation = ["']source-over["']/);
   assert.match(renderer, /context\.imageSmoothingEnabled = false/);
-  assert.match(renderer, /context\.shadowBlur = 0/);
+  const texturePassIndex = renderer.indexOf('context.globalCompositeOperation = "source-over";');
+  const glowPassIndex = renderer.indexOf('context.globalCompositeOperation = "lighter";');
+  assert.ok(texturePassIndex >= 0 && glowPassIndex > texturePassIndex);
+  assert.match(renderer, /context\.shadowColor = ["']transparent["'];\s*context\.shadowBlur = 0;\s*drawFrame\(\);/);
+  assert.match(
+    renderer,
+    /context\.globalAlpha = alpha \* glowStyle\.alpha;\s*context\.globalCompositeOperation = ["']lighter["'];\s*context\.shadowColor = glowStyle\.color;\s*context\.shadowBlur = glowStyle\.blur;/,
+  );
+  assert.match(renderer, /context\.shadowOffsetX = 0;\s*context\.shadowOffsetY = 0;/);
+  assert.equal(
+    (renderer.match(/drawFrame\(\);/g) ?? []).length,
+    2,
+    "the authored texture and additive glow must share the exact same frame geometry",
+  );
   assert.doesNotMatch(renderer, /lineHeight|progress < 0\.88|atlasDrawWidth/);
   assert.match(
     renderer,

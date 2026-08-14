@@ -104,6 +104,7 @@ import {
   MARGIN_SEVERER_VFX_PATH,
   MARGIN_SEVERER_VFX_ROWS,
   marginSeverVfxFrameIndex,
+  marginSeverVfxGlowStyle,
   marginSeverVfxLayout,
 } from "./margin-severer-vfx";
 import {
@@ -8276,6 +8277,7 @@ export default function GameCanvas({
       // Both destination axes use one uniform scale so the effect can never be
       // flattened into a long, static-looking bitmap again.
       const vfxLayout = marginSeverVfxLayout(lineLength);
+      const glowStyle = marginSeverVfxGlowStyle(phase, progress);
       const alpha =
         phase === "inscribe"
           ? 0.45 + progress * 0.42
@@ -8294,10 +8296,6 @@ export default function GameCanvas({
       context.clip();
       context.translate(centerX, centerY);
       context.rotate(lineAngle);
-      context.globalAlpha = alpha;
-      context.globalCompositeOperation = "source-over";
-      context.shadowColor = "transparent";
-      context.shadowBlur = 0;
       context.imageSmoothingEnabled = false;
 
       if (image?.complete && image.naturalWidth && image.naturalHeight) {
@@ -8305,18 +8303,41 @@ export default function GameCanvas({
         const sourceHeight = image.naturalHeight / MARGIN_SEVERER_VFX_ROWS;
         const column = frameIndex % MARGIN_SEVERER_VFX_COLUMNS;
         const row = Math.floor(frameIndex / MARGIN_SEVERER_VFX_COLUMNS);
-        context.drawImage(
-          image,
-          column * sourceWidth,
-          row * sourceHeight,
-          sourceWidth,
-          sourceHeight,
-          -vfxLayout.width / 2,
-          -vfxLayout.height / 2,
-          vfxLayout.width,
-          vfxLayout.height,
-        );
+        const drawFrame = () => {
+          context.drawImage(
+            image,
+            column * sourceWidth,
+            row * sourceHeight,
+            sourceWidth,
+            sourceHeight,
+            -vfxLayout.width / 2,
+            -vfxLayout.height / 2,
+            vfxLayout.width,
+            vfxLayout.height,
+          );
+        };
+
+        // Preserve the authored bronze, vellum, and ink texture first. A second
+        // additive pass brightens its hot pixels and casts a phase-colored halo
+        // without replacing the animation with a flat neon line.
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-over";
+        context.shadowColor = "transparent";
+        context.shadowBlur = 0;
+        drawFrame();
+
+        context.globalAlpha = alpha * glowStyle.alpha;
+        context.globalCompositeOperation = "lighter";
+        context.shadowColor = glowStyle.color;
+        context.shadowBlur = glowStyle.blur;
+        context.shadowOffsetX = 0;
+        context.shadowOffsetY = 0;
+        drawFrame();
       } else {
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "lighter";
+        context.shadowColor = glowStyle.color;
+        context.shadowBlur = glowStyle.blur;
         context.strokeStyle = phase === "sever" ? "#c8fbff" : "#cf4b59";
         context.lineWidth = phase === "sever" ? 5 : 2;
         context.beginPath();

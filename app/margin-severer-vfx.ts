@@ -10,6 +10,12 @@ export const MARGIN_SEVERER_VFX_ENDPOINT_SPAN_RATIO = 728 / 768;
 
 export type MarginSeverVfxPhase = "inscribe" | "sever";
 
+export type MarginSeverVfxGlowStyle = Readonly<{
+  color: string;
+  blur: number;
+  alpha: number;
+}>;
+
 const clampProgress = (progress: number) =>
   Math.max(0, Math.min(0.999999, Number.isFinite(progress) ? progress : 0));
 
@@ -21,6 +27,34 @@ export const marginSeverVfxFrameIndex = (
   return phase === "inscribe"
     ? Math.min(2, Math.floor(safeProgress * 3))
     : 3 + Math.min(4, Math.floor(safeProgress * 5));
+};
+
+/**
+ * Keeps the engraved bronze warning readable before the cut, then blooms into
+ * a colder ivory edge during the sever itself. The final authored dissolve
+ * deliberately sheds part of the halo instead of popping off in one frame.
+ */
+export const marginSeverVfxGlowStyle = (
+  phase: MarginSeverVfxPhase,
+  progress: number,
+): MarginSeverVfxGlowStyle => {
+  const safeProgress = clampProgress(progress);
+  if (phase === "inscribe") {
+    return {
+      color: "#f2c36f",
+      blur: 9 + safeProgress * 7,
+      alpha: 0.2 + safeProgress * 0.18,
+    };
+  }
+
+  const dissolve = safeProgress <= 0.8
+    ? 1
+    : Math.max(0, 1 - (safeProgress - 0.8) / 0.2);
+  return {
+    color: "#ddfbff",
+    blur: 12 + dissolve * 10,
+    alpha: 0.28 + dissolve * 0.24,
+  };
 };
 
 /**
