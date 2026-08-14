@@ -15,7 +15,10 @@ import {
   type GameAudioCue,
   type GameAudioSettings,
 } from "./game-audio";
-import { isLocalRoomDoorShowcaseHost } from "./room-door-showcase";
+import {
+  ROOM_DOOR_SHOWCASE_ROOMS,
+  isLocalRoomDoorShowcaseHost,
+} from "./room-door-showcase";
 
 type GameAudioProviderProps = {
   children: ReactNode;
@@ -33,26 +36,59 @@ const isGameAudioCue = (value: string): value is GameAudioCue =>
 
 const percent = (value: number) => Math.round(value * 100);
 
-const subscribeToRoomDoorShowcaseLocation = () => () => undefined;
-const roomDoorShowcaseBrowserSnapshot = () =>
-  isLocalRoomDoorShowcaseHost(window.location.host) &&
-  new URLSearchParams(window.location.search).has("roomDoorShowcase");
-const roomDoorShowcaseServerSnapshot = () => false;
+const LOCAL_LOOT_VFX_SHOWCASE_MODES = new Set([
+  "common",
+  "magic",
+  "superior",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
+  "cosmic",
+  "all",
+]);
+const LOCAL_ENEMY_VFX_SHOWCASE_MODES = new Set([
+  "margin-severer",
+  "silent-librarian",
+]);
+const LOCAL_SHOWCASE_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+]);
+
+const subscribeToLocalShowcaseLocation = () => () => undefined;
+const localShowcaseBrowserSnapshot = () => {
+  const isLocalHost =
+    isLocalRoomDoorShowcaseHost(window.location.host) ||
+    LOCAL_SHOWCASE_HOSTNAMES.has(window.location.hostname.toLowerCase());
+  if (!isLocalHost) return false;
+
+  const search = new URLSearchParams(window.location.search);
+  const lootMode = search.get("lootVfxShowcase");
+  const enemyMode = search.get("enemyVfxShowcase");
+  const roomMode = search.get("roomDoorShowcase");
+  return (
+    (lootMode !== null && LOCAL_LOOT_VFX_SHOWCASE_MODES.has(lootMode)) ||
+    (enemyMode !== null && LOCAL_ENEMY_VFX_SHOWCASE_MODES.has(enemyMode)) ||
+    search.get("plazaMotionShowcase") === "1" ||
+    (roomMode !== null && ROOM_DOOR_SHOWCASE_ROOMS.some((room) => room === roomMode))
+  );
+};
+const localShowcaseServerSnapshot = () => false;
 
 export default function GameAudioProvider({ children }: GameAudioProviderProps) {
   const [settings, setSettings] = useState<GameAudioSettings>(FALLBACK_SETTINGS);
   const [panelOpen, setPanelOpen] = useState(false);
-  const roomDoorShowcaseBypass = useSyncExternalStore(
-    subscribeToRoomDoorShowcaseLocation,
-    roomDoorShowcaseBrowserSnapshot,
-    roomDoorShowcaseServerSnapshot,
+  const localShowcaseBypass = useSyncExternalStore(
+    subscribeToLocalShowcaseLocation,
+    localShowcaseBrowserSnapshot,
+    localShowcaseServerSnapshot,
   );
 
   useEffect(() => {
-    const isRoomDoorShowcase =
-      isLocalRoomDoorShowcaseHost(window.location.host) &&
-      new URLSearchParams(window.location.search).has("roomDoorShowcase");
-    if (isRoomDoorShowcase) return undefined;
+    if (localShowcaseBrowserSnapshot()) return undefined;
 
     const audio = getGameAudio();
     const unsubscribe = audio.subscribe(setSettings);
@@ -90,7 +126,7 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
       document.removeEventListener("keydown", unlock, { capture: true });
       document.removeEventListener("click", handleGlobalClick);
     };
-  }, []);
+  }, [localShowcaseBypass]);
 
   const updateVolume =
     (key: "musicVolume" | "sfxVolume") =>
@@ -100,7 +136,7 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
 
   const musicActive = !settings.musicMuted && settings.musicVolume > 0;
 
-  if (roomDoorShowcaseBypass) return <>{children}</>;
+  if (localShowcaseBypass) return <>{children}</>;
 
   return (
     <>

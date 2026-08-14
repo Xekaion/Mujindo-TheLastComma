@@ -5452,7 +5452,7 @@ test("enemy bodies, teleports, summons, and death loot stay on the walkable room
   );
   assert.match(
     source,
-    /const safePosition = safeWalkableFloorPoint\([\s\S]{0,180}?GEAR_DROP_WALL_CLEARANCE[\s\S]{0,320}?x: safePosition\.x,[\s\S]{0,80}?y: safePosition\.y[\s\S]{0,220}?spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity\)/,
+    /const safePosition = safeWalkableFloorPoint\([\s\S]{0,180}?GEAR_DROP_WALL_CLEARANCE[\s\S]{0,320}?x: safePosition\.x,[\s\S]{0,80}?y: safePosition\.y[\s\S]{0,220}?spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity, false\)/,
     "the local VFX showcase must preserve the same GearDrop invariant",
   );
 });
@@ -7986,6 +7986,180 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
   }
 });
 
+test("epic persistent pillar V4 preserves ImageGen provenance, safe headroom, and tapered tips", async () => {
+  const generatedPath = "asset-sources/imagegen/loot-pillar-epic-v4-source.png";
+  const keyedPath = "asset-sources/imagegen/loot-pillar-epic-v4-keyed.png";
+  const promptPath = "asset-sources/imagegen/loot-pillar-epic-v4.prompt.json";
+  const builderPath = "scripts/build_loot_pillar_epic_v4.py";
+  const assetPath = "public/assets/effects/loot-pillar-epic-v4.png";
+  const manifestPath = "public/assets/effects/loot-pillar-epic-v4.build.json";
+  const [generated, keyed, promptBytes, builder, png, manifestText] =
+    await Promise.all([
+      readFile(path.join(root, generatedPath)),
+      readFile(path.join(root, keyedPath)),
+      readFile(path.join(root, promptPath)),
+      readFile(path.join(root, builderPath), "utf8"),
+      readFile(path.join(root, assetPath)),
+      readFile(path.join(root, manifestPath), "utf8"),
+    ]);
+  const promptMetadata = JSON.parse(promptBytes.toString("utf8"));
+  const manifest = JSON.parse(manifestText);
+  const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+  assert.equal(manifest.version, 4);
+  assert.equal(manifest.builder, builderPath);
+  assert.equal(manifest.format, "rgba-png");
+  assert.deepEqual(manifest.atlas, {
+    columns: 4,
+    rows: 1,
+    cell: [256, 512],
+    size: [1024, 512],
+  });
+  assert.deepEqual(
+    {
+      generated: manifest.source.generated.path,
+      keyed: manifest.source.keyed.path,
+      prompt: manifest.source.promptMetadata.path,
+    },
+    { generated: generatedPath, keyed: keyedPath, prompt: promptPath },
+    "epic V4 must retain all checked-in ImageGen provenance paths",
+  );
+  for (const [label, record, bytes] of [
+    ["generated", manifest.source.generated, generated],
+    ["keyed", manifest.source.keyed, keyed],
+    ["prompt metadata", manifest.source.promptMetadata, promptBytes],
+  ]) {
+    assert.equal(record.sha256, sha256(bytes), `epic V4 ${label} provenance hash drifted`);
+  }
+  const promptText = JSON.stringify(promptMetadata);
+  assert.match(promptText, /(?:purple|violet)/i, "epic V4 prompt must preserve its violet identity");
+  assert.match(promptText, /(?:four|4)[^]{0,80}(?:frame|cell)|(?:frame|cell)[^]{0,80}(?:four|4)/i);
+  assert.match(promptText, /(?:clip|crop|headroom|gutter|padding)/i);
+
+  assert.match(builder, /loot-pillar-epic-v4-source\.png/);
+  assert.match(builder, /loot-pillar-epic-v4-keyed\.png/);
+  assert.match(builder, /loot-pillar-epic-v4\.prompt\.json/);
+  assert.match(builder, /loot-pillar-epic-v4\.png/);
+  assert.match(builder, /loot-pillar-epic-v4\.build\.json/);
+  assert.match(builder, /VISIBLE_ALPHA_THRESHOLD\s*=\s*64|visibleAlphaThreshold/);
+  assert.match(builder, /TARGET_FLARE_Y\s*=\s*475|targetFlareY/);
+
+  assert.equal(manifest.output.path, assetPath);
+  assert.equal(manifest.output.bytes, png.byteLength);
+  assert.equal(manifest.output.sha256, sha256(png));
+  assert.equal(manifest.output.transparentRgbLeak, 0);
+  const expectedGroundAnchor = Math.round((475 / 512) * 10_000) / 10_000;
+  assert.equal(expectedGroundAnchor, 0.9277);
+  assert.equal(manifest.output.groundAnchor, expectedGroundAnchor);
+  assert.equal(manifest.frames.length, 4);
+
+  const image = decodeRgbaPng(png, assetPath);
+  assert.deepEqual([image.width, image.height], [1024, 512]);
+  let transparentRgbLeak = 0;
+  for (let offset = 0; offset < image.pixels.length; offset += 4) {
+    if (
+      image.pixels[offset + 3] === 0 &&
+      (image.pixels[offset] !== 0 ||
+        image.pixels[offset + 1] !== 0 ||
+        image.pixels[offset + 2] !== 0)
+    ) {
+      transparentRgbLeak += 1;
+    }
+  }
+  assert.equal(transparentRgbLeak, 0, "epic V4 must not retain RGB under zero alpha");
+
+  const frameHashes = [];
+  for (let column = 0; column < 4; column += 1) {
+    const label = `epic V4 persistent pillar frame ${column}`;
+    const cellLeft = column * 256;
+    const rowRuns = [];
+    let firstVisibleY = -1;
+    let lastVisibleY = -1;
+    let firstVisibleX = 256;
+    let lastVisibleX = -1;
+    let visiblePixels = 0;
+    let brightPixels = 0;
+    let whiteCorePixels = 0;
+    let purplePixels = 0;
+    const rowEnergy = new Float64Array(512);
+
+    for (let y = 0; y < 512; y += 1) {
+      let currentRun = 0;
+      let maximumRun = 0;
+      for (let localX = 0; localX < 256; localX += 1) {
+        const offset = (y * image.width + cellLeft + localX) * 4;
+        const red = image.pixels[offset];
+        const green = image.pixels[offset + 1];
+        const blue = image.pixels[offset + 2];
+        const alpha = image.pixels[offset + 3];
+        if (alpha < 64) {
+          currentRun = 0;
+          continue;
+        }
+        currentRun += 1;
+        maximumRun = Math.max(maximumRun, currentRun);
+        visiblePixels += 1;
+        if (firstVisibleY < 0) firstVisibleY = y;
+        lastVisibleY = y;
+        firstVisibleX = Math.min(firstVisibleX, localX);
+        lastVisibleX = Math.max(lastVisibleX, localX);
+        const luminance = red * 0.299 + green * 0.587 + blue * 0.114;
+        rowEnergy[y] += luminance * alpha;
+        if (luminance >= 205) brightPixels += 1;
+        const { hue, saturation, value } = rgbToHsv(red, green, blue);
+        if (saturation <= 0.18 && value >= 0.82) whiteCorePixels += 1;
+        if (hue >= 255 && hue <= 325 && saturation >= 0.25 && value >= 0.3) {
+          purplePixels += 1;
+        }
+      }
+      rowRuns.push(maximumRun);
+    }
+
+    assert.ok(visiblePixels >= 100, `${label} is effectively empty`);
+    assert.ok(firstVisibleY >= 24, `${label} needs at least 24px of strong-alpha headroom`);
+    assert.ok(511 - lastVisibleY >= 8, `${label} needs at least 8px of bottom padding`);
+    assert.ok(
+      rowRuns[firstVisibleY] <= 4,
+      `${label} starts with a ${rowRuns[firstVisibleY]}px flat cap instead of a tapered tip`,
+    );
+    const firstTwentyFourRuns = rowRuns.slice(firstVisibleY, firstVisibleY + 24);
+    for (let offset = 0; offset <= firstTwentyFourRuns.length - 4; offset += 1) {
+      const plateau = firstTwentyFourRuns.slice(offset, offset + 4);
+      assert.ok(
+        Math.min(...plateau) < 12 || Math.max(...plateau) - Math.min(...plateau) > 2,
+        `${label} has a wide flat ${plateau.join("/")}px plateau near its tip`,
+      );
+    }
+
+    let measuredFlareY = Math.ceil(512 * 0.72);
+    for (let y = measuredFlareY + 1; y < 512; y += 1) {
+      if (rowEnergy[y] > rowEnergy[measuredFlareY]) measuredFlareY = y;
+    }
+    assert.equal(measuredFlareY, 475, `${label} floor flare moved off its authored anchor`);
+    assert.equal(manifest.frames[column].index, column);
+    assert.equal(manifest.frames[column].flareY, 475);
+    assert.deepEqual(
+      manifest.frames[column].padding,
+      [
+        firstVisibleX,
+        firstVisibleY,
+        255 - lastVisibleX,
+        511 - lastVisibleY,
+      ],
+      `${label} build report padding must match the checked-in PNG`,
+    );
+    assert.ok(brightPixels / visiblePixels >= 0.1, `${label} needs a bright flashing core`);
+    assert.ok(whiteCorePixels / visiblePixels >= 0.015, `${label} needs an ivory-white core`);
+    assert.ok(purplePixels / visiblePixels >= 0.18, `${label} must read as purple/violet`);
+
+    const frame = rgbaCellBuffer(image, column, 0, 4, 1, label);
+    const frameHash = sha256(frame);
+    frameHashes.push(frameHash);
+    assert.equal(manifest.frames[column].pixelHash, frameHash);
+  }
+  assert.equal(new Set(frameHashes).size, 4, "epic V4 must contain four distinct loop frames");
+});
+
 test("rare persistent pillar V4 keeps authored gold, white, and cyan detail without flattening", async () => {
   const assetPath = "public/assets/effects/loot-pillar-rare-v4.png";
   const manifestPath = "public/assets/effects/loot-pillar-rare-v4.build.json";
@@ -8165,7 +8339,11 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   );
   for (const rarity of rarities) {
     const assetSuffix =
-      rarity === "rare" ? "v4\\.png\\?v=1b0d7f07" : "v3\\.png";
+      rarity === "rare"
+        ? "v4\\.png\\?v=1b0d7f07"
+        : rarity === "epic"
+          ? "v4\\.png(?:\\?v=[a-f0-9]+)?"
+          : "v3\\.png";
     assert.match(
       rarityBlocks[rarity],
       new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-${assetSuffix}["']`),
@@ -8177,6 +8355,11 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
       `${rarity} must use its authored persistent-pillar blend mode`,
     );
   }
+  assert.doesNotMatch(
+    rarityBlocks.epic,
+    /loot-pillar-epic-v3\.png/,
+    "epic must not regress to the source-clipped V3 pillar",
+  );
   assert.match(source, /imagePaths\[config\.pillarImageKey\]\s*=\s*config\.pillarImagePath/);
 
   const drawStart = source.lastIndexOf("for (const drop of world.gearDrops)");
@@ -8440,9 +8623,10 @@ test("loot-awakening capacity preserves rare arrivals instead of letting common 
 });
 
 test("the field-loot showcase is localhost-only, memory-only, and uses production drops", async () => {
-  const [source, entrySource] = await Promise.all([
+  const [source, entrySource, audioProvider] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameAudioProvider.tsx"), "utf8"),
   ]);
   assert.match(
     source,
@@ -8483,6 +8667,21 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   assert.match(entrySource, /readShopEntitlements\(null\)/);
   assert.match(source, /readShopEntitlements\(null\)/);
 
+  const providerAudioAccess = audioProvider.indexOf("const audio = getGameAudio()");
+  const providerLootQuery = audioProvider.lastIndexOf("lootVfxShowcase", providerAudioAccess);
+  const providerBypassReturn = audioProvider.lastIndexOf("return undefined", providerAudioAccess);
+  assert.ok(providerAudioAccess >= 0, "the global audio provider initialization is missing");
+  assert.ok(
+    providerLootQuery >= 0 &&
+      providerLootQuery < providerBypassReturn &&
+      providerBypassReturn < providerAudioAccess,
+    "the localhost loot-VFX query must bypass audio hydration before getGameAudio/initialize can touch storage",
+  );
+  assert.match(
+    audioProvider.slice(audioProvider.lastIndexOf("useEffect(() =>", providerAudioAccess), providerAudioAccess),
+    /if \(localShowcaseBrowserSnapshot\(\)\) return undefined;/,
+  );
+
   const showcase = source.match(
     /const spawnLocalLootVfxShowcase = \(\) => \{[\s\S]*?(?=\n\s*const spawnCombatEffect)/,
   );
@@ -8510,13 +8709,34 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   );
   assert.match(
     showcase[0],
-    /spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity\)/,
+    /spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity, false\)/,
+    "the production awakening path must run silently in the storage-isolated showcase",
   );
   assert.doesNotMatch(
     showcase[0],
     /localStorage|sessionStorage|loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave/,
   );
   assert.match(source, /const loop = \(now: number\) => \{[\s\S]{0,140}?spawnLocalLootVfxShowcase\(\)/);
+
+  const awakening = source.match(
+    /const spawnLootAwakening = \([\s\S]*?(?=\n\s*const spawnLocalLootVfxShowcase)/,
+  );
+  assert.ok(awakening, "spawnLootAwakening is missing");
+  assert.match(
+    awakening[0],
+    /rarity:\s*GearItem\["rarity"\],[\s\S]{0,80}?playSound\s*=\s*true/,
+    "normal drops must retain rarity SFX by default",
+  );
+  assert.match(
+    awakening[0],
+    /if \(playSound\) playGearRaritySfx\(rarity\)/,
+    "rarity SFX must honor the explicit silent-showcase flag",
+  );
+  assert.match(
+    showcase[0],
+    /spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity, false\)/,
+    "the memory-only loot showcase must not hydrate audio settings through rarity SFX",
+  );
 
   assert.match(
     source,

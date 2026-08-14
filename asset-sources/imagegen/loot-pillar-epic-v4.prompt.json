@@ -1,0 +1,45 @@
+{
+  "asset": "loot-pillar-epic-v4",
+  "generatedAt": "2026-08-15",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "production 2D ARPG persistent heroic-tier loot-pillar four-frame sprite sheet",
+  "useCases": {
+    "edit": "precise-object-edit",
+    "backgroundExtraction": "background-extraction"
+  },
+  "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent heroic-tier loot-pillar four-frame sprite sheet\nInput image: Image 1 is the edit target and visual source of truth.\nPrimary request: Repair only the visibly cut-off upper tips of all four violet loot-pillar frames. Reconstruct each central white-magenta beam and surrounding purple flame so it narrows continuously into a natural sharp luminous tip, with generous clear headroom above it. The result must no longer end in a blunt flat horizontal cut.\nComposition: preserve an exact four-column horizontal sprite sheet, one distinct animation frame per equal cell, same left-to-right temporal order, same floor-contact flare position, same approximate width and overall scale in every frame. Keep every effect fully contained inside its own cell with at least 24 px of empty headroom at final 1024x512 scale.\nStyle: gothic early-2000s Diablo-like painted 2D VFX, saturated violet and purple flame, white-hot magenta core, crystalline spark accents, textured translucent gaps.\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for later removal, one uniform color with no gradients, shadows, texture, floor plane, or lighting variation. Do not use #00ff00 in the effect.\nConstraints: change only the missing/clipped upper termination and necessary headroom; preserve the four lower bodies, floor bursts, color identity, brightness, frame differences, and consistent ground anchor. No text, item, character, border, grid line, watermark, frame overlap, clipping, cropped tips, flat-topped beams, or image stretching.",
+  "referenceInput": {
+    "path": "public/assets/effects/loot-pillar-epic-v3.png",
+    "role": "edit target and visual source of truth"
+  },
+  "outputs": {
+    "builtInOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-275f340f-ba4b-4e3d-9d0d-ed0067c3904b.png",
+    "generatedSource": "asset-sources/imagegen/loot-pillar-epic-v4-source.png",
+    "keyedSource": "asset-sources/imagegen/loot-pillar-epic-v4-keyed.png"
+  },
+  "productionContract": {
+    "atlas": {
+      "columns": 4,
+      "rows": 1,
+      "cell": [
+        256,
+        512
+      ]
+    },
+    "targetFlareY": 475,
+    "targetLowerEnergyCentroidX": 128,
+    "topPaddingAtAlpha64": 24,
+    "bottomPaddingAtAlpha64": 8,
+    "colourPolicy": "Preserve the authored violet, purple, magenta and white texture. Re-map only residual green/cyan chroma-key spill into the surrounding violet family; never flatten RGB to a scalar ramp.",
+    "alphaPolicy": "Preserve continuous authored alpha through premultiplied-alpha resizing, clear alpha values below 8, and clear RGB beneath fully transparent pixels."
+  },
+  "chromaRemoval": {
+    "tool": "imagegen/scripts/remove_chroma_key.py",
+    "autoKey": "border",
+    "detectedKey": "#10f009",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "despill": true
+  }
+}

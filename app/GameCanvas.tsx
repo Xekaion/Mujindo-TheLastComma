@@ -765,7 +765,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     imageKey: "lootAwakeningEpic",
     imagePath: "/assets/effects/loot-awakening-epic-v5.png",
     pillarImageKey: "lootPillarEpic",
-    pillarImagePath: "/assets/effects/loot-pillar-epic-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-epic-v4.png",
     arrivalPattern: "reverseVortex",
     beamHeight: 132,
     beamWidth: 16,
@@ -4956,6 +4956,7 @@ export default function GameCanvas({
       x: number,
       y: number,
       rarity: GearItem["rarity"],
+      playSound = true,
     ) => {
       const world = worldRef.current;
       const activeLootEffects = world.effects.filter(
@@ -4989,7 +4990,7 @@ export default function GameCanvas({
         color: GEAR_RARITY_META[rarity].color,
         rarity,
       });
-      playGearRaritySfx(rarity);
+      if (playSound) playGearRaritySfx(rarity);
     };
 
     const spawnLocalLootVfxShowcase = () => {
@@ -5045,7 +5046,7 @@ export default function GameCanvas({
           pickupDelay: Number.POSITIVE_INFINITY,
           appearanceAge: 0,
         });
-        spawnLootAwakening(safePosition.x, safePosition.y, rarity);
+        spawnLootAwakening(safePosition.x, safePosition.y, rarity, false);
       }
     };
 

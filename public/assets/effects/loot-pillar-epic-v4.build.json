@@ -1,0 +1,475 @@
+{
+  "version": 4,
+  "builder": "scripts/build_loot_pillar_epic_v4.py",
+  "format": "rgba-png",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      512
+    ],
+    "size": [
+      1024,
+      512
+    ]
+  },
+  "source": {
+    "generated": {
+      "path": "asset-sources/imagegen/loot-pillar-epic-v4-source.png",
+      "sha256": "4734c09d583eec2c0759b452b01ddee222aea2a486d548fc898ba08ae14fd7c0",
+      "bytes": 1648351,
+      "size": [
+        1774,
+        887
+      ],
+      "mode": "RGB"
+    },
+    "keyed": {
+      "path": "asset-sources/imagegen/loot-pillar-epic-v4-keyed.png",
+      "sha256": "8bef211992fc3a4054863f2a8d1b1ca7a0f3bcfdbbffd84d56af8fa84afb1a15",
+      "bytes": 1091154,
+      "size": [
+        1774,
+        887
+      ],
+      "mode": "RGBA"
+    },
+    "referenceInput": {
+      "path": "public/assets/effects/loot-pillar-epic-v3.png",
+      "sha256": "7c04d9ca8641ac9cb957b7f61f3b4e94b36dce2ba465ba060987d17c33e7590d",
+      "bytes": 154900,
+      "size": [
+        1024,
+        512
+      ],
+      "mode": "RGBA"
+    },
+    "promptMetadata": {
+      "path": "asset-sources/imagegen/loot-pillar-epic-v4.prompt.json",
+      "sha256": "5c22a01a53414b9388b38e01652d5d16963b644addf03b5b8f82621b91bd65ef",
+      "tool": "image_gen.imagegen built-in",
+      "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent heroic-tier loot-pillar four-frame sprite sheet\nInput image: Image 1 is the edit target and visual source of truth.\nPrimary request: Repair only the visibly cut-off upper tips of all four violet loot-pillar frames. Reconstruct each central white-magenta beam and surrounding purple flame so it narrows continuously into a natural sharp luminous tip, with generous clear headroom above it. The result must no longer end in a blunt flat horizontal cut.\nComposition: preserve an exact four-column horizontal sprite sheet, one distinct animation frame per equal cell, same left-to-right temporal order, same floor-contact flare position, same approximate width and overall scale in every frame. Keep every effect fully contained inside its own cell with at least 24 px of empty headroom at final 1024x512 scale.\nStyle: gothic early-2000s Diablo-like painted 2D VFX, saturated violet and purple flame, white-hot magenta core, crystalline spark accents, textured translucent gaps.\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for later removal, one uniform color with no gradients, shadows, texture, floor plane, or lighting variation. Do not use #00ff00 in the effect.\nConstraints: change only the missing/clipped upper termination and necessary headroom; preserve the four lower bodies, floor bursts, color identity, brightness, frame differences, and consistent ground anchor. No text, item, character, border, grid line, watermark, frame overlap, clipping, cropped tips, flat-topped beams, or image stretching.",
+      "builtInOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-275f340f-ba4b-4e3d-9d0d-ed0067c3904b.png"
+    }
+  },
+  "chromaRemoval": {
+    "tool": "imagegen/scripts/remove_chroma_key.py",
+    "autoKey": "border",
+    "detectedKey": "#10f009",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "despill": true
+  },
+  "pipeline": {
+    "split": "four proportional horizontal cells with rounded source edges",
+    "sourceFrameEdges": [
+      0,
+      444,
+      887,
+      1330,
+      1774
+    ],
+    "resize": "each complete source cell resized once to 256x512 in premultiplied-alpha LANCZOS space",
+    "registration": {
+      "targetFlareY": 475,
+      "targetLowerEnergyCentroidX": 128,
+      "lowerEnergyStartY": 348,
+      "translation": "integer-only; no post-resize scale or stretch"
+    },
+    "colourGrade": "HSV hue-local green/cyan key-spill rotation into violet; saturation and value preserved",
+    "palette": "truecolour; no palette quantization",
+    "alpha": "continuous authored alpha; values below 8 cleared with hidden RGB",
+    "visibleAlphaThreshold": 64,
+    "topProfile": {
+      "rows": 24,
+      "maxFirstVisibleRun": 4,
+      "flatPlateauRun": 10
+    },
+    "pixelDifferenceThreshold": 16
+  },
+  "output": {
+    "path": "public/assets/effects/loot-pillar-epic-v4.png",
+    "sha256": "005eeccc6dc03124dc1b924c4d9998720c9c5904b6808728bb0167f5573ab414",
+    "bytes": 398303,
+    "groundAnchor": 0.9277,
+    "transparentRgbLeak": 0,
+    "subThresholdRgbLeak": 0
+  },
+  "frames": [
+    {
+      "index": 0,
+      "sourceFlareYAfterFullCellResize": 446,
+      "sourceLowerEnergyCentroidXAfterYRegistration": 131.59346,
+      "translation": [
+        -4,
+        29
+      ],
+      "correctedGreenCyanPixels": 5851,
+      "flareY": 475,
+      "lowerEnergyCentroidX": 127.593475,
+      "bbox": [
+        41,
+        39,
+        214,
+        499
+      ],
+      "padding": [
+        41,
+        39,
+        42,
+        13
+      ],
+      "topPadding": 39,
+      "bottomPadding": 13,
+      "firstVisibleRow": 39,
+      "firstVisibleRowMaxRun": 1,
+      "top24MaxHorizontalRun": 4,
+      "top24HorizontalRuns": [
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        3,
+        4,
+        4
+      ],
+      "flatPlateauRows": [],
+      "visiblePixels": 30366,
+      "alphaLevelCount": 249,
+      "meanRgb": [
+        163.920042,
+        99.533491,
+        217.464105
+      ],
+      "meanLuminance": 132.229156,
+      "brightPixelRatio": 0.148456,
+      "purplePixelRatio": 0.794738,
+      "magentaCorePixelRatio": 0.149114,
+      "whiteCorePixelRatio": 0.121353,
+      "greenCyanSpillRatio": 0.0,
+      "pixelHash": "95139cd2b7c57845d4a9edd7ffd70d365e5556711c9092e38658333d989657b4"
+    },
+    {
+      "index": 1,
+      "sourceFlareYAfterFullCellResize": 442,
+      "sourceLowerEnergyCentroidXAfterYRegistration": 121.697159,
+      "translation": [
+        6,
+        33
+      ],
+      "correctedGreenCyanPixels": 5114,
+      "flareY": 475,
+      "lowerEnergyCentroidX": 127.697144,
+      "bbox": [
+        43,
+        44,
+        220,
+        504
+      ],
+      "padding": [
+        43,
+        44,
+        36,
+        8
+      ],
+      "topPadding": 44,
+      "bottomPadding": 8,
+      "firstVisibleRow": 44,
+      "firstVisibleRowMaxRun": 1,
+      "top24MaxHorizontalRun": 5,
+      "top24HorizontalRuns": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        4,
+        4,
+        4,
+        5,
+        5,
+        5
+      ],
+      "flatPlateauRows": [],
+      "visiblePixels": 34857,
+      "alphaLevelCount": 249,
+      "meanRgb": [
+        178.886536,
+        109.274722,
+        226.543191
+      ],
+      "meanLuminance": 143.45726,
+      "brightPixelRatio": 0.208394,
+      "purplePixelRatio": 0.75738,
+      "magentaCorePixelRatio": 0.186562,
+      "whiteCorePixelRatio": 0.17414,
+      "greenCyanSpillRatio": 0.0,
+      "pixelHash": "ccc116ce11d74a0ac0d4a492bd05af8cc75284e4855395ba48c69cedfccea847"
+    },
+    {
+      "index": 2,
+      "sourceFlareYAfterFullCellResize": 443,
+      "sourceLowerEnergyCentroidXAfterYRegistration": 125.458023,
+      "translation": [
+        3,
+        32
+      ],
+      "correctedGreenCyanPixels": 5717,
+      "flareY": 475,
+      "lowerEnergyCentroidX": 128.458023,
+      "bbox": [
+        35,
+        43,
+        216,
+        501
+      ],
+      "padding": [
+        35,
+        43,
+        40,
+        11
+      ],
+      "topPadding": 43,
+      "bottomPadding": 11,
+      "firstVisibleRow": 43,
+      "firstVisibleRowMaxRun": 1,
+      "top24MaxHorizontalRun": 3,
+      "top24HorizontalRuns": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3
+      ],
+      "flatPlateauRows": [],
+      "visiblePixels": 35634,
+      "alphaLevelCount": 249,
+      "meanRgb": [
+        185.61099,
+        110.788797,
+        230.909777
+      ],
+      "meanLuminance": 146.854416,
+      "brightPixelRatio": 0.20632,
+      "purplePixelRatio": 0.752427,
+      "magentaCorePixelRatio": 0.21269,
+      "whiteCorePixelRatio": 0.17357,
+      "greenCyanSpillRatio": 0.0,
+      "pixelHash": "c19fdbc57df95e39596b620f19473176c20bbd8ac0ad7e4ff8224c8ef2548671"
+    },
+    {
+      "index": 3,
+      "sourceFlareYAfterFullCellResize": 444,
+      "sourceLowerEnergyCentroidXAfterYRegistration": 116.677399,
+      "translation": [
+        11,
+        31
+      ],
+      "correctedGreenCyanPixels": 6183,
+      "flareY": 475,
+      "lowerEnergyCentroidX": 127.677406,
+      "bbox": [
+        42,
+        51,
+        212,
+        500
+      ],
+      "padding": [
+        42,
+        51,
+        44,
+        12
+      ],
+      "topPadding": 51,
+      "bottomPadding": 12,
+      "firstVisibleRow": 51,
+      "firstVisibleRowMaxRun": 1,
+      "top24MaxHorizontalRun": 4,
+      "top24HorizontalRuns": [
+        1,
+        1,
+        1,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        2,
+        4,
+        4
+      ],
+      "flatPlateauRows": [],
+      "visiblePixels": 30503,
+      "alphaLevelCount": 249,
+      "meanRgb": [
+        170.62066,
+        104.125758,
+        220.191588
+      ],
+      "meanLuminance": 137.239243,
+      "brightPixelRatio": 0.168836,
+      "purplePixelRatio": 0.779104,
+      "magentaCorePixelRatio": 0.177196,
+      "whiteCorePixelRatio": 0.14156,
+      "greenCyanSpillRatio": 0.0,
+      "pixelHash": "e97b8f6b6fc79c7dc7c778ae6d47936ec79ac9fcbb0b9b31db5c6bc7bd2f8827"
+    }
+  ],
+  "temporalDifferences": [
+    {
+      "from": 0,
+      "to": 1,
+      "alphaSupportIou": 0.758838,
+      "changedPixelRatio": 0.898687,
+      "meanAbsoluteRgbDelta": 58.875325,
+      "meanAbsoluteAlphaDelta": 58.924844
+    },
+    {
+      "from": 1,
+      "to": 2,
+      "alphaSupportIou": 0.801457,
+      "changedPixelRatio": 0.870917,
+      "meanAbsoluteRgbDelta": 52.377553,
+      "meanAbsoluteAlphaDelta": 47.023537
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "alphaSupportIou": 0.766999,
+      "changedPixelRatio": 0.896524,
+      "meanAbsoluteRgbDelta": 58.428278,
+      "meanAbsoluteAlphaDelta": 56.022576
+    },
+    {
+      "from": 3,
+      "to": 0,
+      "alphaSupportIou": 0.800006,
+      "changedPixelRatio": 0.863733,
+      "meanAbsoluteRgbDelta": 47.975179,
+      "meanAbsoluteAlphaDelta": 47.289183
+    }
+  ],
+  "summary": {
+    "topPadding": {
+      "min": 39.0,
+      "max": 51.0,
+      "mean": 44.25
+    },
+    "bottomPadding": {
+      "min": 8.0,
+      "max": 13.0,
+      "mean": 11.0
+    },
+    "firstVisibleRowMaxRun": {
+      "min": 1.0,
+      "max": 1.0,
+      "mean": 1.0
+    },
+    "top24MaxHorizontalRun": {
+      "min": 3.0,
+      "max": 5.0,
+      "mean": 4.0
+    },
+    "flareY": {
+      "min": 475.0,
+      "max": 475.0,
+      "mean": 475.0
+    },
+    "lowerEnergyCentroidX": {
+      "min": 127.593475,
+      "max": 128.458023,
+      "mean": 127.856512
+    },
+    "brightPixelRatio": {
+      "min": 0.148456,
+      "max": 0.208394,
+      "mean": 0.183002
+    },
+    "purplePixelRatio": {
+      "min": 0.752427,
+      "max": 0.794738,
+      "mean": 0.770912
+    },
+    "magentaCorePixelRatio": {
+      "min": 0.149114,
+      "max": 0.21269,
+      "mean": 0.181391
+    },
+    "whiteCorePixelRatio": {
+      "min": 0.121353,
+      "max": 0.17414,
+      "mean": 0.152656
+    },
+    "greenCyanSpillRatio": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0
+    },
+    "minimumTemporalChangedPixelRatio": 0.863733,
+    "maximumTemporalAlphaSupportIou": 0.801457
+  }
+}
