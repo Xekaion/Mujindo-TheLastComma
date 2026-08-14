@@ -1,0 +1,1 @@
+ALTER TABLE `hub_sessions` ADD `last_dash_at` integer DEFAULT 0 NOT NULL;

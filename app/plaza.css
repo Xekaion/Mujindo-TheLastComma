@@ -388,7 +388,7 @@
   bottom: 24px;
   left: 22px;
   display: none;
-  grid-template: repeat(3, 48px) / repeat(3, 48px);
+  grid-template: repeat(3, 48px) / repeat(4, 48px);
   gap: 4px;
   touch-action: none;
 }
@@ -418,6 +418,16 @@
   border-color: rgba(108, 224, 208, .55);
   color: #bffaf0;
   font-size: 9px;
+}
+
+.plaza-touch-controls .is-dash {
+  grid-area: 2 / 4;
+  border-color: rgba(210, 151, 255, .62);
+  color: #efd6ff;
+  background: radial-gradient(circle at 38% 30%, rgba(193, 112, 255, .28), rgba(10, 12, 16, .86));
+  box-shadow: 0 0 20px rgba(166, 92, 231, .24), 0 8px 18px rgba(0, 0, 0, .34);
+  font-size: 10px;
+  font-weight: 800;
 }
 
 @keyframes plaza-presence-pulse {

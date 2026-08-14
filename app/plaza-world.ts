@@ -191,6 +191,33 @@ export function resolvePlazaMovement(
   return { ...start };
 }
 
+/**
+ * Resolves a long movement impulse as short collision-tested steps. Walking
+ * already advances in tiny animation-frame deltas, but a plaza dash can cross
+ * a whole wall in one update unless its path (not only its endpoint) is
+ * checked. The same helper is shared by optimistic rendering and the hub
+ * worker so both sides stop at the same visible boundary.
+ */
+export function resolvePlazaSweptMovement(
+  start: PlazaPoint,
+  delta: PlazaPoint,
+  radius = PLAZA_PLAYER_RADIUS,
+  maxStep = 16,
+): PlazaPoint {
+  if (!isPlazaWalkable(start, radius)) return { ...PLAZA_SPAWN_POINT };
+  if (!Number.isFinite(delta.x) || !Number.isFinite(delta.y)) return { ...start };
+  const safeStep = Number.isFinite(maxStep) ? Math.max(1, maxStep) : 16;
+  const steps = Math.max(1, Math.ceil(Math.hypot(delta.x, delta.y) / safeStep));
+  const step = { x: delta.x / steps, y: delta.y / steps };
+  let position = { ...start };
+  for (let index = 0; index < steps; index += 1) {
+    const next = resolvePlazaMovement(position, step, radius);
+    if (next.x === position.x && next.y === position.y) break;
+    position = next;
+  }
+  return position;
+}
+
 export function sanitizePlazaPoint(point: PlazaPoint): PlazaPoint {
   const candidate = {
     x: clamp(Number.isFinite(point.x) ? point.x : PLAZA_SPAWN_POINT.x, 0, PLAZA_WORLD_WIDTH),

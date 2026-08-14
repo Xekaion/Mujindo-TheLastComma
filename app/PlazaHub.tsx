@@ -19,6 +19,7 @@ import {
   nearestPlazaPortal,
   plazaPortalById,
   resolvePlazaMovement,
+  resolvePlazaSweptMovement,
   sanitizePlazaPoint,
   type PlazaPoint,
   type PlazaPortalDefinition,
@@ -38,6 +39,7 @@ import {
   drawPaperdollCharacterDirect,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromVisualGear,
+  paperdollVisualCenterY,
 } from "./character-paperdoll";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
 import {
@@ -52,6 +54,8 @@ import {
   pickPlazaInspectablePlayer,
 } from "./plaza-player-inspection";
 import {
+  HUB_DASH_COOLDOWN_MS,
+  HUB_DASH_SPEED,
   HUB_PLAYER_SPEED,
   normalizeHubDungeonFloor,
   type HubAppearance,
@@ -59,6 +63,24 @@ import {
   type HubFacing,
   type HubPlayerSnapshot,
 } from "./hub-protocol";
+import {
+  GAMEPLAY_VFX_MANIFEST,
+  drawGameplayVfxFrame,
+  gameplayVfxImageKey,
+  legendaryVfxId,
+  type GameplayVfxId,
+} from "./augment-vfx";
+import { playGameSfx } from "./game-audio";
+import { advanceContinuousMovement } from "./legendary-runtime";
+import type { EquipmentLoadout } from "./equipment";
+import {
+  PLAZA_DASH_DURATION_SECONDS,
+  PLAZA_PHANTOM_ACTIVATION_SECONDS,
+  PLAZA_PHANTOM_MOVE_MULTIPLIER,
+  PLAZA_STARFALL_SECONDS,
+  plazaDashDirection,
+  resolvePlazaMobilityProfile,
+} from "./plaza-skills";
 // Keep optimistic movement aligned with the worker's authoritative budget.
 const PLAYER_SPEED = HUB_PLAYER_SPEED;
 const MOVEMENT_SEND_INTERVAL_MS = 66;
@@ -106,6 +128,8 @@ export type PlazaConnectionState =
 
 export type PlazaHubProps = {
   character: PlazaCharacterIdentity;
+  /** Local-only loadout. It is never copied into the public hub profile. */
+  equipment?: EquipmentLoadout | null;
   remotePlayers?: readonly PlazaRemotePlayer[];
   onlineCount?: number;
   initialPosition?: PlazaPoint;
@@ -114,6 +138,7 @@ export type PlazaHubProps = {
   connectionState?: PlazaConnectionState;
   paused?: boolean;
   onMoveIntent?: (intent: PlazaMoveIntent) => void;
+  onDashIntent?: () => void;
   onPortalActivate?: (portal: PlazaPortalDefinition) => void;
   onPlayerInspect?: (player: PlazaRemotePlayer) => void;
   onSelfInspect?: () => void;
@@ -146,6 +171,23 @@ type ViewportState = {
   height: number;
   dpr: number;
 };
+
+type PlazaSkillEffect = {
+  id: number;
+  vfxId: GameplayVfxId;
+  x: number;
+  y: number;
+  size: number;
+  life: number;
+  duration: number;
+  angle: number;
+};
+
+const PLAZA_MOBILITY_VFX_IDS = [
+  legendaryVfxId("starfallMantle"),
+  legendaryVfxId("riftStride"),
+  legendaryVfxId("phantomMarch"),
+] as const;
 
 export function isPlazaPointNearViewport(
   point: PlazaPoint,
@@ -558,6 +600,7 @@ function connectionLabel(state: PlazaConnectionState) {
 
 export default function PlazaHub({
   character,
+  equipment = null,
   remotePlayers = [],
   onlineCount = remotePlayers.length + 1,
   initialPosition = PLAZA_SPAWN_POINT,
@@ -566,6 +609,7 @@ export default function PlazaHub({
   connectionState = "offline",
   paused = false,
   onMoveIntent,
+  onDashIntent,
   onPortalActivate,
   onPlayerInspect,
   onSelfInspect,
@@ -588,6 +632,16 @@ export default function PlazaHub({
   const pointerTargetRef = useRef<PlazaPoint | null>(null);
   const keysRef = useRef(new Set<string>());
   const touchDirectionRef = useRef<PlazaPoint>({ x: 0, y: 0 });
+  const dashQueuedRef = useRef(false);
+  const dashTimeRef = useRef(0);
+  const dashCooldownRef = useRef(0);
+  const dashDirectionRef = useRef<PlazaPoint>({ x: 0, y: -1 });
+  const starfallMantleTimeRef = useRef(0);
+  const riftTrailCooldownRef = useRef(0);
+  const phantomMoveTimeRef = useRef(0);
+  const phantomTrailCooldownRef = useRef(0);
+  const skillEffectIdRef = useRef(0);
+  const skillEffectsRef = useRef<PlazaSkillEffect[]>([]);
   const viewportRef = useRef<ViewportState>({ width: 1280, height: 720, dpr: 1 });
   const sceneImagesRef = useRef(new Map<string, HTMLImageElement>());
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
@@ -595,6 +649,7 @@ export default function PlazaHub({
   const rarityVfxImagesRef = useRef<
     Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
   >({});
+  const skillVfxImagesRef = useRef(new Map<string, HTMLImageElement>());
   const remotePlayersRef = useRef(remotePlayers);
   const inspectableRemotePlayersRef = useRef<readonly PlazaRemotePlayer[]>([]);
   const remoteRenderPointsRef = useRef(new Map<string, RemoteRenderPoint>());
@@ -606,11 +661,17 @@ export default function PlazaHub({
   const nearPortalIdRef = useRef<PlazaPortalId | null>(null);
   const guidedPortalIdRef = useRef<PlazaPortalId | null>(null);
   const onMoveIntentRef = useRef(onMoveIntent);
+  const onDashIntentRef = useRef(onDashIntent);
   const onPlayerInspectRef = useRef(onPlayerInspect);
   const pausedRef = useRef(paused);
   const [nearPortalId, setNearPortalId] = useState<PlazaPortalId | null>(null);
   const [guidedPortalId, setGuidedPortalId] = useState<PlazaPortalId | null>(null);
   const [notice, setNotice] = useState("광장 중앙에서 네 갈래의 기억이 이어집니다.");
+  const mobilityProfile = useMemo(
+    () => resolvePlazaMobilityProfile(equipment),
+    [equipment],
+  );
+  const mobilityProfileRef = useRef(mobilityProfile);
   const characterSpriteKey = character.appearance?.spriteKey;
   const characterEquipped = character.appearance?.equipped;
   const characterPalette = character.appearance?.palette;
@@ -657,6 +718,10 @@ export default function PlazaHub({
   }, [normalizedCharacter]);
 
   useEffect(() => {
+    mobilityProfileRef.current = mobilityProfile;
+  }, [mobilityProfile]);
+
+  useEffect(() => {
     guidedPortalIdRef.current = guidedPortalId;
   }, [guidedPortalId]);
 
@@ -664,6 +729,10 @@ export default function PlazaHub({
     onMoveIntentRef.current = onMoveIntent;
     lastSentIntentRef.current = null;
   }, [onMoveIntent]);
+
+  useEffect(() => {
+    onDashIntentRef.current = onDashIntent;
+  }, [onDashIntent]);
 
   useEffect(() => {
     onPlayerInspectRef.current = onPlayerInspect;
@@ -675,6 +744,8 @@ export default function PlazaHub({
     keysRef.current.clear();
     touchDirectionRef.current = { x: 0, y: 0 };
     pointerTargetRef.current = null;
+    dashQueuedRef.current = false;
+    dashTimeRef.current = 0;
     movingRef.current = false;
     walkCycleRef.current = settleCharacterWalkCycle(walkCycleRef.current);
     const facing = normalizedFacing(facingRef.current) as HubFacing;
@@ -773,6 +844,21 @@ export default function PlazaHub({
     canvasRef.current?.focus({ preventScroll: true });
   }, []);
 
+  const queueDash = useCallback(() => {
+    if (
+      pausedRef.current ||
+      dashQueuedRef.current ||
+      dashTimeRef.current > 0 ||
+      dashCooldownRef.current > 0
+    ) {
+      return;
+    }
+    dashQueuedRef.current = true;
+    pointerTargetRef.current = null;
+    setGuidedPortalId(null);
+    canvasRef.current?.focus({ preventScroll: true });
+  }, []);
+
   useEffect(() => {
     const root = rootRef.current;
     const canvas = canvasRef.current;
@@ -837,6 +923,32 @@ export default function PlazaHub({
   }, []);
 
   useEffect(() => {
+    const images = skillVfxImagesRef.current;
+    const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
+    for (const vfxId of PLAZA_MOBILITY_VFX_IDS) {
+      const key = gameplayVfxImageKey(vfxId);
+      const image = new Image();
+      image.decoding = "async";
+      image.addEventListener(
+        "error",
+        () => {
+          if (images.get(key) === image) images.delete(key);
+        },
+        { once: true },
+      );
+      image.src = GAMEPLAY_VFX_MANIFEST[vfxId].assetPath;
+      images.set(key, image);
+      ownedImages.push([key, image]);
+    }
+    return () => {
+      for (const [key, image] of ownedImages) {
+        if (images.get(key) === image) images.delete(key);
+        image.src = "";
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (pausedRef.current) return;
       const target = event.target as HTMLElement | null;
@@ -849,6 +961,10 @@ export default function PlazaHub({
         pointerTargetRef.current = null;
         setGuidedPortalId(null);
         keysRef.current.add(key);
+      }
+      if (key === " " && !event.repeat) {
+        event.preventDefault();
+        queueDash();
       }
       if ((key === "e" || key === "enter") && !event.repeat) {
         event.preventDefault();
@@ -864,6 +980,8 @@ export default function PlazaHub({
     const clearKeys = () => {
       keysRef.current.clear();
       touchDirectionRef.current = { x: 0, y: 0 };
+      dashQueuedRef.current = false;
+      dashTimeRef.current = 0;
     };
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
@@ -873,7 +991,7 @@ export default function PlazaHub({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", clearKeys);
     };
-  }, [activateNearbyPortal, guideToPortal]);
+  }, [activateNearbyPortal, guideToPortal, queueDash]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1003,20 +1121,108 @@ export default function PlazaHub({
         }
       }
 
-      const previousPosition = { ...positionRef.current };
       const magnitude = Math.hypot(moveX, moveY);
       const hasMovementInput = magnitude > 0.01;
       if (hasMovementInput) {
         moveX /= Math.max(1, magnitude);
         moveY /= Math.max(1, magnitude);
+      }
+
+      const mobility = mobilityProfileRef.current;
+      const usesServerAuthority = Boolean(onDashIntentRef.current);
+      dashCooldownRef.current = Math.max(0, dashCooldownRef.current - dt);
+      riftTrailCooldownRef.current = Math.max(0, riftTrailCooldownRef.current - dt);
+      phantomTrailCooldownRef.current = Math.max(0, phantomTrailCooldownRef.current - dt);
+      starfallMantleTimeRef.current = Math.max(0, starfallMantleTimeRef.current - dt);
+      for (const effect of skillEffectsRef.current) effect.life -= dt;
+      skillEffectsRef.current = skillEffectsRef.current.filter((effect) => effect.life > 0);
+
+      if (dashQueuedRef.current && !pausedRef.current && dashCooldownRef.current <= 0) {
+        dashQueuedRef.current = false;
+        dashDirectionRef.current = plazaDashDirection(
+          moveX,
+          moveY,
+          facingRef.current,
+        );
+        dashTimeRef.current = PLAZA_DASH_DURATION_SECONDS;
+        // The worker accepts the fastest legitimate RiftStride cadence but
+        // never trusts arbitrary client cooldown claims. Online prediction
+        // keeps a small transport margin so a second local dash cannot race
+        // the server timestamp that acknowledged the first one.
+        dashCooldownRef.current = Math.max(
+          mobility.dashCooldownSeconds,
+          HUB_DASH_COOLDOWN_MS / 1_000 + (usesServerAuthority ? 0.1 : 0),
+        );
+        if (mobility.hasRiftStride) riftTrailCooldownRef.current = 0;
+        if (mobility.hasStarfallMantle) {
+          starfallMantleTimeRef.current = PLAZA_STARFALL_SECONDS;
+          skillEffectsRef.current.push({
+            id: ++skillEffectIdRef.current,
+            vfxId: legendaryVfxId("starfallMantle"),
+            x: positionRef.current.x,
+            y: paperdollVisualCenterY(
+              positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+              PAPERDOLL_WORLD_RENDER_HEIGHT,
+            ),
+            size: 118,
+            life: 0.54,
+            duration: 0.54,
+            angle: 0,
+          });
+          playGameSfx("playerDash", { playbackRate: 1.28, gain: 0.7 });
+        }
+        const dashDirection = dashDirectionRef.current;
+        playGameSfx("playerDash", {
+          pan: Math.max(-0.45, Math.min(0.45, dashDirection.x * 0.45)),
+        });
+        onDashIntentRef.current?.();
+      } else if (dashQueuedRef.current && dashCooldownRef.current > 0) {
+        dashQueuedRef.current = false;
+      }
+
+      const previousPosition = { ...positionRef.current };
+      const dashStepSeconds = Math.min(dt, dashTimeRef.current);
+      const isDashing = dashStepSeconds > 0;
+      const phantomMarchActive =
+        mobility.hasPhantomMarch &&
+        phantomMoveTimeRef.current >= PLAZA_PHANTOM_ACTIVATION_SECONDS;
+      if (isDashing) {
+        const direction = dashDirectionRef.current;
+        // Online geometry is fixed at the server-authored 900px/s. The local
+        // QA/offline fallback may still preview legitimate equipment speed.
+        const dashSpeed = usesServerAuthority ? HUB_DASH_SPEED : mobility.dashSpeed;
+        positionRef.current = resolvePlazaSweptMovement(positionRef.current, {
+          x: direction.x * dashSpeed * dashStepSeconds,
+          y: direction.y * dashSpeed * dashStepSeconds,
+        });
+        dashTimeRef.current = Math.max(0, dashTimeRef.current - dashStepSeconds);
+        if (mobility.hasRiftStride && riftTrailCooldownRef.current <= 0) {
+          riftTrailCooldownRef.current = 0.055;
+          skillEffectsRef.current.push({
+            id: ++skillEffectIdRef.current,
+            vfxId: legendaryVfxId("riftStride"),
+            x: positionRef.current.x,
+            y: positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+            size: 52,
+            life: 0.3,
+            duration: 0.3,
+            angle: Math.atan2(direction.y, direction.x),
+          });
+        }
+      } else if (hasMovementInput) {
+        const movementMultiplier = usesServerAuthority
+          ? 1
+          : mobility.moveSpeedMultiplier *
+            (phantomMarchActive ? PLAZA_PHANTOM_MOVE_MULTIPLIER : 1);
         positionRef.current = resolvePlazaMovement(positionRef.current, {
-          x: moveX * PLAYER_SPEED * dt,
-          y: moveY * PLAYER_SPEED * dt,
+          x: moveX * PLAYER_SPEED * movementMultiplier * dt,
+          y: moveY * PLAYER_SPEED * movementMultiplier * dt,
         });
       }
 
       if (
         !hasMovementInput &&
+        !isDashing &&
         authoritativeTarget &&
         !authoritativeMovingRef.current
       ) {
@@ -1040,8 +1246,37 @@ export default function PlazaHub({
         facingRef.current,
         0.01,
       );
+      phantomMoveTimeRef.current = advanceContinuousMovement(
+        phantomMoveTimeRef.current,
+        dt,
+        mobility.hasPhantomMarch && motion.moving,
+        PLAZA_PHANTOM_ACTIVATION_SECONDS,
+      );
+      const phantomMarchNowActive =
+        mobility.hasPhantomMarch &&
+        phantomMoveTimeRef.current >= PLAZA_PHANTOM_ACTIVATION_SECONDS;
+      if (
+        phantomMarchNowActive &&
+        motion.moving &&
+        phantomTrailCooldownRef.current <= 0
+      ) {
+        phantomTrailCooldownRef.current = 0.4;
+        skillEffectsRef.current.push({
+          id: ++skillEffectIdRef.current,
+          vfxId: legendaryVfxId("phantomMarch"),
+          x: previousPosition.x,
+          y: previousPosition.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+          size: 74,
+          life: 0.95,
+          duration: 0.95,
+          angle: Math.atan2(
+            positionRef.current.y - previousPosition.y,
+            positionRef.current.x - previousPosition.x,
+          ),
+        });
+      }
       if (motion.moving) {
-        if (hasMovementInput) {
+        if (hasMovementInput || isDashing) {
           // Tiny authoritative settling steps must not turn the character back
           // toward an older server sample after the player releases a key.
           facingRef.current = motion.facing;
@@ -1050,7 +1285,7 @@ export default function PlazaHub({
         walkCycleRef.current = advanceCharacterWalkCycle(
           walkCycleRef.current,
           motion.distance,
-          undefined,
+          isDashing ? 220 : undefined,
           dt,
         );
       } else {
@@ -1128,6 +1363,43 @@ export default function PlazaHub({
           time,
           portal.id === (nearPortalIdRef.current ?? guidedPortalIdRef.current),
         );
+      }
+
+      for (const effect of skillEffectsRef.current) {
+        const progress = Math.max(
+          0,
+          Math.min(0.999_999, 1 - effect.life / effect.duration),
+        );
+        const drawn = drawGameplayVfxFrame(
+          context,
+          skillVfxImagesRef.current.get(gameplayVfxImageKey(effect.vfxId)),
+          GAMEPLAY_VFX_MANIFEST[effect.vfxId],
+          {
+            x: effect.x,
+            y: effect.y,
+            size: effect.size,
+            progress,
+            angle: effect.angle,
+            alpha: Math.min(1, Math.sin(progress * Math.PI) * 1.38),
+            interpolateFrames: true,
+          },
+        );
+        if (!drawn) {
+          context.save();
+          context.globalCompositeOperation = "lighter";
+          context.globalAlpha = Math.sin(progress * Math.PI) * 0.72;
+          context.fillStyle = effect.vfxId === legendaryVfxId("riftStride")
+            ? "#bd6cff"
+            : effect.vfxId === legendaryVfxId("phantomMarch")
+              ? "#a68cff"
+              : "#ffe69a";
+          context.shadowColor = context.fillStyle;
+          context.shadowBlur = 18;
+          context.beginPath();
+          context.arc(effect.x, effect.y, effect.size * 0.18, 0, Math.PI * 2);
+          context.fill();
+          context.restore();
+        }
       }
 
       const currentTime = Date.now();
@@ -1214,6 +1486,35 @@ export default function PlazaHub({
           readableCanvasFontSize,
         );
       }
+      if (starfallMantleTimeRef.current > 0) {
+        const mantleVfxId = legendaryVfxId("starfallMantle");
+        const bodyCenterY = paperdollVisualCenterY(
+          positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+          PAPERDOLL_WORLD_RENDER_HEIGHT,
+        );
+        const mantleDrawn = drawGameplayVfxFrame(
+          context,
+          skillVfxImagesRef.current.get(gameplayVfxImageKey(mantleVfxId)),
+          GAMEPLAY_VFX_MANIFEST[mantleVfxId],
+          {
+            x: positionRef.current.x,
+            y: bodyCenterY,
+            size: 108,
+            progress: ((time * 1.4) % 1 + 1) % 1,
+            alpha: 0.92,
+            interpolateFrames: true,
+          },
+        );
+        if (!mantleDrawn) {
+          context.save();
+          context.globalCompositeOperation = "lighter";
+          context.fillStyle = "#ffeaa6";
+          context.shadowColor = "#f8d98a";
+          context.shadowBlur = 16;
+          context.fillRect(positionRef.current.x - 2, bodyCenterY - 2, 4, 4);
+          context.restore();
+        }
+      }
       context.restore();
 
       const vignette = context.createRadialGradient(
@@ -1238,6 +1539,10 @@ export default function PlazaHub({
       paperdollPathSignatureRef.current = "";
       paperdollImages.clear();
       previousTimeRef.current = 0;
+      dashQueuedRef.current = false;
+      dashTimeRef.current = 0;
+      skillEffectsRef.current = [];
+      starfallMantleTimeRef.current = 0;
       const moveHandler = onMoveIntentRef.current;
       if (moveHandler) {
         sequenceRef.current += 1;
@@ -1334,7 +1639,7 @@ export default function PlazaHub({
         ref={canvasRef}
         className="plaza-hub-canvas"
         tabIndex={0}
-        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 E 또는 Enter로 가까운 포탈을 이용합니다. 바닥을 누르면 이동하고 다른 플레이어를 우클릭하면 캐릭터 정보를 확인합니다."
+        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 포탈을 이용합니다. 바닥을 누르면 이동하고 다른 플레이어를 우클릭하면 캐릭터 정보를 확인합니다."
         onPointerDown={handleCanvasPointer}
         onContextMenu={handleCanvasContextMenu}
       />
@@ -1471,10 +1776,21 @@ export default function PlazaHub({
         <button type="button" className="is-action" onClick={activateNearbyPortal}>
           포탈
         </button>
+        <button
+          type="button"
+          className="is-dash"
+          aria-label="회피 대시"
+          onPointerDown={(event) => {
+            event.preventDefault();
+            queueDash();
+          }}
+        >
+          회피
+        </button>
       </div>
 
       <p className="plaza-control-hint">
-        WASD / 방향키 이동 · <kbd>I</kbd> 장비 확인 · <kbd>E</kbd> 포탈 이용 · 숫자 1–4 포탈 안내
+        WASD / 방향키 이동 · <kbd>Space</kbd> 회피 · <kbd>I</kbd> 장비 확인 · <kbd>E</kbd> 포탈 이용 · 숫자 1–4 포탈 안내
       </p>
     </main>
   );

@@ -33,6 +33,14 @@ export const HUB_MAP_WIDTH = PLAZA_WORLD_WIDTH;
 export const HUB_MAP_HEIGHT = PLAZA_WORLD_HEIGHT;
 export const HUB_PLAYER_RADIUS = PLAZA_PLAYER_RADIUS;
 export const HUB_PLAYER_SPEED = 250;
+export const HUB_DASH_DURATION_MS = 170;
+export const HUB_DASH_SPEED = 900;
+export const HUB_DASH_DISTANCE = HUB_DASH_SPEED * (HUB_DASH_DURATION_MS / 1_000);
+export const HUB_DASH_BASE_COOLDOWN_MS = 1_350;
+// The authority accepts the fastest supported equipment cadence without
+// receiving or exposing any private legendary-power data.
+export const HUB_DASH_COOLDOWN_MS = HUB_DASH_BASE_COOLDOWN_MS / 1.3;
+export const HUB_DASH_SWEEP_STEP_PX = 16;
 export const HUB_NEARBY_RADIUS = 920;
 export const HUB_HEARTBEAT_INTERVAL_MS = 4_000;
 export const HUB_ONLINE_WINDOW_MS = 12_000;
@@ -126,6 +134,7 @@ export type HubMoveIntent = {
   moveX: number;
   moveY: number;
   facing: HubFacing;
+  dash: boolean;
 };
 
 export type HubPlayerSnapshot = {
@@ -479,6 +488,7 @@ export function parseHubMoveIntent(value: unknown): HubMoveIntent | null {
     moveX,
     moveY,
     facing: resolveHubFacing(moveX, moveY, requestedFacing),
+    dash: value.dash === true,
   };
 }
 

@@ -88,6 +88,7 @@ export const hubSessions = sqliteTable(
     moving: integer("moving").notNull().default(0),
     lastSequence: integer("last_sequence").notNull().default(0),
     lastMoveAt: integer("last_move_at").notNull(),
+    lastDashAt: integer("last_dash_at").notNull().default(0),
     lastSeenAt: integer("last_seen_at").notNull(),
     expiresAt: integer("expires_at").notNull(),
     version: integer("version").notNull().default(0),

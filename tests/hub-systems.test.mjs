@@ -65,6 +65,27 @@ async function importHubServer() {
   return import(dataModule(serverSource));
 }
 
+async function importHubClient() {
+  const plazaUrl = dataModule(
+    transpile(await readSource("app/plaza-world.ts"), "app/plaza-world.ts"),
+  );
+  const equipmentUrl = dataModule(
+    transpile(await readSource("app/equipment.ts"), "app/equipment.ts"),
+  );
+  const protocolSource = transpile(
+    await readSource("app/hub-protocol.ts"),
+    "app/hub-protocol.ts",
+  )
+    .replace(/from\s+["']\.\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`)
+    .replace(/from\s+["']\.\/equipment["']/, `from ${JSON.stringify(equipmentUrl)}`);
+  const protocolUrl = dataModule(protocolSource);
+  const clientSource = transpile(
+    await readSource("app/hub-client.ts"),
+    "app/hub-client.ts",
+  ).replace(/from\s+["']\.\/hub-protocol["']/, `from ${JSON.stringify(protocolUrl)}`);
+  return import(dataModule(clientSource));
+}
+
 class D1StatementAdapter {
   constructor(database, sql, bindings = []) {
     this.database = database;
@@ -232,10 +253,34 @@ test("hub protocol strips coordinate authority and allowlists every visual field
     moveX: 0.6,
     moveY: 0.8,
     facing: 7,
+    dash: false,
   });
   for (const forbidden of ["x", "y", "speed", "teleport", "dungeonFloor"]) {
     assert.equal(forbidden in intent, false);
   }
+  assert.deepEqual(
+    protocol.parseHubMoveIntent({
+      sequence: 12,
+      moveX: 0,
+      moveY: 0,
+      facing: 4,
+      dash: true,
+      dashDistance: 99_999,
+      dashSpeed: 99_999,
+    }),
+    { sequence: 12, moveX: 0, moveY: 0, facing: 4, dash: true },
+  );
+  assert.equal(
+    protocol.parseHubMoveIntent({ sequence: 13, moveX: 0, moveY: 0, dash: "true" }).dash,
+    false,
+    "only a literal boolean may request the server-authoritative dash",
+  );
+  assert.equal(protocol.HUB_DASH_DURATION_MS, 170);
+  assert.equal(protocol.HUB_DASH_SPEED, 900);
+  assert.equal(protocol.HUB_DASH_DISTANCE, 153);
+  assert.equal(protocol.HUB_DASH_BASE_COOLDOWN_MS, 1_350);
+  assert.equal(protocol.HUB_DASH_COOLDOWN_MS, 1_350 / 1.3);
+  assert.equal(protocol.HUB_DASH_SWEEP_STEP_PX, 16);
 });
 
 test("public plaza equipment is canonical, ten-slot, and strips private gear fields", async () => {
@@ -299,7 +344,11 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
   assert.match(server, /last_sequence<\?/);
   assert.match(server, /version=version\+1/);
   assert.match(server, /AND version=\? AND last_sequence<\?/);
-  assert.match(server, /resolvePlazaMovement\(/);
+  assert.match(server, /resolvePlazaSweptMovement\(/);
+  assert.match(server, /HUB_DASH_SWEEP_STEP_PX/);
+  assert.match(server, /intent\.dash && now - row\.last_dash_at >= HUB_DASH_COOLDOWN_MS/);
+  assert.match(server, /dashAccepted \? now : row\.last_dash_at/);
+  assert.match(server, /ALTER TABLE hub_sessions ADD COLUMN last_dash_at INTEGER NOT NULL DEFAULT 0/);
   assert.match(server, /MAX_MOVE_STEP_MS\s*=\s*250/);
   assert.match(server, /hub_rate_limits/);
   assert.match(server, /DELETE FROM hub_sessions WHERE expires_at<=\? OR last_seen_at<\?/);
@@ -316,7 +365,46 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
   assert.match(client, /if \(!retryable\) \{[\s\S]{0,100}?this\.setState\("offline"\)/);
   assert.match(client, /characterSlot:\s*this\.config\.characterSlot/);
   assert.match(client, /dungeonFloor:\s*this\.config\.dungeonFloor/);
-  assert.match(client, /\{ sequence: \+\+this\.sequence, \.\.\.this\.intent \}/);
+  assert.match(client, /queueDash\(\): void \{/);
+  assert.match(client, /const dash = this\.dashQueued/);
+  assert.match(client, /\{ sequence: \+\+this\.sequence, \.\.\.this\.intent, dash \}/);
+  assert.match(
+    client,
+    /this\.acceptSnapshot\(payload\);\s*if \(!hidden && dash\) this\.dashQueued = false/,
+    "a dash latch must be consumed only after a successful visible sync snapshot",
+  );
+});
+
+test("hub client keeps one dash latched through failure and consumes it after sync success", async () => {
+  const { MemoryPlazaClient } = await importHubClient();
+  const client = new MemoryPlazaClient();
+  client.token = "a".repeat(64);
+  client.generation = 7;
+  client.schedule = () => undefined;
+  client.acceptSnapshot = () => undefined;
+
+  let sentBody = null;
+  client.requestJson = async (_url, _method, body) => {
+    sentBody = body;
+    return {};
+  };
+  client.queueDash();
+  assert.equal(client.dashQueued, true);
+  await client.poll(7);
+  assert.equal(sentBody.dash, true);
+  assert.deepEqual(Object.keys(sentBody).sort(), ["dash", "facing", "moveX", "moveY", "sequence"]);
+  assert.equal(client.dashQueued, false, "successful sync consumes the one-shot latch");
+
+  client.handleRequestFailure = () => undefined;
+  client.requestJson = async () => {
+    throw new Error("transient_sync_failure");
+  };
+  client.queueDash();
+  await client.poll(7);
+  assert.equal(client.dashQueued, true, "failed sync keeps the dash queued for retry");
+
+  client.leave(false);
+  assert.equal(client.dashQueued, false, "leaving a session clears stale input");
 });
 
 test("guest A/B sessions share snapshots while forged coordinates never reach storage", async () => {
@@ -458,6 +546,100 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   assert.equal(staleResponse.status, 200);
   const stale = await staleResponse.json();
   assert.equal(stale.self.x, moved.self.x, "replayed sequence must not move the player twice");
+
+  const dashResponse = await handleHubRequest(
+    makeRequest(
+      "sync",
+      {
+        sequence: 2,
+        moveX: 0,
+        moveY: 0,
+        facing: 4,
+        dash: true,
+        dashDistance: 99_999,
+        dashSpeed: 99_999,
+      },
+      sessionA.token,
+    ),
+    env,
+  );
+  assert.equal(dashResponse.status, 200);
+  const dashed = await dashResponse.json();
+  assert.ok(
+    moved.self.y - dashed.self.y > 140,
+    "standing dash must use the last requested facing",
+  );
+  assert.ok(
+    moved.self.y - dashed.self.y <= protocol.HUB_DASH_DISTANCE + 0.01,
+    "client-supplied dash distance and speed must never expand the fixed impulse",
+  );
+  assert.ok(Math.abs(dashed.self.x - moved.self.x) <= 0.01);
+  assert.equal("lastDashAt" in dashed.self, false);
+  assert.equal("last_dash_at" in dashed.self, false);
+  const acceptedDashAt = db.database
+    .prepare("SELECT last_dash_at FROM hub_sessions WHERE id=?")
+    .get(sessionA.self.playerId).last_dash_at;
+  assert.ok(acceptedDashAt > 0, "accepted dash cooldown state must persist in D1");
+
+  const staleDashResponse = await handleHubRequest(
+    makeRequest(
+      "sync",
+      { sequence: 2, moveX: 0, moveY: 0, facing: 0, dash: true },
+      sessionA.token,
+    ),
+    env,
+  );
+  assert.equal(staleDashResponse.status, 200);
+  const staleDash = await staleDashResponse.json();
+  assert.equal(staleDash.self.x, dashed.self.x);
+  assert.equal(staleDash.self.y, dashed.self.y, "a stale sequence must never dash twice");
+  assert.equal(
+    db.database.prepare("SELECT last_dash_at FROM hub_sessions WHERE id=?")
+      .get(sessionA.self.playerId).last_dash_at,
+    acceptedDashAt,
+  );
+
+  const cooldownResponse = await handleHubRequest(
+    makeRequest(
+      "sync",
+      { sequence: 3, moveX: 0, moveY: 0, facing: 0, dash: true },
+      sessionA.token,
+    ),
+    env,
+  );
+  assert.equal(cooldownResponse.status, 200);
+  const cooldownBlocked = await cooldownResponse.json();
+  assert.equal(cooldownBlocked.self.x, dashed.self.x);
+  assert.equal(cooldownBlocked.self.y, dashed.self.y, "cooldown must reject a fresh early dash");
+  assert.equal(
+    db.database.prepare("SELECT last_dash_at FROM hub_sessions WHERE id=?")
+      .get(sessionA.self.playerId).last_dash_at,
+    acceptedDashAt,
+  );
+
+  db.database.prepare("UPDATE hub_sessions SET last_dash_at=? WHERE id=?").run(
+    Date.now() - Math.ceil(protocol.HUB_DASH_COOLDOWN_MS) - 1,
+    sessionA.self.playerId,
+  );
+  const readyResponse = await handleHubRequest(
+    makeRequest(
+      "sync",
+      { sequence: 4, moveX: 1, moveY: 0, facing: 0, dash: true },
+      sessionA.token,
+    ),
+    env,
+  );
+  assert.equal(readyResponse.status, 200);
+  const readyDash = await readyResponse.json();
+  assert.ok(
+    readyDash.self.x - cooldownBlocked.self.x >= protocol.HUB_DASH_DISTANCE - 0.01,
+    "active movement must define dash direction instead of the conflicting facing field",
+  );
+  assert.ok(
+    readyDash.self.x - cooldownBlocked.self.x <=
+      protocol.HUB_DASH_DISTANCE + protocol.HUB_PLAYER_SPEED * 0.25 + 0.01,
+  );
+  assert.ok(Math.abs(readyDash.self.y - cooldownBlocked.self.y) <= 0.01);
   db.close();
 });
 
@@ -520,6 +702,14 @@ test("runtime schema setup adds floor-one claims to pre-floor D1 tables", async 
   db.database.prepare(`INSERT INTO hub_character_slots
     (account_id,slot,public_character_id,level,appearance_json,created_at,updated_at)
     VALUES(?,?,?,?,?,?,?)`).run("legacy", 1, "legacy-character", 44, "{}", now, now);
+  db.database.prepare(`INSERT INTO hub_sessions
+    (id,token_hash,account_id,character_slot,public_character_id,display_name,level,
+     appearance_json,zone,x,y,facing,moving,last_sequence,last_move_at,last_seen_at,
+     expires_at,version,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    "legacy-player", "d".repeat(64), "legacy", 1, "legacy-character", "Legacy", 44,
+    "{}", "memory-plaza-v1", 1200, 675, 4, 0, 0, now, now, now + 10_000, 0, now, now,
+  );
 
   const response = await handleHubRequest(
     new Request("https://game.local/api/hub/health", { method: "GET" }),
@@ -535,13 +725,20 @@ test("runtime schema setup adds floor-one claims to pre-floor D1 tables", async 
     db.database.prepare("PRAGMA table_info(hub_sessions)").all()
       .some((column) => column.name === "dungeon_floor"),
   );
+  assert.equal(
+    db.database.prepare("SELECT last_dash_at FROM hub_sessions WHERE id='legacy-player'")
+      .get().last_dash_at,
+    0,
+    "legacy sessions must self-heal to a ready dash cooldown without data loss",
+  );
   db.close();
 });
 
 test("hub migration enforces selected-slot ownership and one live session per identity", async () => {
-  const [migration, floorMigration] = await Promise.all([
+  const [migration, floorMigration, dashMigration] = await Promise.all([
     readSource("drizzle/0003_sparkling_smasher.sql"),
     readSource("drizzle/0004_superb_the_anarchist.sql"),
+    readSource("drizzle/0005_slippery_red_ghost.sql"),
   ]);
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
@@ -596,6 +793,13 @@ test("hub migration enforces selected-slot ownership and one live session per id
   );
   assert.throws(() =>
     db.prepare("UPDATE hub_sessions SET dungeon_floor=0 WHERE id=?").run("player-a"),
+  );
+  for (const statement of dashMigration.split("--> statement-breakpoint")) {
+    if (statement.trim()) db.exec(statement);
+  }
+  assert.equal(
+    db.prepare("SELECT last_dash_at FROM hub_sessions WHERE id=?").get("player-a").last_dash_at,
+    0,
   );
   db.close();
 });

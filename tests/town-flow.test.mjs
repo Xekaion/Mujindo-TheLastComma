@@ -43,7 +43,15 @@ test("the plaza binds selected save visuals and keeps floor claims inside charac
   assert.match(flow, /snapshot\.nearbyPlayers|hubSnapshot\?\.nearbyPlayers/);
   assert.match(flow, /localAuthoritativePosition=/);
   assert.match(flow, /getMemoryPlazaClient\(\)\.setMoveIntent/);
+  assert.match(flow, /equipment=\{equipment\}/);
+  assert.match(flow, /getMemoryPlazaClient\(\)\.queueDash\(\)/);
+  assert.match(flow, /onDashIntent=\{dashInPlaza\}/);
   assert.doesNotMatch(flow, /setMoveIntent\(\{[^}]*\b(?:x|y|speed|teleport)\s*:/s);
+  assert.doesNotMatch(
+    flow,
+    /client\.enter\(\{[\s\S]{0,500}?legendaryPowerId/,
+    "local legendary powers must not be published in the shared hub profile",
+  );
   assert.match(plaza, /`\$\{player\.displayName\} · LV\.\$\{player\.level\}`/);
   const drawPlayerBlock = plaza.slice(
     plaza.indexOf("function drawPlayer("),

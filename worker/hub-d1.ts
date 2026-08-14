@@ -2,11 +2,15 @@
 
 import {
   DEFAULT_HUB_APPEARANCE,
+  HUB_DASH_COOLDOWN_MS,
+  HUB_DASH_DISTANCE,
+  HUB_DASH_SWEEP_STEP_PX,
   HUB_HEARTBEAT_INTERVAL_MS,
   HUB_MAP_VERSION,
   HUB_MAX_DUNGEON_FLOOR,
   HUB_NEARBY_RADIUS,
   HUB_ONLINE_WINDOW_MS,
+  HUB_PLAYER_RADIUS,
   HUB_PLAYER_SPEED,
   HUB_PORTALS,
   HUB_SESSION_TTL_MS,
@@ -24,7 +28,7 @@ import {
   type HubFacing,
   type HubPlayerSnapshot,
 } from "../app/hub-protocol";
-import { resolvePlazaMovement } from "../app/plaza-world";
+import { resolvePlazaSweptMovement } from "../app/plaza-world";
 
 export type HubD1Env = {
   DB?: D1Database;
@@ -50,6 +54,7 @@ type SessionRow = {
   moving: number;
   last_sequence: number;
   last_move_at: number;
+  last_dash_at: number;
   last_seen_at: number;
   expires_at: number;
   version: number;
@@ -206,6 +211,7 @@ async function ensureSchema(db: D1Database): Promise<void> {
         moving INTEGER NOT NULL DEFAULT 0 CHECK (moving IN (0, 1)),
         last_sequence INTEGER NOT NULL DEFAULT 0,
         last_move_at INTEGER NOT NULL,
+        last_dash_at INTEGER NOT NULL DEFAULT 0,
         last_seen_at INTEGER NOT NULL,
         expires_at INTEGER NOT NULL,
         version INTEGER NOT NULL DEFAULT 0,
@@ -242,6 +248,18 @@ async function ensureSchema(db: D1Database): Promise<void> {
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         if (!/duplicate column name:\s*dungeon_floor/i.test(message)) throw error;
+      }
+    }
+
+    const sessionColumns = await db.prepare(`PRAGMA table_info(hub_sessions)`).all<{ name: string }>();
+    if (!(sessionColumns.results ?? []).some((column) => column.name === "last_dash_at")) {
+      try {
+        await db.prepare(
+          `ALTER TABLE hub_sessions ADD COLUMN last_dash_at INTEGER NOT NULL DEFAULT 0`,
+        ).run();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!/duplicate column name:\s*last_dash_at/i.test(message)) throw error;
       }
     }
   })().catch((error: unknown) => {
@@ -408,15 +426,51 @@ function resolveAuthoritativePosition(
   moveX: number,
   moveY: number,
   elapsedMs: number,
+  dash: boolean,
+  facing: HubFacing,
 ): { x: number; y: number } {
   const seconds = clamp(elapsedMs, 0, MAX_MOVE_STEP_MS) / 1_000;
-  return resolvePlazaMovement(
+  let position = resolvePlazaSweptMovement(
     { x: currentX, y: currentY },
-    {
-      x: moveX * HUB_PLAYER_SPEED * seconds,
-      y: moveY * HUB_PLAYER_SPEED * seconds,
-    },
+    { x: moveX * HUB_PLAYER_SPEED * seconds, y: moveY * HUB_PLAYER_SPEED * seconds },
+    HUB_PLAYER_RADIUS,
+    HUB_DASH_SWEEP_STEP_PX,
   );
+  if (!dash) return position;
+
+  const direction = resolveDashDirection(moveX, moveY, facing);
+  position = resolvePlazaSweptMovement(
+    position,
+    {
+      x: direction.x * HUB_DASH_DISTANCE,
+      y: direction.y * HUB_DASH_DISTANCE,
+    },
+    HUB_PLAYER_RADIUS,
+    HUB_DASH_SWEEP_STEP_PX,
+  );
+  return position;
+}
+
+function resolveDashDirection(
+  moveX: number,
+  moveY: number,
+  facing: HubFacing,
+): { x: number; y: number } {
+  const magnitude = Math.hypot(moveX, moveY);
+  if (magnitude >= 0.05) {
+    return { x: moveX / magnitude, y: moveY / magnitude };
+  }
+  const diagonal = Math.SQRT1_2;
+  return ([
+    { x: 0, y: 1 },
+    { x: -diagonal, y: diagonal },
+    { x: -1, y: 0 },
+    { x: -diagonal, y: -diagonal },
+    { x: 0, y: -1 },
+    { x: diagonal, y: -diagonal },
+    { x: 1, y: 0 },
+    { x: diagonal, y: diagonal },
+  ] as const)[facing];
 }
 
 async function createSession(request: Request, db: D1Database): Promise<Response> {
@@ -478,15 +532,15 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   await db.prepare(`INSERT INTO hub_sessions
       (id,token_hash,account_id,character_slot,public_character_id,display_name,
        level,dungeon_floor,appearance_json,zone,x,y,facing,moving,last_sequence,
-       last_move_at,last_seen_at,expires_at,version,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,?,?,0,?,?)
+       last_move_at,last_dash_at,last_seen_at,expires_at,version,created_at,updated_at)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,?,0,?,?,0,?,?)
     ON CONFLICT(account_id) DO UPDATE SET
       id=excluded.id,token_hash=excluded.token_hash,character_slot=excluded.character_slot,
       public_character_id=excluded.public_character_id,display_name=excluded.display_name,
       level=excluded.level,dungeon_floor=excluded.dungeon_floor,
       appearance_json=excluded.appearance_json,zone=excluded.zone,
       x=excluded.x,y=excluded.y,facing=excluded.facing,moving=0,last_sequence=0,
-      last_move_at=excluded.last_move_at,last_seen_at=excluded.last_seen_at,
+      last_move_at=excluded.last_move_at,last_dash_at=0,last_seen_at=excluded.last_seen_at,
       expires_at=excluded.expires_at,version=hub_sessions.version+1,
       created_at=excluded.created_at,updated_at=excluded.updated_at`)
     .bind(
@@ -531,16 +585,20 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
       .bind(now, now, row.id)
       .run();
   } else {
+    const dashAccepted =
+      intent.dash && now - row.last_dash_at >= HUB_DASH_COOLDOWN_MS;
     const position = resolveAuthoritativePosition(
       row.x,
       row.y,
       intent.moveX,
       intent.moveY,
       now - row.last_move_at,
+      dashAccepted,
+      intent.facing,
     );
-    const moving = Math.hypot(intent.moveX, intent.moveY) >= 0.05 ? 1 : 0;
+    const moving = Math.hypot(intent.moveX, intent.moveY) >= 0.05 || dashAccepted ? 1 : 0;
     const updated = await db.prepare(`UPDATE hub_sessions SET
-        x=?,y=?,facing=?,moving=?,last_sequence=?,last_move_at=?,last_seen_at=?,
+        x=?,y=?,facing=?,moving=?,last_sequence=?,last_move_at=?,last_dash_at=?,last_seen_at=?,
         expires_at=?,version=version+1,updated_at=?
       WHERE id=? AND account_id=? AND version=? AND last_sequence<?`)
       .bind(
@@ -550,6 +608,7 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
         moving,
         intent.sequence,
         now,
+        dashAccepted ? now : row.last_dash_at,
         now,
         now + HUB_SESSION_TTL_MS,
         now,

@@ -133,10 +133,15 @@ test("localhost plaza motion QA renders directly without touching a save or hub 
   const directBlock = flow.slice(directEntry, characterEntry);
   assert.match(directBlock, /data-entry-view="local-plaza-motion-showcase"/);
   assert.match(directBlock, /<PlazaHub/);
+  assert.match(directBlock, /equipment=\{LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT\}/);
   assert.match(directBlock, /connectionState="offline"/);
   assert.doesNotMatch(
     directBlock,
     /getMemoryPlazaClient|readSaveSlot|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+  assert.match(
+    flow,
+    /const LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT\s*=\s*createPlazaSkillShowcaseEquipment\(\);/,
   );
 });
 

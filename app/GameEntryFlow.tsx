@@ -36,6 +36,7 @@ import {
 } from "./save-slots";
 import { inventoryCapacityFor, readShopEntitlements } from "./shop";
 import type { PlazaPortalDefinition } from "./plaza-world";
+import { createPlazaSkillShowcaseEquipment } from "./plaza-skills";
 
 type GameEntryFlowProps = {
   accountName?: string | null;
@@ -67,6 +68,8 @@ const LOCAL_LOOT_VFX_SHOWCASE_MODES: readonly LocalLootVfxShowcaseMode[] = [
   "cosmic",
   "all",
 ];
+const LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT =
+  createPlazaSkillShowcaseEquipment();
 
 const isLocalLootVfxShowcaseMode = (
   value: string | null,
@@ -301,6 +304,10 @@ export default function GameEntryFlow({
     });
   }, []);
 
+  const dashInPlaza = useCallback(() => {
+    getMemoryPlazaClient().queueDash();
+  }, []);
+
   const rememberTownReturn = useCallback(() => {
     if (!selection) return;
     try {
@@ -475,6 +482,7 @@ export default function GameEntryFlow({
             dungeonFloor: 99,
             saveSlot: 1,
           }}
+          equipment={LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT}
           connectionState="offline"
         />
       </div>
@@ -544,6 +552,7 @@ export default function GameEntryFlow({
             rarities: self?.appearance.rarities ?? hubAppearance.rarities,
           },
         }}
+        equipment={equipment}
         remotePlayers={hubSnapshot?.nearbyPlayers ?? []}
         onlineCount={hubSnapshot?.online ?? 1}
         localAuthoritativePosition={self ? { x: self.x, y: self.y } : null}
@@ -551,6 +560,7 @@ export default function GameEntryFlow({
         connectionState={connectionForPlaza(hubConnection)}
         paused={shopOpen || inventoryOpen || profileState !== null}
         onMoveIntent={moveInPlaza}
+        onDashIntent={dashInPlaza}
         onPortalActivate={activatePortal}
         onPlayerInspect={inspectRemoteCharacter}
         onSelfInspect={inspectSelfCharacter}

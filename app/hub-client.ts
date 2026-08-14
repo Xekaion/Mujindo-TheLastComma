@@ -199,11 +199,12 @@ export class MemoryPlazaClient {
   private developmentUser: "A" | "B" | null = null;
   private token: string | null = null;
   private sequence = 0;
-  private intent: Omit<HubMoveIntent, "sequence"> = {
+  private intent: Omit<HubMoveIntent, "sequence" | "dash"> = {
     moveX: 0,
     moveY: 0,
     facing: 0,
   };
+  private dashQueued = false;
   private snapshot: HubSnapshot | null = null;
   private timer: ReturnType<typeof setTimeout> | null = null;
   private controller: AbortController | null = null;
@@ -247,6 +248,7 @@ export class MemoryPlazaClient {
       moveX: value.moveX,
       moveY: value.moveY,
       facing: value.facing ?? this.intent.facing,
+      dash: false,
       // Position/speed fields on callers are intentionally never forwarded.
     });
     if (!parsed) return;
@@ -255,6 +257,12 @@ export class MemoryPlazaClient {
       moveY: parsed.moveY,
       facing: parsed.facing,
     };
+    if (this.token && !this.requestActive) this.schedule(0);
+  }
+
+  /** Latches one dash request until a visible sync succeeds. */
+  queueDash(): void {
+    this.dashQueued = true;
     if (this.token && !this.requestActive) this.schedule(0);
   }
 
@@ -342,6 +350,7 @@ export class MemoryPlazaClient {
     this.snapshot = null;
     this.sequence = 0;
     this.intent = { moveX: 0, moveY: 0, facing: 0 };
+    this.dashQueued = false;
     this.config = null;
     this.reconnectAttempt = 0;
     this.setState("offline");
@@ -408,17 +417,19 @@ export class MemoryPlazaClient {
     if (generation !== this.generation || !this.token || this.requestActive) return;
     this.requestActive = true;
     const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+    const dash = this.dashQueued;
     try {
       const payload = hidden
         ? await this.requestJson("/api/hub/heartbeat", "POST", {}, this.token)
         : await this.requestJson(
             "/api/hub/sync",
             "POST",
-            { sequence: ++this.sequence, ...this.intent },
+            { sequence: ++this.sequence, ...this.intent, dash },
             this.token,
           );
       if (generation !== this.generation) return;
       this.acceptSnapshot(payload);
+      if (!hidden && dash) this.dashQueued = false;
       this.reconnectAttempt = 0;
       this.setState("online");
     } catch (error) {
@@ -428,7 +439,7 @@ export class MemoryPlazaClient {
       this.requestActive = false;
     }
     if (generation !== this.generation) return;
-    const moving = Math.hypot(this.intent.moveX, this.intent.moveY) >= 0.05;
+    const moving = Math.hypot(this.intent.moveX, this.intent.moveY) >= 0.05 || this.dashQueued;
     this.schedule(hidden ? HUB_HEARTBEAT_INTERVAL_MS : moving ? ACTIVE_SYNC_MS : IDLE_SYNC_MS);
   }
 

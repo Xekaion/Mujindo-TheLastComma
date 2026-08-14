@@ -6459,8 +6459,8 @@ test("expedition and plaza render independent fitted layers and preserve public 
     "plaza motion must sample input, collision, and server settling as one final displacement",
   );
   assert.match(
-    plaza.slice(plazaMotionResolve, plazaMotionResolve + 900),
-    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,700}?advanceCharacterWalkCycle\(\s*walkCycleRef\.current,\s*motion\.distance,\s*undefined,\s*dt\s*,?\s*\)/,
+    plaza.slice(plazaMotionResolve, plazaMotionResolve + 2_400),
+    /positionRef\.current\.x\s*-\s*previousPosition\.x,[\s\S]{0,100}?positionRef\.current\.y\s*-\s*previousPosition\.y[\s\S]{0,2200}?advanceCharacterWalkCycle\(\s*walkCycleRef\.current,\s*motion\.distance,\s*isDashing\s*\?\s*220\s*:\s*undefined,\s*dt\s*,?\s*\)/,
   );
   assert.doesNotMatch(plaza, /Math\.floor\(time\s*\*\s*8\.5\)/);
   assert.match(

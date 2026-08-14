@@ -66,6 +66,32 @@ test("the plaza keeps the central crowd space open and blocks its visible outer 
   assert.deepEqual(plaza.resolvePlazaMovement(start, { x: 0, y: -200 }), start);
 });
 
+test("long plaza dash impulses sweep the full path instead of tunneling through scenery", async () => {
+  const plaza = await importTypeScriptModule("app/plaza-world.ts");
+  const start = { x: 1_200, y: 280 };
+  const dashedNorth = plaza.resolvePlazaSweptMovement(start, { x: 0, y: -180 });
+  assert.equal(plaza.isPlazaWalkable(dashedNorth), true);
+  assert.ok(dashedNorth.y >= 113, "the dash must remain inside the visible north boundary");
+
+  const deskStart = { x: 950, y: 1_020 };
+  const dashedThroughDesk = plaza.resolvePlazaSweptMovement(
+    deskStart,
+    { x: -550, y: 0 },
+  );
+  assert.equal(plaza.isPlazaWalkable(dashedThroughDesk), true);
+  assert.ok(
+    dashedThroughDesk.x >= 881,
+    "a valid endpoint behind the southern desk must not allow wall tunneling",
+  );
+
+  const diagonal = plaza.resolvePlazaSweptMovement(
+    { x: 1_200, y: 675 },
+    { x: 108.19, y: 108.19 },
+  );
+  assert.equal(plaza.isPlazaWalkable(diagonal), true);
+  assert.ok(Math.hypot(diagonal.x - 1_200, diagonal.y - 675) <= 153.01);
+});
+
 test("plaza facing and Harin's authored rows stay aligned in all eight directions", async () => {
   const plaza = await importTypeScriptModule("app/plaza-world.ts");
   const vectors = [
@@ -104,6 +130,30 @@ test("PlazaHub uses the generated map, authoritative intent, and accessible cont
     source,
     /\}, \[guidedPortalId, normalizedCharacter, onMoveIntent\]\);/,
   );
+});
+
+test("PlazaHub supports keyboard and touch dash with authored mobility-power VFX", async () => {
+  const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
+  assert.match(source, /key === " " && !event\.repeat/);
+  assert.match(source, /const queueDash = useCallback/);
+  assert.match(source, /onDashIntentRef\.current\?\.\(\)/);
+  assert.match(source, /resolvePlazaSweptMovement\(positionRef\.current/);
+  assert.match(source, /const usesServerAuthority = Boolean\(onDashIntentRef\.current\)/);
+  assert.match(source, /usesServerAuthority \? HUB_DASH_SPEED : mobility\.dashSpeed/);
+  assert.match(
+    source,
+    /HUB_DASH_COOLDOWN_MS \/ 1_000 \+ \(usesServerAuthority \? 0\.1 : 0\)/,
+  );
+  assert.match(source, /isDashing \? 220 : undefined/);
+  assert.match(source, /className="is-dash"/);
+  assert.match(source, /aria-label="회피 대시"/);
+  assert.match(source, /legendaryVfxId\("starfallMantle"\)/);
+  assert.match(source, /legendaryVfxId\("riftStride"\)/);
+  assert.match(source, /legendaryVfxId\("phantomMarch"\)/);
+  assert.match(source, /paperdollVisualCenterY\(/);
+  assert.match(source, /advanceContinuousMovement\(/);
+  assert.match(source, /equipment\?: EquipmentLoadout \| null/);
+  assert.match(source, /Local-only loadout/);
 });
 
 test("plaza paperdolls contact their shadows instead of floating above them", async () => {
