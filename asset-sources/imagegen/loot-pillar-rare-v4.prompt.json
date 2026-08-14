@@ -1,0 +1,41 @@
+{
+  "asset": "loot-pillar-rare-v4",
+  "generatedAt": "2026-08-15",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "production 2D ARPG persistent rare loot-pillar four-frame sprite sheet",
+  "useCases": {
+    "generation": "stylized-concept",
+    "edit": "precise-object-edit"
+  },
+  "generationPrompt": "Create an exact 4-frame horizontal sprite sheet on one perfectly flat solid magenta chroma-key background. Four equal portrait cells, no gutters between cells, each cell shows one distinct animation stage of a persistent rare-tier dropped-loot beacon for a gothic early-2000s Diablo-like 2D three-quarter top-down ARPG. Rare identity is luminous yellow-gold: a slim ivory-white central core, layered antique gold and amber/bronze filaments, compass-rune floor flare, sparkling motes, restrained corpse-cyan secondary rune light. Keep dark transparent-looking gaps between filaments so the art retains texture. Stages: gather, rise, bright flash, settle. The floor flare must share one consistent low anchor in all frames. No text, no item icon, no character, no solid opaque beam, no flat single-color silhouette, no overexposed white flood, no orange fire pillar, no purple dominant color, no mobile-game neon, no checkerboard.",
+  "editPrompt": "Precise object edit only: preserve all four frames, geometry, animation stages, gold/amber filaments, ivory core, compass floor flare, spacing, scale and flat magenta background exactly. Change only selected rune seams, small motes, compass ticks and thin secondary filaments to pale turquoise/corpse-cyan so cyan reads as roughly 8-12% of the luminous detail. Do not recolor the main gold body, do not add new shapes, do not broaden the white core, and do not change framing or background.",
+  "finalColourCorrectionPrompt": "Precise object edit for the provided exact 4-frame horizontal sprite sheet. Preserve every frame boundary, all geometry, animation stages, scale, compass floor seals, central beam positions, transparent-looking gaps, and the perfectly flat solid magenta chroma-key background. The current cool grey/blue-white outer corona reads like icy wings in the dark game scene. Recolor those tall cool grey, blue-white and silvery outer filaments into layered antique yellow-gold, warm amber, muted bronze and pale ivory so every frame reads unmistakably as a rare-tier GOLD/YELLOW loot beacon at small gameplay scale. Keep cyan/turquoise ONLY on a few tiny rune inlays, compass ticks and small floating sparks, no more than about 3-5% of luminous detail. Preserve a slim ivory-white core, rich tonal separation, dark gaps and crisp rune texture; do not collapse into a flat yellow silhouette. Do not broaden the core, add wings, add smoke masses, add new objects, change the floor anchor, change framing, change cell count, or modify the magenta background. No text, no item, no character.",
+  "matteCleanupPrompt": "Precise production cleanup edit of this exact 4-frame sprite sheet. Preserve the exact four equal cells, all geometry, animation stages, scale, positions, compass seals, gold filaments, tiny cyan rune inlays, and floor anchors. Change the background ONLY to one perfectly uniform flat solid RGB #FF00FF magenta field across every pixel outside the artwork: no gradient, no vignette, no bloom tint, no texture, no shadow, no halo and no color variation. Prevent any pink/magenta rim or reflected magenta inside the artwork. Refine the artwork only enough to make the central white beam slim pale ivory rather than a broad clipped-white slab, while restoring rich antique gold, yellow-gold, amber and dark bronze midtones around it. Keep dark gaps and crisp line texture so it is bright but never a single-color silhouette. Cyan/turquoise remains restricted to a few tiny rune inlays and sparks under 5% of detail. Do not add or remove objects, do not add wings or smoke masses, do not change framing, cell count, layout, or anchor. No text, item, or character.",
+  "outputs": {
+    "generatedSource": "asset-sources/imagegen/loot-pillar-rare-v4-source.png",
+    "keyedSource": "asset-sources/imagegen/loot-pillar-rare-v4-keyed.png"
+  },
+  "productionContract": {
+    "atlas": {
+      "columns": 4,
+      "rows": 1,
+      "cell": [
+        256,
+        512
+      ]
+    },
+    "targetFlareY": 472,
+    "colourPolicy": "Preserve authored RGB except for hue-local cleanup of residual magenta/red chroma reflection into warm amber; never collapse RGB through a scalar ramp or force a broad white core.",
+    "alphaPolicy": "Preserve continuous soft alpha with a mild 0.68 gamma lift for fine glow detail, and clear RGB beneath fully transparent pixels."
+  },
+  "chromaRemoval": {
+    "tool": "remove_chroma_key.py",
+    "autoKey": "border",
+    "detectedKey": "#f410d4",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "edgeContract": 1,
+    "despill": false
+  }
+}

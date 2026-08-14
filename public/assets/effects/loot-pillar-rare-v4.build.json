@@ -1,0 +1,500 @@
+{
+  "version": 4,
+  "builder": "scripts/build_loot_pillar_rare_v4.py",
+  "format": "rgba-png",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      512
+    ],
+    "size": [
+      1024,
+      512
+    ]
+  },
+  "source": {
+    "generated": {
+      "path": "asset-sources/imagegen/loot-pillar-rare-v4-source.png",
+      "sha256": "2f6b2aecfbe2874a805372032f77204cc76be770b5d4834df240e2534f2f41ee",
+      "bytes": 1749087,
+      "size": [
+        1774,
+        887
+      ],
+      "mode": "RGB"
+    },
+    "keyed": {
+      "path": "asset-sources/imagegen/loot-pillar-rare-v4-keyed.png",
+      "sha256": "5493f50848dd4287fada12c05a671b078b2cd994f25a4b1184b7d564d092e2f0",
+      "bytes": 1077863,
+      "size": [
+        1774,
+        887
+      ],
+      "mode": "RGBA"
+    },
+    "promptMetadata": {
+      "path": "asset-sources/imagegen/loot-pillar-rare-v4.prompt.json",
+      "sha256": "492aedc60d5fdea784d1e6944a6ffe9fc7372c4068b8e89bbeb7fcddaf0eccbf",
+      "generationPrompt": "Create an exact 4-frame horizontal sprite sheet on one perfectly flat solid magenta chroma-key background. Four equal portrait cells, no gutters between cells, each cell shows one distinct animation stage of a persistent rare-tier dropped-loot beacon for a gothic early-2000s Diablo-like 2D three-quarter top-down ARPG. Rare identity is luminous yellow-gold: a slim ivory-white central core, layered antique gold and amber/bronze filaments, compass-rune floor flare, sparkling motes, restrained corpse-cyan secondary rune light. Keep dark transparent-looking gaps between filaments so the art retains texture. Stages: gather, rise, bright flash, settle. The floor flare must share one consistent low anchor in all frames. No text, no item icon, no character, no solid opaque beam, no flat single-color silhouette, no overexposed white flood, no orange fire pillar, no purple dominant color, no mobile-game neon, no checkerboard.",
+      "editPrompt": "Precise object edit only: preserve all four frames, geometry, animation stages, gold/amber filaments, ivory core, compass floor flare, spacing, scale and flat magenta background exactly. Change only selected rune seams, small motes, compass ticks and thin secondary filaments to pale turquoise/corpse-cyan so cyan reads as roughly 8-12% of the luminous detail. Do not recolor the main gold body, do not add new shapes, do not broaden the white core, and do not change framing or background.",
+      "finalColourCorrectionPrompt": "Precise object edit for the provided exact 4-frame horizontal sprite sheet. Preserve every frame boundary, all geometry, animation stages, scale, compass floor seals, central beam positions, transparent-looking gaps, and the perfectly flat solid magenta chroma-key background. The current cool grey/blue-white outer corona reads like icy wings in the dark game scene. Recolor those tall cool grey, blue-white and silvery outer filaments into layered antique yellow-gold, warm amber, muted bronze and pale ivory so every frame reads unmistakably as a rare-tier GOLD/YELLOW loot beacon at small gameplay scale. Keep cyan/turquoise ONLY on a few tiny rune inlays, compass ticks and small floating sparks, no more than about 3-5% of luminous detail. Preserve a slim ivory-white core, rich tonal separation, dark gaps and crisp rune texture; do not collapse into a flat yellow silhouette. Do not broaden the core, add wings, add smoke masses, add new objects, change the floor anchor, change framing, change cell count, or modify the magenta background. No text, no item, no character.",
+      "matteCleanupPrompt": "Precise production cleanup edit of this exact 4-frame sprite sheet. Preserve the exact four equal cells, all geometry, animation stages, scale, positions, compass seals, gold filaments, tiny cyan rune inlays, and floor anchors. Change the background ONLY to one perfectly uniform flat solid RGB #FF00FF magenta field across every pixel outside the artwork: no gradient, no vignette, no bloom tint, no texture, no shadow, no halo and no color variation. Prevent any pink/magenta rim or reflected magenta inside the artwork. Refine the artwork only enough to make the central white beam slim pale ivory rather than a broad clipped-white slab, while restoring rich antique gold, yellow-gold, amber and dark bronze midtones around it. Keep dark gaps and crisp line texture so it is bright but never a single-color silhouette. Cyan/turquoise remains restricted to a few tiny rune inlays and sparks under 5% of detail. Do not add or remove objects, do not add wings or smoke masses, do not change framing, cell count, layout, or anchor. No text, item, or character."
+    }
+  },
+  "pipeline": {
+    "split": "four proportional horizontal cells with rounded source edges",
+    "sourceFrameEdges": [
+      0,
+      444,
+      887,
+      1330,
+      1774
+    ],
+    "resize": "premultiplied-alpha LANCZOS",
+    "colourGrade": "hue-local residual magenta-key spill to warm amber; no scalar RGB ramp",
+    "palette": "truecolour; no palette quantization",
+    "alpha": "continuous soft alpha gamma 0.68; values below 8 cleared",
+    "targetFlareY": 472,
+    "visibleAlphaThreshold": 64,
+    "flareSearchStartRatio": 0.72,
+    "brightLuminanceThreshold": 205.0,
+    "pixelDifferenceThreshold": 16,
+    "classification": {
+      "white": "HSV saturation <= 0.18 and value >= 0.78",
+      "gold": "HSV hue 30..65, saturation >= 0.4, value >= 0.35",
+      "cyan": "HSV hue 165..205, saturation >= 0.3, value >= 0.35"
+    }
+  },
+  "output": {
+    "path": "public/assets/effects/loot-pillar-rare-v4.png",
+    "sha256": "1b0d7f07ed166887341dda602a3f7938d6317a82bcb6dd3b181179d673f75e20",
+    "bytes": 322743,
+    "groundAnchor": 0.9219,
+    "transparentRgbLeak": 0
+  },
+  "frames": [
+    {
+      "index": 0,
+      "sourceFlareY": 760,
+      "flareY": 472,
+      "bbox": [
+        46,
+        48,
+        209,
+        501
+      ],
+      "padding": [
+        46,
+        48,
+        47,
+        11
+      ],
+      "visiblePixels": 8178,
+      "uniqueVisibleRgb": 6056,
+      "alphaLevelCount": 249,
+      "opaquePixelRatio": 0.119467,
+      "meanRgb": [
+        202.18403,
+        163.877965,
+        81.41575
+      ],
+      "meanLuminance": 165.930786,
+      "luminanceStdDev": 60.84763,
+      "brightPixelRatio": 0.321105,
+      "whitePixelRatio": 0.20922,
+      "goldPixelRatio": 0.638909,
+      "cyanPixelRatio": 0.0,
+      "topColorRatio": 0.010516,
+      "topTwoColorRatio": 0.013328,
+      "colourEntropyBits": 12.277678,
+      "dominantColors": [
+        {
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "pixels": 86,
+          "ratio": 0.010516
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            241
+          ],
+          "pixels": 23,
+          "ratio": 0.002812
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            240
+          ],
+          "pixels": 19,
+          "ratio": 0.002323
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            242
+          ],
+          "pixels": 17,
+          "ratio": 0.002079
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            216
+          ],
+          "pixels": 14,
+          "ratio": 0.001712
+        }
+      ],
+      "pixelHash": "fff2eb4c2ea91c92bfc64405c8e582bbdb8c0928a34c8a4a5c1324a3236fa3f2"
+    },
+    {
+      "index": 1,
+      "sourceFlareY": 761,
+      "flareY": 472,
+      "bbox": [
+        44,
+        48,
+        209,
+        502
+      ],
+      "padding": [
+        44,
+        48,
+        47,
+        10
+      ],
+      "visiblePixels": 16187,
+      "uniqueVisibleRgb": 11538,
+      "alphaLevelCount": 249,
+      "opaquePixelRatio": 0.065361,
+      "meanRgb": [
+        177.500834,
+        133.309569,
+        46.438809
+      ],
+      "meanLuminance": 136.619492,
+      "luminanceStdDev": 61.103146,
+      "brightPixelRatio": 0.177982,
+      "whitePixelRatio": 0.076172,
+      "goldPixelRatio": 0.706308,
+      "cyanPixelRatio": 0.000865,
+      "topColorRatio": 0.005807,
+      "topTwoColorRatio": 0.006672,
+      "colourEntropyBits": 13.225498,
+      "dominantColors": [
+        {
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "pixels": 94,
+          "ratio": 0.005807
+        },
+        {
+          "rgb": [
+            211,
+            147,
+            30
+          ],
+          "pixels": 14,
+          "ratio": 0.000865
+        },
+        {
+          "rgb": [
+            255,
+            253,
+            255
+          ],
+          "pixels": 13,
+          "ratio": 0.000803
+        },
+        {
+          "rgb": [
+            206,
+            144,
+            31
+          ],
+          "pixels": 13,
+          "ratio": 0.000803
+        },
+        {
+          "rgb": [
+            215,
+            150,
+            32
+          ],
+          "pixels": 13,
+          "ratio": 0.000803
+        }
+      ],
+      "pixelHash": "9bb07294ed77b7840291b599306f808e45dc36f62984fa00c6ffbb6d8a1d3322"
+    },
+    {
+      "index": 2,
+      "sourceFlareY": 761,
+      "flareY": 472,
+      "bbox": [
+        17,
+        34,
+        230,
+        502
+      ],
+      "padding": [
+        17,
+        34,
+        26,
+        10
+      ],
+      "visiblePixels": 17646,
+      "uniqueVisibleRgb": 12539,
+      "alphaLevelCount": 249,
+      "opaquePixelRatio": 0.099966,
+      "meanRgb": [
+        186.251048,
+        151.168593,
+        66.467528
+      ],
+      "meanLuminance": 152.002319,
+      "luminanceStdDev": 54.592888,
+      "brightPixelRatio": 0.211889,
+      "whitePixelRatio": 0.104783,
+      "goldPixelRatio": 0.672334,
+      "cyanPixelRatio": 0.022215,
+      "topColorRatio": 0.010597,
+      "topTwoColorRatio": 0.011844,
+      "colourEntropyBits": 13.278471,
+      "dominantColors": [
+        {
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "pixels": 187,
+          "ratio": 0.010597
+        },
+        {
+          "rgb": [
+            215,
+            150,
+            32
+          ],
+          "pixels": 22,
+          "ratio": 0.001247
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            248
+          ],
+          "pixels": 18,
+          "ratio": 0.00102
+        },
+        {
+          "rgb": [
+            205,
+            144,
+            30
+          ],
+          "pixels": 18,
+          "ratio": 0.00102
+        },
+        {
+          "rgb": [
+            200,
+            139,
+            30
+          ],
+          "pixels": 18,
+          "ratio": 0.00102
+        }
+      ],
+      "pixelHash": "4152a8f02fb67f4e6e7b0452d762fae0151142ca87c322100294521404c6293e"
+    },
+    {
+      "index": 3,
+      "sourceFlareY": 764,
+      "flareY": 472,
+      "bbox": [
+        39,
+        49,
+        209,
+        501
+      ],
+      "padding": [
+        39,
+        49,
+        47,
+        11
+      ],
+      "visiblePixels": 6501,
+      "uniqueVisibleRgb": 4953,
+      "alphaLevelCount": 248,
+      "opaquePixelRatio": 0.108752,
+      "meanRgb": [
+        200.927857,
+        159.929088,
+        75.778649
+      ],
+      "meanLuminance": 162.594559,
+      "luminanceStdDev": 58.781448,
+      "brightPixelRatio": 0.280111,
+      "whitePixelRatio": 0.209506,
+      "goldPixelRatio": 0.674512,
+      "cyanPixelRatio": 0.0,
+      "topColorRatio": 0.018305,
+      "topTwoColorRatio": 0.022458,
+      "colourEntropyBits": 11.916636,
+      "dominantColors": [
+        {
+          "rgb": [
+            255,
+            255,
+            255
+          ],
+          "pixels": 119,
+          "ratio": 0.018305
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            252
+          ],
+          "pixels": 27,
+          "ratio": 0.004153
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            251
+          ],
+          "pixels": 27,
+          "ratio": 0.004153
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            253
+          ],
+          "pixels": 27,
+          "ratio": 0.004153
+        },
+        {
+          "rgb": [
+            255,
+            255,
+            254
+          ],
+          "pixels": 19,
+          "ratio": 0.002923
+        }
+      ],
+      "pixelHash": "dfc6d39a06ec49fdc3ca6395aaf19b9b34ef979e932ae898fc20cd529fcc9582"
+    }
+  ],
+  "temporalDifferences": [
+    {
+      "from": 0,
+      "to": 1,
+      "alphaSupportIou": 0.326275,
+      "changedPixelRatio": 0.926079,
+      "meanAbsoluteRgbDelta": 63.309546,
+      "meanAbsoluteAlphaDelta": 88.153612
+    },
+    {
+      "from": 1,
+      "to": 2,
+      "alphaSupportIou": 0.322842,
+      "changedPixelRatio": 0.962035,
+      "meanAbsoluteRgbDelta": 77.673118,
+      "meanAbsoluteAlphaDelta": 100.132116
+    },
+    {
+      "from": 2,
+      "to": 3,
+      "alphaSupportIou": 0.223934,
+      "changedPixelRatio": 0.973288,
+      "meanAbsoluteRgbDelta": 85.685336,
+      "meanAbsoluteAlphaDelta": 105.574332
+    },
+    {
+      "from": 3,
+      "to": 0,
+      "alphaSupportIou": 0.375082,
+      "changedPixelRatio": 0.961686,
+      "meanAbsoluteRgbDelta": 69.271007,
+      "meanAbsoluteAlphaDelta": 89.84815
+    }
+  ],
+  "summary": {
+    "uniqueVisibleRgb": {
+      "min": 4953.0,
+      "max": 12539.0,
+      "mean": 8771.5
+    },
+    "alphaLevelCount": {
+      "min": 248.0,
+      "max": 249.0,
+      "mean": 248.75
+    },
+    "brightPixelRatio": {
+      "min": 0.177982,
+      "max": 0.321105,
+      "mean": 0.247772
+    },
+    "whitePixelRatio": {
+      "min": 0.076172,
+      "max": 0.209506,
+      "mean": 0.14992
+    },
+    "goldPixelRatio": {
+      "min": 0.638909,
+      "max": 0.706308,
+      "mean": 0.673016
+    },
+    "cyanPixelRatio": {
+      "min": 0.0,
+      "max": 0.022215,
+      "mean": 0.00577
+    },
+    "topColorRatio": {
+      "min": 0.005807,
+      "max": 0.018305,
+      "mean": 0.011306
+    },
+    "topTwoColorRatio": {
+      "min": 0.006672,
+      "max": 0.022458,
+      "mean": 0.013575
+    },
+    "colourEntropyBits": {
+      "min": 11.916636,
+      "max": 13.278471,
+      "mean": 12.674571
+    },
+    "flareY": {
+      "min": 472.0,
+      "max": 472.0,
+      "mean": 472.0
+    },
+    "minimumTemporalChangedPixelRatio": 0.926079,
+    "maximumTemporalAlphaSupportIou": 0.375082
+  }
+}

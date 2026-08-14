@@ -649,6 +649,7 @@ type EquipmentRarityVfxConfig = {
   pillarWidth: number;
   pillarHeight: number;
   pillarFps: number;
+  pillarCompositeOperation: "lighter" | "screen";
   /** Normalized source Y where the authored flare visually meets the floor. */
   pillarGroundAnchor: number;
   /** Screen-space correction that lowers short flare tails to the epic baseline. */
@@ -683,6 +684,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 74,
     pillarHeight: 96,
     pillarFps: 4,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.9297,
     pillarGroundOffsetPx: 4,
   },
@@ -706,6 +708,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 82,
     pillarHeight: 108,
     pillarFps: 4,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.9082,
     pillarGroundOffsetPx: 3,
   },
@@ -729,6 +732,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 92,
     pillarHeight: 124,
     pillarFps: 5,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.8965,
     pillarGroundOffsetPx: 2,
   },
@@ -736,7 +740,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     imageKey: "lootAwakeningRare",
     imagePath: "/assets/effects/loot-awakening-rare-v5.png",
     pillarImageKey: "lootPillarRare",
-    pillarImagePath: "/assets/effects/loot-pillar-rare-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-rare-v4.png?v=1b0d7f07",
     arrivalPattern: "compassBloom",
     beamHeight: 108,
     beamWidth: 12,
@@ -752,6 +756,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 104,
     pillarHeight: 146,
     pillarFps: 5,
+    pillarCompositeOperation: "screen",
     pillarGroundAnchor: 0.9219,
     pillarGroundOffsetPx: 1,
   },
@@ -775,6 +780,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 120,
     pillarHeight: 174,
     pillarFps: 6,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 0,
   },
@@ -798,6 +804,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 144,
     pillarHeight: 216,
     pillarFps: 6,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.8281,
     pillarGroundOffsetPx: 0,
   },
@@ -821,6 +828,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 174,
     pillarHeight: 274,
     pillarFps: 7,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.8066,
     pillarGroundOffsetPx: 0,
   },
@@ -844,6 +852,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarWidth: 210,
     pillarHeight: 344,
     pillarFps: 8,
+    pillarCompositeOperation: "lighter",
     pillarGroundAnchor: 0.8828,
     pillarGroundOffsetPx: 0,
   },
@@ -2330,15 +2339,30 @@ type GameCanvasProps = {
   initialSaveSlot?: SaveSlotId;
   onReturnToPlaza?: () => void;
   localEnemyVfxShowcase?: LocalEnemyVfxShowcaseMode;
+  localLootVfxShowcase?: LocalLootVfxShowcaseMode;
 };
 
 export type LocalEnemyVfxShowcaseMode = "margin-severer";
+export type LocalLootVfxShowcaseMode =
+  | "common"
+  | "magic"
+  | "superior"
+  | "rare"
+  | "epic"
+  | "legendary"
+  | "mythic"
+  | "cosmic"
+  | "all";
 
 export default function GameCanvas({
   initialSaveSlot,
   onReturnToPlaza,
   localEnemyVfxShowcase,
+  localLootVfxShowcase,
 }: GameCanvasProps = {}) {
+  const isLocalVfxShowcase = Boolean(
+    localEnemyVfxShowcase || localLootVfxShowcase,
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<Player>(makePlayer());
@@ -2647,12 +2671,13 @@ export default function GameCanvas({
   const activateSaveSlot = useCallback((slot: SaveSlotId) => {
     activeSaveSlotRef.current = slot;
     setActiveSaveSlot(slot);
-    writeActiveSaveSlot(slot);
-  }, []);
+    if (!isLocalVfxShowcase) writeActiveSaveSlot(slot);
+  }, [isLocalVfxShowcase]);
 
   const refreshSaveSlots = useCallback(() => {
+    if (isLocalVfxShowcase) return;
     setSaveSlots(readSaveSlotSummaries());
-  }, []);
+  }, [isLocalVfxShowcase]);
 
   const applyShopEntitlements = useCallback((next: ShopEntitlements) => {
     inventoryCapacityRef.current = inventoryCapacityFor(next);
@@ -2661,6 +2686,7 @@ export default function GameCanvas({
   }, []);
 
   const restoreShopPurchases = useCallback(() => {
+    if (isLocalVfxShowcase) return;
     const restored = readShopEntitlements();
     applyShopEntitlements(restored);
     setShopNotice({
@@ -2670,10 +2696,11 @@ export default function GameCanvas({
           ? `이 기기의 영구 상품 ${restored.purchasedProductIds.length}개를 복구했습니다.`
           : "이 기기에 저장된 구매 기록이 없습니다.",
     });
-  }, [applyShopEntitlements]);
+  }, [applyShopEntitlements, isLocalVfxShowcase]);
 
   const purchaseShopProduct = useCallback(
     (productId: ShopProductId) => {
+      if (isLocalVfxShowcase) return;
       if (shopMode !== "local-test") {
         setShopNotice({
           tone: "error",
@@ -2720,10 +2747,11 @@ export default function GameCanvas({
             : "존재하지 않는 상품입니다.",
       });
     },
-    [applyShopEntitlements, shopMode],
+    [applyShopEntitlements, isLocalVfxShowcase, shopMode],
   );
 
   const openShop = useCallback(() => {
+    if (isLocalVfxShowcase) return;
     shopReturnInventoryRef.current = false;
     setShopPreferredProductId(null);
     setBuildPanelOpen(false);
@@ -2733,19 +2761,27 @@ export default function GameCanvas({
   }, [
     setBuildPanelOpen,
     setInventoryScreenOpen,
+    isLocalVfxShowcase,
     setShopScreenOpen,
     setStatsScreenOpen,
   ]);
 
   const openShopFromInventory = useCallback(() => {
+    if (isLocalVfxShowcase) return;
     shopReturnInventoryRef.current = true;
     setShopPreferredProductId(null);
     setInventoryScreenOpen(false);
     setStatsScreenOpen(false);
     setShopScreenOpen(true);
-  }, [setInventoryScreenOpen, setShopScreenOpen, setStatsScreenOpen]);
+  }, [
+    isLocalVfxShowcase,
+    setInventoryScreenOpen,
+    setShopScreenOpen,
+    setStatsScreenOpen,
+  ]);
 
   const openWayfinderShop = useCallback(() => {
+    if (isLocalVfxShowcase) return;
     shopReturnInventoryRef.current = false;
     setBuildPanelOpen(false);
     setInventoryScreenOpen(false);
@@ -2754,6 +2790,7 @@ export default function GameCanvas({
     setShopScreenOpen(true);
   }, [
     setBuildPanelOpen,
+    isLocalVfxShowcase,
     setInventoryScreenOpen,
     setShopScreenOpen,
     setStatsScreenOpen,
@@ -2908,15 +2945,17 @@ export default function GameCanvas({
     pendingEndingRef.current = false;
     playerRef.current.endingSeen = true;
     playerRef.current.endingVersion = FIRST_BOSS_ENDING_VERSION;
-    markSaveSlotEndingSeen(
-      activeSaveSlotRef.current,
-      FIRST_BOSS_ENDING_VERSION,
-    );
+    if (!isLocalVfxShowcase) {
+      markSaveSlotEndingSeen(
+        activeSaveSlotRef.current,
+        FIRST_BOSS_ENDING_VERSION,
+      );
+    }
     setEndingChapterIndex(0);
     setToast("끝은 사라졌습니다. 최초의 문장을 지우기 위한 무한 원정이 시작됩니다.");
     setGameMode("playing");
     syncHud();
-  }, [setGameMode, syncHud]);
+  }, [isLocalVfxShowcase, setGameMode, syncHud]);
 
   const openMap = useCallback(() => {
     const world = worldRef.current;
@@ -2964,7 +3003,7 @@ export default function GameCanvas({
   );
 
   const saveAtShelter = useCallback(() => {
-    if (localEnemyVfxShowcase) return;
+    if (isLocalVfxShowcase) return;
     const player = playerRef.current;
     const world = worldRef.current;
     const equipmentStats = aggregateEquipmentStats(player.equipment);
@@ -3015,7 +3054,7 @@ export default function GameCanvas({
       setToast("이 기기에서 저장이 차단되었습니다. 탐험은 계속할 수 있습니다.");
     }
     syncHud();
-  }, [localEnemyVfxShowcase, refreshSaveSlots, syncHud]);
+  }, [isLocalVfxShowcase, refreshSaveSlots, syncHud]);
 
   const makeEnemy = useCallback(
     (kind: EnemyKind, x: number, y: number, depth: number, elite = false): Enemy => {
@@ -3794,6 +3833,7 @@ export default function GameCanvas({
 
   const loadSave = useCallback(
     (slot: SaveSlotId = activeSaveSlotRef.current) => {
+      if (isLocalVfxShowcase) return false;
       // Refresh the account-wide entitlement before hydrating a run. Inventory
       // items are never truncated when capacity changes or a receipt is delayed.
       applyShopEntitlements(readShopEntitlements());
@@ -3937,6 +3977,7 @@ export default function GameCanvas({
       activateSaveSlot,
       applyShopEntitlements,
       enterRoom,
+      isLocalVfxShowcase,
       refreshSaveSlots,
       setBuildPanelOpen,
       setGameMode,
@@ -3946,6 +3987,7 @@ export default function GameCanvas({
   );
 
   const startNewRun = useCallback((slot: SaveSlotId = activeSaveSlotRef.current) => {
+    if (isLocalVfxShowcase) return;
     activateSaveSlot(slot);
     const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
     removeSaveSlot(slot);
@@ -3980,6 +4022,7 @@ export default function GameCanvas({
   }, [
     activateSaveSlot,
     enterRoom,
+    isLocalVfxShowcase,
     refreshSaveSlots,
     setBuildPanelOpen,
     setGameMode,
@@ -3989,11 +4032,12 @@ export default function GameCanvas({
   ]);
 
   useEffect(() => {
-    if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;
+    if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;
     initialSaveSlotHandledRef.current = true;
     keysRef.current.clear();
     pendingStoryRef.current = null;
     pendingEndingRef.current = false;
+    lootVfxShowcaseSpawnedRef.current = false;
     marginSeverShowcaseSpawnedRef.current = false;
     setEndingChapterIndex(0);
     setLootNotice(null);
@@ -4009,7 +4053,7 @@ export default function GameCanvas({
     setGameMode("playing");
   }, [
     enterRoom,
-    localEnemyVfxShowcase,
+    isLocalVfxShowcase,
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
@@ -4017,11 +4061,11 @@ export default function GameCanvas({
   ]);
 
   useEffect(() => {
-    if (localEnemyVfxShowcase) return;
+    if (isLocalVfxShowcase) return;
     if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;
     initialSaveSlotHandledRef.current = true;
     if (!loadSave(initialSaveSlot)) startNewRun(initialSaveSlot);
-  }, [initialSaveSlot, loadSave, localEnemyVfxShowcase, startNewRun]);
+  }, [initialSaveSlot, isLocalVfxShowcase, loadSave, startNewRun]);
 
   const retryFromShelter = useCallback(() => {
     if (!loadSave()) startNewRun();
@@ -4029,6 +4073,7 @@ export default function GameCanvas({
 
   const deleteSaveSlot = useCallback(
     (slot: SaveSlotId) => {
+      if (isLocalVfxShowcase) return;
       requestGameConfirmation(
         {
           eyebrow: "RECORD ERASURE",
@@ -4044,7 +4089,7 @@ export default function GameCanvas({
         },
       );
     },
-    [refreshSaveSlots, requestGameConfirmation],
+    [isLocalVfxShowcase, refreshSaveSlots, requestGameConfirmation],
   );
 
   const equipInventoryItem = useCallback(
@@ -4173,10 +4218,12 @@ export default function GameCanvas({
       const normalized = normalizeAutoSalvageThreshold(threshold);
       const player = playerRef.current;
       player.autoSalvageMaxRarity = normalized;
-      const persisted = writeAutoSalvagePreference(
-        activeSaveSlotRef.current,
-        normalized,
-      );
+      const persisted = isLocalVfxShowcase
+        ? false
+        : writeAutoSalvagePreference(
+            activeSaveSlotRef.current,
+            normalized,
+          );
 
       if (normalized === null) {
         setToast(
@@ -4194,7 +4241,7 @@ export default function GameCanvas({
       }
       syncHud();
     },
-    [syncHud],
+    [isLocalVfxShowcase, syncHud],
   );
 
   const grantLocalRarityShowcase = useCallback(() => {
@@ -4388,16 +4435,17 @@ export default function GameCanvas({
   ]);
 
   useEffect(() => {
+    if (isLocalVfxShowcase) return undefined;
     const restoreTimer = window.setTimeout(() => {
       const restored = readShopEntitlements();
       applyShopEntitlements(restored);
       setShopMode(shopCheckoutMode());
     }, 0);
     return () => window.clearTimeout(restoreTimer);
-  }, [applyShopEntitlements]);
+  }, [applyShopEntitlements, isLocalVfxShowcase]);
 
   useEffect(() => {
-    const saveCheck = localEnemyVfxShowcase
+    const saveCheck = isLocalVfxShowcase
       ? null
       : window.setTimeout(() => {
           migrateLegacySave();
@@ -4454,7 +4502,7 @@ export default function GameCanvas({
     return () => {
       if (saveCheck !== null) window.clearTimeout(saveCheck);
     };
-  }, [localEnemyVfxShowcase, refreshSaveSlots]);
+  }, [isLocalVfxShowcase, refreshSaveSlots]);
 
   useEffect(() => {
     const loadout = paperdollLoadoutFromEquipment(hud.player.equipment);
@@ -4666,9 +4714,11 @@ export default function GameCanvas({
     canvasResizeObserver.observe(canvas);
     const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
       Math.max(basePx, minimumCssPx / canvasCssScale);
-    const lootVfxShowcaseMode = isLocalRarityShowcaseHost()
-      ? new URLSearchParams(window.location.search).get("lootVfxShowcase")
-      : null;
+    const lootVfxShowcaseMode =
+      localLootVfxShowcase ??
+      (isLocalRarityShowcaseHost()
+        ? new URLSearchParams(window.location.search).get("lootVfxShowcase")
+        : null);
     const requestedLootVfxRarity = EQUIPMENT_RARITIES.find(
       (rarity) => rarity === lootVfxShowcaseMode,
     );
@@ -4961,8 +5011,15 @@ export default function GameCanvas({
       const world = worldRef.current;
       world.enemies = [];
       world.projectiles = [];
+      world.gearDrops = [];
+      world.effects = [];
       world.roomCleared = true;
       world.clearHandled = true;
+      if (localLootVfxShowcase) {
+        playerRef.current.x = WIDTH * 0.22;
+        playerRef.current.y = HEIGHT * 0.5;
+        inputRef.current.hasMoveTarget = false;
+      }
       for (const [index, rarity] of lootVfxShowcaseRarities.entries()) {
         const position =
           lootVfxShowcaseRarities.length === 1
@@ -4982,7 +5039,7 @@ export default function GameCanvas({
           x: safePosition.x,
           y: safePosition.y,
           item,
-          pickupDelay: 30,
+          pickupDelay: Number.POSITIVE_INFINITY,
           appearanceAge: 0,
         });
         spawnLootAwakening(safePosition.x, safePosition.y, rarity);
@@ -9829,7 +9886,7 @@ export default function GameCanvas({
           const sourceWidth = pillarVfxImage.naturalWidth / 4;
           const sourceHeight = pillarVfxImage.naturalHeight;
           context.globalAlpha = pillarReveal;
-          context.globalCompositeOperation = "lighter";
+          context.globalCompositeOperation = rarityVfx.pillarCompositeOperation;
           context.imageSmoothingEnabled = false;
           context.drawImage(
             pillarVfxImage,
@@ -10517,6 +10574,7 @@ export default function GameCanvas({
     getEquipmentRuntimeCache,
     isSimulationRunning,
     localEnemyVfxShowcase,
+    localLootVfxShowcase,
     makeEnemy,
     setGameMode,
     showStory,

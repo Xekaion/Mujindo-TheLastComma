@@ -6,6 +6,7 @@ import CharacterEntryGate, {
 } from "./CharacterEntryGate";
 import GameCanvas, {
   type LocalEnemyVfxShowcaseMode,
+  type LocalLootVfxShowcaseMode,
 } from "./GameCanvas";
 import InventoryOverlay from "./InventoryOverlay";
 import PlazaCharacterProfile from "./PlazaCharacterProfile";
@@ -39,6 +40,7 @@ import type { PlazaPortalDefinition } from "./plaza-world";
 type GameEntryFlowProps = {
   accountName?: string | null;
   returnToTown?: boolean;
+  localVfxShowcaseRequested?: boolean;
 };
 
 type EntryView = "plaza" | "expedition";
@@ -48,6 +50,28 @@ type PlazaProfileState = {
   error: string | null;
 };
 const TOWN_RETURN_SESSION_KEY = "mujindo:town-return-slot:v1";
+const LOCAL_VFX_SHOWCASE_HOSTS = [
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "[::1]",
+] as const;
+const LOCAL_LOOT_VFX_SHOWCASE_MODES: readonly LocalLootVfxShowcaseMode[] = [
+  "common",
+  "magic",
+  "superior",
+  "rare",
+  "epic",
+  "legendary",
+  "mythic",
+  "cosmic",
+  "all",
+];
+
+const isLocalLootVfxShowcaseMode = (
+  value: string | null,
+): value is LocalLootVfxShowcaseMode =>
+  LOCAL_LOOT_VFX_SHOWCASE_MODES.some((mode) => mode === value);
 
 const connectionForPlaza = (
   state: HubConnectionState,
@@ -76,16 +100,22 @@ function publicProfileErrorMessage(error: unknown): string {
 export default function GameEntryFlow({
   accountName,
   returnToTown = false,
+  localVfxShowcaseRequested = false,
 }: GameEntryFlowProps) {
   const [selection, setSelection] = useState<CharacterEntrySelection | null>(null);
   const [localEnemyVfxShowcase, setLocalEnemyVfxShowcase] =
     useState<LocalEnemyVfxShowcaseMode | null>(null);
+  const [localLootVfxShowcase, setLocalLootVfxShowcase] =
+    useState<LocalLootVfxShowcaseMode | null>(null);
+  const [localVfxShowcaseChecked, setLocalVfxShowcaseChecked] = useState(
+    !localVfxShowcaseRequested,
+  );
   const [view, setView] = useState<EntryView>("plaza");
   const [shopOpen, setShopOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
   const [selectedGearId, setSelectedGearId] = useState<string | null>(null);
   const [inventoryCapacity, setInventoryCapacity] = useState(() =>
-    inventoryCapacityFor(readShopEntitlements()),
+    inventoryCapacityFor(readShopEntitlements(null)),
   );
   const [arrival, setArrival] = useState<HubArrival>("center");
   const [hubConnection, setHubConnection] =
@@ -98,21 +128,35 @@ export default function GameEntryFlow({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const isLocalHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
-        window.location.hostname,
+      const isLocalHost = LOCAL_VFX_SHOWCASE_HOSTS.some(
+        (hostname) => hostname === window.location.hostname,
       );
-      const requestedMode = new URLSearchParams(window.location.search).get(
-        "enemyVfxShowcase",
-      );
-      if (isLocalHost && requestedMode === "margin-severer") {
-        setLocalEnemyVfxShowcase(requestedMode);
+      if (isLocalHost) {
+        const search = new URLSearchParams(window.location.search);
+        const requestedEnemyMode = search.get("enemyVfxShowcase");
+        const requestedLootMode = search.get("lootVfxShowcase");
+        if (requestedEnemyMode === "margin-severer") {
+          setLocalEnemyVfxShowcase(requestedEnemyMode);
+        }
+        if (isLocalLootVfxShowcaseMode(requestedLootMode)) {
+          setLocalLootVfxShowcase(requestedLootMode);
+        }
       }
+      setLocalVfxShowcaseChecked(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
-    if (!returnToTown || selection !== null) return;
+    if (
+      !localVfxShowcaseChecked ||
+      localEnemyVfxShowcase ||
+      localLootVfxShowcase ||
+      !returnToTown ||
+      selection !== null
+    ) {
+      return;
+    }
     const timer = window.setTimeout(() => {
       let slot: number | null = null;
       try {
@@ -126,7 +170,13 @@ export default function GameEntryFlow({
       setSelection({ slot, occupied: readSaveSlot(slot) !== null });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [returnToTown, selection]);
+  }, [
+    localEnemyVfxShowcase,
+    localLootVfxShowcase,
+    localVfxShowcaseChecked,
+    returnToTown,
+    selection,
+  ]);
 
   const enterCharacter = useCallback((next: CharacterEntrySelection) => {
     setSelection(next);
@@ -373,13 +423,30 @@ export default function GameEntryFlow({
     setArrival("center");
   }, []);
 
-  if (localEnemyVfxShowcase) {
+  if (!localVfxShowcaseChecked) {
     return (
       <div
         className="game-entry-flow"
-        data-entry-view="local-enemy-vfx-showcase"
+        data-entry-view="local-vfx-showcase-checking"
+        aria-hidden="true"
+      />
+    );
+  }
+
+  if (localEnemyVfxShowcase || localLootVfxShowcase) {
+    return (
+      <div
+        className="game-entry-flow"
+        data-entry-view={
+          localEnemyVfxShowcase
+            ? "local-enemy-vfx-showcase"
+            : "local-loot-vfx-showcase"
+        }
       >
-        <GameCanvas localEnemyVfxShowcase={localEnemyVfxShowcase} />
+        <GameCanvas
+          localEnemyVfxShowcase={localEnemyVfxShowcase ?? undefined}
+          localLootVfxShowcase={localLootVfxShowcase ?? undefined}
+        />
       </div>
     );
   }

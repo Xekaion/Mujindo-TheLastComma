@@ -293,6 +293,131 @@ function alphaCellMetrics(image, column, row, columns, rows, label) {
   };
 }
 
+function rgbaCellBuffer(image, column, row, columns, rows, label) {
+  assert.equal(image.width % columns, 0, `${label} atlas width must divide evenly`);
+  assert.equal(image.height % rows, 0, `${label} atlas height must divide evenly`);
+  const cellWidth = image.width / columns;
+  const cellHeight = image.height / rows;
+  const output = Buffer.alloc(cellWidth * cellHeight * 4);
+  let outputOffset = 0;
+  for (let y = row * cellHeight; y < (row + 1) * cellHeight; y += 1) {
+    const sourceOffset = (y * image.width + column * cellWidth) * 4;
+    output.set(
+      image.pixels.subarray(sourceOffset, sourceOffset + cellWidth * 4),
+      outputOffset,
+    );
+    outputOffset += cellWidth * 4;
+  }
+  return output;
+}
+
+function rgbToHsv(red, green, blue) {
+  const maximum = Math.max(red, green, blue) / 255;
+  const minimum = Math.min(red, green, blue) / 255;
+  const delta = maximum - minimum;
+  let hue = 0;
+  if (delta > 0) {
+    if (maximum === red / 255) hue = ((green - blue) / 255 / delta) % 6;
+    else if (maximum === green / 255) hue = (blue - red) / 255 / delta + 2;
+    else hue = (red - green) / 255 / delta + 4;
+    hue *= 60;
+    if (hue < 0) hue += 360;
+  }
+  return {
+    hue,
+    saturation: maximum === 0 ? 0 : delta / maximum,
+    value: maximum,
+  };
+}
+
+function persistentPillarFrameMetrics(image, column, label) {
+  const frame = rgbaCellBuffer(image, column, 0, 4, 1, label);
+  const colourHistogram = new Map();
+  let visiblePixels = 0;
+  let brightPixels = 0;
+  let nearClipPixels = 0;
+  let whitePixels = 0;
+  let goldPixels = 0;
+  let cyanPixels = 0;
+
+  for (let offset = 0; offset < frame.length; offset += 4) {
+    const red = frame[offset];
+    const green = frame[offset + 1];
+    const blue = frame[offset + 2];
+    const alpha = frame[offset + 3];
+    if (alpha < 64) continue;
+    visiblePixels += 1;
+    const key = (red << 16) | (green << 8) | blue;
+    colourHistogram.set(key, (colourHistogram.get(key) ?? 0) + 1);
+    const luminance = red * 0.299 + green * 0.587 + blue * 0.114;
+    if (luminance >= 205) brightPixels += 1;
+    if (red >= 250 && green >= 250 && blue >= 250) nearClipPixels += 1;
+
+    const { hue, saturation, value } = rgbToHsv(red, green, blue);
+    if (saturation <= 0.18 && value >= 0.78) whitePixels += 1;
+    else if (hue >= 30 && hue <= 65 && saturation >= 0.4 && value >= 0.35) {
+      goldPixels += 1;
+    } else if (
+      hue >= 165 &&
+      hue <= 205 &&
+      saturation >= 0.3 &&
+      value >= 0.35
+    ) {
+      cyanPixels += 1;
+    }
+  }
+
+  assert.ok(visiblePixels > 0, `${label} has no visible pixels`);
+  const counts = [...colourHistogram.values()].sort((left, right) => right - left);
+  const entropy = counts.reduce((sum, count) => {
+    const probability = count / visiblePixels;
+    return sum - probability * Math.log2(probability);
+  }, 0);
+  const ratio = (count) => count / visiblePixels;
+  return {
+    rgba: frame,
+    sha256: createHash("sha256").update(frame).digest("hex"),
+    visiblePixels,
+    uniqueVisibleRgb: colourHistogram.size,
+    entropy,
+    effectiveColourCount: 2 ** entropy,
+    dominantColourRatio: ratio(counts[0] ?? 0),
+    topTwoColourRatio: ratio((counts[0] ?? 0) + (counts[1] ?? 0)),
+    brightPixelRatio: ratio(brightPixels),
+    nearClipPixelRatio: ratio(nearClipPixels),
+    whitePixelRatio: ratio(whitePixels),
+    goldPixelRatio: ratio(goldPixels),
+    cyanPixelRatio: ratio(cyanPixels),
+    otherPixelRatio: ratio(visiblePixels - whitePixels - goldPixels - cyanPixels),
+  };
+}
+
+function rgbaTemporalMetrics(leftFrame, rightFrame, alphaThreshold = 64) {
+  assert.equal(leftFrame.length, rightFrame.length);
+  let unionPixels = 0;
+  let intersectionPixels = 0;
+  let changedPixels = 0;
+  for (let offset = 0; offset < leftFrame.length; offset += 4) {
+    const leftVisible = leftFrame[offset + 3] >= alphaThreshold;
+    const rightVisible = rightFrame[offset + 3] >= alphaThreshold;
+    if (!leftVisible && !rightVisible) continue;
+    unionPixels += 1;
+    if (leftVisible && rightVisible) intersectionPixels += 1;
+    if (
+      Math.abs(leftFrame[offset] - rightFrame[offset]) >= 16 ||
+      Math.abs(leftFrame[offset + 1] - rightFrame[offset + 1]) >= 16 ||
+      Math.abs(leftFrame[offset + 2] - rightFrame[offset + 2]) >= 16 ||
+      Math.abs(leftFrame[offset + 3] - rightFrame[offset + 3]) >= 16
+    ) {
+      changedPixels += 1;
+    }
+  }
+  return {
+    alphaSupportIou: unionPixels === 0 ? 0 : intersectionPixels / unionPixels,
+    changedPixelRatio: unionPixels === 0 ? 0 : changedPixels / unionPixels,
+  };
+}
+
 function alphaRectMetrics(image, left, top, width, height, label) {
   assert.ok(Number.isInteger(left) && Number.isInteger(top), `${label} needs integer coordinates`);
   assert.ok(Number.isInteger(width) && width > 0, `${label} needs a positive integer width`);
@@ -1559,7 +1684,7 @@ test("each shelter heals and saves only on its first coordinate visit", async ()
   );
   assert.match(
     source,
-    /const saveAtShelter[\s\S]{0,240}?if \(localEnemyVfxShowcase\) return;[\s\S]{0,220}?player\.hp = player\.maxHp;/,
+    /const saveAtShelter[\s\S]{0,240}?if \(isLocalVfxShowcase\) return;[\s\S]{0,220}?player\.hp = player\.maxHp;/,
     "normal shelters still heal, while the local visual fixture remains storage-free",
   );
   assert.match(
@@ -2574,18 +2699,27 @@ test("the Margin Severer uses eight aspect-safe authored sever stages instead of
   assert.doesNotMatch(showcase, /localStorage|writeSaveSlot|removeItem|clear\(/);
   assert.match(source, /spawnLocalLootVfxShowcase\(\);\s*spawnLocalEnemyVfxShowcase\(\);/);
 
-  assert.match(entrySource, /requestedMode === ["']margin-severer["']/);
-  assert.match(entrySource, /data-entry-view=["']local-enemy-vfx-showcase["']/);
+  assert.match(entrySource, /requestedEnemyMode === ["']margin-severer["']/);
   assert.match(
     entrySource,
-    /<GameCanvas localEnemyVfxShowcase=\{localEnemyVfxShowcase\} \/>/,
+    /localEnemyVfxShowcase\s*\?\s*["']local-enemy-vfx-showcase["']/,
+  );
+  assert.match(
+    entrySource,
+    /<GameCanvas[\s\S]{0,180}?localEnemyVfxShowcase=\{localEnemyVfxShowcase \?\? undefined\}[\s\S]{0,180}?\/>/,
     "localhost QA must bypass character selection without creating a save slot",
   );
-  const transientStart = source.slice(
-    source.indexOf("if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;"),
-    source.indexOf("if (localEnemyVfxShowcase) return;", source.indexOf("if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;")),
+  const transientStartIndex = source.indexOf(
+    "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",
   );
+  const transientEndIndex = source.indexOf(
+    "if (isLocalVfxShowcase) return;",
+    transientStartIndex,
+  );
+  assert.ok(transientStartIndex >= 0 && transientEndIndex > transientStartIndex);
+  const transientStart = source.slice(transientStartIndex, transientEndIndex);
   assert.match(transientStart, /playerRef\.current = makePlayer\(\);/);
+  assert.match(transientStart, /worldRef\.current = makeWorld\(/);
   assert.match(transientStart, /setGameMode\(["']playing["']\);/);
   assert.doesNotMatch(
     transientStart,
@@ -2594,7 +2728,7 @@ test("the Margin Severer uses eight aspect-safe authored sever stages instead of
   );
   assert.match(
     source,
-    /const saveCheck = localEnemyVfxShowcase\s*\? null\s*:\s*window\.setTimeout/,
+    /const saveCheck = isLocalVfxShowcase\s*\? null\s*:\s*window\.setTimeout/,
     "the transient showcase must not run save migration",
   );
 });
@@ -7800,14 +7934,195 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
   }
 });
 
+test("rare persistent pillar V4 keeps authored gold, white, and cyan detail without flattening", async () => {
+  const assetPath = "public/assets/effects/loot-pillar-rare-v4.png";
+  const manifestPath = "public/assets/effects/loot-pillar-rare-v4.build.json";
+  const builderPath = "scripts/build_loot_pillar_rare_v4.py";
+  const [png, manifestText, builder] = await Promise.all([
+    readFile(path.join(root, assetPath)),
+    readFile(path.join(root, manifestPath), "utf8"),
+    readFile(path.join(root, builderPath), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+
+  assert.equal(manifest.version, 4);
+  assert.equal(manifest.builder, builderPath);
+  assert.equal(manifest.format, "rgba-png");
+  assert.deepEqual(manifest.atlas, {
+    columns: 4,
+    rows: 1,
+    cell: [256, 512],
+    size: [1024, 512],
+  });
+  assert.equal(manifest.output.path, assetPath);
+  assert.equal(manifest.output.bytes, png.byteLength);
+  assert.equal(
+    manifest.output.sha256,
+    createHash("sha256").update(png).digest("hex"),
+    "the checked-in V4 PNG must be the exact output recorded by the build",
+  );
+  assert.equal(manifest.output.groundAnchor, 0.9219);
+  assert.match(builder, /loot-pillar-rare-v4\.png/);
+  assert.match(builder, /loot-pillar-rare-v4\.build\.json/);
+  assert.match(builder, /visibleAlphaThreshold|VISIBLE_ALPHA_THRESHOLD/);
+  assert.match(builder, /targetFlareY|TARGET_FLARE_Y/);
+
+  for (const [stage, record] of Object.entries(manifest.source)) {
+    const sourceBytes = await readFile(path.join(root, record.path));
+    assert.equal(
+      createHash("sha256").update(sourceBytes).digest("hex"),
+      record.sha256,
+      `rare V4 ${stage} provenance must match its checked-in source`,
+    );
+  }
+
+  assert.ok(png.byteLength <= 1_000_000, `${assetPath} exceeds the 1 MB decode budget`);
+  const image = decodeRgbaPng(png, assetPath);
+  assert.deepEqual([image.width, image.height], manifest.atlas.size);
+  const frameMetrics = [];
+  let transparentRgbLeak = 0;
+  for (let offset = 0; offset < image.pixels.length; offset += 4) {
+    if (
+      image.pixels[offset + 3] === 0 &&
+      (image.pixels[offset] !== 0 ||
+        image.pixels[offset + 1] !== 0 ||
+        image.pixels[offset + 2] !== 0)
+    ) {
+      transparentRgbLeak += 1;
+    }
+  }
+  assert.equal(transparentRgbLeak, 0, "rare V4 must not retain hidden keyed-background RGB");
+
+  for (let column = 0; column < 4; column += 1) {
+    const label = `rare V4 persistent pillar frame ${column}`;
+    const bounds = alphaCellMetrics(image, column, 0, 4, 1, label);
+    const metrics = persistentPillarFrameMetrics(image, column, label);
+    const report = manifest.frames[column];
+    frameMetrics.push(metrics);
+
+    assert.equal(report.index, column);
+    assert.equal(report.visiblePixels, metrics.visiblePixels);
+    assert.equal(report.uniqueVisibleRgb, metrics.uniqueVisibleRgb);
+    assert.equal(report.pixelHash, metrics.sha256);
+    for (const [reportField, metricField] of [
+      ["brightPixelRatio", "brightPixelRatio"],
+      ["whitePixelRatio", "whitePixelRatio"],
+      ["goldPixelRatio", "goldPixelRatio"],
+      ["cyanPixelRatio", "cyanPixelRatio"],
+      ["topColorRatio", "dominantColourRatio"],
+      ["topTwoColorRatio", "topTwoColourRatio"],
+    ]) {
+      assert.ok(
+        Math.abs(report[reportField] - metrics[metricField]) <= 0.001,
+        `${label} ${reportField} must be recomputed from the checked-in PNG ` +
+          `(report ${report[reportField]}, actual ${metrics[metricField]})`,
+      );
+    }
+    assert.ok(bounds.left >= 1 && bounds.right >= 1, `${label} needs transparent side gutters`);
+    assert.ok(bounds.top >= 1 && bounds.bottom >= 1, `${label} needs transparent vertical gutters`);
+    assert.ok(
+      report.padding.every((padding) => padding >= 8),
+      `${label} needs safe visible-alpha gutters`,
+    );
+    assert.ok(bounds.height >= 450, `${label} must remain a tall ground-to-sky beacon`);
+
+    assert.ok(metrics.entropy >= 5.4, `${label} lost its authored colour entropy`);
+    assert.ok(
+      metrics.effectiveColourCount >= 42,
+      `${label} collapsed toward a flat single-colour silhouette`,
+    );
+    assert.ok(
+      metrics.dominantColourRatio <= 0.22,
+      `${label} lets one exact RGB value dominate the authored texture`,
+    );
+    assert.ok(
+      metrics.topTwoColourRatio <= 0.34,
+      `${label} lets two flat colours replace the authored texture`,
+    );
+    assert.ok(
+      metrics.brightPixelRatio >= 0.15 && metrics.brightPixelRatio <= 0.62,
+      `${label} must flash brightly without becoming a clipped white slab`,
+    );
+    assert.ok(
+      metrics.nearClipPixelRatio <= 0.22,
+      `${label} contains too much fully clipped white`,
+    );
+    assert.ok(metrics.whitePixelRatio >= 0.025, `${label} needs a white-hot core`);
+    assert.ok(metrics.goldPixelRatio >= 0.12, `${label} needs a readable rare-grade gold body`);
+    assert.ok(metrics.otherPixelRatio >= 0.08, `${label} needs dark and secondary colour detail`);
+  }
+
+  assert.ok(
+    frameMetrics.filter((frame) => frame.cyanPixelRatio >= 0.0005).length >= 2,
+    "rare V4 must animate its restrained cyan rune accents across multiple frames",
+  );
+  assert.ok(
+    frameMetrics.some((frame) => frame.cyanPixelRatio >= 0.015),
+    "rare V4 needs one readable cyan-rune accent peak",
+  );
+  assert.ok(
+    frameMetrics.reduce((sum, frame) => sum + frame.cyanPixelRatio, 0) /
+      frameMetrics.length >= 0.004,
+    "rare V4 must keep a readable cyan accent across its complete loop",
+  );
+
+  assert.equal(
+    new Set(frameMetrics.map((frame) => frame.sha256)).size,
+    4,
+    "rare V4 must contain four distinct full-RGBA animation frames",
+  );
+  const temporalPairs = frameMetrics.map((frame, index) => {
+    const to = (index + 1) % frameMetrics.length;
+    return [index, to, rgbaTemporalMetrics(frame.rgba, frameMetrics[to].rgba)];
+  });
+  for (const [from, to, metrics] of temporalPairs) {
+    assert.ok(
+      metrics.changedPixelRatio >= 0.03 && metrics.changedPixelRatio <= 0.99,
+      `rare V4 frames ${from}->${to} must animate without replacing the entire motif`,
+    );
+    const report = manifest.temporalDifferences.find(
+      (entry) => entry.from === from && entry.to === to,
+    );
+    assert.ok(report, `rare V4 build report is missing temporal pair ${from}->${to}`);
+    assert.ok(
+      Math.abs(report.changedPixelRatio - metrics.changedPixelRatio) <= 0.000_002,
+      `rare V4 ${from}->${to} changed-pixel report must match the checked-in PNG`,
+    );
+    assert.ok(
+      Math.abs(report.alphaSupportIou - metrics.alphaSupportIou) <= 0.000_002,
+      `rare V4 ${from}->${to} support IoU report must match the checked-in PNG`,
+    );
+    assert.ok(report.alphaSupportIou >= 0.2);
+  }
+});
+
 test("persistent gear drops draw only authored four-frame portrait pillar sprites", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
+  const configStart = source.indexOf("const EQUIPMENT_RARITY_VFX:");
+  const configEnd = source.indexOf("const EQUIPMENT_RARITIES", configStart);
+  assert.ok(configStart >= 0 && configEnd > configStart, "the rarity VFX config is missing");
+  const configSource = source.slice(configStart, configEnd);
+  const rarityBlocks = Object.fromEntries(
+    rarities.map((rarity) => {
+      const start = configSource.indexOf(`${rarity}: {`);
+      const end = configSource.indexOf("\n  },", start);
+      assert.ok(start >= 0 && end > start, `${rarity} VFX configuration is missing`);
+      return [rarity, configSource.slice(start, end)];
+    }),
+  );
   for (const rarity of rarities) {
+    const assetSuffix =
+      rarity === "rare" ? "v4\\.png\\?v=1b0d7f07" : "v3\\.png";
     assert.match(
-      source,
-      new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-v3\\.png["']`),
+      rarityBlocks[rarity],
+      new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-${assetSuffix}["']`),
       `${rarity} must preload its dedicated persistent pillar loop`,
+    );
+    assert.match(
+      rarityBlocks[rarity],
+      new RegExp(`pillarCompositeOperation:\\s*"${rarity === "rare" ? "screen" : "lighter"}"`),
+      `${rarity} must use its authored persistent-pillar blend mode`,
     );
   }
   assert.match(source, /imagePaths\[config\.pillarImageKey\]\s*=\s*config\.pillarImagePath/);
@@ -7824,7 +8139,11 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   assert.match(pillarRenderer, /const pillarFrame = positiveModulo\([\s\S]{0,160}?Math\.floor\(ambientTime \* rarityVfx\.pillarFps \+ drop\.id\)[\s\S]{0,40}?,\s*4,/);
   assert.match(pillarRenderer, /const sourceWidth = pillarVfxImage\.naturalWidth \/ 4;/);
   assert.match(pillarRenderer, /const sourceHeight = pillarVfxImage\.naturalHeight;/);
-  assert.match(pillarRenderer, /context\.globalCompositeOperation = "lighter";/);
+  assert.match(
+    pillarRenderer,
+    /context\.globalCompositeOperation = rarityVfx\.pillarCompositeOperation;/,
+    "the renderer must consume the rarity-specific blend mode instead of flattening rare art additively",
+  );
   assert.match(pillarRenderer, /context\.imageSmoothingEnabled = false;/);
   assert.match(
     pillarRenderer,
@@ -7839,6 +8158,11 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     source,
     /pillarGroundOffsetPx:\s*number;/,
     "persistent pillar placement needs a separate visual floor correction",
+  );
+  assert.match(
+    source,
+    /pillarCompositeOperation:\s*"lighter"\s*\|\s*"screen";/,
+    "persistent pillars need a constrained authored blend-mode contract",
   );
   const expectedGroundAnchors = {
     common: 0.9297,
@@ -7859,16 +8183,13 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
       `${rarity} must register its measured visible flare-floor origin`,
     );
     assert.ok(anchor > 0.75 && anchor < 0.95, `${rarity} floor anchor must stay inside the lower flare`);
-    const rarityBlock = source.match(
-      new RegExp(`${rarity}:\\s*\\{([\\s\\S]{0,960}?)\\n\\s*\\},`),
-    );
-    assert.ok(rarityBlock, `${rarity} VFX configuration is missing`);
-    const offset = rarityBlock[1].match(
+    const rarityBlock = rarityBlocks[rarity];
+    const offset = rarityBlock.match(
       /\bpillarGroundOffsetPx:\s*(-?\d+(?:\.\d+)?)\s*,/,
     );
     assert.ok(offset, `${rarity} visual floor correction is missing`);
     actualGroundOffsets[rarity] = Number(offset[1]);
-    const height = rarityBlock[1].match(/\bpillarHeight:\s*(\d+(?:\.\d+)?)\s*,/);
+    const height = rarityBlock.match(/\bpillarHeight:\s*(\d+(?:\.\d+)?)\s*,/);
     assert.ok(height, `${rarity} persistent pillar height is missing`);
     assert.equal(
       Number(height[1]),
@@ -8066,18 +8387,50 @@ test("loot-awakening capacity preserves rare arrivals instead of letting common 
   );
 });
 
-test("the field-loot showcase is localhost-only and spawns real drops through production VFX", async () => {
-  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+test("the field-loot showcase is localhost-only, memory-only, and uses production drops", async () => {
+  const [source, entrySource] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+  ]);
   assert.match(
     source,
     /const isLocalRarityShowcaseHost = \(\) =>[\s\S]{0,180}?\["localhost", "127\.0\.0\.1", "::1", "\[::1\]"\]\.includes\(window\.location\.hostname\)/,
   );
   assert.match(
     source,
-    /const lootVfxShowcaseMode = isLocalRarityShowcaseHost\(\)[\s\S]{0,120}?new URLSearchParams\(window\.location\.search\)\.get\("lootVfxShowcase"\)[\s\S]{0,40}?: null/,
-    "the query parameter must be inert away from local hosts",
+    /const lootVfxShowcaseMode =\s*localLootVfxShowcase \?\?[\s\S]{0,120}?isLocalRarityShowcaseHost\(\)[\s\S]{0,120}?get\("lootVfxShowcase"\)[\s\S]{0,40}?: null/,
+    "an explicit memory-only prop must win, and the query fallback must stay local",
   );
   assert.match(source, /lootVfxShowcaseMode === "all"\s*\? EQUIPMENT_RARITIES/);
+
+  assert.match(entrySource, /const LOCAL_VFX_SHOWCASE_HOSTS = \[[\s\S]{0,120}?"localhost"[\s\S]{0,120}?"\[::1\]"/);
+  assert.match(
+    entrySource,
+    /const LOCAL_LOOT_VFX_SHOWCASE_MODES:[\s\S]{0,280}?"common"[\s\S]{0,280}?"cosmic"[\s\S]{0,60}?"all"/,
+  );
+  assert.match(entrySource, /const requestedLootMode = search\.get\("lootVfxShowcase"\);/);
+  assert.match(
+    entrySource,
+    /if \(isLocalLootVfxShowcaseMode\(requestedLootMode\)\) \{\s*setLocalLootVfxShowcase\(requestedLootMode\);/,
+    "unknown or remotely supplied loot-showcase modes must never reach GameCanvas",
+  );
+  const directEntry = entrySource.indexOf(
+    "if (localEnemyVfxShowcase || localLootVfxShowcase)",
+  );
+  const characterGate = entrySource.indexOf("if (selection === null)", directEntry);
+  assert.ok(
+    directEntry >= 0 && characterGate > directEntry,
+    "the local VFX route must bypass character selection before the gate can read a save",
+  );
+  const directEntryBlock = entrySource.slice(directEntry, characterGate);
+  assert.match(directEntryBlock, /"local-loot-vfx-showcase"/);
+  assert.match(
+    directEntryBlock,
+    /localLootVfxShowcase=\{localLootVfxShowcase \?\? undefined\}/,
+  );
+  assert.match(entrySource, /readShopEntitlements\(null\)/);
+  assert.match(source, /readShopEntitlements\(null\)/);
+
   const showcase = source.match(
     /const spawnLocalLootVfxShowcase = \(\) => \{[\s\S]*?(?=\n\s*const spawnCombatEffect)/,
   );
@@ -8091,8 +8444,13 @@ test("the field-loot showcase is localhost-only and spawns real drops through pr
   );
   assert.match(
     showcase[0],
-    /world\.gearDrops\.push\(\{[\s\S]{0,220}?item,[\s\S]{0,120}?pickupDelay:\s*30,[\s\S]{0,80}?appearanceAge:\s*0/,
-    "the showcase must create real collectible GearDrop records",
+    /world\.gearDrops = \[\];[\s\S]{0,80}?world\.effects = \[\];/,
+    "a repeatable showcase must begin from an isolated in-memory drop/effect list",
+  );
+  assert.match(
+    showcase[0],
+    /world\.gearDrops\.push\(\{[\s\S]{0,220}?item,[\s\S]{0,120}?pickupDelay:\s*Number\.POSITIVE_INFINITY,[\s\S]{0,80}?appearanceAge:\s*0/,
+    "showcase drops must use real GearDrop records but remain impossible to pick up",
   );
   assert.match(
     showcase[0],
@@ -8102,7 +8460,43 @@ test("the field-loot showcase is localhost-only and spawns real drops through pr
     showcase[0],
     /spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity\)/,
   );
+  assert.doesNotMatch(
+    showcase[0],
+    /localStorage|sessionStorage|loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave/,
+  );
   assert.match(source, /const loop = \(now: number\) => \{[\s\S]{0,140}?spawnLocalLootVfxShowcase\(\)/);
+
+  assert.match(
+    source,
+    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase,?\s*\);/,
+  );
+  const transientStart = source.indexOf(
+    "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",
+  );
+  const normalSlotHydration = source.indexOf(
+    "if (isLocalVfxShowcase) return;",
+    transientStart,
+  );
+  assert.ok(transientStart >= 0 && normalSlotHydration > transientStart);
+  const transientBoot = source.slice(transientStart, normalSlotHydration);
+  assert.match(transientBoot, /playerRef\.current = makePlayer\(\);/);
+  assert.match(transientBoot, /worldRef\.current = makeWorld\(/);
+  assert.match(transientBoot, /setGameMode\("playing"\);/);
+  assert.doesNotMatch(
+    transientBoot,
+    /localStorage|sessionStorage|loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave/,
+    "loot-showcase boot must remain fully in memory",
+  );
+  assert.match(source, /const activateSaveSlot =[\s\S]{0,220}?if \(!isLocalVfxShowcase\) writeActiveSaveSlot\(slot\);/);
+  assert.match(source, /const refreshSaveSlots =[\s\S]{0,140}?if \(isLocalVfxShowcase\) return;/);
+  assert.match(source, /const saveAtShelter =[\s\S]{0,140}?if \(isLocalVfxShowcase\) return;/);
+  assert.match(source, /const loadSave =[\s\S]{0,180}?if \(isLocalVfxShowcase\) return false;/);
+  assert.match(source, /const startNewRun =[\s\S]{0,180}?if \(isLocalVfxShowcase\) return;/);
+  assert.match(
+    source,
+    /const saveCheck = isLocalVfxShowcase\s*\? null\s*:\s*window\.setTimeout\(\(\) => \{\s*migrateLegacySave\(\);/,
+    "loot-showcase boot must not run save migration",
+  );
 });
 
 test("inventory v2 artwork, eight rarity frames, and every rare+ authored animation remain connected", async () => {

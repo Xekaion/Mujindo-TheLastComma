@@ -11,12 +11,15 @@ type HomeProps = {
 export default async function Home({ searchParams }: HomeProps = {}) {
   const user = await getChatGPTUser();
   const query = searchParams ? await searchParams : {};
+  const localVfxShowcaseRequested =
+    query.enemyVfxShowcase !== undefined || query.lootVfxShowcase !== undefined;
   return (
     <>
       <WorldAnnouncementBanner suggestedName={user?.displayName ?? null} />
       <GameEntryFlow
         accountName={user?.displayName ?? null}
         returnToTown={query.town === "1"}
+        localVfxShowcaseRequested={localVfxShowcaseRequested}
       />
     </>
   );

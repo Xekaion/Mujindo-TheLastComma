@@ -41,15 +41,81 @@ test("character selection preserves migration and isolates destructive slot acti
 test("a selected save slot enters GameCanvas exactly once and resumes before creating", async () => {
   const canvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
 
-  assert.match(
-    canvas,
-    /type GameCanvasProps = \{\s*initialSaveSlot\?: SaveSlotId;\s*onReturnToPlaza\?: \(\) => void;\s*localEnemyVfxShowcase\?: LocalEnemyVfxShowcaseMode;\s*\};/,
-  );
+  const props = canvas.match(/type GameCanvasProps = \{([\s\S]*?)\n\};/);
+  assert.ok(props, "GameCanvasProps is missing");
+  assert.match(props[1], /initialSaveSlot\?: SaveSlotId;/);
+  assert.match(props[1], /onReturnToPlaza\?: \(\) => void;/);
+  assert.match(props[1], /localEnemyVfxShowcase\?: LocalEnemyVfxShowcaseMode;/);
+  assert.match(props[1], /localLootVfxShowcase\?: LocalLootVfxShowcaseMode;/);
   assert.match(canvas, /const initialSaveSlotHandledRef = useRef\(false\);/);
   assert.match(
     canvas,
-    /if \(localEnemyVfxShowcase\) return;\s*if \(initialSaveSlot === undefined \|\| initialSaveSlotHandledRef\.current\) return;[\s\S]{0,180}?initialSaveSlotHandledRef\.current = true;[\s\S]{0,180}?if \(!loadSave\(initialSaveSlot\)\) startNewRun\(initialSaveSlot\);/,
+    /if \(isLocalVfxShowcase\) return;\s*if \(initialSaveSlot === undefined \|\| initialSaveSlotHandledRef\.current\) return;[\s\S]{0,180}?initialSaveSlotHandledRef\.current = true;[\s\S]{0,180}?if \(!loadSave\(initialSaveSlot\)\) startNewRun\(initialSaveSlot\);/,
   );
+});
+
+test("localhost loot VFX QA bypasses slot hydration and remains memory-only", async () => {
+  const [page, flow, canvas] = await Promise.all([
+    readFile(path.join(root, "app/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.match(
+    canvas,
+    /export type LocalLootVfxShowcaseMode =[\s\S]{0,240}?\| "common"[\s\S]{0,240}?\| "cosmic"[\s\S]{0,60}?\| "all";/,
+  );
+  assert.match(page, /query\.enemyVfxShowcase !== undefined \|\| query\.lootVfxShowcase !== undefined/);
+  assert.match(page, /localVfxShowcaseRequested=\{localVfxShowcaseRequested\}/);
+  assert.match(
+    flow,
+    /const \[localVfxShowcaseChecked, setLocalVfxShowcaseChecked\] = useState\(\s*!localVfxShowcaseRequested,?\s*\);/,
+  );
+  assert.match(flow, /const requestedLootMode = search\.get\("lootVfxShowcase"\);/);
+  assert.match(flow, /isLocalLootVfxShowcaseMode\(requestedLootMode\)/);
+  assert.match(flow, /setLocalVfxShowcaseChecked\(true\);/);
+  assert.match(flow, /data-entry-view="local-vfx-showcase-checking"/);
+
+  const directEntry = flow.indexOf(
+    "if (localEnemyVfxShowcase || localLootVfxShowcase)",
+  );
+  const characterEntry = flow.indexOf("if (selection === null)", directEntry);
+  assert.ok(
+    directEntry >= 0 && characterEntry > directEntry,
+    "the validated local showcase must render before CharacterEntryGate",
+  );
+  const directBlock = flow.slice(directEntry, characterEntry);
+  assert.match(directBlock, /"local-loot-vfx-showcase"/);
+  assert.match(directBlock, /localLootVfxShowcase=\{localLootVfxShowcase \?\? undefined\}/);
+  assert.doesNotMatch(
+    directBlock,
+    /readSaveSlot|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+
+  assert.match(
+    canvas,
+    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase,?\s*\);/,
+  );
+  const transientStart = canvas.indexOf(
+    "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",
+  );
+  const normalHydration = canvas.indexOf(
+    "if (isLocalVfxShowcase) return;",
+    transientStart,
+  );
+  assert.ok(transientStart >= 0 && normalHydration > transientStart);
+  const transientBoot = canvas.slice(transientStart, normalHydration);
+  assert.match(transientBoot, /playerRef\.current = makePlayer\(\);/);
+  assert.match(transientBoot, /worldRef\.current = makeWorld\(/);
+  assert.doesNotMatch(
+    transientBoot,
+    /loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+  assert.match(
+    canvas,
+    /const saveCheck = isLocalVfxShowcase\s*\? null\s*:\s*window\.setTimeout/,
+  );
+  assert.match(canvas, /readShopEntitlements\(null\)/);
 });
 
 test("the character portrait asset and responsive entry treatment are present", async () => {
