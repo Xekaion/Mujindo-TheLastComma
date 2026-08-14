@@ -161,18 +161,13 @@ test("equipped rarity VFX frame selection is deterministic and reduced-motion sa
   assert.equal(vfx.equippedRarityVfxFrame(Number.NaN, "boots"), 1);
 });
 
-test("equipped rarity VFX enforces per-context draw caps with atlas-safe source cells", async () => {
+test("equipped rarity VFX draws every equipped chase-tier piece in every context", async () => {
   const vfx = await importVfxModule();
   const plan = vfx.resolveEquippedRarityVfxPlan(fullChaseLoadout());
   const source = { width: 1024, height: 256 };
-  const expectedCaps = {
-    combat: 4,
-    "plaza-local": 3,
-    "plaza-remote": 3,
-    portrait: 5,
-  };
+  const contexts = ["combat", "plaza-local", "plaza-remote", "portrait"];
 
-  for (const [context, expected] of Object.entries(expectedCaps)) {
+  for (const context of contexts) {
     const canvas = mockCanvas();
     const draws = vfx.drawEquippedRarityVfx(canvas.context, {
       plan,
@@ -186,8 +181,8 @@ test("equipped rarity VFX enforces per-context draw caps with atlas-safe source 
       height: 144,
       context,
     });
-    assert.equal(draws, expected, `${context} must remain inside its performance budget`);
-    assert.equal(canvas.calls.length, expected);
+    assert.equal(draws, plan.pieces.length, `${context} must draw the complete equipped plan`);
+    assert.equal(canvas.calls.length, plan.pieces.length);
     assert.equal(canvas.saves, 1);
     assert.equal(canvas.restores, 1);
     for (const call of canvas.calls) {

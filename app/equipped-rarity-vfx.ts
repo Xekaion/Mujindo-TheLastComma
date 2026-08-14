@@ -107,16 +107,6 @@ const SLOT_SCALE: Readonly<Record<EquipmentSlot, number>> = {
   relic: 0.38,
 };
 
-const CONTEXT_CAP: Readonly<Record<EquippedRarityVfxContext, number>> = {
-  combat: 4,
-  "plaza-local": 3,
-  // Nearby detailed remote players receive the same rarity loadout fidelity as
-  // the local plaza actor. Keeping this at one made a two-piece mythic/cosmic
-  // set look like a single equipped effect to every other player.
-  "plaza-remote": 3,
-  portrait: 5,
-};
-
 const CONTEXT_ALPHA: Readonly<Record<EquippedRarityVfxContext, number>> = {
   combat: 1,
   "plaza-local": 1,
@@ -219,7 +209,7 @@ export function drawEquippedRarityVfx(
     options.height <= 0
   ) return 0;
   const context = options.context ?? "combat";
-  const pieceCount = Math.min(options.plan.pieces.length, CONTEXT_CAP[context]);
+  const pieceCount = options.plan.pieces.length;
   if (pieceCount === 0) return 0;
   const originX = options.x - options.width / 2;
   const originY = options.y - options.height * PAPERDOLL_GROUND_ANCHOR_RATIO;
