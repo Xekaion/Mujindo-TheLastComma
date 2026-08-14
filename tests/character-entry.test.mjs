@@ -43,12 +43,12 @@ test("a selected save slot enters GameCanvas exactly once and resumes before cre
 
   assert.match(
     canvas,
-    /type GameCanvasProps = \{\s*initialSaveSlot\?: SaveSlotId;\s*onReturnToPlaza\?: \(\) => void;\s*\};/,
+    /type GameCanvasProps = \{\s*initialSaveSlot\?: SaveSlotId;\s*onReturnToPlaza\?: \(\) => void;\s*localEnemyVfxShowcase\?: LocalEnemyVfxShowcaseMode;\s*\};/,
   );
   assert.match(canvas, /const initialSaveSlotHandledRef = useRef\(false\);/);
   assert.match(
     canvas,
-    /if \(initialSaveSlot === undefined \|\| initialSaveSlotHandledRef\.current\) return;[\s\S]{0,180}?initialSaveSlotHandledRef\.current = true;[\s\S]{0,180}?if \(!loadSave\(initialSaveSlot\)\) startNewRun\(initialSaveSlot\);/,
+    /if \(localEnemyVfxShowcase\) return;\s*if \(initialSaveSlot === undefined \|\| initialSaveSlotHandledRef\.current\) return;[\s\S]{0,180}?initialSaveSlotHandledRef\.current = true;[\s\S]{0,180}?if \(!loadSave\(initialSaveSlot\)\) startNewRun\(initialSaveSlot\);/,
   );
 });
 

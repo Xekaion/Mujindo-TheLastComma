@@ -1557,7 +1557,11 @@ test("each shelter heals and saves only on its first coordinate visit", async ()
     /if \(kind === "shelter"\) \{\s*if \(shelterActivated\) \{\s*saveAtShelter\(\);\s*setGameMode\("shelter"\);\s*\} else \{\s*setToast\(SPENT_SHELTER_MESSAGE\);/,
     "only a fresh shelter may save and open the rest modal",
   );
-  assert.match(source, /const saveAtShelter[\s\S]{0,180}?player\.hp = player\.maxHp;/);
+  assert.match(
+    source,
+    /const saveAtShelter[\s\S]{0,240}?if \(localEnemyVfxShowcase\) return;[\s\S]{0,220}?player\.hp = player\.maxHp;/,
+    "normal shelters still heal, while the local visual fixture remains storage-free",
+  );
   assert.match(
     source,
     /const savedDungeon = normalizeSavedDungeonWorld\(data\.world\);[\s\S]{0,1800}?enterRoom\(savedDungeon\.roomX, savedDungeon\.roomY, "left"\);\s*setGameMode\("playing"\);[\s\S]{0,1100}?setToast\(`\$\{slot\}번 슬롯 · 고정된 기억에서 원정을 재개했습니다\.`\);/,
@@ -1711,7 +1715,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/proofreader-telegraph.png", [1536, 1024]],
     ["public/assets/effects/time-stalker-rift-warning-v1.png", [1254, 1254]],
     ["public/assets/effects/time-stalker-rift-burst-v1.png", [1254, 1254]],
-    ["public/assets/effects/margin-sever-line-v2.png", [1254, 1254]],
+    ["public/assets/effects/margin-sever-line-v3.png", [1536, 640]],
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
     ["public/assets/effects/silent-librarian-echo-v3.png", [1254, 1254]],
     ["public/assets/effects/palimpsest-archivist-patterns-v1.png", [2048, 1024]],
@@ -2373,17 +2377,29 @@ test("walk sprites preserve each authored atlas-cell aspect ratio", async () => 
   );
 });
 
-test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, and fully wired", async () => {
-  const [balance, source] = await Promise.all([
+test("the Margin Severer uses eight aspect-safe authored sever stages instead of stretching one image", async () => {
+  const [balance, vfx, source, entrySource, vfxSource, builderSource, buildText, promptText] = await Promise.all([
     importTypeScriptModule("app/enemy-balance.ts"),
+    importTypeScriptModule("app/margin-severer-vfx.ts"),
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/margin-severer-vfx.ts"), "utf8"),
+    readFile(path.join(root, "scripts/build_margin_sever_line_v3.py"), "utf8"),
+    readFile(path.join(root, "public/assets/effects/margin-sever-line-v3.build.json"), "utf8"),
+    readFile(
+      path.join(root, "asset-sources/imagegen/margin-sever-line-storyboard-v3.prompt.json"),
+      "utf8",
+    ),
   ]);
   const walkPath = "public/assets/walk/margin-severer-walk-v2.png";
-  const linePath = "public/assets/effects/margin-sever-line-v2.png";
-  const [walk, lineEffect] = await Promise.all([
+  const linePath = "public/assets/effects/margin-sever-line-v3.png";
+  const [walk, lineBytes] = await Promise.all([
     readFile(path.join(root, walkPath)).then((png) => decodeRgbaPng(png, walkPath)),
-    readFile(path.join(root, linePath)).then((png) => decodeRgbaPng(png, linePath)),
+    readFile(path.join(root, linePath)),
   ]);
+  const lineEffect = decodeRgbaPng(lineBytes, linePath);
+  const buildReport = JSON.parse(buildText);
+  const promptMetadata = JSON.parse(promptText);
 
   assert.deepEqual([walk.width, walk.height], [1024, 1536]);
   assert.equal(walk.width % 4, 0, "the walk sheet must retain four animation columns");
@@ -2416,18 +2432,26 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
   );
   assert.doesNotMatch(source, /MARGIN_SEVERER_WALK_ROW_CROPS/);
 
-  assert.deepEqual([lineEffect.width, lineEffect.height], [1254, 1254]);
+  assert.deepEqual([lineEffect.width, lineEffect.height], [1536, 640]);
   assert.equal(lineEffect.width % 2, 0);
-  assert.equal(lineEffect.height % 2, 0);
-  for (let row = 0; row < 2; row += 1) {
+  assert.equal(lineEffect.height % 4, 0);
+  for (let row = 0; row < 4; row += 1) {
     for (let column = 0; column < 2; column += 1) {
       const label = `margin sever line row ${row} column ${column}`;
-      const metrics = alphaCellMetrics(lineEffect, column, row, 2, 2, label);
-      assert.ok(metrics.opaquePixels >= 6_000, `${label} lacks its authored line effect`);
-      assert.ok(metrics.width >= 500, `${label} must span most of its animation cell`);
-      assert.ok(metrics.height >= 50, `${label} is too thin to remain legible in play`);
-      assert.ok(metrics.left >= 20 && metrics.right >= 20, `${label} needs safe horizontal padding`);
-      assert.ok(metrics.top >= 180 && metrics.bottom >= 180, `${label} needs safe vertical padding`);
+      const metrics = alphaCellMetrics(lineEffect, column, row, 2, 4, label);
+      assert.ok(metrics.opaquePixels >= 7_000, `${label} lacks its authored line effect`);
+      assert.ok(metrics.width >= 727, `${label} must retain the fixed endpoint span`);
+      assert.ok(metrics.height >= 90, `${label} is too thin to remain legible in play`);
+      assert.ok(metrics.left >= 19 && metrics.right >= 19, `${label} needs safe horizontal padding`);
+      assert.ok(metrics.top >= 12 && metrics.bottom >= 12, `${label} needs safe vertical padding`);
+      assert.ok(
+        Math.abs(metrics.centerX - (metrics.cellWidth - 1) / 2) <= 0.5,
+        `${label} drifts horizontally during playback`,
+      );
+      assert.ok(
+        Math.abs(metrics.centerY - (metrics.cellHeight - 1) / 2) <= 0.5,
+        `${label} drifts vertically during playback`,
+      );
     }
   }
   assert.equal(
@@ -2444,30 +2468,134 @@ test("the Margin Severer walk and sever atlases remain cropped, chroma-clean, an
     assert.equal(lineEffect.pixels[(y * lineEffect.width + x) * 4 + 3], 0);
   }
 
-  assert.match(
-    source,
-    /marginSeverLine:\s*["']\/assets\/effects\/margin-sever-line-v2\.png["']/,
-    "the four-frame sever effect must be preloaded",
+  let remainingMagenta = 0;
+  const alphaLevels = new Set();
+  for (let index = 0; index < lineEffect.pixels.length; index += 4) {
+    const red = lineEffect.pixels[index];
+    const green = lineEffect.pixels[index + 1];
+    const blue = lineEffect.pixels[index + 2];
+    const alpha = lineEffect.pixels[index + 3];
+    alphaLevels.add(alpha);
+    if (alpha > 8 && red > 180 && blue > 180 && green + 70 < Math.min(red, blue)) {
+      remainingMagenta += 1;
+    }
+  }
+  assert.equal(remainingMagenta, 0, `${linePath} retains its ImageGen chroma key`);
+  assert.deepEqual([...alphaLevels].sort((left, right) => left - right), [
+    0,
+    48,
+    96,
+    144,
+    192,
+    224,
+    255,
+  ]);
+
+  assert.equal(vfx.MARGIN_SEVERER_VFX_PATH, "/assets/effects/margin-sever-line-v3.png");
+  assert.deepEqual(
+    [vfx.MARGIN_SEVERER_VFX_COLUMNS, vfx.MARGIN_SEVERER_VFX_ROWS],
+    [2, 4],
   );
+  assert.deepEqual(
+    [0, 0.34, 0.67, 0.999].map((progress) =>
+      vfx.marginSeverVfxFrameIndex("inscribe", progress),
+    ),
+    [0, 1, 2, 2],
+  );
+  assert.deepEqual(
+    [0, 0.2, 0.4, 0.6, 0.8, 0.999].map((progress) =>
+      vfx.marginSeverVfxFrameIndex("sever", progress),
+    ),
+    [3, 4, 5, 6, 7, 7],
+  );
+  const layout = vfx.marginSeverVfxLayout(balance.MARGIN_SEVERER_LINE_LENGTH);
+  assert.ok(Math.abs(layout.width / 768 - layout.height / 160) < 1e-12);
+  assert.ok(Math.abs(layout.width * (728 / 768) - balance.MARGIN_SEVERER_LINE_LENGTH) < 1e-9);
+  assert.ok(layout.height > 110 && layout.height < 116, "the native wide cell should stay legible");
+
+  assert.deepEqual(buildReport.sheet, {
+    columns: 2,
+    rows: 4,
+    size: [1536, 640],
+    cell: [768, 160],
+  });
+  assert.deepEqual(buildReport.phaseFrames, { inscribe: [0, 1, 2], sever: [3, 4, 5, 6, 7] });
+  assert.equal(new Set(buildReport.frames.map(({ pixelHash }) => pixelHash)).size, 8);
+  assert.ok(
+    buildReport.frames[5].hotPixelCentroidX > buildReport.frames[4].hotPixelCentroidX + 250,
+    "the compact cut-front must visibly travel from left to right",
+  );
+  assert.ok(buildReport.pipeline.preserveAspectRatio);
+  assert.ok(buildReport.pipeline.centerEveryFrame);
+  assert.equal(
+    createHash("sha256").update(lineBytes).digest("hex"),
+    buildReport.outputSha256,
+  );
+  for (const [relativePath, expectedHash] of [
+    [buildReport.sourceOriginal, buildReport.sourceOriginalSha256],
+    [buildReport.sourceKeyed, buildReport.sourceKeyedSha256],
+    [buildReport.promptMetadata, buildReport.promptMetadataSha256],
+  ]) {
+    const bytes = await readFile(path.join(root, relativePath));
+    assert.equal(createHash("sha256").update(bytes).digest("hex"), expectedHash, relativePath);
+  }
+  assert.equal(promptMetadata.tool, "image_gen.imagegen built-in");
+  assert.match(promptMetadata.prompt, /must not be stretched/i);
+  assert.match(promptMetadata.prompt, /never a square image squeezed wide/i);
+  assert.match(builderSource, /fitted into a wide output cell without changing its authored aspect ratio/i);
+  assert.match(vfxSource, /MARGIN_SEVERER_VFX_CELL_WIDTH = 768/);
+  assert.match(vfxSource, /MARGIN_SEVERER_VFX_CELL_HEIGHT = 160/);
+  assert.match(source, /marginSeverLine:\s*MARGIN_SEVERER_VFX_PATH/);
   const rendererStart = source.indexOf("const drawMarginSeverLine = (");
   const rendererEnd = source.indexOf("const drawTimeRiftSprite = (", rendererStart);
   const renderer = source.slice(rendererStart, rendererEnd);
-  assert.match(
-    renderer,
-    /phase === ["']inscribe["']\s*\? Math\.min\(1, Math\.floor\(progress \* 2\)\)\s*:\s*progress < 0\.88\s*\? 2\s*:\s*3/,
-    "telegraph frames 0-1 and active frames 2-3 must remain phase-separated",
-  );
-  assert.match(renderer, /const sourceWidth = image\.naturalWidth \/ 2;/);
-  assert.match(renderer, /const sourceHeight = image\.naturalHeight \/ 2;/);
+  assert.match(renderer, /marginSeverVfxFrameIndex\(phase, progress\)/);
+  assert.match(renderer, /const vfxLayout = marginSeverVfxLayout\(lineLength\);/);
+  assert.match(renderer, /const sourceWidth = image\.naturalWidth \/ MARGIN_SEVERER_VFX_COLUMNS;/);
+  assert.match(renderer, /const sourceHeight = image\.naturalHeight \/ MARGIN_SEVERER_VFX_ROWS;/);
   assert.match(renderer, /context\.globalCompositeOperation = ["']source-over["']/);
   assert.match(renderer, /context\.imageSmoothingEnabled = false/);
   assert.match(renderer, /context\.shadowBlur = 0/);
-  assert.doesNotMatch(renderer, /phase === ["']sever["'] \? ["']lighter["']/);
-  assert.match(renderer, /const column = frameIndex % 2;\s*const row = Math\.floor\(frameIndex \/ 2\);/);
+  assert.doesNotMatch(renderer, /lineHeight|progress < 0\.88|atlasDrawWidth/);
   assert.match(
     renderer,
-    /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,\s*sourceWidth,\s*sourceHeight,/,
-    "the renderer must crop all four cells instead of sampling the whole atlas",
+    /-vfxLayout\.width \/ 2,\s*-vfxLayout\.height \/ 2,\s*vfxLayout\.width,\s*vfxLayout\.height/,
+    "the renderer must use one uniform scale for both destination axes",
+  );
+
+  const showcaseStart = source.indexOf("const spawnLocalEnemyVfxShowcase = () => {");
+  const showcaseEnd = source.indexOf("const spawnCombatEffect = (", showcaseStart);
+  assert.ok(showcaseStart >= 0 && showcaseEnd > showcaseStart);
+  const showcase = source.slice(showcaseStart, showcaseEnd);
+  assert.match(source, /get\(["']enemyVfxShowcase["']\)/);
+  assert.match(showcase, /enemyVfxShowcaseMode !== ["']margin-severer["']/);
+  assert.match(showcase, /enemy\.patternPhase = ["']inscribe["']/);
+  assert.match(showcase, /enemy\.damage = 0;/);
+  assert.doesNotMatch(showcase, /localStorage|writeSaveSlot|removeItem|clear\(/);
+  assert.match(source, /spawnLocalLootVfxShowcase\(\);\s*spawnLocalEnemyVfxShowcase\(\);/);
+
+  assert.match(entrySource, /requestedMode === ["']margin-severer["']/);
+  assert.match(entrySource, /data-entry-view=["']local-enemy-vfx-showcase["']/);
+  assert.match(
+    entrySource,
+    /<GameCanvas localEnemyVfxShowcase=\{localEnemyVfxShowcase\} \/>/,
+    "localhost QA must bypass character selection without creating a save slot",
+  );
+  const transientStart = source.slice(
+    source.indexOf("if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;"),
+    source.indexOf("if (localEnemyVfxShowcase) return;", source.indexOf("if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;")),
+  );
+  assert.match(transientStart, /playerRef\.current = makePlayer\(\);/);
+  assert.match(transientStart, /setGameMode\(["']playing["']\);/);
+  assert.doesNotMatch(
+    transientStart,
+    /loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage/,
+    "the visual QA boot path must stay entirely in memory",
+  );
+  assert.match(
+    source,
+    /const saveCheck = localEnemyVfxShowcase\s*\? null\s*:\s*window\.setTimeout/,
+    "the transient showcase must not run save migration",
   );
 });
 

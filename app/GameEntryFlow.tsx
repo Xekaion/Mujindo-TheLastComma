@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CharacterEntryGate, {
   type CharacterEntrySelection,
 } from "./CharacterEntryGate";
-import GameCanvas from "./GameCanvas";
+import GameCanvas, {
+  type LocalEnemyVfxShowcaseMode,
+} from "./GameCanvas";
 import InventoryOverlay from "./InventoryOverlay";
 import PlazaCharacterProfile from "./PlazaCharacterProfile";
 import PlazaHub from "./PlazaHub";
@@ -76,6 +78,8 @@ export default function GameEntryFlow({
   returnToTown = false,
 }: GameEntryFlowProps) {
   const [selection, setSelection] = useState<CharacterEntrySelection | null>(null);
+  const [localEnemyVfxShowcase, setLocalEnemyVfxShowcase] =
+    useState<LocalEnemyVfxShowcaseMode | null>(null);
   const [view, setView] = useState<EntryView>("plaza");
   const [shopOpen, setShopOpen] = useState(false);
   const [inventoryOpen, setInventoryOpen] = useState(false);
@@ -91,6 +95,21 @@ export default function GameEntryFlow({
   const [saveRevision, setSaveRevision] = useState(0);
   const profileRequestIdRef = useRef(0);
   const lastInspectedPlayerRef = useRef<HubPlayerSnapshot | null>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const isLocalHost = ["localhost", "127.0.0.1", "::1", "[::1]"].includes(
+        window.location.hostname,
+      );
+      const requestedMode = new URLSearchParams(window.location.search).get(
+        "enemyVfxShowcase",
+      );
+      if (isLocalHost && requestedMode === "margin-severer") {
+        setLocalEnemyVfxShowcase(requestedMode);
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (!returnToTown || selection !== null) return;
@@ -353,6 +372,17 @@ export default function GameEntryFlow({
     setView("plaza");
     setArrival("center");
   }, []);
+
+  if (localEnemyVfxShowcase) {
+    return (
+      <div
+        className="game-entry-flow"
+        data-entry-view="local-enemy-vfx-showcase"
+      >
+        <GameCanvas localEnemyVfxShowcase={localEnemyVfxShowcase} />
+      </div>
+    );
+  }
 
   if (selection === null) {
     return <CharacterEntryGate accountName={accountName} onEnter={enterCharacter} />;

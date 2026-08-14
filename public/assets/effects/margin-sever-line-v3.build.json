@@ -1,0 +1,338 @@
+{
+  "version": 3,
+  "format": "RGBA PNG",
+  "sheet": {
+    "columns": 2,
+    "rows": 4,
+    "size": [
+      1536,
+      640
+    ],
+    "cell": [
+      768,
+      160
+    ]
+  },
+  "phaseFrames": {
+    "inscribe": [
+      0,
+      1,
+      2
+    ],
+    "sever": [
+      3,
+      4,
+      5,
+      6,
+      7
+    ]
+  },
+  "sourceOriginal": "asset-sources/imagegen/margin-sever-line-storyboard-v3-source.png",
+  "sourceOriginalSha256": "464c840228857772cb8883579d533069e403d04cf504d46efb7575a34e363561",
+  "sourceKeyed": "asset-sources/imagegen/margin-sever-line-storyboard-v3-keyed.png",
+  "sourceKeyedSha256": "46172f538de17f24d8718f85a23f4d3a3bb3512e9f403b04e6fba65d36fc14b7",
+  "promptMetadata": "asset-sources/imagegen/margin-sever-line-storyboard-v3.prompt.json",
+  "promptMetadataSha256": "a338cc7acbafb2c52091b2f6be055260df57aec5da86c5f6f2f18cd700311d5e",
+  "output": "public/assets/effects/margin-sever-line-v3.png",
+  "outputSha256": "81acad1355e2b0fb758f68dbc5c3d292e1a83d68321628994f2608e6f53ef912",
+  "pipeline": {
+    "horizontalPadding": 20,
+    "verticalPadding": 12,
+    "endpointSpanRatio": 0.9479166666666666,
+    "paletteSize": 48,
+    "alphaCutoff": 28,
+    "alphaLevels": [
+      0,
+      48,
+      96,
+      144,
+      192,
+      224,
+      255
+    ],
+    "preserveAspectRatio": true,
+    "centerEveryFrame": true
+  },
+  "frames": [
+    {
+      "index": 0,
+      "sourceCell": [
+        0,
+        0,
+        887,
+        222
+      ],
+      "role": "endpoint-seals-and-ink-stitches",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 7582,
+      "uniqueVisibleColours": 47,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": null,
+      "pixelHash": "56fde150f9b45031d5a5a70c0d989a5ca868892631e0e4d2cee6b07191d9d92d"
+    },
+    {
+      "index": 1,
+      "sourceCell": [
+        887,
+        0,
+        1774,
+        222
+      ],
+      "role": "parchment-guideline-clusters",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 18838,
+      "uniqueVisibleColours": 49,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 307.056,
+      "pixelHash": "9bd60e25ed2da82a23f78cb07ce2d89bc884139e7a586c978adf28248308617a"
+    },
+    {
+      "index": 2,
+      "sourceCell": [
+        0,
+        222,
+        887,
+        444
+      ],
+      "role": "taut-fractured-seam",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 12041,
+      "uniqueVisibleColours": 48,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 266.0,
+      "pixelHash": "f63502bf86378029c251508d5f8448e41c1141105658455c67ef8d6c884dcb38"
+    },
+    {
+      "index": 3,
+      "sourceCell": [
+        887,
+        222,
+        1774,
+        444
+      ],
+      "role": "left-cut-spark-ignition",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 14163,
+      "uniqueVisibleColours": 48,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 133.436,
+      "pixelHash": "35b4854792e5f2d1dcb690d30647f3fcc2e58392f3f6fb8d7c0a14879cc76e94"
+    },
+    {
+      "index": 4,
+      "sourceCell": [
+        0,
+        444,
+        887,
+        665
+      ],
+      "role": "travelling-cut-front-left",
+      "alphaBounds": [
+        21,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        21,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 14453,
+      "uniqueVisibleColours": 49,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 164.423,
+      "pixelHash": "54c53b1d1a23a44e83aba073f145fe1248ad10c2fafb1d78c697fb3f45267424"
+    },
+    {
+      "index": 5,
+      "sourceCell": [
+        887,
+        444,
+        1774,
+        665
+      ],
+      "role": "travelling-cut-front-right",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 16581,
+      "uniqueVisibleColours": 49,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 487.038,
+      "pixelHash": "790e38aba821696014555ef7a3ccb6d65dbd26c6f8254ffa51c9ec3661d48689"
+    },
+    {
+      "index": 6,
+      "sourceCell": [
+        0,
+        665,
+        887,
+        887
+      ],
+      "role": "ruptured-seam-and-debris",
+      "alphaBounds": [
+        20,
+        30,
+        748,
+        130
+      ],
+      "padding": [
+        20,
+        30,
+        20,
+        30
+      ],
+      "visiblePixels": 24477,
+      "uniqueVisibleColours": 48,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 365.715,
+      "pixelHash": "529e3e939e8146db793d9a736c0a9aef218cc4ca785808bd386ff8b2dc377f64"
+    },
+    {
+      "index": 7,
+      "sourceCell": [
+        887,
+        665,
+        1774,
+        887
+      ],
+      "role": "dissipating-seals-and-scraps",
+      "alphaBounds": [
+        20,
+        13,
+        748,
+        147
+      ],
+      "padding": [
+        20,
+        13,
+        20,
+        13
+      ],
+      "visiblePixels": 7977,
+      "uniqueVisibleColours": 49,
+      "alphaLevels": [
+        0,
+        48,
+        96,
+        144,
+        192,
+        224,
+        255
+      ],
+      "hotPixelCentroidX": 344.377,
+      "pixelHash": "a5e87d8a6ce7c7cd1a8d94ae49994baddca917b0eb9c1957cb72ca3674d390c9"
+    }
+  ]
+}

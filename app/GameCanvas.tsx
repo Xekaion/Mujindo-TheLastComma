@@ -100,6 +100,13 @@ import {
   marginSeverLine,
 } from "./enemy-balance";
 import {
+  MARGIN_SEVERER_VFX_COLUMNS,
+  MARGIN_SEVERER_VFX_PATH,
+  MARGIN_SEVERER_VFX_ROWS,
+  marginSeverVfxFrameIndex,
+  marginSeverVfxLayout,
+} from "./margin-severer-vfx";
+import {
   SILENT_LIBRARIAN_DAMAGE_MULTIPLIER,
   SILENT_LIBRARIAN_KIND,
   SILENT_LIBRARIAN_MAX_PER_ROOM,
@@ -2322,11 +2329,15 @@ function MapGrid({
 type GameCanvasProps = {
   initialSaveSlot?: SaveSlotId;
   onReturnToPlaza?: () => void;
+  localEnemyVfxShowcase?: LocalEnemyVfxShowcaseMode;
 };
+
+export type LocalEnemyVfxShowcaseMode = "margin-severer";
 
 export default function GameCanvas({
   initialSaveSlot,
   onReturnToPlaza,
+  localEnemyVfxShowcase,
 }: GameCanvasProps = {}) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
@@ -2423,6 +2434,7 @@ export default function GameCanvas({
   const gameConfirmationActionRef = useRef<() => void>(() => undefined);
   const inventoryFullToastRef = useRef(0);
   const lootVfxShowcaseSpawnedRef = useRef(false);
+  const marginSeverShowcaseSpawnedRef = useRef(false);
   const initialSaveSlotHandledRef = useRef(false);
   const firstRoomGearDroppedRef = useRef(false);
 
@@ -2952,6 +2964,7 @@ export default function GameCanvas({
   );
 
   const saveAtShelter = useCallback(() => {
+    if (localEnemyVfxShowcase) return;
     const player = playerRef.current;
     const world = worldRef.current;
     const equipmentStats = aggregateEquipmentStats(player.equipment);
@@ -3002,7 +3015,7 @@ export default function GameCanvas({
       setToast("이 기기에서 저장이 차단되었습니다. 탐험은 계속할 수 있습니다.");
     }
     syncHud();
-  }, [refreshSaveSlots, syncHud]);
+  }, [localEnemyVfxShowcase, refreshSaveSlots, syncHud]);
 
   const makeEnemy = useCallback(
     (kind: EnemyKind, x: number, y: number, depth: number, elite = false): Enemy => {
@@ -3976,10 +3989,39 @@ export default function GameCanvas({
   ]);
 
   useEffect(() => {
+    if (!localEnemyVfxShowcase || initialSaveSlotHandledRef.current) return;
+    initialSaveSlotHandledRef.current = true;
+    keysRef.current.clear();
+    pendingStoryRef.current = null;
+    pendingEndingRef.current = false;
+    marginSeverShowcaseSpawnedRef.current = false;
+    setEndingChapterIndex(0);
+    setLootNotice(null);
+    playerRef.current = makePlayer();
+    worldRef.current = makeWorld(0x4d534556);
+    stableAugmentsRef.current = {};
+    checkpointRef.current = null;
+    setBuildPanelOpen(false);
+    setInventoryScreenOpen(false);
+    setStatsScreenOpen(false);
+    setStarted(true);
+    enterRoom(DUNGEON_CENTER_COORDINATE, DUNGEON_CENTER_COORDINATE, "center");
+    setGameMode("playing");
+  }, [
+    enterRoom,
+    localEnemyVfxShowcase,
+    setBuildPanelOpen,
+    setGameMode,
+    setInventoryScreenOpen,
+    setStatsScreenOpen,
+  ]);
+
+  useEffect(() => {
+    if (localEnemyVfxShowcase) return;
     if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;
     initialSaveSlotHandledRef.current = true;
     if (!loadSave(initialSaveSlot)) startNewRun(initialSaveSlot);
-  }, [initialSaveSlot, loadSave, startNewRun]);
+  }, [initialSaveSlot, loadSave, localEnemyVfxShowcase, startNewRun]);
 
   const retryFromShelter = useCallback(() => {
     if (!loadSave()) startNewRun();
@@ -4355,8 +4397,12 @@ export default function GameCanvas({
   }, [applyShopEntitlements]);
 
   useEffect(() => {
-    migrateLegacySave();
-    const saveCheck = window.setTimeout(refreshSaveSlots, 0);
+    const saveCheck = localEnemyVfxShowcase
+      ? null
+      : window.setTimeout(() => {
+          migrateLegacySave();
+          refreshSaveSlots();
+        }, 0);
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
       walkHarinLegacy: "/assets/walk/harin-walk.png",
@@ -4376,7 +4422,7 @@ export default function GameCanvas({
       proofreaderTelegraph: "/assets/effects/proofreader-telegraph.png",
       timeRiftWarning: "/assets/effects/time-stalker-rift-warning-v1.png",
       timeRiftBurst: "/assets/effects/time-stalker-rift-burst-v1.png",
-      marginSeverLine: "/assets/effects/margin-sever-line-v2.png",
+      marginSeverLine: MARGIN_SEVERER_VFX_PATH,
       finalBinderPatterns: "/assets/effects/final-binder-patterns-v1.png",
       silentLibrarianEcho: SILENT_LIBRARIAN_ECHO_VFX_PATH,
       palimpsestArchivistPatterns:
@@ -4405,8 +4451,10 @@ export default function GameCanvas({
       image.src = source;
       imagesRef.current[name] = image;
     }
-    return () => window.clearTimeout(saveCheck);
-  }, [refreshSaveSlots]);
+    return () => {
+      if (saveCheck !== null) window.clearTimeout(saveCheck);
+    };
+  }, [localEnemyVfxShowcase, refreshSaveSlots]);
 
   useEffect(() => {
     const loadout = paperdollLoadoutFromEquipment(hud.player.equipment);
@@ -4630,6 +4678,11 @@ export default function GameCanvas({
         : requestedLootVfxRarity
           ? [requestedLootVfxRarity]
           : [];
+    const enemyVfxShowcaseMode =
+      localEnemyVfxShowcase ??
+      (isLocalRarityShowcaseHost()
+        ? new URLSearchParams(window.location.search).get("enemyVfxShowcase")
+        : null);
 
     const spawnLegendaryEffect = (
       kind:
@@ -4934,6 +4987,40 @@ export default function GameCanvas({
         });
         spawnLootAwakening(safePosition.x, safePosition.y, rarity);
       }
+    };
+
+    const spawnLocalEnemyVfxShowcase = () => {
+      if (
+        marginSeverShowcaseSpawnedRef.current ||
+        enemyVfxShowcaseMode !== "margin-severer" ||
+        modeRef.current !== "playing"
+      ) {
+        return;
+      }
+      marginSeverShowcaseSpawnedRef.current = true;
+      const world = worldRef.current;
+      const enemy = makeEnemy(
+        MARGIN_SEVERER_KIND,
+        WIDTH / 2,
+        210,
+        Math.max(playerRef.current.rooms, MARGIN_SEVERER_UNLOCK_DEPTH),
+      );
+      enemy.speed = 0;
+      enemy.damage = 0;
+      enemy.hp = 1_000_000;
+      enemy.maxHp = enemy.hp;
+      enemy.patternPhase = "inscribe";
+      enemy.patternTimer = MARGIN_SEVERER_TELEGRAPH_SECONDS;
+      enemy.patternTargetX = WIDTH / 2;
+      enemy.patternTargetY = HEIGHT / 2 + 70;
+      enemy.patternX = 1;
+      enemy.patternY = 0;
+      enemy.patternHit = false;
+      enemy.moving = false;
+      world.enemies = [enemy];
+      world.projectiles = [];
+      world.roomCleared = false;
+      world.clearHandled = false;
     };
 
     const spawnCombatEffect = (
@@ -8081,12 +8168,7 @@ export default function GameCanvas({
           ? MARGIN_SEVERER_TELEGRAPH_SECONDS
           : MARGIN_SEVERER_ACTIVE_SECONDS;
       const progress = clamp(1 - (enemy.patternTimer ?? 0) / duration, 0, 0.999);
-      const frameIndex =
-        phase === "inscribe"
-          ? Math.min(1, Math.floor(progress * 2))
-          : progress < 0.88
-            ? 2
-            : 3;
+      const frameIndex = marginSeverVfxFrameIndex(phase, progress);
       const centerX = enemy.patternTargetX ?? enemy.x;
       const centerY = enemy.patternTargetY ?? enemy.y;
       const severLine = marginSeverLine(
@@ -8105,16 +8187,15 @@ export default function GameCanvas({
         severLine.endX,
         severLine.endY,
       );
-      // The authored cells reserve roughly 13% horizontal alpha gutter. Expand
-      // only the transparent atlas rectangle so the painted endpoint seals land
-      // on the exact collision-segment endpoints instead of ending short.
-      const atlasDrawWidth = lineLength / 0.87;
-      const lineHeight = phase === "inscribe" ? 104 : 118;
+      // Every V3 cell is authored as a wide strip with the same endpoint span.
+      // Both destination axes use one uniform scale so the effect can never be
+      // flattened into a long, static-looking bitmap again.
+      const vfxLayout = marginSeverVfxLayout(lineLength);
       const alpha =
         phase === "inscribe"
           ? 0.45 + progress * 0.42
-          : frameIndex === 3
-            ? 0.72
+          : frameIndex === 7
+            ? 0.68
             : 1;
 
       context.save();
@@ -8135,20 +8216,20 @@ export default function GameCanvas({
       context.imageSmoothingEnabled = false;
 
       if (image?.complete && image.naturalWidth && image.naturalHeight) {
-        const sourceWidth = image.naturalWidth / 2;
-        const sourceHeight = image.naturalHeight / 2;
-        const column = frameIndex % 2;
-        const row = Math.floor(frameIndex / 2);
+        const sourceWidth = image.naturalWidth / MARGIN_SEVERER_VFX_COLUMNS;
+        const sourceHeight = image.naturalHeight / MARGIN_SEVERER_VFX_ROWS;
+        const column = frameIndex % MARGIN_SEVERER_VFX_COLUMNS;
+        const row = Math.floor(frameIndex / MARGIN_SEVERER_VFX_COLUMNS);
         context.drawImage(
           image,
           column * sourceWidth,
           row * sourceHeight,
           sourceWidth,
           sourceHeight,
-          -atlasDrawWidth / 2,
-          -lineHeight / 2,
-          atlasDrawWidth,
-          lineHeight,
+          -vfxLayout.width / 2,
+          -vfxLayout.height / 2,
+          vfxLayout.width,
+          vfxLayout.height,
         );
       } else {
         context.strokeStyle = phase === "sever" ? "#c8fbff" : "#cf4b59";
@@ -10416,6 +10497,7 @@ export default function GameCanvas({
       last = now;
       if (!professionCeremonyActiveRef.current) {
         spawnLocalLootVfxShowcase();
+        spawnLocalEnemyVfxShowcase();
         if (isSimulationRunning()) update(dt);
         draw();
         if (now - lastHudUpdateRef.current > 110) {
@@ -10434,6 +10516,7 @@ export default function GameCanvas({
     gainXp,
     getEquipmentRuntimeCache,
     isSimulationRunning,
+    localEnemyVfxShowcase,
     makeEnemy,
     setGameMode,
     showStory,

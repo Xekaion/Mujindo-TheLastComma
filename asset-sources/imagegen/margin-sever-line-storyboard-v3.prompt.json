@@ -1,0 +1,28 @@
+{
+  "asset": "margin-sever-line-storyboard-v3",
+  "generatedAt": "2026-08-14",
+  "tool": "image_gen.imagegen built-in",
+  "useCase": "stylized-concept",
+  "inputReferences": [
+    "public/assets/walk/margin-severer-walk-v2.png",
+    "public/assets/effects/margin-sever-line-v2.png"
+  ],
+  "source": "asset-sources/imagegen/margin-sever-line-storyboard-v3-source.png",
+  "chromaRemoval": {
+    "requestedKey": "#ff00ff",
+    "sampledKey": "#f904f8",
+    "output": "asset-sources/imagegen/margin-sever-line-storyboard-v3-keyed.png",
+    "helper": "$CODEX_HOME/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ]
+  },
+  "prompt": "Use case: stylized-concept. Asset type: production sprite-source sheet for a 2D 3/4 top-down gothic dungeon ARPG enemy skill. Image 1 is the Margin Severer enemy style reference; Image 2 is the old attack motif reference only and must not be stretched, copied, or repeated as size variants. Create exactly eight genuinely distinct storyboard frames for the Margin Severer's horizontal 'cut the page margin' floor attack in an exact 2-column by 4-row grid, read left-to-right then top-to-bottom. Progress from tarnished bronze endpoint seals and broken ink stitches, through crooked runic guidelines and torn parchment, into a compact ivory-hot cut-front travelling left-to-right, then disjoint bronze, vellum, dried-blood thread and corpse-cyan fragments, and finally fading scraps. Authentic pre-rendered early-2000s dark gothic ARPG sprite art; grimy, chunky, dithered and pixel-downsample friendly. Every phase is a naturally authored long thin horizontal composition at the same fixed world length, never a square image squeezed wide. Use a perfectly flat solid #ff00ff chroma-key background with no shadows, gradients, texture, grid lines, labels, dividers, overlap, text, logos, watermark, magenta in the subject, continuous neon beam, duplicated frames, glossy mobile-game VFX, sci-fi holograms, or anime slashes."
+}
