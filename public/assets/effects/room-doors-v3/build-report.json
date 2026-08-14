@@ -1,0 +1,4602 @@
+{
+  "version": 3,
+  "builder": "scripts/build_room_baked_door_assets.py",
+  "format": "lossless RGB WebP room-baked patches",
+  "atlas": {
+    "columns": 6,
+    "rows": [
+      "north",
+      "east",
+      "south",
+      "west"
+    ],
+    "cellStride": [
+      188,
+      152
+    ],
+    "size": [
+      1128,
+      608
+    ],
+    "frameOrder": "fully closed to fully open"
+  },
+  "sources": {
+    "frontGate": {
+      "path": "public/assets/effects/room-portcullis-source-v1.png",
+      "sha256": "5f848704960815b549a86141b53638119bb8f1bba7e5027a1b1bbf82374e88f8",
+      "bytes": 1086052,
+      "size": [
+        1570,
+        1002
+      ],
+      "mode": "RGBA"
+    },
+    "sideGate": {
+      "path": "asset-sources/imagegen/room-portcullis-v3-keyed.png",
+      "sha256": "1deb33aaef4a8a9d9aff5b2b3063676183593abbb39076bf25e3eecf4c9cc53c",
+      "bytes": 1142065,
+      "size": [
+        1024,
+        1536
+      ],
+      "mode": "RGBA"
+    },
+    "promptMetadata": {
+      "path": "asset-sources/imagegen/room-portcullis-v3.prompt.json",
+      "sha256": "b4de15d808aeacbf5f138ac3ef06dc3bd46c182c9a00f639091606a145cdc3b2"
+    }
+  },
+  "geometry": {
+    "crops1600x900": {
+      "north": [
+        718,
+        0,
+        164,
+        128
+      ],
+      "east": [
+        1444,
+        374,
+        156,
+        152
+      ],
+      "south": [
+        706,
+        770,
+        188,
+        130
+      ],
+      "west": [
+        0,
+        374,
+        156,
+        152
+      ]
+    },
+    "closedDestinationQuads": {
+      "north": [
+        [
+          42,
+          12
+        ],
+        [
+          122,
+          12
+        ],
+        [
+          118,
+          124
+        ],
+        [
+          46,
+          124
+        ]
+      ],
+      "east": [
+        [
+          61,
+          34
+        ],
+        [
+          125,
+          8
+        ],
+        [
+          133,
+          110
+        ],
+        [
+          69,
+          136
+        ]
+      ],
+      "south": [
+        [
+          42,
+          7
+        ],
+        [
+          146,
+          7
+        ],
+        [
+          153,
+          124
+        ],
+        [
+          35,
+          124
+        ]
+      ],
+      "west": [
+        [
+          30,
+          8
+        ],
+        [
+          94,
+          34
+        ],
+        [
+          86,
+          136
+        ],
+        [
+          22,
+          110
+        ]
+      ]
+    },
+    "openingPolygons": {
+      "north": [
+        [
+          35,
+          8
+        ],
+        [
+          129,
+          8
+        ],
+        [
+          126,
+          125
+        ],
+        [
+          38,
+          125
+        ]
+      ],
+      "east": [
+        [
+          55,
+          32
+        ],
+        [
+          131,
+          8
+        ],
+        [
+          139,
+          116
+        ],
+        [
+          63,
+          145
+        ]
+      ],
+      "south": [
+        [
+          35,
+          8
+        ],
+        [
+          153,
+          8
+        ],
+        [
+          159,
+          125
+        ],
+        [
+          29,
+          125
+        ]
+      ],
+      "west": [
+        [
+          24,
+          8
+        ],
+        [
+          100,
+          32
+        ],
+        [
+          92,
+          145
+        ],
+        [
+          16,
+          116
+        ]
+      ]
+    },
+    "motion": "unchanged projected gate translated along doorway-plane lift vector"
+  },
+  "backplates": {
+    "room-battle": {
+      "source": {
+        "path": "public/assets/maps/room-battle.webp",
+        "sha256": "e972b5f7708b3e1c1cc198ff311e7b0d094eaaa7d43ee3deef6a24e715a5adec",
+        "bytes": 462594,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4904,
+              "borderMismatchPixels": 0,
+              "pixelHash": "70680a6bd4bf4e67563d3fc657a80ffcb174df265c1950473d3ba0d88a48b46c"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3793,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ce748d6d10b586c71850079a54c2c25b9df2cbf42e792d453d52b5657b93f930"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2823,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b0fab71e9cdd8d6f681e277f31eea2b0bfc6148d568b3773b557750f75148b4c"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1752,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6664bd655ab1dcc497c24ff12fa2a89699073a9f942583b8790339953352fb01"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 594,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9c1003c40c6b7e84f778a8f2565d81e48978d34e0c39859589848f64d53a25e9"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "965ff57a4b6251e99681d7b071368d593752ecd2c284ecbb7d313a153df59592"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3649,
+              "borderMismatchPixels": 0,
+              "pixelHash": "aa23066cdfa9abae7a256759afd361886292439daece0d5bf8b2b0bf495f29fb"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2974,
+              "borderMismatchPixels": 0,
+              "pixelHash": "62e74c7916a44d14010fef3d61a3164429b56b38b6d80edbf6d6103a342e02d6"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2135,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d8d7fe10250a2b0e65084b7e0a56423fb9d70cd15b8a69767798ef8b07db3092"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1265,
+              "borderMismatchPixels": 0,
+              "pixelHash": "73a32cd4dd1ccca70e81d428654bb912233a045c8edd6c333e504b69db02f517"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 320,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a71def6676b82f00932ea7ffef0a28f31bf380027b28b02096c2aef088a26347"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cc0fdb6459b4d3aa90b2ae4fb4c341b9d8f18886ccdaf7c371462c7ba5f833cf"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7404,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bd1d093097cf919031eeb323ddf492b6ed2ec769229b47c7209414ff9448b2af"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5716,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e5edbb1c71dff4a4a1dde33d4ad60bc3976202230e2686a1bf17c2cd02a0f7b0"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3980,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0fa864c60b3baafd4be257d7eed226dd1c8aa437d6f4e3488b589f4248b6364e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2440,
+              "borderMismatchPixels": 0,
+              "pixelHash": "763fdd352cbf6cc30628f0b595b9ea60fbc7dd51c138b7b6ebd9bc76ef262606"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 730,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3f793a49e1db4c5b387993c9b2266ffc4d0d4b8a76ff66d41bd014650493e566"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "68b504ecae2bb3a1991f049aa3c9385f92cd04ee677a93735de83998d60d938a"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3674,
+              "borderMismatchPixels": 0,
+              "pixelHash": "aff5885785a9679956307a4064a6d9d68da68b2f92fae56a0d41b4c71799675e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2985,
+              "borderMismatchPixels": 0,
+              "pixelHash": "69a7e64d648230a6366b3f6b1c36fdfb8e30302aa4701eb0d36d070fda334d95"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2125,
+              "borderMismatchPixels": 0,
+              "pixelHash": "34fb9c45ec79131fdd3fd0e2ff5f50c5a1c31cc1fdef56fcc08f689dc56c7f7d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1235,
+              "borderMismatchPixels": 0,
+              "pixelHash": "827a9527a3da72f8a77cd5deb50baa482dd5e924302595ea6ddc4c3f5a24a29f"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 307,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e270f130e78e8552c0d58d499a477867885a805b0dde4c6377e92baf4e080abb"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4cac9e27e563ae2f1d44e1abf97abde8a2e185ddaba097615e3de15074610e90"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-battle-doors-v3.webp",
+        "sha256": "051dad5d801773d99a7a69f994d5245cdac8faae1e1133a691e1cffe7f813dab",
+        "bytes": 323800
+      }
+    },
+    "room-battle-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-battle-stairs-v1.webp",
+        "sha256": "57fe4a1656e567f59d472e19fd68b239a06482b1244b8fa0765c8277997170df",
+        "bytes": 337544,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4894,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6579936413587b3b005e55fbc668393cfe5adddfdb0c2c41b33a5423a2dc9748"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3809,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b204808f764eea1c8fee92a61428940e3a97b0bb6176c8f089e5ea1ac9cbaea3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2834,
+              "borderMismatchPixels": 0,
+              "pixelHash": "60785a42eb2255ed0d6df909de2a68f89b896d9034c165786633b5ffe54da99f"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1744,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cd1bd9822640ad8b1a6297c7c7b6f61c57f09836dc570a64fbe4abe750886dd3"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 596,
+              "borderMismatchPixels": 0,
+              "pixelHash": "64cf81aa6d677caf1e50f61b3078e56fdaea5dd27973887152e07f07c945a8f7"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "06150b14e4188bfc2f6b78639d2e74f20d8b7ebaada2b9faa59726cfd97dc4a8"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3643,
+              "borderMismatchPixels": 0,
+              "pixelHash": "26a3f1fe59fd4c5cbe1dbb22f3f9326bd50734447bf8313aa6d811a1fb8db3c3"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2947,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dce35dc6cd9559ab0abfddb6d70dff1b0edbed3ef6e18f5c67145a38ef5282a5"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2138,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b5bcfb1ac8a0ee6ee8c8dece7ea7c34bd40934404ef019432808023e4938a91d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1257,
+              "borderMismatchPixels": 0,
+              "pixelHash": "84b7dbab39aabd070706c002d2ed185535b2710dfeda4d3ba951705610aa0a29"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 318,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4fea1690929d12ecec19b7aad2d5bf5df64801bc0b8c6f0368af7bc589284d2c"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0b4ed6c47fa1105c07da209461fc3decbba4168eb761862b04d19a05c1dc7b2d"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7345,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6d74d826ed1a8dc5f7135b0c6f77cd7899e9611b5614276dd090b88773f7260e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5710,
+              "borderMismatchPixels": 0,
+              "pixelHash": "67f42b5085012c4046c68ba52795676c4524d40984f207f9c9ed7aff33ec318a"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3957,
+              "borderMismatchPixels": 0,
+              "pixelHash": "06c8e150fb4666890c9c2249f0c353e46fea5c846f041e9735ed60e70d0df2b0"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2419,
+              "borderMismatchPixels": 0,
+              "pixelHash": "772fe07e47d875d8b689ad6182d2366ac5e4cb09159b9a97a93f24482cbae3c0"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 727,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6fe5bb6b3618e9a961f399561061f70c9fd1947df50148c8c008c77ff193f0c6"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4a34a3f3bdf3e55f21db89daba651cd399ebf40e50b084c6146d778e70cced84"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3660,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2f94ce3f0a82313536b49d3c521793b6ebee5ff52d9391baabd7c64c4ff1a109"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2936,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2c6811871cf2088e7cf1749ae399525e20be49f4ab09c2ef36b6a61e3d69cfe2"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2087,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0cfd69ca924563923db7c2461cd1c87c5a2aa3528bd01127e1e365afce099899"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1220,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6d56283dd1760f7943ad5d614f632d5f768ae6de55eea3f152dedd5640f76ab8"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 296,
+              "borderMismatchPixels": 0,
+              "pixelHash": "479cc4b17fabebbd686f7cac5af1b70392d18f8ef8f2509f330794101e25e123"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "efb71bab92d03588fbb3aabe1a676979eee6038a6806d4ed600cfdf975d4f198"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-battle-stairs-v1-doors-v3.webp",
+        "sha256": "96425ce4ec684448b8a589fedf122507ff4930243041df7aa57cdcd907629578",
+        "bytes": 292452
+      }
+    },
+    "room-horde": {
+      "source": {
+        "path": "public/assets/maps/room-horde.webp",
+        "sha256": "047064de01403cc0e29a6dcf9a2e8bdcec505e1a3a1a824f66b521acce3f8810",
+        "bytes": 540502,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4899,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f016f80faf4ac0265da5f8b35745ba22d2c7ef3e4728fd452ec06fcb6fb8b2f4"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3802,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d664721c9f1c2d7103ab92f80b0cf47dfd7b66897bcd768d65fea38ce26dab18"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2847,
+              "borderMismatchPixels": 0,
+              "pixelHash": "db9f06ef061a24f4d59af5cb554ce73de58688c7641ba9ddac69c22a4fac26ce"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1778,
+              "borderMismatchPixels": 0,
+              "pixelHash": "560e15deb094841b31f27849dfb76a72e77e12428337b1c8de5b65857fd6fa14"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 616,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a55a752b7ca8f145748d694b6dac99f3b5e9e6be2d2c90328bec9370038cd6f1"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "44b2f41693c40ee805bf251adbe7a26e7760f951c6ba220c11fe028ed56aadf2"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3713,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4263be87bdb56d6bebe216662684bdc50c62f07d0ee90f496d6ebb3ecc3b234c"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3011,
+              "borderMismatchPixels": 0,
+              "pixelHash": "edffed6fbef396d8453efdd0d11f916c23e220fd67f3b4e3bb39031385adde13"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2143,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ad28a46ff46260c3053ca0dfa71ac79605c49fba1d290b331753bbfc89f594fe"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1273,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a7af0c5f1d1e9d0fc175f76a07e05313ad3f83456031bbcfc7e4f62f88597447"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 322,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b15458ff091790b91de50d6490108a965e482b8bf48144b217b672f982e7ff89"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1065928e532f9b70658b811765184a3c5f50f046b4646ce14fcc4d85d14f0b4b"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7402,
+              "borderMismatchPixels": 0,
+              "pixelHash": "eb1db663370e947fd04e039dc451bd2a3aebcaf8a4755d5c5e284dfe4c73a27b"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5638,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bc1870cfd283d63c977d8fe2ab8ed5e5b33099d7d3aefb3d86a01bbd2f02208e"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3951,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8eaba6f1e399321abc38fe02907ce0c7812272693b056d4e40f5d4d6db31fb76"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2431,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f97be2a72691635b5a53561454f5880326a6e952208d3bde8aab5a50aaa4d091"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 746,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ef9f53c1798c1a2643cff0da40815a4d843fb626c24d9d28ca768b9e09bbe7c8"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "722ccf103a9b08a37cca664c4803538610f1c49c0931c660adc2d24d6f641ff0"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3742,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4d750c7f4da9aef5ed2c291f53200ec3902c76deebdc8dfe94b72ba2623401c5"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3024,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c588316b6210dcd6bc03a3187153a7b7816461689fd624f9faa1524e5d2aa51a"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2148,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0be62e6df312d83f8998075f011bd2772c0fb8a10f1820ef01c8f8c9b514214b"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1257,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dc3e392155ad797f5d9fb074f343d78fe753e6df95deefcfff76a9ae0367da89"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 312,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3201a3c27857e64abed37e8e7e341d2bd3b76b8a616502c4d4bf1b5eb1fe59d3"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f1de7ebc212140144301af9219b87c63056dabea6e857742da73466e231e788c"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-horde-doors-v3.webp",
+        "sha256": "df93c87aa1efcbcb16f1d94dbc2c4d4ee788d48cf6b34a61aceb35b3d7335b4f",
+        "bytes": 316900
+      }
+    },
+    "room-horde-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-horde-stairs-v1.webp",
+        "sha256": "3b18dc4f389e24b5794ac2de9477049775dbeeeb70834cb9f44d937fcd5017b6",
+        "bytes": 366162,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4895,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b26a6f729012b25a2e72350aa1006e1c50cee530621206d234aba77a738a764e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3814,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d7297e9cc3da0a29271d0e0f901ec5af56bc9aef1d5bf166b4fc7020f85a7b98"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2841,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2b4c2c2ed8fb69851d2d4ab10c564b734bf7bfb71706c80a6609a160054e0edb"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1754,
+              "borderMismatchPixels": 0,
+              "pixelHash": "96239ffeed8baf5097a46bbfc7fee37ae7947b71335cb602cb17ae231d1379e0"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 605,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4fb9723390cbed49dd1b7d24ceb88a11c95d75a81c817f050a5a32f8bf9e17e7"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cca79128de107ed3f711cb8037657f484350cc3209ab529ea581a229b23f34dd"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3715,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b956bf0d7f8767abfb8499cc21501fd6dbf1caf01758218621cbde00a6eda09b"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2991,
+              "borderMismatchPixels": 0,
+              "pixelHash": "04aaeb46f294f35c4ad9c5da98588f34876dd4002d6524afd274b3e2944ffbc6"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2129,
+              "borderMismatchPixels": 0,
+              "pixelHash": "038161a8a5d2c6b3d59da607d29fd510fc60dabeaea48c3aa1cb6382e852584d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1264,
+              "borderMismatchPixels": 0,
+              "pixelHash": "55aa2f342b50ed55468d5f4afbaf7391c09b636e174a52f663a92c86583d85cf"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 320,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a019a3f4641d2f68f29855c5e5fbe24a7d22a60524e0998266901dea221c5d8d"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9bc1900ada08e25f20e971a3652b7adc3351cdd2b539f4ae6c8bf5c2c0c656ec"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7329,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7f1f7378c26b13116171728868d10db87a31b9a4aa5edda99c863cd8c9914bc5"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5687,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2f65dda95bb1f8c10747b1240cddeddefc978596b1e836ec5334e4435716de5f"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3975,
+              "borderMismatchPixels": 0,
+              "pixelHash": "812e45d0df40549be2b83dd14925a95c7398d8ce4525da15846dab1a1fc3f1f3"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2475,
+              "borderMismatchPixels": 0,
+              "pixelHash": "34d2b5fe710c0701bc82954156ca725f0fa88932b605d0ca831de7f5710cb3a5"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 769,
+              "borderMismatchPixels": 0,
+              "pixelHash": "02fb45b2bdba5756c81cff1c56a15bf23090f6f480f047120338c6c3f2002754"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "78ed1e0912e403d8e1122b2a36185299a9e56b67fa652e0f9926dabeef3a1ea6"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3699,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a7c950d2a7d2e3476d5a0fb5d5ecd03fddd996b16c4c5627ba0f63d6cfdcbb65"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2978,
+              "borderMismatchPixels": 0,
+              "pixelHash": "723d7138033aa76cad47b230daaa27f4ce44d1011ac34fe05933be9b77191bb3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2126,
+              "borderMismatchPixels": 0,
+              "pixelHash": "db1dec9d1bbe85d4e44b04e67029f57cbb41203c4373bbcaf966439480eaddff"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1217,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cfe8a5b5558e127b73ac6fd36a2df2be4c556f280534cc6e21cfb45152c8ee98"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 310,
+              "borderMismatchPixels": 0,
+              "pixelHash": "10c4662c07a9461e65d6d7c01b2892e1b987e9860da34592d96971f5dab2211e"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1f1667901bf967a10456912e0b793762ff504c227d4966631798cfe5dfe50242"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-horde-stairs-v1-doors-v3.webp",
+        "sha256": "abf5ce0b3991eb80792fb0214d8e2b2623eb7431a8dafb5f3e0ccdeea985e2b4",
+        "bytes": 283712
+      }
+    },
+    "room-elite": {
+      "source": {
+        "path": "public/assets/maps/room-elite.webp",
+        "sha256": "3abd9301431a9aaaf14c1633ff9db7400b37aa024735c7382fbec222e8f7a0c8",
+        "bytes": 501596,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4822,
+              "borderMismatchPixels": 0,
+              "pixelHash": "25bdc9b57e291c9ce138838446830eda8207dfdc63a69c6c86c675f3642f1b61"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3710,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a9ecf1565f0a77a4e965e79abc4b3e94efbc129abc80584c1cdafaf0edd8f3fc"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2776,
+              "borderMismatchPixels": 0,
+              "pixelHash": "be1de7e572c6142fe2be2293f68218ddc1d3096316780438f7bdc2417a813fd3"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1742,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bdcf26ad6774de2770de5aacf5a80710f107f13c507a966340f5b743176bf306"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 600,
+              "borderMismatchPixels": 0,
+              "pixelHash": "12e0c1772122fe251ac461ff315ceb9d4695be525af19a3c6697a7aacb67fe65"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cf6fc715cd84cf292d761b8fed6c92061c28ff23413c6ff919047d7164dced51"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3627,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d896eac79f0a6bd246519cd35056949b4d7e413aa228282892438c5b56acdd17"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2914,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e7d113c118d20b37a36e80cc624f83ea853f586ab903258a17fdf9c2382380c5"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2073,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ee4a9a1b8672a828c9583f59111054875689c1c4e8b0b507f093fd2fef0772c2"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1227,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5ca92b94147f8cd7f65ef413d5afa6ee7f393be79792f173a00082c10631861a"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 316,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ed42adfe09d0dde805f4723443f12e5787a8d97f893252ddef34d0cde067eb24"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0c779551ba3dabfee9c6c0b7463e89b7c8b23fd20d9948153a2c62aa9f74e40f"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7260,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d67ef614e675437619f8beca9b1ab479c667c6ea8811569add770166198b4480"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5490,
+              "borderMismatchPixels": 0,
+              "pixelHash": "711b8cac35eca49fda284adc7963ebdce81d31a32753d5b25e1ea9a6c6489e8f"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3844,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e770ca5c3b2ab13785d8ac7ea86927095d2600bec70ee23fb5f41531d37e52d1"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2381,
+              "borderMismatchPixels": 0,
+              "pixelHash": "311aff1372b024ca38bcb621689d7bc0c8c1e4411fcc97a72653575803edc6e9"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 669,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5381fad32fa35efa1874917d9ca3156241542483c588207b4933f63a52535a7a"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "42151733443a07444b0e03912a73d6092b8ced6d0eccbaba81bc33ee9cb854a7"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3633,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f9a3b4cfab062a64b33bf88b6cbbfcc3a7fb5396ec52797411d953bad679071a"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2925,
+              "borderMismatchPixels": 0,
+              "pixelHash": "de7ef4b54a948bf00f89f904e95ec37c496cc46891e0951ca5af8165cf00c0ef"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2082,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dbbf6b3d678f0bd8dbc4433666da3e6bcaee01c171b35668296ce5b4544a9399"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1216,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ba16342adcbf60fde15ed5e7ee20788a85325b9a061e228c378b9f87818559b9"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 312,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dbcdd981252de0b21a11d772d3340f0824409f40244affbaa062f195ffd43712"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ddb39a8165f15ce7fcdea67b2b72268c4e2682a8d6ff3673636a2e60e179fe43"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-elite-doors-v3.webp",
+        "sha256": "e8961817cbf08fdca84b6ab565c5f432c7f9d4da887478f8865c185849c8a4c7",
+        "bytes": 358546
+      }
+    },
+    "room-elite-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-elite-stairs-v1.webp",
+        "sha256": "ae453cfb035a86869531b8716fd59967ace3afc32865c245409a057a704f37bd",
+        "bytes": 338684,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4781,
+              "borderMismatchPixels": 0,
+              "pixelHash": "947292dc0506524a6ccbb512554088f5fb50825d7d01e25fcec87359824eb29b"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3652,
+              "borderMismatchPixels": 0,
+              "pixelHash": "599a25a40aa3724e7dd1a59f263d9fe5e902531767bafc0645c1382a3efd7462"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2733,
+              "borderMismatchPixels": 0,
+              "pixelHash": "607ab4216f61c1279594c356ab45c9b6489f12a101866534011baf68b6eea723"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1723,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e0e38a08b2bc88e22e5a390c36e98f026517769ee0b7965bc723231ffb333e67"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 583,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b94aee5327955950d5b9b1c8de66f1c8450643d5f2bf805f73b940f8ef6a0d95"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cf0739e1fac184067ef7e18f315828ad6b2f35fd9ae6c762dcb0cbe637b2e302"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3571,
+              "borderMismatchPixels": 0,
+              "pixelHash": "20d969c051422e0fd50703b62e58571747caaac86de29c33a3201de7c924fa57"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2883,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9ae1e962237d27975cf344db30c6d79a6257813c61555f6ecfb4ca31188e5102"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2034,
+              "borderMismatchPixels": 0,
+              "pixelHash": "403488bfceddf4e90edb06d476ad82980cf09560385fc013d271bf15d3e555f2"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1212,
+              "borderMismatchPixels": 0,
+              "pixelHash": "67f2da50bf7c71f59d5b3626cb7233adcf7143fa1ad833a4a57d01273b4626ed"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 314,
+              "borderMismatchPixels": 0,
+              "pixelHash": "63cec83f732fead47e7be3275ef218d09b57e9d8de32a142961fc0a416fcc805"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3d01264af189be76416bad5a03cffd7142509d32c60eafce26eb27cd242da466"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7377,
+              "borderMismatchPixels": 0,
+              "pixelHash": "217c495c96204e7d3f6f47f56d199b03a49411f12839ddf7875888177a8c96fa"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5662,
+              "borderMismatchPixels": 0,
+              "pixelHash": "560c6fe695f17df45b55d16dea9a4b2b5c13c44e4e14942d21ce23124e214709"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3936,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e2fab88fa7635f3c63b6b8252295cd881ed10863f06907031d687f610fd1ba3e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2372,
+              "borderMismatchPixels": 0,
+              "pixelHash": "82943fa26b2f62f93963fb2c6b5726467560dcc1723ad52caeda714a144d1693"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 657,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2f3dcd8d9600feabf4a9aae6c50c2ae43a969d33f10784836b2bc92a78c32014"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b3a6cb99159aab369df2e2230581e2adae3305fd85baf4cf9c9358966fefd93f"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3582,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4f5baac3b0604e5e4813a373a20e6f2571ca0872f7b6d9e85cf0b084c9edd03d"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2887,
+              "borderMismatchPixels": 0,
+              "pixelHash": "23c20079a00d0b5a70442e91170e1152906725d2b064f52febddffa0721931a0"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2044,
+              "borderMismatchPixels": 0,
+              "pixelHash": "35eefbe847532714517d9cdbe06e0ff6abfc1106a8b25dacccbca19ba8d99420"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1199,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7a703bde231569aaa2e05e0402da08f0b809ae5af326b1f92d6f4474b1e2565b"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 306,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e13876c8bc2efc57abea3c593d857ac3796ba4e6176aca72ab244684155ddccb"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a3532f0c96125f26b72cf2cf85213a90a0d4acb8bd98eebc87e6a76cbf9fd29a"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-elite-stairs-v1-doors-v3.webp",
+        "sha256": "8ac11fcfc1ee42074cf13abcf6ffbd1d6ea0bf622e1ec4c3372bd01399967408",
+        "bytes": 281564
+      }
+    },
+    "room-memory": {
+      "source": {
+        "path": "public/assets/maps/room-memory.webp",
+        "sha256": "9ef16d7c8bf06b498b1f20f4312c1e9d50666504617040bd8c932d50940a4064",
+        "bytes": 605612,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 5119,
+              "borderMismatchPixels": 0,
+              "pixelHash": "95ce2236d44f9233ce1c31dfa7f6273dd1b6bfa71184f6bd9e187fa829248428"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 4057,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b104f0bbfae9ae03429f2857dc83ef13616c6768352acc4ee1ee42db5070544f"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3082,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2ddc5227b75af91caf82c5b04831829d796525fa495d89cdc6eb6eee5ff50f20"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1975,
+              "borderMismatchPixels": 0,
+              "pixelHash": "db87652d0ccdd4f3d27f82b69355559e21be6f40973adeb57fb93eff9f7860a8"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 738,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d377e427b5633c4472dbdcec941e50e7399eedf6b329c895dad38a9f8950a587"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "690db6bc70d580d8f58afad7587a7465d1c9f334b91aef015f0f1d6159841333"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3738,
+              "borderMismatchPixels": 0,
+              "pixelHash": "09a9832cc3bf5901f4486f88162973f8b503a3366cb35bd175174ae93ac3a670"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3014,
+              "borderMismatchPixels": 0,
+              "pixelHash": "76dc0eeaaf76a6866ab600bc64f071842f09a47cef3b7663c005dea0fdc0ef14"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2153,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4099477a980da750f955a9c52e606c78e5d459ce1f760258b7087414f3d8bc74"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1279,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bfba1851420aa80006b52394a52b0b4bd0cf7325cdb4367d725e493dc44af35f"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 326,
+              "borderMismatchPixels": 0,
+              "pixelHash": "127046bee3b276ba17325223e3398c424f537b2b9365eceeccb8a4f3af4afb1e"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b0a9243793c04607501904f8f36a0a2b211428f49c9b474a89869e301c557bfb"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7498,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a2b1cbd846329740b002a02a070455d375fc5536b64d10964cac509511955bdb"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5751,
+              "borderMismatchPixels": 0,
+              "pixelHash": "21a43fe1f6df64274f56073bfada2233b0b730e63cfe3c9cbed82caa1bd1fdec"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3988,
+              "borderMismatchPixels": 0,
+              "pixelHash": "32ab67b19b79b36a20d117b601c498170e4353ad9d2ef2b3606d5629cdc3770d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2462,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cdd962951917dfb554dbc761e73b9dc9a5bfbe08d3cab283b77efa3f74ac9c1b"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 735,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c762a41af3ed6a2114632f2ec02d7d61bae5f47567ce890361120e3a12543f4d"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f9310dcb821c1595fb8017a9a312dd1ec20f237d4bc26aa808bc53e4cce2ca2e"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3707,
+              "borderMismatchPixels": 0,
+              "pixelHash": "46eb1c7374433cf564ed94d60d2063494cc31533ae0c177aaab963dc860a7372"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3026,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3de7baef1233f5fe2f51a2d6c6afab7ee0a6adaa4b1d6f013add61168d1901a3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2158,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0732a1ba78d9cadbdbd2f3f69ae39f68fe93c0705057c4868b5f858509e59e7a"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1283,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0767deb9854a971fd2c8d46c9953bcca45b89e84839f894b7f484b8b653d3d85"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 323,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e95fe66e108fc6ee6f8a049fc1449a763339e16d896c98ce656e5f34e8dcd5f7"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f020ac28ef880de9bacc344a9ae52f583f5c4a4cd5c919e96e7b7a8c1bf421da"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-memory-doors-v3.webp",
+        "sha256": "4e11c53595ca48469e21fd5de78d2d028331d1ff945953cb70c3cdb2bb9151d8",
+        "bytes": 366996
+      }
+    },
+    "room-memory-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-memory-stairs-v1.webp",
+        "sha256": "a758cfc8017d1755697b7cf4c493959b1e23102a77ec43e15f2c2b79143c6044",
+        "bytes": 421504,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 5051,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3b4511a496bd714af6e817014b308b8944b83bc96288bc8bd34b2bfb22130019"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3977,
+              "borderMismatchPixels": 0,
+              "pixelHash": "79b9d1d65c5380642d4b881b8ea50817a9410d19466e61705ed536c9a4724d89"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2995,
+              "borderMismatchPixels": 0,
+              "pixelHash": "506de845157f9a5bc9b56ff6ae70aaa2766d9b1b6ee12b2eacbbddb381efb32b"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1903,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d3df942cf7f3e10b46222a60db8ec1faeab435053af456935219d8ea0234a9ec"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 715,
+              "borderMismatchPixels": 0,
+              "pixelHash": "db5c224389099bfd8a458ed123c6af3d3edd161357e55c2e82e9438c9081ce01"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b1228cffc3481adbfe0b1f2964137e511a36c90de5cd6240fd7cd6c25e962679"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3731,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9d0993c8c797c12cc14418f8692b5a7d311736f654808cc38be7468f27120969"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3020,
+              "borderMismatchPixels": 0,
+              "pixelHash": "00bae570b29d5b9921e9174ad454242ded3acd23b2fcbfaddd3f9296884b4a55"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2161,
+              "borderMismatchPixels": 0,
+              "pixelHash": "27cb0f1c11c5d655bb8a3989291fe7195e3087e4bc4ecfebaf5d3121d7085fa6"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1281,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2791d38c20b20300fb650e8a48f247feec098bc5074ffbf678458dca8c9ce87d"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 328,
+              "borderMismatchPixels": 0,
+              "pixelHash": "36026b8024ba5c6cd5b7b4b1859f58f0fab5c03f0f6dfdda1aa37dc8d16470b8"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "14188429b95cf2a3974808b16191738a5699b176af49fd299648252236134e4d"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7633,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9efded9a5c0c7ecd67edbe934c188762b08ed6bfeb39ab58a57947f8480e05d6"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5903,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4c879730014715a56d3e9ebb57ffd0340a236353d8d03ff12fd84f88753bdcac"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 4059,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dcf5680955be84b21b3eb953404fa9ff18eddbe353246f79e5262cbdefdedde6"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2454,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c51d48332bd969be246410bd397a4754e4f01cc9354156cdbc559fcbfd5d5db7"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 648,
+              "borderMismatchPixels": 0,
+              "pixelHash": "69bc5f29b7e6c4956e62657399e573117533245c5b2b28751f7e36a41c3ba5f4"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a2dea66d3df20657cdae773763b62eb28ccd5d54ebdae31a58992505fe5765cc"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3680,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1de0853dac576f3156af0d9da44f2dd3cc10a4766e042b60235e3e918092cd3f"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2987,
+              "borderMismatchPixels": 0,
+              "pixelHash": "628351a346329ad2357bd603f72c5c5f515caea223b12104aa8ef6e772c2c2b3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2132,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bd9a9a3b4761dcfb3ac412134f6489c794f8849c821c4fc991e2b929069824ae"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1268,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a2d56341a0525f0f2a973465f81ed9f311e3100d914c6a589e9de8744b610a63"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 320,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a3c62b73a1b50093ffdb78df2e76bf66a31f58b8b205ad9bf7d90d4166116162"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5bda07553fe9474e425dc42febcd8180fbccb36938d3c933c531ebae62625ad5"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-memory-stairs-v1-doors-v3.webp",
+        "sha256": "2a2e2c62361bd5b76b95d239b7815ffa2cb3096907043ca4b8e9cca391eca41f",
+        "bytes": 308922
+      }
+    },
+    "room-shelter": {
+      "source": {
+        "path": "public/assets/maps/room-shelter.webp",
+        "sha256": "36afd75525820262a61768429860db94eae9b1adaff8c2aeb582290b6211b4cd",
+        "bytes": 497644,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4892,
+              "borderMismatchPixels": 0,
+              "pixelHash": "533964604837abc57e91e5a4a6f58d6949465fe22fbc5ac3e6d78318143a8ff3"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3828,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b7ecd4252f8ef8726b4a0105ca3996bfbb04cb48a1633c41e871024c19903fe1"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2858,
+              "borderMismatchPixels": 0,
+              "pixelHash": "23eece47fd8c7bb3d56e606dad73f26db4604563327f23361ece816994d21f40"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1777,
+              "borderMismatchPixels": 0,
+              "pixelHash": "344fb5b3194e6cd985ee1a2518687550ab46a59d600eabc7a83d959ba2f27c84"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 614,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d752d51b5b0d3887dda18f51fa31e45e3a85c5c9f71ea3505feae5348e25b434"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9810523fe04da7ca703bc33926844af1799fb61170dd045c25756eb39ff5944c"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3695,
+              "borderMismatchPixels": 0,
+              "pixelHash": "69037b192006319bd290a1b1ce3f28bcd41c6750e5c9974cdd8cada129ea8c62"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3002,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5ce7bcbd13e3eb7836f8e39d58a43970275075f3044e3e244b68f4bed4c141f8"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2170,
+              "borderMismatchPixels": 0,
+              "pixelHash": "73cd2ab953b5be488739e33a3a89338eb42eda33e80fde74bdf215b0decb273d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1286,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e3fcdc734d1b9d58faeee868af35619fbca0f7b355fa1cccf06137f0e52c10fc"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 324,
+              "borderMismatchPixels": 0,
+              "pixelHash": "db4cf0b2b5b45f213b322203e7d1c5a7dee9a19b3924f0ce4c87619e944e7763"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "394d385823cb2e2d5b3bdbf899ab9d665abf451dcfdd3692de31a10a7456fab7"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7370,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c9136795e9ee3b35593cd29227179f453d41d74336960ee626f6550a82e8e1f8"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5701,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3bff9b125fc1a7e26e0fc1137d7cecc7e0598d37ec46005b7fc111df02f824d4"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3948,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d5dea104c9f7f6d34f7450e512b81c2daa47df63d7e6410a855cf86735661496"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2432,
+              "borderMismatchPixels": 0,
+              "pixelHash": "975540ed50573bb542632f8ed14dd5f7022004c3d958e8c5960b6ab11fa1b33a"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 748,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2adddfaf7825a10dc1d4a4afce6347b431233f8745425522d3991e7059b6573d"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b3e77365493de5a404dfdbb9952475f787b979e612d65391f8b279ee841ee20f"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3724,
+              "borderMismatchPixels": 0,
+              "pixelHash": "59ff538dc01d93d6d70ca282f29123c96bd8b014d8d2304bb3276cdf9dbd3b8e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3008,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e6eb37d2478250ade3fcf0da2e474bd18aa71a4186889a1b2f6046603cd5c352"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2156,
+              "borderMismatchPixels": 0,
+              "pixelHash": "01dd75f29199c5feae0ec88cd8019e9cc580dd5955e511fdf473d21e85daa9b0"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1293,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f74adde725ded78265f82d6462c54c00a424c681537fd2badc733d938afa5dbd"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 322,
+              "borderMismatchPixels": 0,
+              "pixelHash": "252010c6abb2249223547b603f4f2114e8fb35f755fc800fdfaa8c1e4dc380fa"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7f0342fb859fbe2ad191922701ed8a78e90a34f9dc25008ea3ec4c3c47bd572f"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-shelter-doors-v3.webp",
+        "sha256": "4071c622ac57cfeb22de8b2d5c212653fe477099ff0702a6cb549c38312cfe5f",
+        "bytes": 339152
+      }
+    },
+    "room-shelter-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-shelter-stairs-v1.webp",
+        "sha256": "b1a413932fbb1483a83de138b95a48cf9a37b0ed529a349cfa97dc96bc22a70c",
+        "bytes": 363662,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4879,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9ca500c22520a6372c93c377ae3317c5d2924155ad9b70d9ac374d8d791bb043"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3796,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7cf228fecae1cf58e47bf8e0de7500df1c6dd50b4b83ddbcec848ca5ac385bf0"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2830,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7288f44fc6ce0f1fff3661a1ba58cc0f63bc72c171fff0baeee7dbd3bba948d2"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1753,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c93d17efe582766f29bd4b0c45461d6bc5fd08ffb04c964b86e08b6089e55528"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 593,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3739922f21d81e7f3ce32b3c734fdb74c98ef5bce3de687b21df18a5c802d565"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b34dc483b28b8c1e2478d5c37d5d048e2848b2bfb8d33a6451540683e5375fc6"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3693,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e5a968f386e88f665195705d9c9c0723aced9481a5bcaa15473b51f2deb61896"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2984,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5380adb217166f31fdfaedf191ad2b041a85b134808082dcf0a86672871f8f19"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2157,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ddb5126c5263f2f9175e0e0fb6a95054166269f1707b088aa008f185ac0c6d98"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1277,
+              "borderMismatchPixels": 0,
+              "pixelHash": "021ea425560535291251a63613956ce46d9e9bdae878729c43189d2fb9945b80"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 316,
+              "borderMismatchPixels": 0,
+              "pixelHash": "376a541bd4b0635869f2a879e335521d61f1d67a7918056058deb415f62c500c"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ad53c829e59a9ad46670298b6b5785e3991e2cbd9be0e1c5761ee581fc978f17"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7318,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c1790677e3adf88b673540f8204c34eb0d8686be2ba8a2e3fe3c301c168667d7"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5687,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5f6351b97e854289b2b7bda177db23fadc9ded66e427659fc38c1d059bd70174"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3957,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ebacc2dde61f07f3ab88f428af04343567b2f840dfdc4e398fbf8bb84222d3cd"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2447,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1ed4c8b75b09767617eed08d6ad4e01e58480c8d5455428c97ecef05a7c59ba4"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 762,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f73f39e81746fe79c615c4040d3ae50d593a3a7688964dfc0397a40ec9bcffd3"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "66db44b9251d9cf978c4aae0b802958a84f0c9fd2f84d29d15a3bbbf61db353e"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3711,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4dbbcb893d3a6a9b5360b861dd4ada0bd80b8e925fb47aefb3cc5a3bae33da95"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2996,
+              "borderMismatchPixels": 0,
+              "pixelHash": "56527dc87c4a4b96c7082b270e255a6a58f767005f781bba0128ead9d5955d91"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2144,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c7708c5ffe7c95543cefeae57cbf6e6a0186c221615a323dc99fe46fb899fe57"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1291,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1e23b3b608f8603434c62b7608b5ac4cdbe9ebae56577460e6642edeba53ef06"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 317,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2b81a250212ab549949e6e7fffc2757c8378817176f1148eb27be5c653cfb3ad"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4fe90171ad135e288373d51d4b08898b558c24c421b4428ce48d63386de95edd"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-shelter-stairs-v1-doors-v3.webp",
+        "sha256": "f452edd588490a9e3ac907de6554ab796bd4e7d2144a09f4e330675d9909da8c",
+        "bytes": 301256
+      }
+    },
+    "room-boss": {
+      "source": {
+        "path": "public/assets/maps/room-boss.webp",
+        "sha256": "84f5fa2e06e66a3541ce553612e62dedcf6d277ce37b14006cb219ce3d66c6fc",
+        "bytes": 601872,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4947,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2db69040896df0c0479600987a63337a59d0ecadc29d0e605ad8966b6fa2f52f"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3889,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f495a21c4a8eb220199dac637a178f8dce3ffe4e75553648cb88e520593815ff"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2924,
+              "borderMismatchPixels": 0,
+              "pixelHash": "706e8efe3b3f3601ea673e0f4e5c4a13c565aae0a9fda5d6457593dac05efa0b"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1829,
+              "borderMismatchPixels": 0,
+              "pixelHash": "11ff81789585609cb271f2e7b058975a54b05ccbed1a0fa398064e46845411f4"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 663,
+              "borderMismatchPixels": 0,
+              "pixelHash": "711eb2e7ed3cffc5b9f2bb6a22f39e0d07a6254083928d2460e691a580bd6cb2"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3963a60bd89f1799e2aa097454889af6c5c60a49869afb0ae3fab405cadd0e4f"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3710,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f650319012e61af56b23a8c0185d44f5c2f2e259c7133089a47c0a04baf77a3c"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3008,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2794c04c20844d385e6fe92b41e172f803773ec26e0ce7a0b0eb871d83f208e3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2152,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4c1328009c39705f42b24b10ff162a3a02f61d135050b1d7c3575d8a23ae95e2"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1258,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e59e3ad7c35b3fa8075bf0472e1c6dd9bddf56de3100217a35d1acacda8d7f0c"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 320,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f705545bae2fd2591cf93549b819827997e34f83399d093bad59f626a764068d"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "50f28cb460798a6ff06d56dbf7e8ab5d832754baf4453d0b0d9ade46650f3cb5"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7335,
+              "borderMismatchPixels": 0,
+              "pixelHash": "73d9c3116576e94417ea73c79030ddeba46fd045ddf700f12f3ab408ce43be6d"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5625,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8cebc72dcf5ac51a13a3eb6b6eb32e9e1a28d72ceca7faa63e2f13723a471b0b"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3850,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6aea5fa8f5146458efc64d055a5a63658e23d6224731b67a1b3db6d486b3243e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2373,
+              "borderMismatchPixels": 0,
+              "pixelHash": "72dcb20e941f6c486659fd7d7b94c50ed1ec56714d0133df545abab535b97c7a"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 665,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c1c573d69ba7cda8c52106ce3b92a3ac7c218f67a828cadf01586c5fd77356d9"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "88e402176c57ccf51e2bab61b5209fbdb7d9b065853aaeaeb4a3ba338bfede43"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3682,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5aaf1cbcad850da8c2ccbb1f5db8cf4501136c9a4c205ca26bf75381d4bd1a1e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2968,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c931c5044f92737f6e0a6a9d8735a630225415e3b5a89f7e3bfb17512323ec2b"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2103,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f93f1a130d949d4d576c664bcf07ebb8f4242d6bd78ccf0a28db02fa0b12d746"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1208,
+              "borderMismatchPixels": 0,
+              "pixelHash": "de069058e80de62b25034acdf7f261a10da38060d3ea1de0f28d7e53406b57ae"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 308,
+              "borderMismatchPixels": 0,
+              "pixelHash": "fd20826d9e25be6b97427ff4a8e4e045a0f821784b0eb40bf13f85c100de7a63"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1ac709e0bead79a257dee5ef1e76e30fe1d3ae5dbb3c98e9b3c3faf4f2d1177f"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-boss-doors-v3.webp",
+        "sha256": "c5797e158859beaa4cbd761a5c5a186ed36d0e626de6d31f657b1322f4cca8cb",
+        "bytes": 349838
+      }
+    },
+    "room-boss-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-boss-stairs-v1.webp",
+        "sha256": "893872dbb711b937dd24bd108ebbf1dc3319648d965aade8eb4cca2cf99a84c3",
+        "bytes": 455010,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4960,
+              "borderMismatchPixels": 0,
+              "pixelHash": "20c0c1d7121007cac65efbcd9196b3a6672cde88efd08c89582c722845b22e6e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3898,
+              "borderMismatchPixels": 0,
+              "pixelHash": "77676fbcdcc30bfea9e54817cd116b63f7430b03be6a48ce4b04d2cd8a0cfb14"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2904,
+              "borderMismatchPixels": 0,
+              "pixelHash": "472968e8d90d095a6f801af91dfa427b266a216269de476b111266711789e5d5"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1826,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dc387ef5697db6f12ce49c572f5835c98f41757dc3821bd49537467c49b79b61"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 655,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6e70d0fe12a492d82566e8bd8ae27e12b5aff38a0beccbec2ec1a39b470cd254"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f0648c4a67f1d029171c9e31d8a7975a019353643462444089c83388f19a0417"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3685,
+              "borderMismatchPixels": 0,
+              "pixelHash": "218bfb2645fa17b87e5626d9f0e170fb7983f7ebeed4e12311bf23f3fe00d333"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2990,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ba1b5a2491f90c1a395c767a27ca4da23759500b231cf5b2c830bf220efc4cd7"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2145,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ce4a493f0a7d65af703f947733cb8b692ed4d57f12f703c7da5ab825bc9abcab"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1258,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0c4d7e089b710abef40790ca2eabfc9d1ecc9d9df81fbdb96e54c2f44d365ef9"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 316,
+              "borderMismatchPixels": 0,
+              "pixelHash": "79a59e313cc0e1b815043460d769299dc65db95c9469a8ff75273a5ff38689e9"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "100aaf7169eae40b3484fd922aa5c3bc1893777dd264fc4a42438773f54d8b0e"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 8035,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8fd949836bd7a70b753ca8e78d7c48932d2d005e76083685f86a35eafc22c757"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 6339,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5f5d67c008ffc8cc50fd94b87c4bbb5e353d6afde991207bfb55cc74568e0fcd"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 4547,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b47a8e96da632423a9bc5046940833c77448bba0335b494aa178710ccf007fb8"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2812,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4d3f42333183e369737e8ed771e6069a1d9f97cee48a659a2a29575f10259838"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 857,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5f86f281ee2f966e4516f94be96d9d2d944c23fb48961c34ee3e3c33a3f231e0"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a4c8dd34e417164260c54bf5f6ef529741a158f9b98f1162cdfe57fed6c6b936"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3667,
+              "borderMismatchPixels": 0,
+              "pixelHash": "fa5a3f2f93ee3689d08daa8abf6656d3941f2bbbb660a10403ef270d80c0f6a7"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2944,
+              "borderMismatchPixels": 0,
+              "pixelHash": "24303abed40e13e185737533b110a140038cd43d13b90092fbf0a4e868d86d09"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2081,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1729f4692a25694d8721f3ead88acf84e9912a9e87794aba03d9efe526770559"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1196,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b3a8a4e44cf70806afce73801ede115b1d379d7f8ecc30ccdcafd30ef64ee85b"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 300,
+              "borderMismatchPixels": 0,
+              "pixelHash": "be9a65f6784de81f6f16f7fcd0f389f1ba7b39268566280074e1fb8f444707f4"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d07de9c13e2c6efedd611148c4221024634d1d467926f79188e3b39febbffb9a"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-boss-stairs-v1-doors-v3.webp",
+        "sha256": "a8672043aa6599c0af341c3ba90f3b825c08b99be879878ca02eb07ba136b49e",
+        "bytes": 322252
+      }
+    },
+    "room-drowned-archive": {
+      "source": {
+        "path": "public/assets/maps/room-drowned-archive.webp",
+        "sha256": "bb3b5af8174c520a1e0bce4c468212a919347282635148df42af663648b62820",
+        "bytes": 443146,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4928,
+              "borderMismatchPixels": 0,
+              "pixelHash": "796078759b0a9dfeaad1ff3ccbe48428528a6a4912c1295bfcbf8f86e9a931b3"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3800,
+              "borderMismatchPixels": 0,
+              "pixelHash": "31fcbbfa11c01d5ca92b85bd039c6f3fab38b79f99b290920519618b54aff80e"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2824,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e2a536ba434853f3425e26773068c38d0dd36cb7cf43968d15ea34d72d5ba191"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1740,
+              "borderMismatchPixels": 0,
+              "pixelHash": "19e188790736e32250fcf4637a17900fe52b703fae1b9176dbf9ae30b28a979e"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 587,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bae5329087db83243854036dbd5729e02ead57f32e167dce4d5b7344f8afe7ae"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b95beb25d15776ede5faeec73b6d35d013f65aa67f2868cce7b0737e5efe83ff"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3663,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bf6b9364329aada68979db949aa98f693cc4d66d1891f7693aac49a29394bf56"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2974,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9a76e73beb607f1bd4603d55eb0a44a5bd1984383b7b91bcf1412cc61f78c7fd"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2135,
+              "borderMismatchPixels": 0,
+              "pixelHash": "57b637d2f94cd1e2dc24573c89fa8d786fbaf8bfc13164b74c53f12425227dce"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1261,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a0f46d6eefc08c90468a9006bdc5dc101dff4680943e9e37ac694067a51ca518"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 326,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b29f2859cc70a3ace9e05a63740c2f44d37de2966e5f603ce35a19f910af5295"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4780422bdf1a223cae14668b8bd615abe9d59843c2bb71f08829105450a8df70"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7524,
+              "borderMismatchPixels": 0,
+              "pixelHash": "9cf46db65b2afdcc68db48437dba0001eef8c65b9fab28b50730b1d811b6f4ff"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5781,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8a198ce003bfa5b2341a57c32a50c40696448330d2b94186f13385861d4debcf"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 4003,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7e1d6866d86aa4077c0548fe6ec5a2a361851af53c71f7477495c1cce18d675e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2434,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3bd6c6678b9039f6b655592677d2a601d7aabdcb7c408086ca0c0b78efd0ba4f"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 744,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f71a6c4c1bd1f5b0eb404603cdd8ac5bfebc93ed4707440d49b0378c14612b24"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ca822e2a018628cf8cf7b2f62728c09ffe0015c680bcca3addf131bf15577cba"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3671,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bfa49ceb3ae8aaf62cd4241eadb91e33e0de2499d8777b73e3d742a733814f7d"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2991,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d34d04b033ce756e750efe4849311c1c6ac131ab643bb2a31c3881f7b9dbc685"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2132,
+              "borderMismatchPixels": 0,
+              "pixelHash": "fcde32bc9942622b3ff07efe4024f28963d46eef2d2bc8bba67391182f93620e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1270,
+              "borderMismatchPixels": 0,
+              "pixelHash": "19e9fa7400269c0103afa66d645d34267316bb55a8191d0f6483fe76eda57dd8"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 321,
+              "borderMismatchPixels": 0,
+              "pixelHash": "76caa1d7e0a107944e922c1c3928bd64ae42724de8e3918a8735d57723426282"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c6ce38b627aade4fef9d12477d156cc77c83da41a6d603a6fd14a9777d0e2084"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-drowned-archive-doors-v3.webp",
+        "sha256": "ebc1039ed1d0bb2bf6cb4459cdce63cf7a76a48fc7e9454c40cb340339f208f6",
+        "bytes": 351428
+      }
+    },
+    "room-drowned-archive-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-drowned-archive-stairs-v1.webp",
+        "sha256": "8fe2f375eeabc8ba81288ae4d85eb262de5189d870be5d8724126483cdf1faa4",
+        "bytes": 361792,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4917,
+              "borderMismatchPixels": 0,
+              "pixelHash": "224099b2b14f11c1bebcdf58d4f63b4fd9a6475d787d09516754c52b8bb4c401"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3795,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5deb8240d4e3e6ddf8e58b60ae3a24deccffc2f524ff5723e0ef61df073d6d59"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2823,
+              "borderMismatchPixels": 0,
+              "pixelHash": "213ed5d841e6d57ac7bb6c30fe11063e4ea356fd3da91226978ae8fd1ab17405"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1737,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4cd3b2b6de474142a8667066d82c69fa7400109651c209e0fcdc188864145f01"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 578,
+              "borderMismatchPixels": 0,
+              "pixelHash": "50d7493d2060eea4d806ed00b5d3e1d39de6a9fc699fce7211ffd8e58d6fcaf5"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "79baa9ff6b4ca56e5256bf7300c45558e2b9986a79c3cd384df788d31047d7b0"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3666,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5d4d6ec6442c1e762e89da8121760141870fa8e6f382f43cf6bb0ee922de5082"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2975,
+              "borderMismatchPixels": 0,
+              "pixelHash": "271f45f2758bcf1ed39f5b4dd11ac5805b16ed344ad0d99adce284a07494a27d"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2144,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d421ac3c45ff63deccb0da9a1fd8eb2fd39f99173423488f998fabc2873108a3"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1270,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c5fb878f9d68ef0792197f12f5441573bd40d31c0fc148a351821debac6f6d85"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 322,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ebc632c50595a6d933aebbf588255205e7fa9f561fa52bdfc9289e10e1b00b41"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4b470659b735ef443c578fec9bea195e8ee22b75d2811f165b99a62860170fe7"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7426,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c9bab4d7a6bf5a98294b0357e41ba382d9a06e6aed4f1a1cae032d70264e4403"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5755,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c7e73af1175bc7ddfafd0dd446a33e3b977a384635f7c22b6e68c4fdaf260204"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3991,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4573374b728b5c417e404952a2c5089efffa8d390f6dece3a3173adacc8d189d"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2406,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c63d0c401499ece6a60ad979ceb16771bf3bc863e031161a7744cdd8b2f165f8"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 714,
+              "borderMismatchPixels": 0,
+              "pixelHash": "82298c8bc2a175ac04336400cc2dafad4a91e8d153c71f741a37e444fd39ea65"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b4683a90460bc5bc0ce1f205b3fdf5a406ce3597e986c98d7398212d89e8b90e"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3652,
+              "borderMismatchPixels": 0,
+              "pixelHash": "364710147388e60445f994a7055e59c5137e4568d719b2eda2659c769ce7b5e4"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2957,
+              "borderMismatchPixels": 0,
+              "pixelHash": "aa7a636f5598dee3567fc066a8734d1353b9bd8285ab7930d4c15cd4f550a0d1"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2105,
+              "borderMismatchPixels": 0,
+              "pixelHash": "38a405d9b6b64ef67918883d32f8691bf687226d6924876c77091c2b8f67ce0e"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1251,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7b49c30516d83b08b410dda77b7931b3b86946b7cff0683c155ac2f8669bc4ab"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 313,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b769ab9e215608e14609002b0abab5e227bc480364423e6946d1df5a5cf6a245"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a2ffd42e92d6d7ab2b383a6649b8d8e595d1939db94d4cc0fbf59a2faa953274"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-drowned-archive-stairs-v1-doors-v3.webp",
+        "sha256": "0605b778f9f90ba943dc8c90fb1fe3e7b9bcde6d1da69a19f4790bef5a0b5946",
+        "bytes": 291180
+      }
+    },
+    "room-rootbound-ossuary": {
+      "source": {
+        "path": "public/assets/maps/room-rootbound-ossuary.webp",
+        "sha256": "39fbbe30e0ef4bae06c5dcbb60747ffef014b03b4404999c8471777d9cbfb2ed",
+        "bytes": 434874,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4893,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ae75712e86a29f28876a908654a40eb211f2d7c4535f6d9ddddc027c6c8df1dc"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3813,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ebb9e00f664af3c521b1fc11ff103f69eec189558447fd96f2afd88794d34871"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2843,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1025e7dfd6064c55bc3071cd452e69c9df3c04fa463297813039aab3d66c971c"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1766,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8cf3d882878e9be8ce0e9d071b3791c9b66f49f39cb56ec98c2131179866e5e3"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 614,
+              "borderMismatchPixels": 0,
+              "pixelHash": "45d8c4292ae01747f144a58ef880a000556e68543d665137114b1a8a08c46995"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f359a6aeda0feac54465bd3092a941c25818bf7631c42de50b35f4775721d64b"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3647,
+              "borderMismatchPixels": 0,
+              "pixelHash": "84b2526d4f9cb1a33a7d0e01967b79edc635a218fb0408642901e608096b4070"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2923,
+              "borderMismatchPixels": 0,
+              "pixelHash": "330260870d707dd8a6eb2a7d77b3034581b5039ad11f8d2895720be02636b218"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2099,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e54bddfda97d52ff86aab963de36638cec1c5a1c9fb1b6de31be5d772f40bdf0"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1222,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f52ea997c1671eca902aa7ef71eab3826a18b2491974a3be180728de866a9674"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 310,
+              "borderMismatchPixels": 0,
+              "pixelHash": "67a3a1f8e996cbc20c50f5b1dbb8208c0ff5b2dc2b973f093b57ad20cfdf4852"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b01f7657660025787186d38f3f19da5d59db94dedd2630a7b3bf9d382fd21323"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7309,
+              "borderMismatchPixels": 0,
+              "pixelHash": "84461f3c38feb3e901edb69bcf1010f32d9fcc211ce29743f8277c919b1c7cea"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5580,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ea7bf388b2903322dfc44fff45cdfb8d4a7736643081c887e80e08df8d22ab7a"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3869,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4cce5de97dfd186db86c1ab18be0a3f2baa4e8ee0ce10f5143a0e248b7304d2f"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2378,
+              "borderMismatchPixels": 0,
+              "pixelHash": "53c608cfb515a23a65735c22d8ca151e216ff04834a3874c7a56f32afe69fa9b"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 703,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1729c210dce9c994aeef7ecbf16c5bdb35f975660e9c427ceeb94941c4b36e99"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ae7d437ed912c668eb928888d95f03f36d8f16a1fbd7d1f77537ac90ec291873"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3673,
+              "borderMismatchPixels": 0,
+              "pixelHash": "844612ed2d6a3c2826070b893a90f745a5d91ba9ec5ef257f733419efb5c6d2e"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2961,
+              "borderMismatchPixels": 0,
+              "pixelHash": "8be5f841312951695e82bd2d29ad454ed711e3324140413117115620914eec31"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2098,
+              "borderMismatchPixels": 0,
+              "pixelHash": "049e4fbc2df467d2c3944f120996aa94bc69a46859c33ce25cb12425a9967d32"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1231,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d3d1cb068b2242aa546e1fee1178a5dfab548ac44c1000f8d4fd4ba19b484ac0"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 321,
+              "borderMismatchPixels": 0,
+              "pixelHash": "58404d803e5ce72f0caca5f6a1f92ce73f31fa5c9e74718e4514cc4a0bcd340c"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "032ef8d23bbc1772ba660a9e2e17a1238e9fa6566df07f6aa75f0ecf719a69da"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-rootbound-ossuary-doors-v3.webp",
+        "sha256": "c6a0609bab23b1a5314c2b14145cd288585a5afe754e05d0c69b43d427006b21",
+        "bytes": 287238
+      }
+    },
+    "room-rootbound-ossuary-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-rootbound-ossuary-stairs-v1.webp",
+        "sha256": "585ed819ccaab60a9c5e9af731aa781dfa8917eb5766396edc8e27027f844296",
+        "bytes": 369300,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4875,
+              "borderMismatchPixels": 0,
+              "pixelHash": "16b18876353704ce29d4633c415bd8f13bf69d173f5daf1743951f163af44f8d"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3806,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2440e6f5e1f897c5bc79e03b43074bf9b9d95b6e03b341d5a6056942fda94a61"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2829,
+              "borderMismatchPixels": 0,
+              "pixelHash": "15e299ce5bb348936465a75d87220e81a077aa7c337dbca98f18a92d2efb7a52"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1771,
+              "borderMismatchPixels": 0,
+              "pixelHash": "56d9dcabd3dd01e7ba2f18a4179f807957fa9a9a72b99afde218280f00fe11f6"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 606,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b60f57aa4a3e5f1df1b1916f4a35536254b987d0b7940e53a51b29e561240d01"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "be092ee8e941bc855513a421ed94ee1d3d41c03211824d12af321b0432f6824c"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3633,
+              "borderMismatchPixels": 0,
+              "pixelHash": "43fb7c48ff7f275ff551034ac07f2e92235b924bb38b1ebdadea5c652d181dcd"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2896,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0100201942b1594155e831f1fc2f3591ae2665be31b1933159f0ca853779aa60"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2083,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d3c68e801b0583c14341c35ab16a1660ecb84712960a4d5835c7ce560d7d8b8b"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1224,
+              "borderMismatchPixels": 0,
+              "pixelHash": "911f8411c68af1795d6e4c9547755185d575b67029328399e1ae40e0ae5ce0a4"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 309,
+              "borderMismatchPixels": 0,
+              "pixelHash": "941c6dc8f5d347b258e2f81d627a3cd1692bd1516d2b813cde8a7af39b0591e0"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "7638a2d2e09be2fff4cf00219f2fc16c3226792923ea28735447562984f4452e"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7275,
+              "borderMismatchPixels": 0,
+              "pixelHash": "eab4eecea8c7ed7bf37e61b123fb2205756f74d842dce1d8aef93d60849d1fe8"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5552,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5d0723208dcda078a194aca5f8dda36ee70ceae89db5425beeb470d5053695f3"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3840,
+              "borderMismatchPixels": 0,
+              "pixelHash": "52b68b5a935c25ac556001480d36b208a5d337b379b09a1c101842e808972bd7"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2341,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b4d66e8634cf5edf5b8a54ba230d2897a9f076776b0dfea889c7860bcc452af8"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 678,
+              "borderMismatchPixels": 0,
+              "pixelHash": "fc003bba68820026f7085e78fd2d69cdb3ae17b4b44343e8853e0820137e1378"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cb0d080a2f8eab83f9e0d13b738b85388d3fba053910561b6a16a5fc1c4b503e"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3644,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ad89e46497951a6907f6cbb127b6b7a6ed0b288d638473088663dfffa55d52bd"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2940,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4c4d3220e3885fc6d54ca431a234c49c741726461323c29875f8e3a3bb973c81"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2088,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d6af0553096a9d4790c76e9a71b37186f57934d7cbe64fb8c2ebfa360fb39038"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1220,
+              "borderMismatchPixels": 0,
+              "pixelHash": "6a52773fdc4b2ab591c6dae870ad2a38ef851a20af871d3ff6462016867a278d"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 305,
+              "borderMismatchPixels": 0,
+              "pixelHash": "983871447a0b8d53c9dcb0c6ed54b3a247a60399e2db6208c86823b12f765279"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "be65655193e07509dab3c4cbbf1022eaa5fed1d256f4533ae017acbde2d32e73"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-rootbound-ossuary-stairs-v1-doors-v3.webp",
+        "sha256": "628404b0f737eecdd5c9143b241a730a98d099873e46665ac62e34c09a576529",
+        "bytes": 269322
+      }
+    },
+    "room-shattered-astrarium": {
+      "source": {
+        "path": "public/assets/maps/room-shattered-astrarium.webp",
+        "sha256": "cf08d51ab24419e766ababde1bcad3d6077895a0e7d6c5b89a5232daa0549a70",
+        "bytes": 273364,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4895,
+              "borderMismatchPixels": 0,
+              "pixelHash": "01678e5316e70cf17c50b2a26567cc4b3d4d528f73aae0c2326410468b359eec"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3785,
+              "borderMismatchPixels": 0,
+              "pixelHash": "415da08d9b4d73266bcf6f0833620a67c27470cb766c2787b9571dd22b86041f"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2809,
+              "borderMismatchPixels": 0,
+              "pixelHash": "19938bc8e8ed056ec2318752f003f164de8fa536bd91ed65ded542e1f4faf302"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1747,
+              "borderMismatchPixels": 0,
+              "pixelHash": "34f512525a4d774898d9406408e123a690809a116a3a84466f8538043c57299f"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 584,
+              "borderMismatchPixels": 0,
+              "pixelHash": "91d9faa2497932dfaf62d3c62e88dc2df7c08e5c53f07d8d464c102273c039df"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "40f90622ab4b7e81f5e5b3de72afffc50fc3340ce526b326f5d0a0b466dd35b5"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3649,
+              "borderMismatchPixels": 0,
+              "pixelHash": "dfef94f94076e7edd8df785985715785c21f44dcf35a4cd94d3ddcafd8e8b946"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2941,
+              "borderMismatchPixels": 0,
+              "pixelHash": "71cdfe962c2465a728c6d43930ddf494484e3aabff3c7ae1d999acaaf0d47532"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2121,
+              "borderMismatchPixels": 0,
+              "pixelHash": "686a5a5286285ca00c02fc6641c757363dc92b247aaeb974c7639a01e5af26a0"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1249,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5590ec5ae77d97caf62436444c4767bab93a58df9b5e18cfd82e77277bc9cfc2"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 318,
+              "borderMismatchPixels": 0,
+              "pixelHash": "be7cf9c0e49275becbf119cab5cd34264cb3b403575c939cedb261c7fe690d37"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "609cb2564382ee5e3813989ba21c14d5b30c53342b203c0a4dcceba7273ff776"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7356,
+              "borderMismatchPixels": 0,
+              "pixelHash": "a1ca111c1a861aac0f51ff657d927018d1f513b2c841a93d352e40fda739afdc"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5698,
+              "borderMismatchPixels": 0,
+              "pixelHash": "168f3433334ab8dba6d1b82ec1eabab137b8b35701a8d03f0c836992160aa463"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3909,
+              "borderMismatchPixels": 0,
+              "pixelHash": "85a037b2ced1fbc69904b510f3c5f578110441cbe560e5bee7dd796aa788595f"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2379,
+              "borderMismatchPixels": 0,
+              "pixelHash": "454f4344912adebf69b97f50384e1fd80fa394203ecce2f51a0e5bdbeab22d46"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 708,
+              "borderMismatchPixels": 0,
+              "pixelHash": "59857d5b13d1528a0bfb9615e43159d373c4cafd585088bfd1e3523ac4157194"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "93e317b4758598b6c74248fefb285d2196d0358ea2445b3e1ee5a0c3df8e67ea"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3691,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e6bfddf93d2214311e254561d0d8b35ec172d1b90decc7ab5028361ea0fcdf7c"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2995,
+              "borderMismatchPixels": 0,
+              "pixelHash": "019c7c013ea4adca9c4f50e51317b3ddbd95115b5586126039414540ac24f9ad"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2142,
+              "borderMismatchPixels": 0,
+              "pixelHash": "388c868250ef77f4647cc7160db5bb575bc7130fd25639b96f6ac6f33688bfec"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1265,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0a7b105787aee617604e3340047bdf2ccd63a737ea7848e487b9d75d765bc46c"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 316,
+              "borderMismatchPixels": 0,
+              "pixelHash": "5a619a6e08f99e792208eb6efba0060e05fdcb1c85d5500cd1ffa737b58be036"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "51de05f9ac22d78bf87e8750c9e7d18ae446874396cdf333776b6085073b09cf"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-shattered-astrarium-doors-v3.webp",
+        "sha256": "d9e1a85b494066c3c4b0b248f3240c67d3c2c30b29e177896e50df0cc3d153b5",
+        "bytes": 268258
+      }
+    },
+    "room-shattered-astrarium-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-shattered-astrarium-stairs-v1.webp",
+        "sha256": "4f1de9af818f568bb3c450a4a3b1c688922ce1a56df3875adaa2d5da727f7df9",
+        "bytes": 293694,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "sides": {
+        "north": {
+          "crop1600x900": [
+            718,
+            0,
+            164,
+            128
+          ],
+          "liftVector": [
+            0.0,
+            112.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 4892,
+              "borderMismatchPixels": 0,
+              "pixelHash": "4deb8b4924aad96e52af14b438efb83abf3a6976994416b11d0eb13c86e9b51b"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 3768,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f0fa8f0476dcdd0563bba28d55ab6eec43798f1cec1fb98952ea2828c3068908"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2811,
+              "borderMismatchPixels": 0,
+              "pixelHash": "1097dac8c6f186b986ad7359678dff6a76bb8ec2f44094218e9384ce7d1d2891"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1742,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b01932c7f5bac5e785cc7888ffcfe3a67dabbc0d837671a8756c0419d5624a3d"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 579,
+              "borderMismatchPixels": 0,
+              "pixelHash": "f6a28507aa76510f8c1c9044c8b4c9190d3c7d2ae5bdc93073072f0d81e34694"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2763b9d31766927e5650287a65b8b6dae948cd324aa5fe41921e15862207a923"
+            }
+          ]
+        },
+        "east": {
+          "crop1600x900": [
+            1444,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3634,
+              "borderMismatchPixels": 0,
+              "pixelHash": "49756d8010fc7ac28e031b6af6092ec250e906a01c1e85f27fc04be291e18d6b"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2919,
+              "borderMismatchPixels": 0,
+              "pixelHash": "cb928640516701446482147d1356e98dadcea7559566a38df7f30b1432cb5c95"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2105,
+              "borderMismatchPixels": 0,
+              "pixelHash": "3d26f22e25bf751d0648c7065ab27154f5599ed9aecc21bfb3135b2b6c75434b"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1242,
+              "borderMismatchPixels": 0,
+              "pixelHash": "0c0ade73a7121d8112ca60af24c5a8d4dee891695474aa8981f31990e7f8eb09"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 307,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ea90d3e314f6b6a68cb5f6e6bbcf8a579e88347f2eed6000ad668ec5f173afc8"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "ece0bc6f7c01ea75fd5c6397541eb00ab98d63e4aabfbd125d36273ea5a30cce"
+            }
+          ]
+        },
+        "south": {
+          "crop1600x900": [
+            706,
+            770,
+            188,
+            130
+          ],
+          "liftVector": [
+            0.0,
+            117.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 7339,
+              "borderMismatchPixels": 0,
+              "pixelHash": "d14988d2b643ad57f451ae6ef81a49149242552edf57c5e969fa2ab5568b3351"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 5656,
+              "borderMismatchPixels": 0,
+              "pixelHash": "bbd880bf57a6dfbddb067d9ff9cb0e832e7c50ab0b08db58721aa7b507c40763"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 3892,
+              "borderMismatchPixels": 0,
+              "pixelHash": "74152024023a3f83fe7aa9c0dc9bf93f133ff8cc67b4018ce7637d1be5048e45"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 2365,
+              "borderMismatchPixels": 0,
+              "pixelHash": "efda7f584cef401c6744c74137431d5a53cd6f23e2cb332f7b21878e151dd634"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 696,
+              "borderMismatchPixels": 0,
+              "pixelHash": "2e60a306d232afa3f29ce1123aea252c3b4e6bbe424962c32ed8ed293aa67b53"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c582a9136d13f279e35ac45cd2a90fd5016db2d97dde50b007cdf2febdda5ec1"
+            }
+          ]
+        },
+        "west": {
+          "crop1600x900": [
+            0,
+            374,
+            156,
+            152
+          ],
+          "liftVector": [
+            -8.0,
+            102.0
+          ],
+          "frames": [
+            {
+              "frame": 0,
+              "liftPercent": 0,
+              "changedPixelsFromOpen": 3687,
+              "borderMismatchPixels": 0,
+              "pixelHash": "c94e910732f7f6f4e21c5e88a3fbf093341a04d80270cbcdd5a27e0440630462"
+            },
+            {
+              "frame": 1,
+              "liftPercent": 20,
+              "changedPixelsFromOpen": 2978,
+              "borderMismatchPixels": 0,
+              "pixelHash": "e6bb859ce26ae4e4fb1944b489241dd5f38119761dc7b6c9a8c352289ef4f842"
+            },
+            {
+              "frame": 2,
+              "liftPercent": 40,
+              "changedPixelsFromOpen": 2137,
+              "borderMismatchPixels": 0,
+              "pixelHash": "40a5047da1e5d1c65ca187932463a300c68bd7034dc1e0be5fc9882f8d88cbdb"
+            },
+            {
+              "frame": 3,
+              "liftPercent": 60,
+              "changedPixelsFromOpen": 1250,
+              "borderMismatchPixels": 0,
+              "pixelHash": "158ea1fbe08dce1c5b7152de66095cde2ff97fc4d3f9814f1257d24265947e28"
+            },
+            {
+              "frame": 4,
+              "liftPercent": 80,
+              "changedPixelsFromOpen": 313,
+              "borderMismatchPixels": 0,
+              "pixelHash": "39866af1910b9d30efe15dbc00a1e8c1a050695b7422b8d70f356ba044d46610"
+            },
+            {
+              "frame": 5,
+              "liftPercent": 100,
+              "changedPixelsFromOpen": 0,
+              "borderMismatchPixels": 0,
+              "pixelHash": "b0b1f07041a8506d166f1feb673df604fbf4952cad06f35c7a98cd9aee962559"
+            }
+          ]
+        }
+      },
+      "output": {
+        "path": "public/assets/effects/room-doors-v3/room-shattered-astrarium-stairs-v1-doors-v3.webp",
+        "sha256": "ddd767e4343b20a0fb7189090ab18129701ba41e3f1588e0b5d2c5f1c1166644",
+        "bytes": 261518
+      }
+    }
+  }
+}

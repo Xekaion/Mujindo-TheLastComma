@@ -4863,8 +4863,11 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.match(game, /verticalDoorLeft: WIDTH \/ 2 - 74/);
   assert.match(game, /player\.x < ROOM_GEOMETRY\.transitionInsetX/);
   assert.match(game, /player\.y < ROOM_GEOMETRY\.transitionInsetY/);
-  assert.match(game, /ROOM_DOOR_VISUALS\[roomArtKey\]/);
-  assert.match(game, /roomDoorAtlasSourceRect\(authoredSide, frame\)/);
+  assert.match(game, /ROOM_DOOR_VISUALS\[backdropKey\]/);
+  assert.match(
+    game,
+    /roomDoorAtlasSourceRect\(\s*authoredSide,\s*frame,\s*roomDoorVisual\.sides\[authoredSide\],?\s*\)/,
+  );
   assert.match(game, /roomDoorCanvasRect\(/);
   assert.doesNotMatch(game, /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis/);
   assert.doesNotMatch(game, /drawDoorWard|traceDiamond/);
@@ -4912,7 +4915,10 @@ test("down-stair rooms use complete room-art variants instead of vector geometry
     game,
     /const isStairRoom = world\.stairRoomLookup\[currentRoomKey\] === true/,
   );
-  assert.match(game, /const stairRoomArtKey = resolveStairRoomArtKey\(roomArtKey\)/);
+  assert.match(
+    game,
+    /const stairRoomArtKey = isStairRoom[\s\S]{0,100}?resolveStairRoomArtKey\(roomArtKey\)/,
+  );
   assert.match(game, /stairRoomArt = new Image\(\)/);
   assert.match(game, /stairRoomArt\.decoding = "async"/);
   assert.match(game, /await stairRoomArt\?\.decode\(\)/);
@@ -5227,12 +5233,12 @@ test("player movement is constrained to the walkable floor while open door corri
   );
 });
 
-test("room gates use authored room-specific perspective assets for closing, opening, rendering, and traversal", async () => {
+test("room gates use opaque room-baked assets for closing, opening, rendering, and traversal", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const doorSource = await readFile(path.join(root, "app/room-doors.ts"), "utf8");
 
   assert.match(doorSource, /ROOM_DOOR_FRAME_COUNT = 6/);
-  assert.match(source, /ROOM_DOOR_VISUALS\[roomArtKey\]/);
+  assert.match(source, /ROOM_DOOR_VISUALS\[backdropKey\]/);
   assert.doesNotMatch(source, /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis/);
   assert.match(source, /world\.doorMotion = createRoomDoorMotion\(world\.roomCleared\)/);
   assert.match(source, /world\.doorMotion = beginRoomDoorOpening\(world\.doorMotion\)/);
@@ -5240,6 +5246,10 @@ test("room gates use authored room-specific perspective assets for closing, open
   assert.match(source, /world\.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION/);
   assert.match(source, /roomDoorCanvasRect\(/);
   assert.match(source, /roomDoorVisual\.sides\[authoredSide\]/);
+  assert.match(
+    source,
+    /roomDoorAtlasSourceRect\(\s*authoredSide,\s*frame,\s*roomDoorVisual\.sides\[authoredSide\],?\s*\)/,
+  );
   assert.match(source, /const animatedDoorFrame = roomDoorFrame\(world\.doorMotion\)/);
   assert.match(source, /roomDoorsPassable\(world\.doorMotion\) && world\.transition <= 0/);
   assert.doesNotMatch(

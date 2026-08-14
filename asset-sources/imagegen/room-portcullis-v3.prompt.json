@@ -1,0 +1,30 @@
+{
+  "asset": "room-portcullis-v3",
+  "generatedAt": "2026-08-15",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "gothic 2D ARPG room-baked portcullis animation source",
+  "productionPrompt": "Use case: production game-asset cutout. Create one isolated fully lowered WEST/LEFT side-room portcullis for a gothic early-2000s Diablo-like 2D 3/4 top-down ARPG. Image 1 establishes the exact side-door perspective and correct installed shape; reproduce only the iron gate seen recessed inside that left doorway. Image 2 establishes the aged wrought-iron material, bar thickness, rivets, cross rails and pointed lower tips. Output one single complete iron gate centered on a perfectly uniform flat solid RGB #FF00FF magenta chroma-key background, portrait canvas with generous empty margin. The gate is a narrow oblique vertical portcullis viewed in the west wall plane: tall nearly vertical bars, subtly slanted top edge and matching oblique pointed threshold. It must read as a barrier installed across a side corridor, never a front-facing wide fence, ladder, shelf, railing, bridge, floor panel or horizontal grate. Dark aged black iron with restrained bronze highlights, small rivets and two subtle cross rails. Crisp painterly game sprite texture readable at about 120 pixels high. No room, stone, stairs, floor, fire, glow, shadow, smoke, text, duplicate gate or background variation.",
+  "westReferenceEditPrompt": "Use case: precise-object-edit. Put a fully lowered heavy iron portcullis inside the dark arched west side passage, closing the corridor. It is a vertical gate installed across the corridor between the stone jambs, recessed at the arch threshold above the stairs. Match the 3/4 top-down perspective. The gate fills only the dark doorway mouth; vertical bars descend from the hidden overhead slot and pointed tips meet the threshold. Preserve the room crop outside the doorway. No fence extending onto the arena floor, ladder, shelf, railing, bridge, glow, text or reframing.",
+  "outputs": {
+    "generatedSource": "asset-sources/imagegen/room-portcullis-v3-source.png",
+    "keyedSource": "asset-sources/imagegen/room-portcullis-v3-keyed.png",
+    "closedRoomReference": "asset-sources/imagegen/room-portcullis-v3-room-reference.png",
+    "westDoorReference": "asset-sources/imagegen/room-portcullis-v3-west-reference.png"
+  },
+  "chromaRemoval": {
+    "tool": "remove_chroma_key.py",
+    "autoKey": "border",
+    "detectedKey": "#fa03f9",
+    "softMatte": true,
+    "transparentThreshold": 12,
+    "opaqueThreshold": 220,
+    "despill": true
+  },
+  "productionContract": {
+    "backplates": "all nine normal and all nine stairs-v1 room paintings",
+    "frames": "six room-baked patches ordered fully closed to fully open",
+    "motion": "translate the unchanged gate along its authored doorway-plane lift vector; never scale or stretch it between frames",
+    "occlusion": "gate alpha is clipped inside the fixed arch opening so the original stone jamb pixels remain in front",
+    "openFrame": "exact pixels from the matching original room crop"
+  }
+}

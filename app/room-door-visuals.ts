@@ -1,11 +1,11 @@
 import { ROOM_DOOR_FRAME_COUNT } from "./room-doors";
-import type { RoomArtKey } from "./room-visuals";
+import type { RoomArtKey, RoomStairArtKey } from "./room-visuals";
 
-// The largest in-game doorway is 188x152 px. A 256x192 authored cell keeps
-// enough supersampling for Lanczos downscaling while avoiding a 19 MB decoded
-// texture for every room variant.
-export const ROOM_DOOR_ATLAS_CELL_WIDTH = 256;
-export const ROOM_DOOR_ATLAS_CELL_HEIGHT = 192;
+// V3 stores opaque patches baked from the exact room backdrop. Every atlas
+// cell uses the largest doorway as its stride, while sampling only the authored
+// crop dimensions so padding can never overwrite neighboring room pixels.
+export const ROOM_DOOR_ATLAS_CELL_WIDTH = 188;
+export const ROOM_DOOR_ATLAS_CELL_HEIGHT = 152;
 export const ROOM_DOOR_ATLAS_COLUMN_COUNT = ROOM_DOOR_FRAME_COUNT;
 export const ROOM_DOOR_ATLAS_ROW_COUNT = 4;
 export const ROOM_DOOR_REFERENCE_WIDTH = 1600;
@@ -18,9 +18,9 @@ export type RoomDoorCrop = Readonly<{
   /** Row in the six-column by four-row authored atlas. */
   row: number;
   /**
-   * Exact crop of the original 1600x900 room painting that was used while
-   * authoring this side. The transparent door-only cell is stretched back to
-   * this rectangle, so its vanishing point stays locked to the backplate.
+   * Exact crop of the original 1600x900 room painting baked into this side's
+   * opaque state cell. Sampling it at native dimensions keeps the patch and
+   * backplate on the same pixel grid.
    */
   x: number;
   y: number;
@@ -32,6 +32,8 @@ export type RoomDoorVisualDefinition = Readonly<{
   imagePath: string;
   sides: Readonly<Record<RoomDoorSide, RoomDoorCrop>>;
 }>;
+
+export type RoomDoorBackdropKey = RoomArtKey | RoomStairArtKey;
 
 const roomDoorCrops = (
   north: Omit<RoomDoorCrop, "row">,
@@ -53,62 +55,106 @@ const ARCHWAY_CROPS = roomDoorCrops(
 );
 
 /*
- * These rectangles are intentionally recorded per room painting instead of
- * rotating one front-facing gate at runtime. Every authored cell is a
- * transparent crop produced for the named room's exact doorway rectangle,
- * including that doorway's oblique wall angle and foreground occlusion.
- *
- * The nine paintings share a 1600x900 composition but their masonry is not
- * pixel-identical. Wide crop-safe gutters let the generated door overlap the
- * original jamb instead of floating in front of the walkable-floor boundary.
+ * Every v3 cell is an opaque replacement patch cut from the named 1600x900
+ * backdrop after its ironwork was authored in place. Base and stair paintings
+ * therefore have separate atlases even though their doorway coordinates match.
  */
 export const ROOM_DOOR_VISUALS = {
   roomBattle: {
-    imagePath: "/assets/effects/room-doors-v2/room-battle-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-battle-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomHorde: {
-    imagePath: "/assets/effects/room-doors-v2/room-horde-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-horde-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomElite: {
-    imagePath: "/assets/effects/room-doors-v2/room-elite-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-elite-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomMemory: {
-    imagePath: "/assets/effects/room-doors-v2/room-memory-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-memory-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomShelter: {
-    imagePath: "/assets/effects/room-doors-v2/room-shelter-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-shelter-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomBoss: {
-    imagePath: "/assets/effects/room-doors-v2/room-boss-doors-v2.webp",
+    imagePath: "/assets/effects/room-doors-v3/room-boss-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomDrownedArchive: {
     imagePath:
-      "/assets/effects/room-doors-v2/room-drowned-archive-doors-v2.webp",
+      "/assets/effects/room-doors-v3/room-drowned-archive-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomRootboundOssuary: {
     imagePath:
-      "/assets/effects/room-doors-v2/room-rootbound-ossuary-doors-v2.webp",
+      "/assets/effects/room-doors-v3/room-rootbound-ossuary-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
   roomShatteredAstrarium: {
     imagePath:
-      "/assets/effects/room-doors-v2/room-shattered-astrarium-doors-v2.webp",
+      "/assets/effects/room-doors-v3/room-shattered-astrarium-doors-v3.webp",
     sides: ARCHWAY_CROPS,
   },
-} as const satisfies Record<RoomArtKey, RoomDoorVisualDefinition>;
+  roomBattleStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-battle-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomHordeStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-horde-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomEliteStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-elite-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomMemoryStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-memory-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomShelterStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-shelter-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomBossStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-boss-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomDrownedArchiveStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-drowned-archive-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomRootboundOssuaryStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-rootbound-ossuary-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+  roomShatteredAstrariumStairs: {
+    imagePath:
+      "/assets/effects/room-doors-v3/room-shattered-astrarium-stairs-v1-doors-v3.webp",
+    sides: ARCHWAY_CROPS,
+  },
+} as const satisfies Record<RoomDoorBackdropKey, RoomDoorVisualDefinition>;
 
-export function roomDoorVisualImageKey(roomArtKey: RoomArtKey) {
-  return `roomDoorVisual:${roomArtKey}`;
+export function roomDoorVisualImageKey(backdropKey: RoomDoorBackdropKey) {
+  return `roomDoorVisual:${backdropKey}`;
 }
 
-export function roomDoorAtlasSourceRect(side: RoomDoorSide, frame: number) {
+export function roomDoorAtlasSourceRect(
+  side: RoomDoorSide,
+  frame: number,
+  crop: RoomDoorCrop,
+) {
   const clampedFrame = Math.max(
     0,
     Math.min(ROOM_DOOR_FRAME_COUNT - 1, Math.trunc(frame)),
@@ -116,8 +162,8 @@ export function roomDoorAtlasSourceRect(side: RoomDoorSide, frame: number) {
   return {
     x: clampedFrame * ROOM_DOOR_ATLAS_CELL_WIDTH,
     y: ROOM_DOOR_SIDES.indexOf(side) * ROOM_DOOR_ATLAS_CELL_HEIGHT,
-    width: ROOM_DOOR_ATLAS_CELL_WIDTH,
-    height: ROOM_DOOR_ATLAS_CELL_HEIGHT,
+    width: crop.width,
+    height: crop.height,
   } as const;
 }
 

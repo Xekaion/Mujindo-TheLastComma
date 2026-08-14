@@ -1,6 +1,9 @@
 import GameEntryFlow from "./GameEntryFlow";
+import RoomDoorShowcase from "./RoomDoorShowcase";
 import WorldAnnouncementBanner from "./WorldAnnouncementBanner";
 import { getChatGPTUser } from "./chatgpt-auth";
+import { headers } from "next/headers";
+import { resolveRoomDoorShowcaseRequest } from "./room-door-showcase";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +12,17 @@ type HomeProps = {
 };
 
 export default async function Home({ searchParams }: HomeProps = {}) {
-  const user = await getChatGPTUser();
   const query = searchParams ? await searchParams : {};
+  if (typeof query.roomDoorShowcase === "string") {
+    const requestHeaders = await headers();
+    const showcase = resolveRoomDoorShowcaseRequest(
+      query,
+      requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host"),
+    );
+    if (showcase) return <RoomDoorShowcase {...showcase} />;
+  }
+
+  const user = await getChatGPTUser();
   const localVfxShowcaseRequested =
     query.enemyVfxShowcase !== undefined || query.lootVfxShowcase !== undefined ||
     query.plazaMotionShowcase !== undefined;

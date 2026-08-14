@@ -3,6 +3,7 @@
 import {
   useEffect,
   useState,
+  useSyncExternalStore,
   type ChangeEvent,
   type ReactNode,
 } from "react";
@@ -14,6 +15,7 @@ import {
   type GameAudioCue,
   type GameAudioSettings,
 } from "./game-audio";
+import { isLocalRoomDoorShowcaseHost } from "./room-door-showcase";
 
 type GameAudioProviderProps = {
   children: ReactNode;
@@ -31,11 +33,27 @@ const isGameAudioCue = (value: string): value is GameAudioCue =>
 
 const percent = (value: number) => Math.round(value * 100);
 
+const subscribeToRoomDoorShowcaseLocation = () => () => undefined;
+const roomDoorShowcaseBrowserSnapshot = () =>
+  isLocalRoomDoorShowcaseHost(window.location.host) &&
+  new URLSearchParams(window.location.search).has("roomDoorShowcase");
+const roomDoorShowcaseServerSnapshot = () => false;
+
 export default function GameAudioProvider({ children }: GameAudioProviderProps) {
   const [settings, setSettings] = useState<GameAudioSettings>(FALLBACK_SETTINGS);
   const [panelOpen, setPanelOpen] = useState(false);
+  const roomDoorShowcaseBypass = useSyncExternalStore(
+    subscribeToRoomDoorShowcaseLocation,
+    roomDoorShowcaseBrowserSnapshot,
+    roomDoorShowcaseServerSnapshot,
+  );
 
   useEffect(() => {
+    const isRoomDoorShowcase =
+      isLocalRoomDoorShowcaseHost(window.location.host) &&
+      new URLSearchParams(window.location.search).has("roomDoorShowcase");
+    if (isRoomDoorShowcase) return undefined;
+
     const audio = getGameAudio();
     const unsubscribe = audio.subscribe(setSettings);
     audio.initialize();
@@ -81,6 +99,8 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
     };
 
   const musicActive = !settings.musicMuted && settings.musicVolume > 0;
+
+  if (roomDoorShowcaseBypass) return <>{children}</>;
 
   return (
     <>

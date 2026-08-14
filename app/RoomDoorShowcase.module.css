@@ -1,0 +1,155 @@
+.showcase {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 320px;
+  min-height: 100dvh;
+  overflow: auto;
+  background:
+    radial-gradient(circle at 50% 25%, rgba(62, 72, 78, 0.2), transparent 48%),
+    #050608;
+  color: #e8dfc8;
+}
+
+.status,
+.controls {
+  width: min(1280px, calc(100vw - 24px));
+  margin-inline: auto;
+}
+
+.status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 18px;
+  padding: 10px 2px 8px;
+  font: 700 12px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+
+.status strong {
+  color: #f4d392;
+  font-size: 14px;
+}
+
+.viewport {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  padding: 0 12px;
+}
+
+.canvasFrame {
+  position: relative;
+  width: min(1280px, calc(100vw - 24px));
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(208, 180, 124, 0.34);
+  background: #020304;
+  box-shadow: 0 16px 56px rgba(0, 0, 0, 0.76);
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.loading,
+.error {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 3, 4, 0.88);
+  font: 700 13px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace;
+  text-align: center;
+}
+
+.error {
+  color: #ff9d87;
+}
+
+.controls {
+  display: grid;
+  gap: 9px;
+  padding: 10px 0 14px;
+}
+
+.form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.form label {
+  display: grid;
+  gap: 3px;
+  color: #9f9787;
+  font: 700 10px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.form select,
+.form button,
+.frameLink {
+  min-height: 32px;
+  border: 1px solid rgba(198, 161, 91, 0.38);
+  color: #e8dfc8;
+  background: rgba(13, 15, 18, 0.96);
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.form select,
+.form button {
+  padding: 6px 9px;
+}
+
+.form button {
+  cursor: pointer;
+}
+
+.frameLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.frameLink {
+  display: inline-grid;
+  min-width: 42px;
+  place-items: center;
+  padding: 6px 8px;
+  text-decoration: none;
+}
+
+.frameLinkActive {
+  border-color: #f4d392;
+  color: #181107;
+  background: #f4d392;
+}
+
+@media (max-width: 720px) {
+  .showcase {
+    grid-template-rows: auto auto auto;
+  }
+
+  .status,
+  .controls {
+    width: calc(100vw - 16px);
+  }
+
+  .viewport {
+    padding-inline: 8px;
+  }
+
+  .canvasFrame {
+    width: calc(100vw - 16px);
+  }
+}
