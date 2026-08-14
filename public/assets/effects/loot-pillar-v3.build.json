@@ -1,0 +1,835 @@
+{
+  "version": 3,
+  "builder": "scripts/build_loot_pillar_v3_assets.py",
+  "format": "RGBA PNG",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      512
+    ]
+  },
+  "pipeline": {
+    "logicalCell": [
+      128,
+      256
+    ],
+    "upscale": "nearest-neighbour-2x",
+    "alphaLevels": [
+      0,
+      64,
+      128,
+      192,
+      255
+    ],
+    "maxPaletteColours": 112,
+    "anchor": "measured-lower-flare-centre",
+    "rgbGamma": 0.78,
+    "alphaGamma": 0.8,
+    "colourEnhance": 1.14,
+    "frameFlashGains": [
+      1.0,
+      1.1,
+      1.22,
+      1.07
+    ],
+    "frameAlphaGains": [
+      1.0,
+      1.05,
+      1.12,
+      1.04
+    ],
+    "rareColourGrade": "white-hot lemon-gold-to-amber ramp"
+  },
+  "sources": {
+    "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png": {
+      "sha256": "9922ccc30e1347f4c51679c35f122aaac1a068239b156a41b1fcd3203cc7b9eb",
+      "size": [
+        1241,
+        1268
+      ],
+      "mode": "RGBA"
+    },
+    "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source-contracted.png": {
+      "sha256": "4f7017b022262357b132031b056b74afb1f4d6186db6f21a418f2ce7b2e629f1",
+      "size": [
+        1838,
+        856
+      ],
+      "mode": "RGBA"
+    },
+    "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png": {
+      "sha256": "3cbca19d536c7f01d6582755fc8df9434ff3dd63abed73de5a47df20b97c18aa",
+      "size": [
+        1241,
+        1267
+      ],
+      "mode": "RGBA"
+    }
+  },
+  "imagegen": {
+    "version": 1,
+    "tool": "built-in imagegen",
+    "useCase": "stylized-concept",
+    "assetType": "production 2D ARPG persistent loot-pillar animation sprite sheet",
+    "generatedAt": "2026-08-14",
+    "referenceImages": [
+      "public/assets/effects/loot-pillar-rare-v2.png",
+      "public/assets/effects/loot-awakening-rare-v5.png",
+      "user reference: codex-clipboard-9c8e5aca-47a0-44f4-abcb-24172ef54232.png",
+      "user reference: codex-clipboard-0b61ae74-5138-40a1-addd-b7e5e334b8d2.png"
+    ],
+    "prompt": "Create a new rare-grade persistent loot marker as exactly four distinct animation frames in one horizontal strip. Use saturated luminous golden yellow with a white-hot vertical core, brilliant yellow-gold solar/compass rays, sparkling motes, and a bright floor-contact burst. Match the gothic early-2000s Diablo-like painted 2D game VFX style and the scale/layout of the current four-frame atlas. Make every frame radiant, dazzling, and visibly brighter than the existing muted pillar, with coherent flicker between frames. Preserve equal cells, generous gutters, aligned floor-contact points, and a clearly different silhouette from the violet effect that will move to epic. No text, labels, borders, scenery, items, characters, logos, watermark, clipping, or overlap.",
+    "chromaEditPrompt": "Change only the checkerboard/background to one perfectly flat solid #ff00ff chroma-key color. Keep all four golden-yellow pillar frames unchanged in shape, scale, position, brightness, colour, sparkles, floor flares, baseline, and spacing. No gradients, texture, floor plane, shadows, checker pattern, text, borders, or watermark.",
+    "outputs": {
+      "original": {
+        "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-imagegen-original.png",
+        "sha256": "298a3bd2ec1257cdf71b39f7dcbfe97aa2e0df46b660c67c175c3dcf3eb5b298",
+        "size": [
+          1839,
+          855
+        ],
+        "mode": "RGB"
+      },
+      "chroma": {
+        "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-imagegen-chroma.png",
+        "sha256": "61351bb3844ac0678b2f6e9968963137ff51ac9068f84a0701ec7a25e4b3a316",
+        "size": [
+          1838,
+          856
+        ],
+        "mode": "RGB",
+        "detectedKey": "#f910e8"
+      },
+      "alphaFirstPass": {
+        "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source.png",
+        "sha256": "e9eb759404691692d0df369c466ca6cdcefa50729370e12b668f0c2a307b1cc3"
+      },
+      "alphaProductionSource": {
+        "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source-contracted.png",
+        "sha256": "4f7017b022262357b132031b056b74afb1f4d6186db6f21a418f2ce7b2e629f1",
+        "backgroundRemoval": {
+          "helper": "imagegen/scripts/remove_chroma_key.py",
+          "options": [
+            "--auto-key border",
+            "--soft-matte",
+            "--transparent-threshold 12",
+            "--opaque-threshold 220",
+            "--despill",
+            "--edge-contract 1"
+          ],
+          "transparentPixels": 1371815,
+          "partiallyTransparentPixels": 84145,
+          "totalPixels": 1573328
+        }
+      }
+    }
+  },
+  "rarities": {
+    "common": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "sourceRow": 0,
+      "sourceRows": 4,
+      "colourFamily": "ivory",
+      "output": "public/assets/effects/loot-pillar-common-v3.png",
+      "outputSha256": "192af44b8ead27995385bcd4eb44043b663b52dfb4c2b3ad2fbdc107756dba33",
+      "bytes": 136888,
+      "groundAnchor": 0.9297,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 38876,
+          "brightPixelRatio": 0.177385,
+          "meanLuminance": 158.542,
+          "meanRgb": [
+            159.426,
+            157.878,
+            159.644
+          ],
+          "flareY": 480,
+          "pixelHash": "c3a8d9bd02bad8be690b75793cb8e34f32a4d7ec93c26d4ddd7b31ab6d926a11"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 45572,
+          "brightPixelRatio": 0.281752,
+          "meanLuminance": 177.216,
+          "meanRgb": [
+            178.681,
+            176.775,
+            175.646
+          ],
+          "flareY": 468,
+          "pixelHash": "d89e02cc10091c6ded0ed8c8bd3c62725f9b93338d9fb47aa572eff13ab60dab"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 44340,
+          "brightPixelRatio": 0.320523,
+          "meanLuminance": 188.063,
+          "meanRgb": [
+            189.311,
+            187.614,
+            187.104
+          ],
+          "flareY": 474,
+          "pixelHash": "62f070242f5e3f69409545dcb121901d6ea68ff2af67d18a4a562bd4d7e02406"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 43020,
+          "brightPixelRatio": 0.233938,
+          "meanLuminance": 169.483,
+          "meanRgb": [
+            171.444,
+            168.867,
+            167.51
+          ],
+          "flareY": 478,
+          "pixelHash": "e68fae8b57759cebbb208b76b08cba4041720c24e257a33c70fb30a5d53f3858"
+        }
+      ]
+    },
+    "magic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "sourceRow": 1,
+      "sourceRows": 4,
+      "colourFamily": "blue",
+      "output": "public/assets/effects/loot-pillar-magic-v3.png",
+      "outputSha256": "340735aa51764aad2feac990ee18126c68a96d6fd328ed59c620ea29a0d93964",
+      "bytes": 120016,
+      "groundAnchor": 0.9082,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            10,
+            232,
+            504
+          ],
+          "visiblePixels": 41164,
+          "brightPixelRatio": 0.159557,
+          "meanLuminance": 138.48,
+          "meanRgb": [
+            44.597,
+            166.521,
+            240.327
+          ],
+          "flareY": 468,
+          "pixelHash": "632e98e956e4642e9b335b0a3d605ffcf3f308d3e4d07ea3fbe0e1c52578c5e6"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 45496,
+          "brightPixelRatio": 0.21259,
+          "meanLuminance": 152.61,
+          "meanRgb": [
+            55.726,
+            182.707,
+            251.747
+          ],
+          "flareY": 456,
+          "pixelHash": "93f28c1f2821946b3e690c3e261f7f7184edb745c8233e61fa134dfc99409aef"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 45300,
+          "brightPixelRatio": 0.201766,
+          "meanLuminance": 156.812,
+          "meanRgb": [
+            53.815,
+            190.279,
+            254.623
+          ],
+          "flareY": 466,
+          "pixelHash": "86b0ca45de5cc24eb94273ce57dae54e5c35a0f1a08fc68c5b3070c2cd9a9cd2"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 42760,
+          "brightPixelRatio": 0.187465,
+          "meanLuminance": 146.566,
+          "meanRgb": [
+            48.076,
+            177.067,
+            247.832
+          ],
+          "flareY": 464,
+          "pixelHash": "d65c2f420c8f3454b81403a4c497268947e1e6d701a970df94e15b15b9762b20"
+        }
+      ]
+    },
+    "superior": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "sourceRow": 2,
+      "sourceRows": 4,
+      "colourFamily": "green",
+      "output": "public/assets/effects/loot-pillar-superior-v3.png",
+      "outputSha256": "cc254f2e67c07310f1985aa685a1eb9a1207827ab00d6e912857b8d004e5635e",
+      "bytes": 146893,
+      "groundAnchor": 0.8965,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 43676,
+          "brightPixelRatio": 0.15441,
+          "meanLuminance": 138.566,
+          "meanRgb": [
+            56.758,
+            185.418,
+            111.885
+          ],
+          "flareY": 460,
+          "pixelHash": "dea7262e03f5d3125d419ab3a2bc523f7c9851869dd6783d56dd85d58fdc1cb7"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 54624,
+          "brightPixelRatio": 0.203647,
+          "meanLuminance": 154.391,
+          "meanRgb": [
+            68.35,
+            203.416,
+            127.627
+          ],
+          "flareY": 456,
+          "pixelHash": "aec5e79f2f1a0605e65ec65a88f5dace38ae5b1e814bd5fde41e4f9322ae0b6a"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 52216,
+          "brightPixelRatio": 0.172974,
+          "meanLuminance": 154.53,
+          "meanRgb": [
+            62.147,
+            206.779,
+            127.798
+          ],
+          "flareY": 462,
+          "pixelHash": "9f592a29816cfba1f442196f7b9cab71aa771a2baf1773e4d87f8e3a3350f68d"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 41748,
+          "brightPixelRatio": 0.183961,
+          "meanLuminance": 146.298,
+          "meanRgb": [
+            57.311,
+            196.187,
+            122.808
+          ],
+          "flareY": 458,
+          "pixelHash": "8cbe329cab2d7ca870cd2045bd940e41f59e1601ddc0c918e813327e31c08c2c"
+        }
+      ]
+    },
+    "rare": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source-contracted.png",
+      "sourceRow": 0,
+      "sourceRows": 1,
+      "colourFamily": "gold",
+      "output": "public/assets/effects/loot-pillar-rare-v3.png",
+      "outputSha256": "f5082eb3e60cbc7d805a080a1f8cdb4777a12c95a8685a1ead564c4d6bddcb3d",
+      "bytes": 48553,
+      "groundAnchor": 0.9219,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 22716,
+          "brightPixelRatio": 0.742384,
+          "meanLuminance": 191.041,
+          "meanRgb": [
+            232.088,
+            194.607,
+            65.028
+          ],
+          "flareY": 470,
+          "pixelHash": "da437da0617e69303b224247ae5eee93bc3d375ed7b4f5573b32040a34823945"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 22692,
+          "brightPixelRatio": 0.789882,
+          "meanLuminance": 203.228,
+          "meanRgb": [
+            235.801,
+            207.892,
+            93.782
+          ],
+          "flareY": 472,
+          "pixelHash": "7cd66ba553b12f7fd90a097a61f2908583461ff4a63ba9e736bdb89b043c80e4"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 24336,
+          "brightPixelRatio": 0.727482,
+          "meanLuminance": 194.455,
+          "meanRgb": [
+            231.348,
+            197.223,
+            83.438
+          ],
+          "flareY": 474,
+          "pixelHash": "5284909a8f86481eba3715da1ae765f9dcac811c32029646de54902d33435119"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 24268,
+          "brightPixelRatio": 0.680897,
+          "meanLuminance": 187.979,
+          "meanRgb": [
+            226.314,
+            188.414,
+            85.196
+          ],
+          "flareY": 472,
+          "pixelHash": "55a993a98ed0dd8ff5cb2fdf247eb7a1af5ce267d99e04401738a6f89c04251f"
+        }
+      ]
+    },
+    "epic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
+      "sourceRow": 3,
+      "sourceRows": 4,
+      "colourFamily": "violet",
+      "output": "public/assets/effects/loot-pillar-epic-v3.png",
+      "outputSha256": "7c04d9ca8641ac9cb957b7f61f3b4e94b36dce2ba465ba060987d17c33e7590d",
+      "bytes": 154900,
+      "groundAnchor": 0.9277,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 45780,
+          "brightPixelRatio": 0.126343,
+          "meanLuminance": 126.93,
+          "meanRgb": [
+            171.916,
+            83.79,
+            231.074
+          ],
+          "flareY": 478,
+          "pixelHash": "8ff29aeae7a6306cfa9decf548c615b976274f2e75931238348fc7042fe59992"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 53960,
+          "brightPixelRatio": 0.200445,
+          "meanLuminance": 144.228,
+          "meanRgb": [
+            193.425,
+            100.181,
+            242.001
+          ],
+          "flareY": 474,
+          "pixelHash": "edf0d549bef40ddb8a8b62ed8e3b8a9c6dc9dabe550b1f252ec7625b0018f05a"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 53284,
+          "brightPixelRatio": 0.182944,
+          "meanLuminance": 148.13,
+          "meanRgb": [
+            203.339,
+            99.871,
+            251.818
+          ],
+          "flareY": 474,
+          "pixelHash": "59d95441cfb705316db824529ff965baac1ee7c2c0f51ca1da107d105d561319"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 49356,
+          "brightPixelRatio": 0.142637,
+          "meanLuminance": 133.946,
+          "meanRgb": [
+            182.056,
+            89.438,
+            236.938
+          ],
+          "flareY": 476,
+          "pixelHash": "d7f1c36dbaad0c7a11a7bf73230c2f4f33fcfe2afa9ddfba6c27afae9c7274d4"
+        }
+      ]
+    },
+    "legendary": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "sourceRow": 1,
+      "sourceRows": 4,
+      "colourFamily": "orange",
+      "output": "public/assets/effects/loot-pillar-legendary-v3.png",
+      "outputSha256": "e4294984c6d897e7003dedf7a32b1db22338e3031814194264ac635f06b5d4af",
+      "bytes": 130085,
+      "groundAnchor": 0.8281,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 44372,
+          "brightPixelRatio": 0.247453,
+          "meanLuminance": 165.143,
+          "meanRgb": [
+            244.003,
+            146.64,
+            53.581
+          ],
+          "flareY": 418,
+          "pixelHash": "c79be623616c6ba2874ea141caed3991fd399a737edcd8b454614f642606af2e"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 44672,
+          "brightPixelRatio": 0.274982,
+          "meanLuminance": 176.979,
+          "meanRgb": [
+            251.151,
+            162.045,
+            59.341
+          ],
+          "flareY": 426,
+          "pixelHash": "47bb658087a6ec794f858843107923cf175f5a879feb0a5315e3b0082af3ad22"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 53312,
+          "brightPixelRatio": 0.403286,
+          "meanLuminance": 198.376,
+          "meanRgb": [
+            254.234,
+            190.948,
+            90.121
+          ],
+          "flareY": 422,
+          "pixelHash": "cb7e79669213d784b1626bffaab5833cb824295300c6104ddc6fd20cfd23fc3a"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 42020,
+          "brightPixelRatio": 0.266254,
+          "meanLuminance": 172.597,
+          "meanRgb": [
+            249.222,
+            155.854,
+            57.834
+          ],
+          "flareY": 426,
+          "pixelHash": "5254d8056bfa428e2c9435566da8e5de09266ba604f522221c424d14642b68cd"
+        }
+      ]
+    },
+    "mythic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "sourceRow": 2,
+      "sourceRows": 4,
+      "colourFamily": "magenta",
+      "output": "public/assets/effects/loot-pillar-mythic-v3.png",
+      "outputSha256": "ee22e0c6dbaba561287458b95e16da8d44481bb2c997d19ee4bc3608289c18bc",
+      "bytes": 143058,
+      "groundAnchor": 0.8066,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 50348,
+          "brightPixelRatio": 0.249384,
+          "meanLuminance": 160.301,
+          "meanRgb": [
+            242.123,
+            113.03,
+            189.103
+          ],
+          "flareY": 412,
+          "pixelHash": "ed7ca70eaf80b9d2b7d94f89679e27ad051b5f616336dc51b03930ba06139b79"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 52484,
+          "brightPixelRatio": 0.279095,
+          "meanLuminance": 175.704,
+          "meanRgb": [
+            249.96,
+            130.079,
+            215.872
+          ],
+          "flareY": 418,
+          "pixelHash": "daf335b69948870ef01c8ee6396baf40021d274a29c354c103544032069bd400"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 61148,
+          "brightPixelRatio": 0.391967,
+          "meanLuminance": 190.326,
+          "meanRgb": [
+            251.867,
+            147.704,
+            248.377
+          ],
+          "flareY": 412,
+          "pixelHash": "fc507ce9de4a1dd80f6047f5ceb3e60dd1fa895abb3081a4e99f4c9acd1f674c"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 49448,
+          "brightPixelRatio": 0.281831,
+          "meanLuminance": 171.306,
+          "meanRgb": [
+            247.456,
+            123.217,
+            219.198
+          ],
+          "flareY": 414,
+          "pixelHash": "713244d72a418e6e51b75d38eab677f140273f97e35edbb1d08862ef4026a3aa"
+        }
+      ]
+    },
+    "cosmic": {
+      "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+      "sourceRow": 3,
+      "sourceRows": 4,
+      "colourFamily": "prismatic",
+      "output": "public/assets/effects/loot-pillar-cosmic-v3.png",
+      "outputSha256": "e8fb43600cb4e4d7df690bd260b47892aaf70379ebdb485ffd6afc46a7bfb395",
+      "bytes": 165742,
+      "groundAnchor": 0.8828,
+      "frames": [
+        {
+          "frame": 0,
+          "bbox": [
+            22,
+            8,
+            232,
+            502
+          ],
+          "visiblePixels": 60168,
+          "brightPixelRatio": 0.35833,
+          "meanLuminance": 194.794,
+          "meanRgb": [
+            198.494,
+            185.952,
+            230.622
+          ],
+          "flareY": 452,
+          "pixelHash": "2a85c7269776846ae95a2b1f97df5ac2030ef6b20eb9dc1c86ce7f647801f396"
+        },
+        {
+          "frame": 1,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 55256,
+          "brightPixelRatio": 0.481975,
+          "meanLuminance": 209.182,
+          "meanRgb": [
+            215.777,
+            200.082,
+            238.746
+          ],
+          "flareY": 452,
+          "pixelHash": "f4e902218add12e7975253939a7f1004ee6281244f635bc20e180d09e08b3256"
+        },
+        {
+          "frame": 2,
+          "bbox": [
+            22,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 68036,
+          "brightPixelRatio": 0.820566,
+          "meanLuminance": 227.622,
+          "meanRgb": [
+            230.407,
+            221.793,
+            250.347
+          ],
+          "flareY": 438,
+          "pixelHash": "9cebe033cab258218d9f7d0d5ed5b8086d8a24803459ee46204fd5072af8afc6"
+        },
+        {
+          "frame": 3,
+          "bbox": [
+            34,
+            8,
+            232,
+            504
+          ],
+          "visiblePixels": 53580,
+          "brightPixelRatio": 0.432176,
+          "meanLuminance": 203.974,
+          "meanRgb": [
+            203.433,
+            197.13,
+            240.633
+          ],
+          "flareY": 452,
+          "pixelHash": "ff5450c4e07b30b7c3d96a8381e2dd600f3373409efacad8e7a74493ffbc2831"
+        }
+      ]
+    }
+  }
+}

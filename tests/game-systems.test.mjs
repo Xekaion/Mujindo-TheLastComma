@@ -7293,20 +7293,20 @@ test("all eight field-loot atlases are safe, unique, lightweight, and finite", a
   assert.match(arrivalRenderer, /context\.drawImage\(\s*image,\s*column \* sourceWidth,\s*row \* sourceHeight,/);
 });
 
-test("persistent loot-pillar V2 atlases are tracked, transparent, tall four-frame RGBA loops", async () => {
+test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent four-frame loops", async () => {
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
-  const manifestPath = "public/assets/effects/loot-pillar-v2.build.json";
-  const builderPath = "scripts/build_loot_pillar_v2_assets.py";
+  const manifestPath = "public/assets/effects/loot-pillar-v3.build.json";
+  const builderPath = "scripts/build_loot_pillar_v3_assets.py";
   const [manifestText, builder, ...assetBuffers] = await Promise.all([
     readFile(path.join(root, manifestPath), "utf8"),
     readFile(path.join(root, builderPath), "utf8"),
     ...rarities.map((rarity) =>
-      readFile(path.join(root, `public/assets/effects/loot-pillar-${rarity}-v2.png`)),
+      readFile(path.join(root, `public/assets/effects/loot-pillar-${rarity}-v3.png`)),
     ),
   ]);
   const manifest = JSON.parse(manifestText);
 
-  assert.equal(manifest.version, 2);
+  assert.equal(manifest.version, 3);
   assert.equal(manifest.builder, builderPath);
   assert.deepEqual(manifest.atlas, {
     columns: 4,
@@ -7315,18 +7315,61 @@ test("persistent loot-pillar V2 atlases are tracked, transparent, tall four-fram
   });
   assert.deepEqual(manifest.pipeline.alphaLevels, [0, 64, 128, 192, 255]);
   assert.deepEqual(manifest.pipeline.logicalCell, [128, 256]);
-  assert.equal(manifest.pipeline.anchor, "bottom-centre");
-  assert.match(builder, /SOURCE_ROOT\s*=\s*ROOT\s*\/\s*"asset-sources"\s*\/\s*"legacy-arpg"\s*\/\s*"loot-pillar-v2"/);
+  assert.equal(manifest.pipeline.anchor, "measured-lower-flare-centre");
+  assert.ok(manifest.pipeline.rgbGamma < 1, "V3 needs a baked mid-tone lift");
+  assert.ok(manifest.pipeline.alphaGamma < 1, "V3 needs a baked glow-opacity lift");
+  assert.ok(
+    Math.max(...manifest.pipeline.frameFlashGains) >= 1.2,
+    "V3 needs an authored flash peak",
+  );
+  assert.match(builder, /SOURCE_MAP\s*=\s*\{/);
+  assert.match(
+    builder,
+    /"rare":\s*\(SOURCE_ROOT\s*\/\s*"rare-gold-source-contracted\.png",\s*0,\s*1,\s*"gold"\)/,
+  );
+  assert.match(
+    builder,
+    /"epic":\s*\(LEGACY_SOURCE_ROOT\s*\/\s*"low-rarities-source\.png",\s*3,\s*4,\s*"violet"\)/,
+  );
   assert.match(builder, /CELL_WIDTH\s*=\s*256/);
   assert.match(builder, /CELL_HEIGHT\s*=\s*512/);
-  assert.match(builder, /target_width\s*=\s*min\([\s\S]{0,140}?size\s*=\s*\(target_width, max_height\)/);
+  assert.match(
+    builder,
+    /target_width\s*=\s*min\([\s\S]{0,140}?motif\s*=\s*motif\.resize\(\(target_width, max_height\),/,
+  );
   assert.match(builder, /Image\.Resampling\.NEAREST/);
   assert.match(builder, /ALPHA_LEVELS\s*=\s*np\.array\(\(0, 64, 128, 192, 255\)/);
 
+  const expectedSources = {
+    common: ["asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png", 0, "ivory"],
+    magic: ["asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png", 1, "blue"],
+    superior: ["asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png", 2, "green"],
+    rare: ["asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source-contracted.png", 0, "gold"],
+    epic: ["asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png", 3, "violet"],
+    legendary: ["asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png", 1, "orange"],
+    mythic: ["asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png", 2, "magenta"],
+    cosmic: ["asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png", 3, "prismatic"],
+  };
+  assert.equal(manifest.imagegen.tool, "built-in imagegen");
+  for (const stage of ["original", "chroma", "alphaFirstPass", "alphaProductionSource"]) {
+    const record = manifest.imagegen.outputs[stage];
+    const bytes = await readFile(path.join(root, record.path));
+    assert.equal(
+      createHash("sha256").update(bytes).digest("hex"),
+      record.sha256,
+      `ImageGen ${stage} provenance must remain reproducible`,
+    );
+  }
+  assert.equal(
+    manifest.imagegen.outputs.alphaProductionSource.sha256,
+    manifest.sources[expectedSources.rare[0]].sha256,
+  );
+
   const raritySupportHashes = [];
+  const meanRgbByRarity = {};
   for (const [index, rarity] of rarities.entries()) {
-    const assetPath = `public/assets/effects/loot-pillar-${rarity}-v2.png`;
-    const sourcePath = `asset-sources/legacy-arpg/loot-pillar-v2/${index < 4 ? "low" : "high"}-rarities-source.png`;
+    const assetPath = `public/assets/effects/loot-pillar-${rarity}-v3.png`;
+    const [sourcePath, sourceRow, colourFamily] = expectedSources[rarity];
     const png = assetBuffers[index];
     assert.ok(png.byteLength <= 750_000, `${assetPath} exceeds the 750 KB decode budget`);
     await readFile(path.join(root, sourcePath));
@@ -7379,23 +7422,52 @@ test("persistent loot-pillar V2 atlases are tracked, transparent, tall four-fram
           supportOffset += 1;
         }
       }
-      assert.ok(brightPixels >= 120, `${label} needs a white-hot light core`);
+      assert.ok(brightPixels >= 240, `${label} needs a white-hot light core`);
       frameHashes.push(createHash("sha256").update(support).digest("hex"));
     }
     assert.equal(new Set(frameHashes).size, 4, `${assetPath} needs four unique loop frames`);
 
     const record = manifest.rarities[rarity];
     assert.equal(record.source, sourcePath);
+    assert.equal(record.sourceRow, sourceRow);
+    assert.equal(record.colourFamily, colourFamily);
     assert.equal(record.output, assetPath);
     assert.equal(record.bytes, png.byteLength);
     assert.equal(record.frames.length, 4);
     assert.ok(record.frames.every((frame) => frame.bbox[3] - frame.bbox[1] >= 480));
     assert.ok(record.frames.every((frame) => frame.brightPixelRatio >= 0.12));
+    assert.ok(record.frames.some((frame) => frame.brightPixelRatio >= 0.2));
+    assert.equal(
+      record.groundAnchor,
+      Math.round(
+        record.frames
+          .map((frame) => frame.flareY)
+          .sort((a, b) => a - b)
+          .slice(1, 3)
+          .reduce((sum, value) => sum + value, 0) / 2 / 512 * 10_000,
+      ) / 10_000,
+    );
+    meanRgbByRarity[rarity] = record.frames
+      .reduce(
+        (sum, frame) => sum.map((value, channel) => value + frame.meanRgb[channel]),
+        [0, 0, 0],
+      )
+      .map((value) => value / record.frames.length);
   }
   assert.equal(
     new Set(raritySupportHashes).size,
     rarities.length,
     "persistent pillar loops must use eight genuinely distinct silhouettes",
+  );
+  const [rareRed, rareGreen, rareBlue] = meanRgbByRarity.rare;
+  assert.ok(
+    rareRed > rareGreen && rareGreen > rareBlue * 1.25 && rareRed > rareBlue * 1.7,
+    "rare must read as saturated gold/yellow",
+  );
+  const [epicRed, epicGreen, epicBlue] = meanRgbByRarity.epic;
+  assert.ok(
+    epicBlue > epicRed && epicRed > epicGreen * 1.65,
+    "epic must inherit the former rare violet pillar",
   );
 });
 
@@ -7405,7 +7477,7 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   for (const rarity of rarities) {
     assert.match(
       source,
-      new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-v2\\.png["']`),
+      new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-v3\\.png["']`),
       `${rarity} must preload its dedicated persistent pillar loop`,
     );
   }
@@ -7435,14 +7507,14 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     "persistent pillar placement needs a semantic authored-floor anchor",
   );
   const expectedGroundAnchors = {
-    common: 0.9277,
-    magic: 0.9111,
-    superior: 0.8975,
-    rare: 0.9287,
-    epic: 0.8164,
-    legendary: 0.8252,
-    mythic: 0.8076,
-    cosmic: 0.875,
+    common: 0.9297,
+    magic: 0.9082,
+    superior: 0.8965,
+    rare: 0.9219,
+    epic: 0.9277,
+    legendary: 0.8281,
+    mythic: 0.8066,
+    cosmic: 0.8828,
   };
   for (const [rarity, anchor] of Object.entries(expectedGroundAnchors)) {
     assert.match(

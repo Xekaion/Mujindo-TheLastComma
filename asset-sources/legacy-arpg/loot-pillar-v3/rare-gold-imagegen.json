@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "tool": "built-in imagegen",
+  "useCase": "stylized-concept",
+  "assetType": "production 2D ARPG persistent loot-pillar animation sprite sheet",
+  "generatedAt": "2026-08-14",
+  "referenceImages": [
+    "public/assets/effects/loot-pillar-rare-v2.png",
+    "public/assets/effects/loot-awakening-rare-v5.png",
+    "user reference: codex-clipboard-9c8e5aca-47a0-44f4-abcb-24172ef54232.png",
+    "user reference: codex-clipboard-0b61ae74-5138-40a1-addd-b7e5e334b8d2.png"
+  ],
+  "prompt": "Create a new rare-grade persistent loot marker as exactly four distinct animation frames in one horizontal strip. Use saturated luminous golden yellow with a white-hot vertical core, brilliant yellow-gold solar/compass rays, sparkling motes, and a bright floor-contact burst. Match the gothic early-2000s Diablo-like painted 2D game VFX style and the scale/layout of the current four-frame atlas. Make every frame radiant, dazzling, and visibly brighter than the existing muted pillar, with coherent flicker between frames. Preserve equal cells, generous gutters, aligned floor-contact points, and a clearly different silhouette from the violet effect that will move to epic. No text, labels, borders, scenery, items, characters, logos, watermark, clipping, or overlap.",
+  "chromaEditPrompt": "Change only the checkerboard/background to one perfectly flat solid #ff00ff chroma-key color. Keep all four golden-yellow pillar frames unchanged in shape, scale, position, brightness, colour, sparkles, floor flares, baseline, and spacing. No gradients, texture, floor plane, shadows, checker pattern, text, borders, or watermark.",
+  "outputs": {
+    "original": {
+      "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-imagegen-original.png",
+      "sha256": "298a3bd2ec1257cdf71b39f7dcbfe97aa2e0df46b660c67c175c3dcf3eb5b298",
+      "size": [1839, 855],
+      "mode": "RGB"
+    },
+    "chroma": {
+      "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-imagegen-chroma.png",
+      "sha256": "61351bb3844ac0678b2f6e9968963137ff51ac9068f84a0701ec7a25e4b3a316",
+      "size": [1838, 856],
+      "mode": "RGB",
+      "detectedKey": "#f910e8"
+    },
+    "alphaFirstPass": {
+      "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source.png",
+      "sha256": "e9eb759404691692d0df369c466ca6cdcefa50729370e12b668f0c2a307b1cc3"
+    },
+    "alphaProductionSource": {
+      "path": "asset-sources/legacy-arpg/loot-pillar-v3/rare-gold-source-contracted.png",
+      "sha256": "4f7017b022262357b132031b056b74afb1f4d6186db6f21a418f2ce7b2e629f1",
+      "backgroundRemoval": {
+        "helper": "imagegen/scripts/remove_chroma_key.py",
+        "options": [
+          "--auto-key border",
+          "--soft-matte",
+          "--transparent-threshold 12",
+          "--opaque-threshold 220",
+          "--despill",
+          "--edge-contract 1"
+        ],
+        "transparentPixels": 1371815,
+        "partiallyTransparentPixels": 84145,
+        "totalPixels": 1573328
+      }
+    }
+  }
+}
