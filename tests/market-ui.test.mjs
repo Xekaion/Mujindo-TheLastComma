@@ -23,7 +23,7 @@ test("memory market exposes all four server-backed economy surfaces", async () =
   assert.match(board, /aria-modal="true"/);
   assert.doesNotMatch(board, /window\.(?:alert|confirm)\s*\(/);
   assert.match(css, /:focus-visible/);
-  assert.match(css, /@media \(max-width: 840px\)/);
+  assert.match(css, /@container game-viewport \(max-width: 840px\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 

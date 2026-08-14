@@ -54,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body>
+      <body className="game-viewport" data-game-aspect="16:9">
         <GameAudioProvider>{children}</GameAudioProvider>
       </body>
     </html>

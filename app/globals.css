@@ -12,15 +12,45 @@
   box-sizing: border-box;
 }
 
-html,
-body {
+html {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   margin: 0;
+  overflow: hidden;
+  background: #000;
+}
+
+html {
+  display: grid;
+  place-items: center;
+}
+
+body.game-viewport {
+  position: relative;
+  width: min(100vw, 177.777778dvh);
+  height: min(100dvh, 56.25vw);
+  min-width: 0;
+  min-height: 0;
+  margin: 0;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  container-name: game-viewport;
+  container-type: size;
+  contain: size layout paint;
   background: var(--ink);
   color: var(--paper);
   font-family:
     Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
+  isolation: isolate;
+  transform: translateZ(0);
+}
+
+.game-entry-flow {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -50,10 +80,10 @@ button {
   display: grid;
   grid-template-columns: minmax(132px, 18%) minmax(0, 1fr) minmax(92px, 13%);
   align-items: center;
-  gap: clamp(6px, 1vw, 14px);
-  width: min(1024px, calc(100vw - 24px));
-  height: clamp(76px, 12.5vw, 128px);
-  padding: 0 clamp(26px, 4.6vw, 48px);
+  gap: clamp(6px, 1cqw, 14px);
+  width: min(1024px, calc(100cqw - 24px));
+  height: clamp(76px, 12.5cqw, 128px);
+  padding: 0 clamp(26px, 4.6cqw, 48px);
   overflow: visible;
   border: 0;
   opacity: 1;
@@ -177,7 +207,7 @@ button {
   background: rgba(4, 5, 9, 0.72);
   box-shadow: 0 0 14px var(--world-accent-soft), inset 0 0 9px rgba(255, 255, 255, 0.035);
   font-family: "Nanum Myeongjo", Georgia, serif;
-  font-size: clamp(10px, 1vw, 13px);
+  font-size: clamp(10px, 1cqw, 13px);
   font-weight: 900;
   line-height: 1;
   letter-spacing: 0.13em;
@@ -194,7 +224,7 @@ button {
   overflow: hidden;
   color: #e8dfd1;
   font-family: "Nanum Myeongjo", Georgia, serif;
-  font-size: clamp(14px, 1.55vw, 20px);
+  font-size: clamp(14px, 1.55cqw, 20px);
   font-weight: 700;
   letter-spacing: -0.04em;
   text-align: center;
@@ -239,7 +269,7 @@ button {
   min-width: 70px;
   color: rgba(247, 238, 220, 0.9);
   font-family: Georgia, serif;
-  font-size: clamp(10px, 1vw, 13px);
+  font-size: clamp(10px, 1cqw, 13px);
   font-weight: 900;
   letter-spacing: 0.09em;
   line-height: 1.2;
@@ -354,7 +384,7 @@ button {
   }
 }
 
-@media (max-width: 700px) {
+@container game-viewport (max-width: 700px) {
   .world-announcement {
     grid-template-columns: minmax(58px, 18%) minmax(0, 1fr) minmax(42px, 12%);
     gap: 4px;
@@ -401,7 +431,7 @@ button {
   }
 }
 
-@media (max-width: 480px) {
+@container game-viewport (max-width: 480px) {
   .world-announcement-art {
     left: 50%;
     width: 608px;

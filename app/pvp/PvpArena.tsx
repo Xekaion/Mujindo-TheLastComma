@@ -313,7 +313,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       preventGameKeys(event);
       keysRef.current.delete(event.key.toLowerCase());
     };
-    const clear = () => keysRef.current.clear();
+    const clear = () => {
+      keysRef.current.clear();
+      mobileMoveRef.current = { x: 0, y: 0 };
+      dashQueuedRef.current = false;
+    };
     window.addEventListener("keydown", onKeyDown, { passive: false });
     window.addEventListener("keyup", onKeyUp, { passive: false });
     window.addEventListener("blur", clear);
@@ -790,10 +794,10 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
 
           <div className="pvp-mobile-controls" aria-label="모바일 결투 조작">
             <div className="pvp-mobile-pad">
-              <button onPointerDown={() => setMobileMove(0, -1)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)}>↑</button>
-              <button onPointerDown={() => setMobileMove(-1, 0)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)}>←</button>
-              <button onPointerDown={() => setMobileMove(1, 0)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)}>→</button>
-              <button onPointerDown={() => setMobileMove(0, 1)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)}>↓</button>
+              <button onPointerDown={() => setMobileMove(0, -1)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)} onPointerLeave={() => setMobileMove(0, 0)}>↑</button>
+              <button onPointerDown={() => setMobileMove(-1, 0)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)} onPointerLeave={() => setMobileMove(0, 0)}>←</button>
+              <button onPointerDown={() => setMobileMove(1, 0)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)} onPointerLeave={() => setMobileMove(0, 0)}>→</button>
+              <button onPointerDown={() => setMobileMove(0, 1)} onPointerUp={() => setMobileMove(0, 0)} onPointerCancel={() => setMobileMove(0, 0)} onPointerLeave={() => setMobileMove(0, 0)}>↓</button>
             </div>
             <button className="pvp-mobile-dash" onPointerDown={() => { dashQueuedRef.current = true; }}>회피</button>
           </div>

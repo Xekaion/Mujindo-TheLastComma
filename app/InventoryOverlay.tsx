@@ -107,16 +107,21 @@ function clampTooltipPosition(
 ): TooltipPosition {
   if (typeof window === "undefined") return { x: clientX, y: clientY };
 
-  const safeWidth = Math.min(tooltipWidth, Math.max(0, window.innerWidth - 24));
-  const safeHeight = Math.min(tooltipHeight, Math.max(0, window.innerHeight - 24));
-  const roomOnRight = clientX + TOOLTIP_GAP + safeWidth <= window.innerWidth;
+  const frameRect = document.body.getBoundingClientRect();
+  const frameWidth = Math.max(0, frameRect.width || window.innerWidth);
+  const frameHeight = Math.max(0, frameRect.height || window.innerHeight);
+  const localX = clientX - frameRect.left;
+  const localY = clientY - frameRect.top;
+  const safeWidth = Math.min(tooltipWidth, Math.max(0, frameWidth - 24));
+  const safeHeight = Math.min(tooltipHeight, Math.max(0, frameHeight - 24));
+  const roomOnRight = localX + TOOLTIP_GAP + safeWidth <= frameWidth;
   const preferredX = roomOnRight
-    ? clientX + TOOLTIP_GAP
-    : clientX - safeWidth - TOOLTIP_GAP;
+    ? localX + TOOLTIP_GAP
+    : localX - safeWidth - TOOLTIP_GAP;
 
   return {
-    x: Math.max(12, Math.min(preferredX, window.innerWidth - safeWidth - 12)),
-    y: Math.max(12, Math.min(clientY - 48, window.innerHeight - safeHeight - 12)),
+    x: Math.max(12, Math.min(preferredX, frameWidth - safeWidth - 12)),
+    y: Math.max(12, Math.min(localY - 48, frameHeight - safeHeight - 12)),
   };
 }
 

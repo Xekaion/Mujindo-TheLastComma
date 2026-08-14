@@ -1,9 +1,9 @@
 .menu-screen,
 .game-screen {
   position: relative;
-  width: 100vw;
-  height: 100dvh;
-  min-height: min(620px, 100dvh);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   overflow: hidden;
   background: #07080a;
   isolation: isolate;
@@ -35,9 +35,9 @@
 
 .menu-copy {
   position: absolute;
-  left: clamp(34px, 7vw, 118px);
+  left: clamp(34px, 7cqw, 118px);
   top: 50%;
-  width: min(650px, 49vw);
+  width: min(650px, 49cqw);
   transform: translateY(-52%);
 }
 
@@ -65,13 +65,13 @@
 }
 
 .menu-copy h1 span {
-  font-size: clamp(76px, 9.5vw, 158px);
+  font-size: clamp(76px, 9.5cqw, 158px);
 }
 
 .menu-copy h1 small {
   padding-left: 7px;
   color: #c5b38a;
-  font-size: clamp(20px, 2vw, 31px);
+  font-size: clamp(20px, 2cqw, 31px);
   font-weight: 500;
   letter-spacing: 0.35em;
 }
@@ -80,7 +80,7 @@
   margin: 35px 0 29px;
   color: rgba(232, 223, 200, 0.78);
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(15px, 1.2vw, 19px);
+  font-size: clamp(15px, 1.2cqw, 19px);
   line-height: 1.75;
   letter-spacing: -0.02em;
 }
@@ -322,7 +322,7 @@
 
 .menu-features {
   position: absolute;
-  right: clamp(28px, 4vw, 68px);
+  right: clamp(28px, 4cqw, 68px);
   bottom: 56px;
   display: grid;
   grid-template-columns: repeat(2, auto);
@@ -342,7 +342,7 @@
 .menu-controls {
   position: absolute;
   bottom: 24px;
-  left: clamp(34px, 7vw, 118px);
+  left: clamp(34px, 7cqw, 118px);
   margin: 0;
   color: rgba(232, 223, 200, 0.38);
   font-size: 10px;
@@ -353,8 +353,8 @@
   position: absolute;
   top: 50%;
   left: 50%;
-  width: min(100vw, 177.78vh);
-  height: min(100vh, 56.25vw);
+  width: 100%;
+  height: 100%;
   aspect-ratio: 16 / 9;
   background: #050608;
   cursor: crosshair;
@@ -546,7 +546,7 @@
   left: 50%;
   bottom: 72px;
   display: grid;
-  min-width: min(330px, calc(100vw - 32px));
+  min-width: min(330px, calc(100cqw - 32px));
   grid-template-columns: 38px minmax(0, 1fr);
   grid-template-rows: auto auto;
   column-gap: 10px;
@@ -837,7 +837,7 @@
 }
 
 .build-content {
-  width: min(360px, 84vw);
+  width: min(360px, 84cqw);
   height: 100%;
   border: 1px solid rgba(198, 174, 124, 0.42);
   padding: 18px;
@@ -1080,7 +1080,7 @@
   bottom: 23px;
   left: 50%;
   display: flex;
-  max-width: min(660px, 80vw);
+  max-width: min(660px, 80cqw);
   align-items: center;
   gap: 9px;
   border: 1px solid rgba(209, 187, 141, 0.24);
@@ -1116,7 +1116,7 @@
 }
 
 .augment-modal {
-  width: min(1120px, 94vw);
+  width: min(1120px, 94cqw);
   text-align: center;
 }
 
@@ -1130,7 +1130,7 @@
   margin: 0;
   color: #ede2ca;
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(30px, 3.1vw, 48px);
+  font-size: clamp(30px, 3.1cqw, 48px);
   font-weight: 500;
   letter-spacing: -0.04em;
 }
@@ -1267,9 +1267,9 @@
 .death-modal,
 .ending-modal,
 .pause-modal {
-  width: min(690px, 92vw);
+  width: min(690px, 92cqw);
   border: 1px solid rgba(205, 182, 135, 0.42);
-  padding: clamp(35px, 5vw, 68px);
+  padding: clamp(35px, 5cqw, 68px);
   background:
     linear-gradient(130deg, rgba(14, 15, 17, 0.97), rgba(8, 9, 11, 0.98)),
     url("/assets/augment-ui-atlas.png") center bottom / 190% auto;
@@ -1293,7 +1293,7 @@
 }
 
 .profession-modal {
-  width: min(650px, 92vw);
+  width: min(650px, 92cqw);
   border-color: color-mix(in srgb, var(--profession-color) 52%, #8d7b57);
   box-shadow:
     inset 0 0 60px color-mix(in srgb, var(--profession-color) 8%, transparent),
@@ -1457,7 +1457,7 @@
 }
 
 .ending-modal {
-  width: min(860px, 94vw);
+  width: min(860px, 94cqw);
 }
 
 .ending-choices {
@@ -1575,7 +1575,7 @@
   top: 104px;
   left: 50%;
   display: grid;
-  width: min(620px, 72vw);
+  width: min(620px, 72cqw);
   grid-template-columns: 148px 1fr 42px;
   align-items: center;
   gap: 12px;
@@ -1711,8 +1711,8 @@
 
 .map-modal {
   display: grid;
-  width: min(1060px, 94vw);
-  height: min(660px, 90vh);
+  width: min(1060px, 94cqw);
+  height: min(660px, 90cqh);
   grid-template-rows: auto minmax(0, 1fr) auto;
   border: 1px solid rgba(205, 182, 135, 0.45);
   padding: 25px 30px 22px;
@@ -1827,8 +1827,8 @@
 .map-board {
   position: relative;
   display: block;
-  width: min(470px, 54vh);
-  height: min(470px, 54vh);
+  width: min(470px, 54cqh);
+  height: min(470px, 54cqh);
   justify-self: center;
   align-self: center;
   overflow: auto;
@@ -2138,7 +2138,7 @@ button.map-cell {
   }
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .menu-screen,
   .game-screen {
     min-height: 520px;
@@ -2160,7 +2160,7 @@ button.map-cell {
   }
 
   .menu-copy h1 span {
-    font-size: clamp(62px, 18vw, 104px);
+    font-size: clamp(62px, 18cqw, 104px);
   }
 
   .menu-lead {
@@ -2226,7 +2226,7 @@ button.map-cell {
 
   .boss-hud {
     top: 132px;
-    width: min(560px, 78vw);
+    width: min(560px, 78cqw);
     grid-template-columns: 112px 1fr 36px;
   }
 
@@ -2235,8 +2235,8 @@ button.map-cell {
   }
 
   .map-board {
-    width: min(430px, 50vh, 70vw);
-    height: min(430px, 50vh, 70vw);
+    width: min(430px, 50cqh, 70cqw);
+    height: min(430px, 50cqh, 70cqw);
   }
 
   .map-modal > footer {
@@ -2264,7 +2264,7 @@ button.map-cell {
 
   .augment-choices {
     grid-template-columns: 1fr;
-    max-height: 67vh;
+    max-height: 67cqh;
     overflow: auto;
   }
 
@@ -2298,12 +2298,12 @@ button.map-cell {
 
 /* First-boss revelation sequence -------------------------------------- */
 .ending-modal {
-  width: min(920px, calc(100vw - 40px));
-  height: min(760px, calc(100dvh - 40px));
-  max-height: calc(100dvh - 40px);
+  width: min(920px, calc(100cqw - 40px));
+  height: min(760px, calc(100cqh - 40px));
+  max-height: calc(100cqh - 40px);
   display: grid;
   grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-  padding: clamp(28px, 4vw, 52px);
+  padding: clamp(28px, 4cqw, 52px);
   overflow: hidden;
   text-align: left;
 }
@@ -2375,7 +2375,7 @@ button.map-cell {
   margin: 0 auto 13px;
   color: rgba(235, 226, 207, 0.72);
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(13px, 1.15vw, 15px);
+  font-size: clamp(13px, 1.15cqw, 15px);
   line-height: 1.92;
   letter-spacing: -0.012em;
   text-align: left;
@@ -2424,11 +2424,11 @@ button.map-cell {
   }
 }
 
-@media (max-width: 700px) {
+@container game-viewport (max-width: 700px) {
   .ending-modal {
     width: 100%;
-    height: calc(100dvh - 24px);
-    max-height: calc(100dvh - 24px);
+    height: calc(100cqh - 24px);
+    max-height: calc(100cqh - 24px);
     padding: 27px 20px 20px;
     overflow: hidden;
   }
@@ -2444,7 +2444,7 @@ button.map-cell {
 
   .ending-modal > h2 {
     margin-top: 9px;
-    font-size: clamp(27px, 8vw, 38px);
+    font-size: clamp(27px, 8cqw, 38px);
   }
 
   .ending-progress {
@@ -2468,14 +2468,14 @@ button.map-cell {
   }
 
   .ending-actions .ending-next {
-    min-width: min(220px, 64vw);
+    min-width: min(220px, 64cqw);
   }
 }
 
-@media (max-height: 620px) and (orientation: landscape) {
+@container game-viewport (max-height: 620px) {
   .ending-modal {
-    height: calc(100dvh - 20px);
-    max-height: calc(100dvh - 20px);
+    height: calc(100cqh - 20px);
+    max-height: calc(100cqh - 20px);
     padding: 18px 25px 15px;
     overflow: hidden;
   }
@@ -2701,7 +2701,7 @@ button.map-cell {
   box-shadow: 0 0 5px rgba(211, 47, 38, 0.56);
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-rarity-salvage-filters {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
@@ -2716,7 +2716,7 @@ button.map-cell {
   }
 }
 
-@media (max-width: 620px) {
+@container game-viewport (max-width: 620px) {
   .inventory-screen-rarity-salvage-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2963,7 +2963,7 @@ button.map-cell {
   }
 }
 
-@media (max-width: 620px) {
+@container game-viewport (max-width: 620px) {
   .menu-actions {
     flex-direction: column;
   }
@@ -3023,7 +3023,7 @@ button.map-cell {
   .death-modal,
   .pause-modal {
     width: 100%;
-    max-height: 88vh;
+    max-height: 88cqh;
     padding: 30px 20px;
     overflow: auto;
   }
@@ -3034,7 +3034,7 @@ button.map-cell {
 
   .boss-hud {
     top: 118px;
-    width: calc(100vw - 24px);
+    width: calc(100cqw - 24px);
     grid-template-columns: 1fr 34px;
   }
 
@@ -3044,7 +3044,7 @@ button.map-cell {
 
   .map-modal {
     width: 100%;
-    height: 94vh;
+    height: 94cqh;
     padding: 17px 15px;
   }
 
@@ -3053,8 +3053,8 @@ button.map-cell {
   }
 
   .map-board {
-    width: min(360px, 82vw, 48vh);
-    height: min(360px, 82vw, 48vh);
+    width: min(360px, 82cqw, 48cqh);
+    height: min(360px, 82cqw, 48cqh);
   }
 
   .minimap-grid.is-large {
@@ -3120,7 +3120,7 @@ button.map-cell {
 .menu-screen::after {
   position: absolute;
   z-index: 2;
-  inset: clamp(10px, 1.4vw, 22px);
+  inset: clamp(10px, 1.4cqw, 22px);
   border: 1px solid rgba(209, 183, 127, 0.16);
   box-shadow:
     inset 0 0 0 1px rgba(0, 0, 0, 0.58),
@@ -3142,16 +3142,16 @@ button.map-cell {
 }
 
 .menu-copy {
-  width: min(690px, 51vw);
+  width: min(690px, 51cqw);
 }
 
 .menu-stage-shell {
   position: relative;
   display: flex;
-  max-height: calc(100dvh - 96px);
+  max-height: calc(100cqh - 96px);
   flex-direction: column;
   border-left: 1px solid rgba(205, 180, 127, 0.34);
-  padding: clamp(18px, 2.5vw, 34px) clamp(18px, 3vw, 44px);
+  padding: clamp(18px, 2.5cqw, 34px) clamp(18px, 3cqw, 44px);
   background: linear-gradient(90deg, rgba(8, 9, 11, 0.56), rgba(8, 9, 11, 0.06) 78%, transparent);
   text-shadow: 0 2px 18px rgba(0, 0, 0, 0.72);
 }
@@ -3211,14 +3211,14 @@ button.map-cell {
 
 .menu-copy h1 small {
   color: #cab482;
-  font-size: clamp(21px, 2vw, 32px);
+  font-size: clamp(21px, 2cqw, 32px);
 }
 
 .menu-lead {
   max-width: 590px;
   margin: 28px 0 24px;
   color: rgba(239, 229, 207, 0.76);
-  font-size: clamp(15px, 1.16vw, 18px);
+  font-size: clamp(15px, 1.16cqw, 18px);
 }
 
 .menu-primary-action,
@@ -3934,7 +3934,7 @@ button.equipment-slot-card:hover {
   right: max(18px, env(safe-area-inset-right));
   bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
   display: grid;
-  min-width: min(320px, calc(100vw - 36px));
+  min-width: min(320px, calc(100cqw - 36px));
   grid-template-columns: 4px auto 1fr;
   align-items: center;
   gap: 10px;
@@ -4138,7 +4138,7 @@ button.equipment-slot-card:hover {
   transform: scale(0.94);
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .menu-screen,
   .game-screen {
     min-height: 0;
@@ -4157,7 +4157,7 @@ button.equipment-slot-card:hover {
   }
 
   .menu-stage-shell {
-    max-height: calc(100dvh - 108px);
+    max-height: calc(100cqh - 108px);
     overflow: auto;
     scrollbar-color: rgba(154, 130, 86, 0.58) transparent;
     scrollbar-width: thin;
@@ -4187,7 +4187,7 @@ button.equipment-slot-card:hover {
   to { opacity: 1; transform: translate(50%, 0); }
 }
 
-@media (max-width: 620px) {
+@container game-viewport (max-width: 620px) {
   .menu-screen::after {
     inset: 7px;
   }
@@ -4197,18 +4197,18 @@ button.equipment-slot-card:hover {
   }
 
   .menu-stage-shell {
-    max-height: calc(100dvh - 72px);
+    max-height: calc(100cqh - 72px);
     padding: 18px 16px 18px 19px;
   }
 
   .menu-stage-mark { font-size: 10px; }
 
   .menu-copy h1 span {
-    font-size: clamp(52px, 17vw, 82px);
+    font-size: clamp(52px, 17cqw, 82px);
   }
 
   .menu-copy h1 small {
-    font-size: clamp(17px, 5vw, 24px);
+    font-size: clamp(17px, 5cqw, 24px);
   }
 
   .menu-lead {
@@ -4236,7 +4236,7 @@ button.equipment-slot-card:hover {
   }
 
   .build-content {
-    width: min(352px, 87vw);
+    width: min(352px, 87cqw);
     padding: 13px;
   }
 
@@ -4259,11 +4259,11 @@ button.equipment-slot-card:hover {
   }
 
   .loot-toast {
-    min-width: calc(100vw - 28px);
+    min-width: calc(100cqw - 28px);
   }
 }
 
-@media (max-height: 740px) {
+@container game-viewport (max-height: 740px) {
   .menu-copy {
     top: 50%;
     bottom: auto;
@@ -4271,7 +4271,7 @@ button.equipment-slot-card:hover {
   }
 
   .menu-stage-shell {
-    max-height: calc(100dvh - 74px);
+    max-height: calc(100cqh - 74px);
     padding-top: 16px;
     padding-bottom: 16px;
     overflow: auto;
@@ -4279,8 +4279,8 @@ button.equipment-slot-card:hover {
     scrollbar-width: thin;
   }
 
-  .menu-copy h1 span { font-size: clamp(54px, 8vw, 94px); }
-  .menu-copy h1 small { font-size: clamp(17px, 1.75vw, 25px); }
+  .menu-copy h1 span { font-size: clamp(54px, 8cqw, 94px); }
+  .menu-copy h1 small { font-size: clamp(17px, 1.75cqw, 25px); }
   .menu-lead { margin: 16px 0; line-height: 1.55; }
   .menu-meta-strip { margin-top: 10px; }
   .save-slot-card { min-height: 154px; }
@@ -4320,25 +4320,25 @@ button.equipment-slot-card:hover {
   .shelter-modal,
   .death-modal,
   .pause-modal {
-    max-height: calc(100dvh - 24px);
+    max-height: calc(100cqh - 24px);
     padding-top: 28px;
     padding-bottom: 28px;
     overflow: auto;
   }
 }
 
-@media (max-height: 560px) and (orientation: landscape) {
+@container game-viewport (max-height: 560px) {
   .menu-copy {
     right: auto;
     left: max(28px, calc(env(safe-area-inset-left) + 18px));
-    width: min(680px, 64vw);
+    width: min(680px, 64cqw);
   }
 
   .menu-stage-shell {
-    max-height: calc(100dvh - 36px);
+    max-height: calc(100cqh - 36px);
   }
 
-  .menu-copy h1 span { font-size: clamp(46px, 10vh, 70px); }
+  .menu-copy h1 span { font-size: clamp(46px, 10cqh, 70px); }
   .menu-lead { font-size: 12px; }
   .menu-meta-strip { display: none; }
 
@@ -4652,7 +4652,7 @@ button.equipment-slot-card:hover {
   box-shadow: inset 0 1px rgba(255, 231, 172, 0.15), 0 0 20px rgba(207, 148, 59, 0.16);
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-sort-controls > span {
     display: none;
   }
@@ -4663,7 +4663,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 620px) {
+@container game-viewport (max-width: 620px) {
   .inventory-screen-sort-controls {
     gap: 1px;
   }
@@ -4711,8 +4711,8 @@ button.equipment-slot-card:hover {
   position: relative;
   isolation: isolate;
   display: grid;
-  width: min(1230px, calc(100vw - 24px));
-  height: min(690px, calc(100vh - 24px));
+  width: min(1230px, calc(100cqw - 24px));
+  height: min(690px, calc(100cqh - 24px));
   min-height: 520px;
   grid-template-rows: 78px 40px minmax(0, 1fr) 28px;
   overflow: hidden;
@@ -5602,7 +5602,7 @@ button.equipment-slot-card:hover {
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 978px) {
+@container game-viewport (max-width: 978px) {
   .shop-layout {
     grid-template-columns: minmax(390px, 1fr) 270px;
   }
@@ -5614,9 +5614,9 @@ button.equipment-slot-card:hover {
   .shop-header-market { display: flex; }
 }
 
-@media (max-width: 760px) {
+@container game-viewport (max-width: 760px) {
   .shop-panel {
-    height: calc(100vh - 16px);
+    height: calc(100cqh - 16px);
     min-height: 0;
   }
 
@@ -5644,7 +5644,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-height: 620px) and (min-width: 721px) {
+@container game-viewport (max-height: 620px) and (min-width: 721px) {
   .shop-panel {
     grid-template-rows: 66px 34px minmax(0, 1fr) 24px;
   }
@@ -5685,10 +5685,10 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 620px) {
+@container game-viewport (max-width: 620px) {
   .staircase-action {
     bottom: 148px;
-    min-width: min(300px, calc(100vw - 28px));
+    min-width: min(300px, calc(100cqw - 28px));
     padding-right: 13px;
   }
 }
@@ -6097,7 +6097,7 @@ button.equipment-slot-card:hover {
   color: rgba(240, 229, 207, 0.72);
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen-section-heading h3 {
     min-width: 132px;
     padding-right: 20px;
@@ -6287,8 +6287,8 @@ button.equipment-slot-card:hover {
   isolation: isolate;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) 36px;
-  width: min(1800px, calc(100vw - 32px));
-  height: min(1000px, calc(100dvh - 24px));
+  width: min(1800px, calc(100cqw - 32px));
+  height: min(1000px, calc(100cqh - 24px));
   min-height: 520px;
   overflow: hidden;
   border: 1px solid rgba(216, 187, 118, 0.48);
@@ -6379,7 +6379,7 @@ button.equipment-slot-card:hover {
   margin: 0;
   color: #f2e8d4;
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(24px, 2.35vw, 34px);
+  font-size: clamp(24px, 2.35cqw, 34px);
   font-weight: 500;
   line-height: 1.05;
   letter-spacing: -0.025em;
@@ -7147,10 +7147,10 @@ button.equipment-slot-card:hover {
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (max-width: 980px) {
+@container game-viewport (max-width: 980px) {
   .inventory-screen-panel {
-    width: min(760px, calc(100vw - 24px));
-    height: min(760px, calc(100dvh - 24px));
+    width: min(760px, calc(100cqw - 24px));
+    height: min(760px, calc(100cqh - 24px));
     min-height: 0;
   }
 
@@ -7168,7 +7168,7 @@ button.equipment-slot-card:hover {
   .inventory-screen-backpack { min-height: 460px; }
 }
 
-@media (max-width: 640px) {
+@container game-viewport (max-width: 640px) {
   .inventory-screen {
     display: block;
     padding: 0;
@@ -7178,7 +7178,7 @@ button.equipment-slot-card:hover {
   .inventory-screen-panel {
     width: 100%;
     height: auto;
-    min-height: 100dvh;
+    min-height: 100cqh;
     border-width: 0;
   }
 
@@ -7238,7 +7238,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 420px) {
+@container game-viewport (max-width: 420px) {
   .inventory-screen-equipment-slots { grid-template-columns: 1fr; }
   .inventory-screen-grid { grid-template-columns: repeat(4, minmax(54px, 1fr)); gap: 4px; }
   .inventory-screen-detail-identity { grid-template-columns: 74px minmax(0, 1fr); }
@@ -7250,8 +7250,8 @@ button.equipment-slot-card:hover {
   .inventory-screen-footer { justify-content: flex-end; }
 }
 
-@media (max-height: 610px) and (min-width: 641px) {
-  .inventory-screen-panel { height: calc(100dvh - 16px); min-height: 0; }
+@container game-viewport (max-height: 610px) and (min-width: 641px) {
+  .inventory-screen-panel { height: calc(100cqh - 16px); min-height: 0; }
   .inventory-screen-header { min-height: 76px; padding-top: 14px; padding-bottom: 9px; }
   .inventory-screen-subtitle { margin-top: 3px; }
   .inventory-screen-layout { padding-top: 10px; padding-bottom: 9px; }
@@ -7298,8 +7298,8 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-panel {
   grid-template-rows: 88px minmax(0, 1fr) 34px;
-  width: min(1800px, calc(100vw - 32px));
-  height: min(1000px, calc(100dvh - 24px));
+  width: min(1800px, calc(100cqw - 32px));
+  height: min(1000px, calc(100cqh - 24px));
   min-width: 0;
   min-height: 596px;
   overflow: hidden;
@@ -7366,7 +7366,7 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-title {
   margin: 0;
-  font-size: clamp(23px, 1.75vw, 31px);
+  font-size: clamp(23px, 1.75cqw, 31px);
   line-height: 1.08;
   letter-spacing: 0.04em;
   text-shadow: 0 2px 8px #000, 0 0 22px rgba(218, 155, 58, 0.2);
@@ -7753,7 +7753,7 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-detail-copy h4 {
   margin: 3px 0 4px;
-  font-size: clamp(13px, 1vw, 17px);
+  font-size: clamp(13px, 1cqw, 17px);
 }
 
 .inventory-screen-detail-rarity,
@@ -8338,7 +8338,7 @@ button.equipment-slot-card:hover {
   pointer-events: none;
   z-index: 120;
   width: 390px;
-  max-width: calc(100vw - 24px);
+  max-width: calc(100cqw - 24px);
   min-height: 300px;
   padding: 18px 18px 13px;
   overflow: visible;
@@ -8642,7 +8642,7 @@ button.equipment-slot-card:hover {
   50% { filter: hue-rotate(12deg) saturate(1.42) brightness(1.34); }
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-panel {
     grid-template-rows: 78px minmax(0, 1fr) 31px;
   }
@@ -8683,14 +8683,14 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen {
     padding: 6px;
   }
 
   .inventory-screen-panel {
-    width: calc(100vw - 12px);
-    height: calc(100dvh - 12px);
+    width: calc(100cqw - 12px);
+    height: calc(100cqh - 12px);
     min-height: 560px;
   }
 
@@ -8743,7 +8743,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-height: 720px) and (min-width: 901px) {
+@container game-viewport (max-height: 720px) and (min-width: 901px) {
   .inventory-screen-panel {
     grid-template-rows: 72px minmax(0, 1fr) 29px;
     min-height: 0;
@@ -9263,7 +9263,7 @@ button.equipment-slot-card:hover {
   50% { opacity: 1; }
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-grid {
     --inventory-slot-gap: 5px;
     --inventory-slot-gutter-x: 25px;
@@ -9291,11 +9291,11 @@ button.equipment-slot-card:hover {
 }
 
 .inventory-screen-equipment-slots {
-  --inventory-paperdoll-gap: clamp(3px, 0.45vh, 5px);
+  --inventory-paperdoll-gap: clamp(3px, 0.45cqh, 5px);
   --inventory-paperdoll-slot-cap: 76px;
   --inventory-paperdoll-aura-safe: 32px;
-  --inventory-paperdoll-row-spread: clamp(3px, 0.65vh, 5px);
-  --inventory-paperdoll-row-spread-double: clamp(6px, 1.3vh, 10px);
+  --inventory-paperdoll-row-spread: clamp(3px, 0.65cqh, 5px);
+  --inventory-paperdoll-row-spread-double: clamp(6px, 1.3cqh, 10px);
   container-type: normal;
   display: grid;
   grid-template-columns:
@@ -9303,7 +9303,7 @@ button.equipment-slot-card:hover {
     minmax(88px, 1fr)
     var(--inventory-paperdoll-slot-cap);
   grid-template-rows: repeat(5, minmax(0, 1fr));
-  column-gap: clamp(10px, 1.2vw, 18px);
+  column-gap: clamp(10px, 1.2cqw, 18px);
   row-gap: var(--inventory-paperdoll-gap);
   width: 100%;
   height: auto;
@@ -9374,7 +9374,7 @@ button.equipment-slot-card:hover {
 /* On desktop, spend a small portion of the unused top/bottom paperdoll room on
    equal breathing space between the five rows. Individual translate composes
    with the existing hover transform, so cards never jump when inspected. */
-@media (min-width: 901px) {
+@container game-viewport (min-width: 901px) {
   .inventory-screen-equipment-card--helm,
   .inventory-screen-equipment-card--relic {
     translate: 0 calc(0px - var(--inventory-paperdoll-row-spread-double));
@@ -9980,8 +9980,8 @@ button.equipment-slot-card:hover {
 .inventory-screen-confirm-dialog {
   position: relative;
   isolation: isolate;
-  width: min(480px, calc(100vw - 36px));
-  max-height: calc(100dvh - 36px);
+  width: min(480px, calc(100cqw - 36px));
+  max-height: calc(100cqh - 36px);
   padding: 31px 30px 25px;
   overflow: hidden;
   color: #e8ddc7;
@@ -10026,7 +10026,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-confirm-dialog h3 {
   margin: 7px 0 8px;
   color: #f1dfb9;
-  font-size: clamp(17px, 2vw, 22px);
+  font-size: clamp(17px, 2cqw, 22px);
   line-height: 1.35;
 }
 
@@ -10177,7 +10177,7 @@ button.equipment-slot-card:hover {
   50% { opacity: 1; transform: scale(1.004); }
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-layout {
     grid-template-columns: minmax(360px, 0.78fr) minmax(0, 1.22fr);
     gap: 8px;
@@ -10197,7 +10197,7 @@ button.equipment-slot-card:hover {
 
 /* Low desktop viewports keep the paper doll readable without letting its first
    and fifth rows escape into the heading or workbench. */
-@media (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
+@container game-viewport (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
   .inventory-screen-left-column {
     grid-template-rows: minmax(320px, 1.1fr) minmax(210px, 0.9fr);
   }
@@ -10291,9 +10291,9 @@ button.equipment-slot-card:hover {
 }
 
 .shop-panel {
-  height: min(690px, calc(100dvh - 24px));
+  height: min(690px, calc(100cqh - 24px));
   min-height: 0;
-  max-height: calc(100dvh - 24px);
+  max-height: calc(100cqh - 24px);
   grid-template-rows: 78px 40px minmax(0, 1fr) 32px;
 }
 
@@ -10398,7 +10398,7 @@ button.equipment-slot-card:hover {
   min-height: 32px;
 }
 
-@media (max-height: 620px) and (min-width: 721px) {
+@container game-viewport (max-height: 620px) and (min-width: 721px) {
   .shop-panel {
     grid-template-rows: 66px 36px minmax(0, 1fr) 32px;
   }
@@ -10417,10 +10417,10 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 760px) {
+@container game-viewport (max-width: 760px) {
   .shop-panel {
-    height: calc(100dvh - 16px);
-    max-height: calc(100dvh - 16px);
+    height: calc(100cqh - 16px);
+    max-height: calc(100cqh - 16px);
   }
 
   .shop-layout {
@@ -10437,15 +10437,15 @@ button.equipment-slot-card:hover {
   }
 
   .shop-product-grid {
-    max-height: min(52dvh, 460px);
+    max-height: min(52cqh, 460px);
   }
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen-panel {
     grid-template-rows: 64px minmax(0, 1fr) 25px;
-    width: calc(100vw - 12px);
-    height: calc(100dvh - 12px);
+    width: calc(100cqw - 12px);
+    height: calc(100cqh - 12px);
     min-height: 0;
   }
 
@@ -10456,7 +10456,7 @@ button.equipment-slot-card:hover {
   }
 
   .inventory-screen-title {
-    font-size: clamp(17px, 4vw, 23px);
+    font-size: clamp(17px, 4cqw, 23px);
   }
 
   .inventory-screen-kicker {
@@ -10555,7 +10555,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-height: 680px) and (min-width: 901px) {
+@container game-viewport (max-height: 680px) and (min-width: 901px) {
   .inventory-screen-panel {
     grid-template-rows: 62px minmax(0, 1fr) 25px;
     min-height: 0;
@@ -10595,7 +10595,7 @@ button.equipment-slot-card:hover {
   padding-right: 10px;
 }
 
-@media (max-height: 520px) {
+@container game-viewport (max-height: 520px) {
   .inventory-screen-panel {
     grid-template-rows: 54px minmax(0, 1fr) 22px;
   }
@@ -10648,7 +10648,7 @@ button.equipment-slot-card:hover {
 .game-confirmation-dialog {
   position: relative;
   isolation: isolate;
-  width: min(500px, calc(100vw - 40px));
+  width: min(500px, calc(100cqw - 40px));
   overflow: hidden;
   padding: 34px 34px 25px;
   color: #e8ddc7;
@@ -10695,7 +10695,7 @@ button.equipment-slot-card:hover {
   margin: 8px 0 9px;
   color: #f0e4cb;
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(23px, 3vw, 31px);
+  font-size: clamp(23px, 3cqw, 31px);
   font-weight: 500;
   letter-spacing: -0.035em;
 }
@@ -11053,13 +11053,13 @@ button.equipment-slot-card:hover {
   aspect-ratio: 1;
 }
 
-@media (max-width: 1240px) {
+@container game-viewport (max-width: 1240px) {
   .inventory-screen-grid {
     --inventory-slot-gap: 6px;
   }
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen-grid-viewport {
     padding: 8px 11px 14px 8px;
   }
@@ -11243,7 +11243,7 @@ button.equipment-slot-card:hover {
   white-space: nowrap;
 }
 
-@media (max-height: 780px) {
+@container game-viewport (max-height: 780px) {
   .inventory-screen-affix-breakdown,
   .inventory-screen-tooltip-affixes > .inventory-screen-affix-breakdown {
     min-height: 26px;
@@ -11439,7 +11439,7 @@ button.equipment-slot-card:hover {
   padding-inline: 14px;
 }
 
-@media (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
+@container game-viewport (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
   .inventory-screen-enhancement {
     padding: 7px 9px 8px 7px;
   }
@@ -11529,7 +11529,7 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-confirm-dialog,
 .game-confirmation-dialog {
-  max-height: calc(100dvh - 36px);
+  max-height: calc(100cqh - 36px);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -11543,7 +11543,7 @@ button.equipment-slot-card:hover {
 }
 
 .inventory-screen-tooltip-scroll {
-  max-height: calc(100dvh - 60px);
+  max-height: calc(100cqh - 60px);
   padding-right: 5px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -11554,7 +11554,7 @@ button.equipment-slot-card:hover {
   scrollbar-width: thin;
 }
 
-@media (max-width: 760px) {
+@container game-viewport (max-width: 760px) {
   .shop-layout {
     display: block;
     overflow-y: auto;
@@ -11579,7 +11579,7 @@ button.equipment-slot-card:hover {
    Narrow and short screens scroll the archive instead of deleting the
    workbench. Every touch layout therefore retains explicit inspect,
    enhance, salvage, equip, and unequip controls. */
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen-layout {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(360px, auto) minmax(420px, auto) minmax(430px, auto);
@@ -11622,7 +11622,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-height: 680px) and (min-width: 901px) {
+@container game-viewport (max-height: 680px) and (min-width: 901px) {
   .inventory-screen-layout {
     align-items: start;
     overflow-x: hidden;
@@ -11649,7 +11649,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
+@container game-viewport (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
   .inventory-screen-detail-content {
     grid-template-rows: auto minmax(0, 1fr);
   }
@@ -11765,7 +11765,7 @@ button.equipment-slot-card:hover {
   top: -20%;
   bottom: -20%;
   left: 50%;
-  width: min(19vw, 260px);
+  width: min(19cqw, 260px);
   inset-inline-end: auto;
   opacity: 0;
   background: linear-gradient(
@@ -11784,12 +11784,12 @@ button.equipment-slot-card:hover {
 
 .profession-ceremony-pillar--left {
   --profession-pillar-rotation: -8deg;
-  margin-left: min(-24vw, -190px);
+  margin-left: min(-24cqw, -190px);
 }
 
 .profession-ceremony-pillar--right {
   --profession-pillar-rotation: 8deg;
-  margin-left: max(24vw, 190px);
+  margin-left: max(24cqw, 190px);
 }
 
 .profession-ceremony-sigil-stage {
@@ -11993,9 +11993,9 @@ button.equipment-slot-card:hover {
 .profession-ceremony-revelation {
   position: absolute;
   z-index: 12;
-  right: 5vw;
-  bottom: clamp(32px, 8vh, 100px);
-  left: 5vw;
+  right: 5cqw;
+  bottom: clamp(32px, 8cqh, 100px);
+  left: 5cqw;
   display: grid;
   justify-items: center;
   text-align: center;
@@ -12009,21 +12009,21 @@ button.equipment-slot-card:hover {
 .profession-ceremony-revelation::after {
   position: absolute;
   top: 51%;
-  width: min(25vw, 330px);
+  width: min(25cqw, 330px);
   height: 1px;
   background: linear-gradient(90deg, transparent, var(--profession-ceremony-gold));
   box-shadow: 0 0 12px var(--profession-color);
   content: "";
 }
 
-.profession-ceremony-revelation::before { right: calc(50% + min(25vw, 280px)); }
-.profession-ceremony-revelation::after { left: calc(50% + min(25vw, 280px)); transform: scaleX(-1); }
+.profession-ceremony-revelation::before { right: calc(50% + min(25cqw, 280px)); }
+.profession-ceremony-revelation::after { left: calc(50% + min(25cqw, 280px)); transform: scaleX(-1); }
 
 .profession-ceremony-revelation > p {
   margin: 0 0 8px;
   color: color-mix(in srgb, var(--profession-color) 60%, #ffe5a1);
   font-family: Georgia, serif;
-  font-size: clamp(9px, 1vw, 13px);
+  font-size: clamp(9px, 1cqw, 13px);
   font-weight: 700;
   letter-spacing: 0.34em;
   text-shadow: 0 0 12px var(--profession-color);
@@ -12033,7 +12033,7 @@ button.equipment-slot-card:hover {
   display: block;
   margin-bottom: 1px;
   color: #fff0bd;
-  font-size: clamp(13px, 1.5vw, 20px);
+  font-size: clamp(13px, 1.5cqw, 20px);
   font-weight: 800;
   letter-spacing: 0.62em;
   text-indent: 0.62em;
@@ -12046,7 +12046,7 @@ button.equipment-slot-card:hover {
   margin: 0;
   color: #fff7df;
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(42px, 7vw, 94px);
+  font-size: clamp(42px, 7cqw, 94px);
   font-weight: 700;
   letter-spacing: 0.09em;
   line-height: 1.08;
@@ -12061,7 +12061,7 @@ button.equipment-slot-card:hover {
   margin-top: 8px;
   color: rgba(255, 238, 199, 0.88);
   font-family: Georgia, "Nanum Myeongjo", serif;
-  font-size: clamp(12px, 1.45vw, 19px);
+  font-size: clamp(12px, 1.45cqw, 19px);
   font-weight: 500;
   letter-spacing: 0.08em;
 }
@@ -12071,7 +12071,7 @@ button.equipment-slot-card:hover {
   border-top: 1px solid rgba(255, 231, 178, 0.34);
   padding: 8px 24px 0;
   color: rgba(228, 215, 185, 0.72);
-  font-size: clamp(10px, 1vw, 13px);
+  font-size: clamp(10px, 1cqw, 13px);
   letter-spacing: 0.08em;
 }
 
@@ -12182,7 +12182,7 @@ button.equipment-slot-card:hover {
   100% { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
 
-@media (max-width: 720px), (max-height: 650px) {
+@container game-viewport (max-width: 720px) or (max-height: 650px) {
   .profession-ceremony-sigil-stage {
     top: 39%;
     width: min(72vmin, 560px);
@@ -12205,12 +12205,12 @@ button.equipment-slot-card:hover {
   }
 
   .profession-ceremony-revelation h2 {
-    font-size: clamp(34px, 11vw, 62px);
+    font-size: clamp(34px, 11cqw, 62px);
     letter-spacing: 0.04em;
   }
 
   .profession-ceremony-revelation > strong {
-    max-width: 92vw;
+    max-width: 92cqw;
   }
 }
 
@@ -12426,7 +12426,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-resonance-transition__tier--mythic b { color: #ff7ed1; }
 .inventory-screen-resonance-transition__tier--cosmic b { color: #7eeeff; }
 
-@media (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
+@container game-viewport (min-height: 681px) and (max-height: 800px) and (min-width: 901px) {
   .inventory-screen-resonance-summary {
     grid-template-columns: repeat(2, auto);
   }
@@ -12444,7 +12444,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-height: 680px) and (min-width: 901px) {
+@container game-viewport (max-height: 680px) and (min-width: 901px) {
   .inventory-screen-resonance-summary {
     grid-template-columns: repeat(2, auto);
   }
@@ -12463,7 +12463,7 @@ button.equipment-slot-card:hover {
   }
 }
 
-@media (max-width: 900px) {
+@container game-viewport (max-width: 900px) {
   .inventory-screen-equipment-summary {
     width: 100%;
     justify-items: stretch;

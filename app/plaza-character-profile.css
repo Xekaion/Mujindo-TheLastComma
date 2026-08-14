@@ -4,7 +4,7 @@
   inset: 0;
   display: grid;
   place-items: center;
-  padding: clamp(12px, 2.4vw, 34px);
+  padding: clamp(12px, 2.4cqw, 34px);
   color: #ece7dc;
   background:
     radial-gradient(circle at 50% 42%, rgba(88, 27, 32, .18), transparent 45%),
@@ -17,8 +17,8 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(1320px, 96vw);
-  max-height: min(900px, 94dvh);
+  width: min(1320px, 96cqw);
+  max-height: min(900px, 94cqh);
   overflow: hidden;
   border: 1px solid rgba(205, 170, 93, .58);
   outline: 1px solid rgba(255, 255, 255, .04);
@@ -68,7 +68,7 @@
 .plaza-character-profile__header h2 {
   margin: 3px 0 0;
   color: #f4ead4;
-  font: 700 clamp(22px, 2.3vw, 31px) "Noto Serif KR", Georgia, serif;
+  font: 700 clamp(22px, 2.3cqw, 31px) "Noto Serif KR", Georgia, serif;
   letter-spacing: -.035em;
 }
 
@@ -137,7 +137,7 @@
 
 .plaza-character-profile__identity dl {
   display: flex;
-  gap: clamp(18px, 4vw, 58px);
+  gap: clamp(18px, 4cqw, 58px);
   margin: 0;
 }
 
@@ -399,7 +399,7 @@ button.plaza-character-profile__slot:hover,
 .plaza-character-profile__detail-heading h3 {
   margin: 5px 0 7px;
   color: var(--profile-rarity);
-  font: 700 clamp(17px, 1.5vw, 21px) "Noto Serif KR", Georgia, serif;
+  font: 700 clamp(17px, 1.5cqw, 21px) "Noto Serif KR", Georgia, serif;
   line-height: 1.3;
   overflow-wrap: anywhere;
 }
@@ -579,7 +579,7 @@ button.plaza-character-profile__slot:hover,
   to { transform: rotate(360deg); }
 }
 
-@media (max-width: 1080px) {
+@container game-viewport (max-width: 1080px) {
   .plaza-character-profile__content {
     grid-template-columns: minmax(210px, .72fr) minmax(360px, 1.28fr);
     overflow-y: auto;
@@ -591,14 +591,14 @@ button.plaza-character-profile__slot:hover,
   }
 }
 
-@media (max-width: 760px) {
+@container game-viewport (max-width: 760px) {
   .plaza-character-profile {
     padding: 7px;
   }
 
   .plaza-character-profile__panel {
     width: 100%;
-    max-height: calc(100dvh - 14px);
+    max-height: calc(100cqh - 14px);
   }
 
   .plaza-character-profile__header {
@@ -668,7 +668,7 @@ button.plaza-character-profile__slot:hover,
   }
 }
 
-@media (max-width: 440px) {
+@container game-viewport (max-width: 440px) {
   .plaza-character-profile__identity dl {
     grid-template-columns: 1fr 1fr;
   }

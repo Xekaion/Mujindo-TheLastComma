@@ -253,7 +253,7 @@ test("world announcement CSS keeps full-opacity top-layer atlas animation and mo
   assert.match(reducedMotion, /world-announcement-art/);
   assert.match(reducedMotion, /animation(?:-play-state)?:\s*(?:none|paused)(?:\s*!important)?/);
 
-  const mobile = cssBlock(css, "@media (max-width: 700px)");
+  const mobile = cssBlock(css, "@container game-viewport (max-width: 700px)");
   const mobileCopy = cssBlock(mobile, ".world-announcement p");
   const pixelSizes = [...mobileCopy.matchAll(/font-size:[^;]*?(\d+(?:\.\d+)?)px/g)].map(
     (match) => Number(match[1]),

@@ -30,6 +30,7 @@ test("server-renders character selection before any playable mode", async () => 
 
   const html = await response.text();
   assert.match(html, /<html lang="ko">/i);
+  assert.match(html, /<body class="game-viewport" data-game-aspect="16:9">/i);
   assert.match(html, /<title>무진도: 마지막 쉼표<\/title>/i);
   assert.match(html, /class="character-entry"/);
   assert.match(html, /data-character-entry-state="loading"/);

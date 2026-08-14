@@ -85,7 +85,7 @@
   position: absolute;
   right: 0;
   bottom: 66px;
-  width: min(322px, calc(100vw - 32px));
+  width: min(322px, calc(100cqw - 32px));
   padding: 18px;
   border-radius: 4px;
   animation: audio-panel-in 170ms ease-out both;
@@ -209,7 +209,7 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (max-width: 720px) {
+@container game-viewport (max-width: 720px) {
   .audio-dock {
     right: max(10px, env(safe-area-inset-right));
     bottom: max(92px, calc(env(safe-area-inset-bottom) + 78px));
@@ -235,7 +235,7 @@
 }
 
 .audio-dock__panel {
-  max-height: calc(100dvh - 104px);
+  max-height: calc(100cqh - 104px);
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -253,8 +253,8 @@
   font-size: 11px;
 }
 
-@media (max-width: 720px) {
+@container game-viewport (max-width: 720px) {
   .audio-dock__panel {
-    max-height: calc(100dvh - 176px);
+    max-height: calc(100cqh - 176px);
   }
 }

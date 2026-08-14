@@ -5101,7 +5101,7 @@ test("the minimap uses one fixed 99x99 floor and reveals stairs only after conqu
   assert.match(css, /\.minimap-grid \{[\s\S]*?width: 84px;[\s\S]*?height: 84px;/);
   assert.match(
     css,
-    /@media \(max-width: 620px\)[\s\S]*?\.minimap-grid:not\(\.is-large\) \{[\s\S]*?width: 70px;[\s\S]*?height: 70px;/,
+    /@container game-viewport \(max-width: 620px\)[\s\S]*?\.minimap-grid:not\(\.is-large\) \{[\s\S]*?width: 70px;[\s\S]*?height: 70px;/,
   );
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-columns/);
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-rows/);
@@ -6810,7 +6810,7 @@ test("the backpack renders one continuous keyboard-scrollable slot grid", async 
   );
   assert.match(
     scrollCss,
-    /@media\s*\(max-width:\s*900px\)[\s\S]{0,420}?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
+    /@container\s+game-viewport\s*\(max-width:\s*900px\)[\s\S]{0,420}?grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/,
     "the continuous list must remain usable on the compact inventory layout",
   );
 });
@@ -7023,7 +7023,7 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   );
   assert.match(
     geometryContract,
-    /@media\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*minmax\(320px,\s*1\.1fr\)\s+minmax\(210px,\s*0\.9fr\)/,
+    /@container\s+game-viewport\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*minmax\(320px,\s*1\.1fr\)\s+minmax\(210px,\s*0\.9fr\)/,
     "low desktop layouts must reserve the larger share for five safe paperdoll rows",
   );
 });
@@ -7043,8 +7043,8 @@ test("dense game surfaces keep readable text floors and viewport-owned scrolling
 
   assert.match(
     gameCss,
-    /\.menu-screen,\s*\n\.game-screen\s*\{[^}]*height:\s*100dvh;[^}]*min-height:\s*min\(620px,\s*100dvh\);/,
-    "the game shell must never keep a 620px canvas when the visible viewport is shorter",
+    /\.menu-screen,\s*\n\.game-screen\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*min-height:\s*0;/,
+    "the game shell must fill the shared 16:9 frame without enforcing a clipped minimum height",
   );
   assert.match(
     gameCss.slice(gameCss.indexOf("Final inventory text floor V6")),
@@ -7055,7 +7055,7 @@ test("dense game surfaces keep readable text floors and viewport-owned scrolling
   const shopContract = gameCss.slice(gameCss.indexOf("Shop and residual game UI readability contract V1"));
   assert.match(
     shopContract,
-    /\.shop-panel\s*\{[^}]*min-height:\s*0;[^}]*max-height:\s*calc\(100dvh\s*-\s*24px\);[^}]*grid-template-rows:\s*78px\s+40px\s+minmax\(0,\s*1fr\)\s+32px;/,
+    /\.shop-panel\s*\{[^}]*min-height:\s*0;[^}]*max-height:\s*calc\(100cqh\s*-\s*24px\);[^}]*grid-template-rows:\s*78px\s+40px\s+minmax\(0,\s*1fr\)\s+32px;/,
     "the desktop shop must fit inside the viewport instead of enforcing a clipped minimum height",
   );
   assert.match(
@@ -7072,12 +7072,12 @@ test("dense game surfaces keep readable text floors and viewport-owned scrolling
   assert.match(shopContract, /\.shop-buy,[\s\S]{0,180}?font-size:\s*12px;/);
   assert.match(
     gameCss,
-    /@media\s*\(max-width:\s*760px\)\s*\{[\s\S]{0,900}?\.shop-layout\s*\{[^}]*display:\s*block;[^}]*overflow-y:\s*auto;/,
+    /@container\s+game-viewport\s*\(max-width:\s*760px\)\s*\{[\s\S]{0,900}?\.shop-layout\s*\{[^}]*display:\s*block;[^}]*overflow-y:\s*auto;/,
     "the shop must leave its two-column minimum-width layout before the 721px clipping band",
   );
   assert.match(
     gameCss,
-    /@media\s*\(max-width:\s*978px\)\s*\{\s*\.shop-layout\s*\{[^}]*minmax\(390px,\s*1fr\)\s+270px;/,
+    /@container\s+game-viewport\s*\(max-width:\s*978px\)\s*\{\s*\.shop-layout\s*\{[^}]*minmax\(390px,\s*1fr\)\s+270px;/,
     "the shop must leave its three-column layout before the 961-978px clipping band",
   );
   assert.match(
@@ -7091,10 +7091,10 @@ test("dense game surfaces keep readable text floors and viewport-owned scrolling
 
   assert.match(
     plazaCss,
-    /@media\s*\(max-height:\s*620px\)\s*and\s*\(min-width:\s*821px\)[\s\S]*?\.plaza-portal-directory\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*112px\);[^}]*overflow-y:\s*auto;/,
+    /@container\s+game-viewport\s*\(max-height:\s*620px\)\s*and\s*\(min-width:\s*821px\)[\s\S]*?\.plaza-portal-directory\s*\{[^}]*max-height:\s*calc\(100cqh\s*-\s*112px\);[^}]*overflow-y:\s*auto;/,
   );
   assert.match(statsCss, /Readability audit:[\s\S]*?\.stats-row dt > span,[\s\S]*?font-size:\s*12px;/);
-  assert.match(audioCss, /\.audio-dock__panel\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*104px\);[^}]*overflow-y:\s*auto;/);
+  assert.match(audioCss, /\.audio-dock__panel\s*\{[^}]*max-height:\s*calc\(100cqh\s*-\s*104px\);[^}]*overflow-y:\s*auto;/);
   assert.match(characterCss, /\.character-entry\s*\{[^}]*overflow-y:\s*auto;/);
   assert.match(pvpCss, /\.pvp-screen\s*\{[^}]*overflow-y:\s*auto;/);
   assert.match(marketCss, /Readability audit:[\s\S]*?\.market-screen small,[\s\S]*?font-size:\s*10px;/);
@@ -7107,29 +7107,29 @@ test("dense game surfaces keep readable text floors and viewport-owned scrolling
   );
   assert.match(
     portalledContract,
-    /\.inventory-screen-confirm-dialog,[\s\S]{0,80}?\.game-confirmation-dialog\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*36px\);[^}]*overflow-y:\s*auto;/,
+    /\.inventory-screen-confirm-dialog,[\s\S]{0,80}?\.game-confirmation-dialog\s*\{[^}]*max-height:\s*calc\(100cqh\s*-\s*36px\);[^}]*overflow-y:\s*auto;/,
     "confirmation dialogs must own overflow on short viewports",
   );
   assert.match(
     portalledContract,
-    /\.inventory-screen-tooltip-scroll\s*\{[^}]*max-height:\s*calc\(100dvh\s*-\s*60px\);[^}]*overflow-y:\s*auto;/,
+    /\.inventory-screen-tooltip-scroll\s*\{[^}]*max-height:\s*calc\(100cqh\s*-\s*60px\);[^}]*overflow-y:\s*auto;/,
     "long hover details must own a viewport-bounded scroll region",
   );
 
   const compactInventoryContract = gameCss.slice(gameCss.indexOf("Compact inventory access contract V8"));
   assert.match(
     compactInventoryContract,
-    /@media\s*\(max-width:\s*900px\)[\s\S]{0,1100}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
+    /@container\s+game-viewport\s*\(max-width:\s*900px\)[\s\S]{0,1100}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
     "narrow touch layouts must retain the explicit equipment workbench",
   );
   assert.match(
     compactInventoryContract,
-    /@media\s*\(max-width:\s*900px\)[\s\S]{0,1800}?\.inventory-screen-detail-stats\s*\{[^}]*display:\s*block;/,
+    /@container\s+game-viewport\s*\(max-width:\s*900px\)[\s\S]{0,1800}?\.inventory-screen-detail-stats\s*\{[^}]*display:\s*block;/,
     "narrow touch layouts must keep the full option list visible and scrollable",
   );
   assert.match(
     compactInventoryContract,
-    /@media\s*\(max-height:\s*680px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,1000}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
+    /@container\s+game-viewport\s*\(max-height:\s*680px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,1000}?\.inventory-screen-details\s*\{[^}]*display:\s*grid;/,
     "short desktop layouts must scroll to the workbench instead of deleting it",
   );
 });
@@ -7573,11 +7573,11 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   assert.match(finalCss, /--inventory-paperdoll-slot-cap:\s*76px;/);
   assert.match(finalCss, /--inventory-paperdoll-aura-safe:\s*32px;/);
   assert.match(finalCss, /grid-template-rows:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/);
-  assert.match(finalCss, /--inventory-paperdoll-row-spread:\s*clamp\(3px,\s*0\.65vh,\s*5px\);/);
-  assert.match(finalCss, /--inventory-paperdoll-row-spread-double:\s*clamp\(6px,\s*1\.3vh,\s*10px\);/);
+  assert.match(finalCss, /--inventory-paperdoll-row-spread:\s*clamp\(3px,\s*0\.65cqh,\s*5px\);/);
+  assert.match(finalCss, /--inventory-paperdoll-row-spread-double:\s*clamp\(6px,\s*1\.3cqh,\s*10px\);/);
   assert.match(
     finalCss,
-    /@media \(min-width:\s*901px\)[\s\S]{0,900}?equipment-card--helm,[\s\S]{0,120}?equipment-card--relic\s*\{[^}]*translate:\s*0\s+calc\(0px\s*-\s*var\(--inventory-paperdoll-row-spread-double\)\);[\s\S]{0,700}?equipment-card--belt,[\s\S]{0,120}?equipment-card--boots\s*\{[^}]*translate:\s*0\s+var\(--inventory-paperdoll-row-spread-double\);/,
+    /@container game-viewport \(min-width:\s*901px\)[\s\S]{0,900}?equipment-card--helm,[\s\S]{0,120}?equipment-card--relic\s*\{[^}]*translate:\s*0\s+calc\(0px\s*-\s*var\(--inventory-paperdoll-row-spread-double\)\);[\s\S]{0,700}?equipment-card--belt,[\s\S]{0,120}?equipment-card--boots\s*\{[^}]*translate:\s*0\s+var\(--inventory-paperdoll-row-spread-double\);/,
     "desktop paperdoll rows must spread symmetrically into the available top and bottom room",
   );
   assert.match(finalCss, /padding-block:\s*var\(--inventory-paperdoll-aura-safe\);/);
@@ -7586,7 +7586,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     finalCss,
     /\.inventory-screen-equipment-card\s*\{[\s\S]{0,520}?width:\s*auto;[\s\S]{0,100}?height:\s*100%;[\s\S]{0,160}?max-width:\s*var\(--inventory-paperdoll-slot-cap\);[\s\S]{0,160}?aspect-ratio:\s*1;/,
   );
-  assert.match(finalCss, /@media \(max-width:\s*1240px\)[\s\S]{0,1100}?--inventory-paperdoll-slot-cap:\s*66px;[\s\S]{0,120}?--inventory-paperdoll-aura-safe:\s*30px;/);
+  assert.match(finalCss, /@container game-viewport \(max-width:\s*1240px\)[\s\S]{0,1100}?--inventory-paperdoll-slot-cap:\s*66px;[\s\S]{0,120}?--inventory-paperdoll-aura-safe:\s*30px;/);
   assert.doesNotMatch(
     finalCss,
     /grid-template-rows:\s*repeat\(5,\s*var\(--inventory-paperdoll-slot-size\)\)/,
@@ -7594,7 +7594,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.doesNotMatch(
     finalCss.slice(0, finalCss.indexOf("/* rarity-frames.png")),
-    /--inventory-paperdoll-slot-(?:cap|size):[\s\S]{0,180}?cq[wh]/,
+    /--inventory-paperdoll-slot-(?:cap|size):[^;\n]*cq[wh]/,
     "slot caps must not resolve differently between the size container and its children",
   );
   assert.match(finalCss, /\.inventory-screen-equipment-card\s*\{[\s\S]{0,420}?overflow:\s*visible;/);
@@ -7628,7 +7628,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*2;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
   assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
   assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/inventory-chrome\/tooltip-panel\.png"\)/);
-  assert.match(finalCss, /@media \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);
+  assert.match(finalCss, /@container game-viewport \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);
 });
 
 test("the explicit level curve accelerates both absolute and relative XP requirements late-game", async () => {

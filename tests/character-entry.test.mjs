@@ -151,6 +151,6 @@ test("the character portrait asset and responsive entry treatment are present", 
 
   assert.match(css, /url\("\/assets\/ui\/inventory-paperdoll-figure\.png"\)/);
   assert.match(css, /\.character-entry-card\.is-selected/);
-  assert.match(css, /@media \(max-width: 700px\)/);
+  assert.match(css, /@container game-viewport \(max-width: 700px\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });

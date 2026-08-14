@@ -4,7 +4,7 @@
   z-index: 300;
   display: grid;
   place-items: center;
-  padding: clamp(12px, 2vh, 24px);
+  padding: clamp(12px, 2cqh, 24px);
   color: #eee5d1;
   background:
     radial-gradient(circle at 50% 42%, rgba(83, 113, 105, 0.16), transparent 42%),
@@ -25,8 +25,8 @@
   position: relative;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  width: min(1220px, calc(100vw - 24px));
-  height: min(900px, calc(100dvh - 24px));
+  width: min(1220px, calc(100cqw - 24px));
+  height: min(900px, calc(100cqh - 24px));
   min-height: 590px;
   overflow: hidden;
   border: 1px solid rgba(205, 177, 111, 0.58);
@@ -147,7 +147,7 @@
   margin: 2px 0 1px;
   color: #f2e7cc;
   font-family: Georgia, "Noto Serif KR", "Nanum Myeongjo", serif;
-  font-size: clamp(21px, 2vw, 29px);
+  font-size: clamp(21px, 2cqw, 29px);
   font-weight: 600;
   letter-spacing: -0.04em;
 }
@@ -306,7 +306,7 @@
   display: block;
   margin: 1px 0;
   color: #f0d596;
-  font: 700 clamp(18px, 1.7vw, 24px)/1.05 Georgia, serif;
+  font: 700 clamp(18px, 1.7cqw, 24px)/1.05 Georgia, serif;
   font-variant-numeric: tabular-nums;
 }
 
@@ -586,7 +586,7 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@media (max-width: 980px) {
+@container game-viewport (max-width: 980px) {
   .stats-dialog {
     min-height: 0;
   }
@@ -617,14 +617,14 @@
   }
 }
 
-@media (max-width: 680px) {
+@container game-viewport (max-width: 680px) {
   .stats-backdrop {
     padding: 0;
   }
 
   .stats-dialog {
-    width: 100vw;
-    height: 100dvh;
+    width: 100cqw;
+    height: 100cqh;
     border: 0;
     border-radius: 0;
   }
@@ -682,10 +682,10 @@
   }
 }
 
-@media (max-height: 700px) and (min-width: 981px) {
+@container game-viewport (max-height: 700px) and (min-width: 981px) {
   .stats-dialog {
-    min-height: calc(100dvh - 12px);
-    height: calc(100dvh - 12px);
+    min-height: calc(100cqh - 12px);
+    height: calc(100cqh - 12px);
   }
 
   .stats-backdrop {
@@ -888,13 +888,13 @@
   color: currentColor;
 }
 
-@media (max-width: 680px) {
+@container game-viewport (max-width: 680px) {
   .stats-resonance-grid {
     padding: 7px;
   }
 }
 
-@media (max-height: 700px) and (min-width: 981px) {
+@container game-viewport (max-height: 700px) and (min-width: 981px) {
   .stats-resonance-grid {
     gap: 6px;
     padding-block: 6px;

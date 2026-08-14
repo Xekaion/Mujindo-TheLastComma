@@ -867,8 +867,8 @@ export default function PlazaHub({
     const resize = () => {
       const rect = root.getBoundingClientRect();
       const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-      const width = Math.max(320, rect.width);
-      const height = Math.max(320, rect.height);
+      const width = Math.max(1, rect.width);
+      const height = Math.max(1, rect.height);
       viewportRef.current = { width, height, dpr };
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);

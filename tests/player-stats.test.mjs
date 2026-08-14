@@ -793,7 +793,7 @@ test("the detailed stats dialog is keyboard-safe, mutually exclusive, and comple
   }
 
   assert.match(css, /grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(css, /@media \(max-width: 680px\)/);
+  assert.match(css, /@container game-viewport \(max-width: 680px\)/);
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(stats, /currentIncomingMultiplier/);
   assert.match(stats, /expectedPrimaryDps/);
