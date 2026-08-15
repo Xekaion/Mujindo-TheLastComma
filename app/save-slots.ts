@@ -1,11 +1,16 @@
 export const LEGACY_SAVE_KEY = "mujindo:last-comma:save-v1";
 export const SAVE_SLOT_KEY_PREFIX = "mujindo:last-comma:save-v2:slot:";
+export const SAVE_RECOVERY_KEY_PREFIX =
+  "mujindo:last-comma:save-recovery-v1:slot:";
 export const ACTIVE_SAVE_SLOT_KEY = "mujindo:last-comma:active-save-slot-v1";
 export const SAVE_SLOT_IDS = [1, 2, 3] as const;
+export const SAVE_RECOVERY_GENERATIONS = [1, 2, 3] as const;
 export const SAVE_AUGMENT_STACK_CAP = 20;
 export const DEFAULT_DUNGEON_FLOOR = 1;
 
 export type SaveSlotId = (typeof SAVE_SLOT_IDS)[number];
+export type SaveRecoveryGeneration =
+  (typeof SAVE_RECOVERY_GENERATIONS)[number];
 
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
@@ -42,6 +47,14 @@ export type SaveSlotSummary = {
   profession: string | null;
   inventoryItems: number;
   equippedItems: number;
+};
+
+export type SaveRecoveryCandidate = {
+  slot: SaveSlotId;
+  generation: SaveRecoveryGeneration;
+  raw: string;
+  save: SaveRunPayload;
+  summary: SaveSlotSummary;
 };
 
 export type LegacyMigrationResult =
@@ -130,6 +143,32 @@ export function saveSlotKey(slot: SaveSlotId): string {
     throw new RangeError(`Invalid save slot: ${String(slot)}`);
   }
   return `${SAVE_SLOT_KEY_PREFIX}${slot}`;
+}
+
+export function saveRecoveryKey(
+  slot: SaveSlotId,
+  generation: SaveRecoveryGeneration = 1,
+): string {
+  if (!isSaveSlotId(slot)) {
+    throw new RangeError(`Invalid save slot: ${String(slot)}`);
+  }
+  if (!SAVE_RECOVERY_GENERATIONS.includes(generation)) {
+    throw new RangeError(`Invalid save recovery generation: ${String(generation)}`);
+  }
+  return `${SAVE_RECOVERY_KEY_PREFIX}${slot}:${generation}`;
+}
+
+export function hasSaveSlotData(
+  slot: SaveSlotId,
+  storage?: StorageLike | null,
+): boolean {
+  const target = resolveStorage(storage);
+  if (!target) return false;
+  try {
+    return target.getItem(saveSlotKey(slot)) !== null;
+  } catch {
+    return false;
+  }
 }
 
 export function readActiveSaveSlot(
@@ -298,11 +337,23 @@ export function writeSaveSlot(
   if (!target) return false;
 
   try {
-    target.setItem(
-      saveSlotKey(slot),
-      JSON.stringify(normalizeSaveRunPayload(save)),
-    );
-    return true;
+    const key = saveSlotKey(slot);
+    const previousRaw = target.getItem(key);
+    const nextRaw = JSON.stringify(normalizeSaveRunPayload(save));
+    if (previousRaw === nextRaw) return true;
+    if (
+      previousRaw !== null &&
+      !preserveSaveSlotRaw(slot, previousRaw, target)
+    ) {
+      return false;
+    }
+
+    target.setItem(key, nextRaw);
+    if (target.getItem(key) === nextRaw) return true;
+
+    if (previousRaw === null) target.removeItem(key);
+    else target.setItem(key, previousRaw);
+    return false;
   } catch {
     return false;
   }
@@ -338,8 +389,95 @@ export function removeSaveSlot(
   const target = resolveStorage(storage);
   if (!target) return false;
   try {
-    target.removeItem(saveSlotKey(slot));
-    return true;
+    const key = saveSlotKey(slot);
+    const previousRaw = target.getItem(key);
+    if (previousRaw === null) return true;
+    if (!preserveSaveSlotRaw(slot, previousRaw, target)) return false;
+    target.removeItem(key);
+    return target.getItem(key) === null;
+  } catch {
+    return false;
+  }
+}
+
+function preserveSaveSlotRaw(
+  slot: SaveSlotId,
+  raw: string,
+  storage: StorageLike,
+): boolean {
+  try {
+    const newestKey = saveRecoveryKey(slot, 1);
+    if (storage.getItem(newestKey) === raw) return true;
+
+    for (let index = SAVE_RECOVERY_GENERATIONS.length - 1; index >= 1; index -= 1) {
+      const destinationGeneration = SAVE_RECOVERY_GENERATIONS[index];
+      const sourceGeneration = SAVE_RECOVERY_GENERATIONS[index - 1];
+      const sourceRaw = storage.getItem(saveRecoveryKey(slot, sourceGeneration));
+      if (sourceRaw === null) continue;
+      const destinationKey = saveRecoveryKey(slot, destinationGeneration);
+      storage.setItem(destinationKey, sourceRaw);
+      if (storage.getItem(destinationKey) !== sourceRaw) return false;
+    }
+
+    storage.setItem(newestKey, raw);
+    return storage.getItem(newestKey) === raw;
+  } catch {
+    return false;
+  }
+}
+
+export function readSaveRecoveryCandidates(
+  storage?: StorageLike | null,
+): SaveRecoveryCandidate[] {
+  const target = resolveStorage(storage);
+  if (!target) return [];
+
+  const candidates: SaveRecoveryCandidate[] = [];
+  try {
+    for (const slot of SAVE_SLOT_IDS) {
+      for (const generation of SAVE_RECOVERY_GENERATIONS) {
+        const raw = target.getItem(saveRecoveryKey(slot, generation));
+        const save = parseSaveRun(raw);
+        if (raw === null || !save) continue;
+        candidates.push({
+          slot,
+          generation,
+          raw,
+          save,
+          summary: summarizeSaveSlot(slot, save),
+        });
+      }
+    }
+  } catch {
+    return [];
+  }
+  return candidates;
+}
+
+export function restoreSaveRecoveryCandidate(
+  sourceSlot: SaveSlotId,
+  generation: SaveRecoveryGeneration,
+  destinationSlot: SaveSlotId = sourceSlot,
+  storage?: StorageLike | null,
+): boolean {
+  const target = resolveStorage(storage);
+  if (!target) return false;
+
+  try {
+    const destinationKey = saveSlotKey(destinationSlot);
+    if (target.getItem(destinationKey) !== null) return false;
+    const raw = target.getItem(saveRecoveryKey(sourceSlot, generation));
+    if (raw === null || !parseSaveRun(raw)) return false;
+
+    target.setItem(destinationKey, raw);
+    if (
+      target.getItem(destinationKey) === raw &&
+      readSaveSlot(destinationSlot, target) !== null
+    ) {
+      return true;
+    }
+    target.removeItem(destinationKey);
+    return false;
   } catch {
     return false;
   }

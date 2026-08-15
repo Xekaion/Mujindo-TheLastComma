@@ -192,6 +192,7 @@ import {
 } from "./room-visuals";
 import {
   SAVE_SLOT_IDS,
+  hasSaveSlotData,
   markSaveSlotEndingSeen,
   migrateLegacySave,
   readSaveSlot,
@@ -3994,8 +3995,6 @@ export default function GameCanvas({
     if (isLocalVfxShowcase) return;
     activateSaveSlot(slot);
     const storedAutoSalvagePreference = readAutoSalvagePreference(slot);
-    removeSaveSlot(slot);
-    refreshSaveSlots();
     keysRef.current.clear();
     pendingStoryRef.current = null;
     pendingEndingRef.current = false;
@@ -4027,7 +4026,6 @@ export default function GameCanvas({
     activateSaveSlot,
     enterRoom,
     isLocalVfxShowcase,
-    refreshSaveSlots,
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
@@ -4068,12 +4066,30 @@ export default function GameCanvas({
     if (isLocalVfxShowcase) return;
     if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;
     initialSaveSlotHandledRef.current = true;
-    if (!loadSave(initialSaveSlot)) startNewRun(initialSaveSlot);
-  }, [initialSaveSlot, isLocalVfxShowcase, loadSave, startNewRun]);
+    if (loadSave(initialSaveSlot)) return;
+    if (!hasSaveSlotData(initialSaveSlot)) {
+      startNewRun(initialSaveSlot);
+      return;
+    }
+    activateSaveSlot(initialSaveSlot);
+    setMenuStage("archive");
+    setGameMode("menu");
+    setToast(
+      `${initialSaveSlot}번 슬롯의 원본 기록을 보존했습니다. 불러오기에 실패해 새 원정을 시작하지 않았습니다.`,
+    );
+  }, [
+    activateSaveSlot,
+    initialSaveSlot,
+    isLocalVfxShowcase,
+    loadSave,
+    setGameMode,
+    startNewRun,
+  ]);
 
   const retryFromShelter = useCallback(() => {
-    if (!loadSave()) startNewRun();
-  }, [loadSave, startNewRun]);
+    if (loadSave()) return;
+    setToast("마지막 쉼표 기록을 불러오지 못했습니다. 원본은 삭제하지 않았습니다.");
+  }, [loadSave]);
 
   const deleteSaveSlot = useCallback(
     (slot: SaveSlotId) => {
@@ -4082,12 +4098,15 @@ export default function GameCanvas({
         {
           eyebrow: "RECORD ERASURE",
           title: `${slot}번 기록을 지울까요?`,
-          body: "이 슬롯에 고정된 원정 기록은 되돌릴 수 없습니다.",
+          body: "활성 원정 기록은 지워지지만 마지막 보호본은 남습니다.",
           confirmLabel: "기록 삭제",
           tone: "danger",
         },
         () => {
-          removeSaveSlot(slot);
+          if (!removeSaveSlot(slot)) {
+            setToast(`${slot}번 슬롯을 지우지 못했습니다. 원본 기록은 그대로 보존했습니다.`);
+            return;
+          }
           refreshSaveSlots();
           setToast(`${slot}번 슬롯을 비웠습니다.`);
         },
@@ -10907,7 +10926,7 @@ export default function GameCanvas({
                                 {
                                   eyebrow: "NEW EXPEDITION",
                                   title: `${slot}번 기록을 덮어쓸까요?`,
-                                  body: "기존 원정 기록을 지우고 새로운 지도를 시작합니다.",
+                                  body: "기존 원정 기록은 보호본으로 남기고 새로운 지도를 시작합니다.",
                                   confirmLabel: "새 원정 시작",
                                   tone: "danger",
                                 },
@@ -11969,9 +11988,6 @@ export default function GameCanvas({
             <div className="modal-actions">
               <button className="primary-button compact" onClick={retryFromShelter}>
                 마지막 쉼표에서 재도전
-              </button>
-              <button className="text-button" onClick={() => startNewRun()}>
-                새 기억으로 시작
               </button>
             </div>
           </section>

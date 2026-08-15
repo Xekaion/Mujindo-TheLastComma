@@ -140,6 +140,24 @@
     inset 0 0 40px rgba(73, 176, 153, 0.08);
 }
 
+.character-entry-card.is-recoverable {
+  border-color: rgba(224, 185, 91, 0.58);
+  box-shadow: inset 0 0 34px rgba(203, 151, 43, 0.08);
+}
+
+.character-entry-card.is-recoverable.is-selected {
+  border-color: #f2ca6c;
+  box-shadow:
+    0 0 0 1px rgba(242, 202, 108, 0.26),
+    0 0 30px rgba(203, 151, 43, 0.2),
+    inset 0 0 40px rgba(203, 151, 43, 0.09);
+}
+
+.character-entry-card.is-unreadable {
+  border-color: rgba(190, 91, 74, 0.52);
+  box-shadow: inset 0 0 34px rgba(144, 43, 35, 0.09);
+}
+
 .character-entry-card-select {
   position: relative;
   display: grid;
@@ -193,6 +211,16 @@
   filter: grayscale(1) contrast(1.15);
 }
 
+.character-entry-card.is-recoverable .character-entry-portrait::before {
+  opacity: 0.48;
+  filter: sepia(0.28) saturate(1.2) contrast(1.08);
+}
+
+.character-entry-card.is-unreadable .character-entry-portrait::before {
+  opacity: 0.22;
+  filter: grayscale(0.82) sepia(0.25) contrast(1.15);
+}
+
 .character-entry-portrait i {
   position: absolute;
   inset: 0;
@@ -225,6 +253,14 @@
 
 .character-entry-card.is-empty .character-entry-card-copy b {
   color: rgba(205, 178, 119, 0.66);
+}
+
+.character-entry-card.is-recoverable .character-entry-card-copy b {
+  color: #f2ca6c;
+}
+
+.character-entry-card.is-unreadable .character-entry-card-copy b {
+  color: #e58d79;
 }
 
 .character-entry-card-copy small,
@@ -281,6 +317,25 @@
   text-decoration: underline;
 }
 
+.character-entry-new-run {
+  position: absolute;
+  bottom: 10px;
+  left: 12px;
+  z-index: 2;
+  border: 0;
+  padding: 5px 7px;
+  cursor: pointer;
+  color: rgba(232, 202, 130, 0.7);
+  background: transparent;
+  font-size: 9px;
+}
+
+.character-entry-new-run:hover,
+.character-entry-new-run:focus-visible {
+  color: #ffe3a3;
+  text-decoration: underline;
+}
+
 .character-entry-footer {
   display: flex;
   align-items: center;
@@ -295,6 +350,11 @@
   margin: 0;
   color: rgba(231, 219, 194, 0.62);
   font-size: 11px;
+}
+
+.character-entry-footer .character-entry-recovery-error {
+  max-width: 330px;
+  color: #ffb5a3;
 }
 
 .character-entry-confirm {
@@ -529,7 +589,8 @@
 .character-entry-card-copy time,
 .character-entry-confirm small,
 .character-entry-hint,
-.character-entry-delete {
+.character-entry-delete,
+.character-entry-new-run {
   font-size: 11px;
   line-height: 1.45;
 }

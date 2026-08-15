@@ -548,6 +548,14 @@ async function importTypeScriptModule(relativePath, dependencyUrls = {}) {
 class MemoryStorage {
   #items = new Map();
 
+  get length() {
+    return this.#items.size;
+  }
+
+  key(index) {
+    return [...this.#items.keys()][index] ?? null;
+  }
+
   getItem(key) {
     return this.#items.has(key) ? this.#items.get(key) : null;
   }
@@ -559,6 +567,50 @@ class MemoryStorage {
   removeItem(key) {
     this.#items.delete(key);
   }
+}
+
+class WriteRejectingStorage extends MemoryStorage {
+  rejectWrites = false;
+
+  setItem(key, value) {
+    if (this.rejectWrites) throw new Error("storage write rejected");
+    super.setItem(key, value);
+  }
+}
+
+class VerificationMismatchStorage extends MemoryStorage {
+  #mismatchedKeys = new Set();
+  #protectedKey;
+
+  mismatchNewKeys = false;
+
+  constructor(protectedKey) {
+    super();
+    this.#protectedKey = protectedKey;
+  }
+
+  setItem(key, value) {
+    super.setItem(key, value);
+    if (this.mismatchNewKeys && key !== this.#protectedKey) {
+      this.#mismatchedKeys.add(key);
+    }
+  }
+
+  getItem(key) {
+    const value = super.getItem(key);
+    return value !== null && this.#mismatchedKeys.has(key)
+      ? `${value}\u0000verification-mismatch`
+      : value;
+  }
+}
+
+function storageSnapshot(storage) {
+  const entries = [];
+  for (let index = 0; index < storage.length; index += 1) {
+    const key = storage.key(index);
+    if (key !== null) entries.push([key, storage.getItem(key)]);
+  }
+  return entries.sort(([left], [right]) => left.localeCompare(right));
 }
 
 const sampleSave = {
@@ -1123,6 +1175,183 @@ test("three save slots isolate data and preserve the legacy backup on migration"
   assert.equal(storage.getItem(saves.LEGACY_SAVE_KEY), legacyRaw);
   assert.equal(storage.getItem(saves.saveSlotKey(1)), legacyRaw);
   assert.equal(saves.migrateLegacySave(storage), "slot-occupied");
+});
+
+test("slot overwrites and explicit removal preserve byte-exact rotating recovery candidates", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  const slotKey = saves.saveSlotKey(1);
+  const level81 = structuredClone(sampleSave);
+  level81.savedAt += 81;
+  level81.player.level = 81;
+  level81.player.rooms = 481;
+  const level81Raw = JSON.stringify(level81, null, 2);
+  storage.setItem(slotKey, level81Raw);
+
+  assert.equal(typeof saves.SAVE_RECOVERY_KEY_PREFIX, "string");
+  assert.equal(typeof saves.saveRecoveryKey, "function");
+  assert.equal(typeof saves.readSaveRecoveryCandidates, "function");
+
+  const replacement = structuredClone(sampleSave);
+  replacement.savedAt += 82;
+  replacement.player.level = 82;
+  assert.equal(saves.writeSaveSlot(1, replacement, storage), true);
+
+  const replacementRaw = storage.getItem(slotKey);
+  assert.notEqual(replacementRaw, level81Raw);
+  const beforeRecoveryRead = storageSnapshot(storage);
+  const afterOverwrite = saves.readSaveRecoveryCandidates(storage);
+  assert.deepEqual(
+    storageSnapshot(storage),
+    beforeRecoveryRead,
+    "discovering recovery candidates must be strictly read-only",
+  );
+  const level81Candidate = afterOverwrite.find(
+    (candidate) => candidate.slot === 1 && candidate.raw === level81Raw,
+  );
+  assert.ok(level81Candidate, "the overwritten level-81 raw save must remain recoverable");
+  assert.equal(saves.parseSaveRun(level81Candidate.raw).player.level, 81);
+
+  assert.equal(saves.removeSaveSlot(1, storage), true);
+  assert.equal(storage.getItem(slotKey), null);
+  const afterRemoval = saves.readSaveRecoveryCandidates(storage);
+  const removedCandidate = afterRemoval.find(
+    (candidate) => candidate.slot === 1 && candidate.raw === replacementRaw,
+  );
+  assert.ok(removedCandidate, "explicit removal must archive the final owned raw value");
+  assert.equal(saves.parseSaveRun(removedCandidate.raw).player.level, 82);
+});
+
+test("backup write failures and verification mismatches never mutate the owned slot", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const replacement = structuredClone(sampleSave);
+  replacement.savedAt += 1;
+  replacement.player.level = 82;
+
+  const rejectingStorage = new WriteRejectingStorage();
+  const rejectingSlotKey = saves.saveSlotKey(1);
+  const rejectingRaw = JSON.stringify({
+    ...sampleSave,
+    savedAt: sampleSave.savedAt + 81,
+    player: { ...sampleSave.player, level: 81 },
+  }, null, 2);
+  rejectingStorage.setItem(rejectingSlotKey, rejectingRaw);
+  rejectingStorage.rejectWrites = true;
+  assert.equal(saves.writeSaveSlot(1, replacement, rejectingStorage), false);
+  assert.equal(rejectingStorage.getItem(rejectingSlotKey), rejectingRaw);
+  assert.equal(saves.removeSaveSlot(1, rejectingStorage), false);
+  assert.equal(rejectingStorage.getItem(rejectingSlotKey), rejectingRaw);
+
+  const mismatchSlotKey = saves.saveSlotKey(2);
+  const mismatchStorage = new VerificationMismatchStorage(mismatchSlotKey);
+  const mismatchRaw = JSON.stringify({
+    ...sampleSave,
+    savedAt: sampleSave.savedAt + 181,
+    player: { ...sampleSave.player, level: 81 },
+  }, null, 2);
+  mismatchStorage.setItem(mismatchSlotKey, mismatchRaw);
+  mismatchStorage.mismatchNewKeys = true;
+  assert.equal(saves.writeSaveSlot(2, replacement, mismatchStorage), false);
+  assert.equal(
+    mismatchStorage.getItem(mismatchSlotKey),
+    mismatchRaw,
+    "a failed backup verification must abort before overwriting the slot",
+  );
+
+  const removeMismatchSlotKey = saves.saveSlotKey(3);
+  const removeMismatchStorage = new VerificationMismatchStorage(removeMismatchSlotKey);
+  const removeMismatchRaw = JSON.stringify({
+    ...sampleSave,
+    savedAt: sampleSave.savedAt + 281,
+    player: { ...sampleSave.player, level: 81 },
+  }, null, 2);
+  removeMismatchStorage.setItem(removeMismatchSlotKey, removeMismatchRaw);
+  removeMismatchStorage.mismatchNewKeys = true;
+  assert.equal(saves.removeSaveSlot(3, removeMismatchStorage), false);
+  assert.equal(
+    removeMismatchStorage.getItem(removeMismatchSlotKey),
+    removeMismatchRaw,
+    "a failed backup verification must abort before removing the slot",
+  );
+});
+
+test("a recovery candidate copies byte-exactly into an empty slot without changing the active slot", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  const level81 = structuredClone(sampleSave);
+  level81.savedAt += 810;
+  level81.player.level = 81;
+  level81.player.rooms = 581;
+  level81.player.inventory = [{ id: "level-81-recovery-item", rarity: "cosmic" }];
+  const level81Raw = JSON.stringify(level81, null, 2);
+  const sourceKey = saves.saveRecoveryKey(1, 1);
+  const destinationKey = saves.saveSlotKey(2);
+  storage.setItem(sourceKey, level81Raw);
+  assert.equal(saves.writeActiveSaveSlot(3, storage), true);
+
+  assert.equal(storage.getItem(destinationKey), null);
+  assert.equal(saves.restoreSaveRecoveryCandidate(1, 1, 2, storage), true);
+  assert.equal(
+    storage.getItem(destinationKey),
+    level81Raw,
+    "recovery must copy the protected raw JSON without normalization or reserialization",
+  );
+  assert.equal(storage.getItem(sourceKey), level81Raw, "recovery must copy, never move");
+  assert.equal(saves.readSaveSlot(2, storage).player.level, 81);
+  assert.equal(saves.parseSaveRun(storage.getItem(destinationKey)).player.level, 81);
+  assert.equal(
+    saves.readActiveSaveSlot(storage),
+    3,
+    "the low-level restore operation must not silently switch the selected character",
+  );
+});
+
+test("recovery refuses valid or corrupt occupied targets and preserves every owned byte", async () => {
+  const saves = await importTypeScriptModule("app/save-slots.ts");
+  const storage = new MemoryStorage();
+  const level81 = structuredClone(sampleSave);
+  level81.savedAt += 811;
+  level81.player.level = 81;
+  const level81Raw = JSON.stringify(level81, null, 2);
+  const sourceKey = saves.saveRecoveryKey(1, 1);
+  storage.setItem(sourceKey, level81Raw);
+  assert.equal(saves.writeActiveSaveSlot(1, storage), true);
+
+  const occupiedKey = saves.saveSlotKey(2);
+  const occupiedRaw = JSON.stringify({
+    ...sampleSave,
+    savedAt: sampleSave.savedAt + 47,
+    player: { ...sampleSave.player, level: 47 },
+  }, null, 2);
+  storage.setItem(occupiedKey, occupiedRaw);
+  const beforeOccupiedRestore = storageSnapshot(storage);
+  assert.equal(saves.restoreSaveRecoveryCandidate(1, 1, 2, storage), false);
+  assert.deepEqual(storageSnapshot(storage), beforeOccupiedRestore);
+  assert.equal(storage.getItem(occupiedKey), occupiedRaw);
+  assert.equal(storage.getItem(sourceKey), level81Raw);
+  assert.equal(saves.readActiveSaveSlot(storage), 1);
+
+  const corruptKey = saves.saveSlotKey(3);
+  const corruptRaw = "corrupt-but-owned-and-never-overwritable";
+  storage.setItem(corruptKey, corruptRaw);
+  const beforeCorruptRestore = storageSnapshot(storage);
+  assert.equal(saves.restoreSaveRecoveryCandidate(1, 1, 3, storage), false);
+  assert.deepEqual(storageSnapshot(storage), beforeCorruptRestore);
+  assert.equal(storage.getItem(corruptKey), corruptRaw);
+  assert.equal(storage.getItem(sourceKey), level81Raw);
+  assert.equal(saves.readActiveSaveSlot(storage), 1);
+
+  const corruptSourceStorage = new MemoryStorage();
+  corruptSourceStorage.setItem(saves.saveRecoveryKey(1, 1), "{bad recovery json");
+  assert.equal(saves.writeActiveSaveSlot(3, corruptSourceStorage), true);
+  const beforeCorruptSource = storageSnapshot(corruptSourceStorage);
+  assert.equal(
+    saves.restoreSaveRecoveryCandidate(1, 1, 2, corruptSourceStorage),
+    false,
+  );
+  assert.deepEqual(storageSnapshot(corruptSourceStorage), beforeCorruptSource);
+  assert.equal(corruptSourceStorage.getItem(saves.saveSlotKey(2)), null);
+  assert.equal(saves.readActiveSaveSlot(corruptSourceStorage), 3);
 });
 
 test("legacy saves default to the first dungeon floor without reinterpreting cleared rooms", async () => {

@@ -27,7 +27,8 @@ test("character selection preserves migration and isolates destructive slot acti
   const hydration = gate.slice(gate.indexOf("migrateLegacySave();"), gate.indexOf("useEffect(() => {", gate.indexOf("migrateLegacySave();")));
   assert.match(hydration, /migrateLegacySave\(\);/);
   assert.match(hydration, /readActiveSaveSlot\(\)/);
-  assert.match(hydration, /readSaveSlotSummaries\(\)/);
+  assert.match(hydration, /readSaveSlotSummaries\(\)|refreshSummaries\(\)/);
+  assert.match(gate, /setSummaries\(readSaveSlotSummaries\(\)\);/);
   assert.match(gate, /writeActiveSaveSlot\(selectedSlot\);/);
   assert.match(gate, /지하 \{summary\.dungeonFloor\}층/);
   assert.doesNotMatch(gate, /방 돌파 \{summary\.roomsCleared\}/);
@@ -35,10 +36,56 @@ test("character selection preserves migration and isolates destructive slot acti
   assert.doesNotMatch(gate, /localStorage\.(?:clear|removeItem)/);
   assert.doesNotMatch(gate, /window\.(?:alert|confirm)\(/);
   assert.match(gate, /role="alertdialog"/);
-  assert.match(gate, /다른 두 캐릭터의 저장 데이터에는\s*영향을 주지 않습니다/);
+  assert.match(gate, /마지막 보호본은 남습니다/);
+  assert.match(gate, /다른 두 캐릭터의 저장\s*데이터에는\s*영향을 주지 않습니다/);
 });
 
-test("a selected save slot enters GameCanvas exactly once and resumes before creating", async () => {
+test("character selection exposes protected recovery cards and restores before entry", async () => {
+  const gate = await readFile(path.join(root, "app/CharacterEntryGate.tsx"), "utf8");
+
+  assert.match(gate, /readSaveRecoveryCandidates,/);
+  assert.match(gate, /restoreSaveRecoveryCandidate,/);
+  assert.match(
+    gate,
+    /setRecoveryCandidates\(readSaveRecoveryCandidates\(\)\);/,
+    "refreshing slot summaries must discover protected saves",
+  );
+  assert.match(gate, /const recoveryBySlot = useMemo\(\(\) => \{/);
+  assert.match(gate, /data-save-state=\{summary \? "occupied" : recovery \? "recoverable"/);
+  assert.match(gate, /RECOVERY AVAILABLE · LV\.\{recovery\.summary\.level\}/);
+  assert.match(gate, /삭제·덮어쓰기 전 마지막 보호본이 남아 있습니다\./);
+  assert.match(
+    gate,
+    /restoreSaveRecoveryCandidate\(\s*candidate\.slot,\s*candidate\.generation,\s*candidate\.slot,?\s*\)/,
+  );
+  assert.match(
+    gate,
+    /if \(!restoreRecovery\(selectedRecovery\)\) return;\s*writeActiveSaveSlot\(selectedSlot\);\s*onEnter\(\{ slot: selectedSlot, occupied: true \}\);/,
+    "entry must occur only after the byte-preserving restore succeeds",
+  );
+  assert.match(gate, /보호본 복구 후 입장/);
+});
+
+test("unreadable raw slots are protected from accidental character creation", async () => {
+  const gate = await readFile(path.join(root, "app/CharacterEntryGate.tsx"), "utf8");
+
+  assert.match(gate, /setSlotHasData\(SAVE_SLOT_IDS\.map\(\(slot\) => hasSaveSlotData\(slot\)\)\);/);
+  assert.match(
+    gate,
+    /const selectedHasUnreadableData =\s*selectedSlot !== null &&\s*selectedSummary === null &&\s*slotHasData\[SAVE_SLOT_IDS\.indexOf\(selectedSlot\)\];/,
+  );
+  assert.match(gate, /if \(selectedHasUnreadableData\) return;/);
+  assert.match(gate, /if \(unreadable\) return;/);
+  assert.match(gate, /data-save-state=\{summary \? "occupied" : recovery \? "recoverable" : unreadable \? "unreadable"/);
+  assert.match(gate, /원본 형식 확인이 필요해 새 캐릭터 생성을 차단했습니다\./);
+  assert.match(
+    gate,
+    /disabled=\{!ready \|\| selectedSlot === null \|\| selectedHasUnreadableData\}/,
+  );
+  assert.match(gate, /원본 기록 보호 중/);
+});
+
+test("a selected save slot hydrates without creating a replacement on failure", async () => {
   const canvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
 
   const props = canvas.match(/type GameCanvasProps = \{([\s\S]*?)\n\};/);
@@ -48,10 +95,58 @@ test("a selected save slot enters GameCanvas exactly once and resumes before cre
   assert.match(props[1], /localEnemyVfxShowcase\?: LocalEnemyVfxShowcaseMode;/);
   assert.match(props[1], /localLootVfxShowcase\?: LocalLootVfxShowcaseMode;/);
   assert.match(canvas, /const initialSaveSlotHandledRef = useRef\(false\);/);
-  assert.match(
-    canvas,
-    /if \(isLocalVfxShowcase\) return;\s*if \(initialSaveSlot === undefined \|\| initialSaveSlotHandledRef\.current\) return;[\s\S]{0,180}?initialSaveSlotHandledRef\.current = true;[\s\S]{0,180}?if \(!loadSave\(initialSaveSlot\)\) startNewRun\(initialSaveSlot\);/,
+
+  const initialHydrationStart = canvas.indexOf(
+    "if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;",
   );
+  const initialHydrationEnd = canvas.indexOf("\n  }, [", initialHydrationStart);
+  assert.ok(initialHydrationStart >= 0 && initialHydrationEnd > initialHydrationStart);
+  const initialHydration = canvas.slice(initialHydrationStart, initialHydrationEnd);
+  assert.match(initialHydration, /loadSave\(initialSaveSlot\)/);
+  assert.doesNotMatch(
+    initialHydration,
+    /if \(!loadSave\(initialSaveSlot\)\)\s*startNewRun\s*\(/,
+    "a load failure must not unconditionally become a fresh run",
+  );
+  assert.match(
+    initialHydration,
+    /if \(!hasSaveSlotData\(initialSaveSlot\)\) \{\s*startNewRun\(initialSaveSlot\);\s*return;\s*\}/,
+    "only a genuinely absent raw slot may enter the fresh-run path",
+  );
+});
+
+test("new-run initialization never removes an owned checkpoint", async () => {
+  const canvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const startNewRunStart = canvas.indexOf("const startNewRun = useCallback");
+  const startNewRunEnd = canvas.indexOf("\n  useEffect(() => {", startNewRunStart);
+  assert.ok(startNewRunStart >= 0 && startNewRunEnd > startNewRunStart);
+  const startNewRun = canvas.slice(startNewRunStart, startNewRunEnd);
+  assert.doesNotMatch(
+    startNewRun,
+    /removeSaveSlot\s*\(/,
+    "starting an in-memory expedition must never delete an owned checkpoint",
+  );
+});
+
+test("shelter retry never turns a load failure into a fresh run", async () => {
+  const canvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const retryStart = canvas.indexOf("const retryFromShelter = useCallback");
+  const retryEnd = canvas.indexOf("const deleteSaveSlot = useCallback", retryStart);
+  assert.ok(retryStart >= 0 && retryEnd > retryStart);
+  const retryFromShelter = canvas.slice(retryStart, retryEnd);
+  assert.match(retryFromShelter, /loadSave\(\)/);
+  assert.doesNotMatch(retryFromShelter, /startNewRun\s*\(/);
+});
+
+test("the death modal cannot erase a checkpoint by starting a new memory", async () => {
+  const canvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const deathModalStart = canvas.indexOf('{mode === "dead" && (');
+  const deathModalEnd = canvas.indexOf('{mode === "ending" && (', deathModalStart);
+  assert.ok(deathModalStart >= 0 && deathModalEnd > deathModalStart);
+  const deathModal = canvas.slice(deathModalStart, deathModalEnd);
+  assert.match(deathModal, /onClick=\{retryFromShelter\}/);
+  assert.doesNotMatch(deathModal, /새 기억으로 시작/);
+  assert.doesNotMatch(deathModal, /startNewRun\s*\(/);
 });
 
 test("localhost loot VFX QA bypasses slot hydration and remains memory-only", async () => {

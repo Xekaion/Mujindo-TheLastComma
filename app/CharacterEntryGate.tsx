@@ -4,11 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PROFESSION_TITLES } from "./professions";
 import {
   SAVE_SLOT_IDS,
+  hasSaveSlotData,
   migrateLegacySave,
   readActiveSaveSlot,
+  readSaveRecoveryCandidates,
   readSaveSlotSummaries,
   removeSaveSlot,
+  restoreSaveRecoveryCandidate,
   writeActiveSaveSlot,
+  type SaveRecoveryCandidate,
   type SaveSlotId,
   type SaveSlotSummary,
 } from "./save-slots";
@@ -56,14 +60,23 @@ export default function CharacterEntryGate({
   const [selectedSlot, setSelectedSlot] = useState<SaveSlotId | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<SaveSlotId | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [recoveryError, setRecoveryError] = useState<string | null>(null);
   const deleteDialogRef = useRef<HTMLElement | null>(null);
   const deleteTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [summaries, setSummaries] = useState<Array<SaveSlotSummary | null>>(() =>
     SAVE_SLOT_IDS.map(() => null),
   );
+  const [slotHasData, setSlotHasData] = useState<boolean[]>(() =>
+    SAVE_SLOT_IDS.map(() => false),
+  );
+  const [recoveryCandidates, setRecoveryCandidates] = useState<
+    SaveRecoveryCandidate[]
+  >([]);
 
   const refreshSummaries = useCallback(() => {
     setSummaries(readSaveSlotSummaries());
+    setSlotHasData(SAVE_SLOT_IDS.map((slot) => hasSaveSlotData(slot)));
+    setRecoveryCandidates(readSaveRecoveryCandidates());
   }, []);
 
   useEffect(() => {
@@ -73,6 +86,8 @@ export default function CharacterEntryGate({
     migrateLegacySave();
     const restoreTimer = window.setTimeout(() => {
       setSummaries(readSaveSlotSummaries());
+      setSlotHasData(SAVE_SLOT_IDS.map((slot) => hasSaveSlotData(slot)));
+      setRecoveryCandidates(readSaveRecoveryCandidates());
       setSelectedSlot(readActiveSaveSlot());
       setReady(true);
     }, 0);
@@ -128,11 +143,71 @@ export default function CharacterEntryGate({
     [selectedSlot, summaries],
   );
 
+  const recoveryBySlot = useMemo(() => {
+    const next = new Map<SaveSlotId, SaveRecoveryCandidate>();
+    for (const candidate of recoveryCandidates) {
+      if (!next.has(candidate.slot)) next.set(candidate.slot, candidate);
+    }
+    return next;
+  }, [recoveryCandidates]);
+
+  const selectedRecovery =
+    selectedSlot === null ? null : recoveryBySlot.get(selectedSlot) ?? null;
+  const selectedHasUnreadableData =
+    selectedSlot !== null &&
+    selectedSummary === null &&
+    slotHasData[SAVE_SLOT_IDS.indexOf(selectedSlot)];
+
+  const restoreRecovery = useCallback(
+    (candidate: SaveRecoveryCandidate) => {
+      if (
+        !restoreSaveRecoveryCandidate(
+          candidate.slot,
+          candidate.generation,
+          candidate.slot,
+        )
+      ) {
+        setRecoveryError(
+          "보호된 기록을 복구하지 못했습니다. 기존 데이터는 변경하지 않았습니다.",
+        );
+        return false;
+      }
+      setRecoveryError(null);
+      refreshSummaries();
+      return true;
+    },
+    [refreshSummaries],
+  );
+
   const enterSelectedCharacter = useCallback(() => {
     if (!ready || selectedSlot === null) return;
+    if (selectedHasUnreadableData) return;
+    if (selectedSummary === null && selectedRecovery) {
+      if (!restoreRecovery(selectedRecovery)) return;
+      writeActiveSaveSlot(selectedSlot);
+      onEnter({ slot: selectedSlot, occupied: true });
+      return;
+    }
     writeActiveSaveSlot(selectedSlot);
     onEnter({ slot: selectedSlot, occupied: selectedSummary !== null });
-  }, [onEnter, ready, selectedSlot, selectedSummary]);
+  }, [
+    onEnter,
+    ready,
+    restoreRecovery,
+    selectedHasUnreadableData,
+    selectedRecovery,
+    selectedSlot,
+    selectedSummary,
+  ]);
+
+  const enterFreshCharacter = useCallback(
+    (slot: SaveSlotId) => {
+      setRecoveryError(null);
+      writeActiveSaveSlot(slot);
+      onEnter({ slot, occupied: false });
+    },
+    [onEnter],
+  );
 
   const deleteCharacter = useCallback(() => {
     if (deleteTarget === null) return;
@@ -179,23 +254,32 @@ export default function CharacterEntryGate({
         <div className="character-entry-grid" aria-label="캐릭터 저장 슬롯">
           {SAVE_SLOT_IDS.map((slot, index) => {
             const summary = summaries[index];
+            const recovery = recoveryBySlot.get(slot) ?? null;
+            const unreadable = !summary && slotHasData[index];
             const selected = selectedSlot === slot;
             return (
               <article
                 key={slot}
-                className={`character-entry-card ${summary ? "is-occupied" : "is-empty"} ${selected ? "is-selected" : ""}`}
+                className={`character-entry-card ${summary ? "is-occupied" : recovery ? "is-recoverable" : unreadable ? "is-unreadable" : "is-empty"} ${selected ? "is-selected" : ""}`}
                 data-character-slot={slot}
-                data-save-state={summary ? "occupied" : "empty"}
+                data-save-state={summary ? "occupied" : recovery ? "recoverable" : unreadable ? "unreadable" : "empty"}
               >
                 <button
                   type="button"
                   className="character-entry-card-select"
                   aria-pressed={selected}
-                  aria-label={`${slot}번 ${summary ? "캐릭터" : "빈 캐릭터 슬롯"} 선택`}
+                  aria-label={`${slot}번 ${summary ? "캐릭터" : recovery ? "복구 가능한 캐릭터" : unreadable ? "보호 중인 손상 기록" : "빈 캐릭터 슬롯"} 선택`}
                   disabled={!ready}
                   onClick={() => setSelectedSlot(slot)}
                   onDoubleClick={() => {
                     setSelectedSlot(slot);
+                    if (unreadable) return;
+                    if (recovery) {
+                      if (!restoreRecovery(recovery)) return;
+                      writeActiveSaveSlot(slot);
+                      onEnter({ slot, occupied: true });
+                      return;
+                    }
                     writeActiveSaveSlot(slot);
                     onEnter({ slot, occupied: summary !== null });
                   }}
@@ -205,7 +289,7 @@ export default function CharacterEntryGate({
                     <i />
                   </span>
                   <span className="character-entry-card-copy">
-                    <strong>{characterTitle(summary, slot)}</strong>
+                    <strong>{characterTitle(summary ?? recovery?.summary ?? null, slot)}</strong>
                     {summary ? (
                       <>
                         <b>LV.{summary.level}</b>
@@ -214,6 +298,20 @@ export default function CharacterEntryGate({
                         <time dateTime={validSavedAt(summary.savedAt)?.toISOString()}>
                           마지막 기록 {formatSavedAt(summary.savedAt)}
                         </time>
+                      </>
+                    ) : recovery ? (
+                      <>
+                        <b>RECOVERY AVAILABLE · LV.{recovery.summary.level}</b>
+                        <small>삭제·덮어쓰기 전 마지막 보호본이 남아 있습니다.</small>
+                        <time dateTime={validSavedAt(recovery.summary.savedAt)?.toISOString()}>
+                          보호 시점 {formatSavedAt(recovery.summary.savedAt)}
+                        </time>
+                      </>
+                    ) : unreadable ? (
+                      <>
+                        <b>RECORD PROTECTED</b>
+                        <small>원본 형식 확인이 필요해 새 캐릭터 생성을 차단했습니다.</small>
+                        <time>기록은 삭제되지 않았습니다.</time>
                       </>
                     ) : (
                       <>
@@ -225,7 +323,7 @@ export default function CharacterEntryGate({
                   </span>
                   <span className="character-entry-check" aria-hidden="true">✓</span>
                 </button>
-                {summary && (
+                {(summary || unreadable) && (
                   <button
                     type="button"
                     className="character-entry-delete"
@@ -239,6 +337,15 @@ export default function CharacterEntryGate({
                     기록 삭제
                   </button>
                 )}
+                {!summary && recovery && (
+                  <button
+                    type="button"
+                    className="character-entry-new-run"
+                    onClick={() => enterFreshCharacter(slot)}
+                  >
+                    보호본 유지 · 새 캐릭터
+                  </button>
+                )}
               </article>
             );
           })}
@@ -250,15 +357,32 @@ export default function CharacterEntryGate({
               ? "입장할 캐릭터를 선택하세요."
               : selectedSummary
                 ? `SLOT ${String(selectedSlot).padStart(2, "0")} · ${characterTitle(selectedSummary, selectedSlot)} 선택됨`
+                : selectedRecovery
+                  ? `SLOT ${String(selectedSlot).padStart(2, "0")} · LV.${selectedRecovery.summary.level} 보호본 복구 가능`
+                  : selectedHasUnreadableData
+                    ? `SLOT ${String(selectedSlot).padStart(2, "0")} · 원본 보호 중 (새 캐릭터 생성 차단)`
                 : `SLOT ${String(selectedSlot).padStart(2, "0")} · 새 캐릭터 생성`}
           </p>
+          {recoveryError ? (
+            <p className="character-entry-recovery-error" role="alert">
+              {recoveryError}
+            </p>
+          ) : null}
           <button
             type="button"
             className="character-entry-confirm"
-            disabled={!ready || selectedSlot === null}
+            disabled={!ready || selectedSlot === null || selectedHasUnreadableData}
             onClick={enterSelectedCharacter}
           >
-            <span>{selectedSummary ? "선택한 캐릭터로 입장" : "새 캐릭터 생성 후 입장"}</span>
+            <span>
+              {selectedSummary
+                ? "선택한 캐릭터로 입장"
+                : selectedRecovery
+                  ? `LV.${selectedRecovery.summary.level} 보호본 복구 후 입장`
+                  : selectedHasUnreadableData
+                    ? "원본 기록 보호 중"
+                    : "새 캐릭터 생성 후 입장"}
+            </span>
             <small>마을 광장으로 이동</small>
           </button>
         </footer>
@@ -285,8 +409,8 @@ export default function CharacterEntryGate({
             <small>RECORD ERASURE</small>
             <h2 id="character-delete-title">{deleteTarget}번 캐릭터를 삭제할까요?</h2>
             <p id="character-delete-description">
-              이 슬롯의 원정 기록은 되돌릴 수 없습니다. 다른 두 캐릭터의 저장 데이터에는
-              영향을 주지 않습니다.
+              활성 원정 기록은 지워지지만 마지막 보호본은 남습니다. 다른 두 캐릭터의 저장
+              데이터에는 영향을 주지 않습니다.
             </p>
             {deleteError ? <p className="character-entry-dialog-error" role="alert">{deleteError}</p> : null}
             <div>
