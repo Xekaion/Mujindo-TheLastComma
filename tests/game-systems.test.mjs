@@ -7651,7 +7651,7 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   assert.match(
     auraCss,
     /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*1;[\s\S]{0,120}?inset:\s*-10%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,220}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,500}?animation:\s*inventory-rarity-aura-frames-v3/,
-    "the generated animation must stay behind the opaque icon plate and animate while idle",
+    "the generated animation must stay above the base plate, below the icon, and animate while idle",
   );
   assert.match(
     auraCss,
@@ -7763,8 +7763,8 @@ test("all eight inventory rarities use authored spectacle atlases without changi
   );
   assert.match(
     spectacleCss,
-    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*0;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4/,
-    "the spectacle must animate behind the z-index 2 plate and z-index 4 fixed frame",
+    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*1;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4/,
+    "the spectacle must animate above the base plate and below the item icon and fixed frame",
   );
   assert.match(spectacleCss, /\.inventory-screen-grid-cell--salvage-mode \.inventory-screen-rarity-spectacle\s*\{[^}]*visibility:\s*visible;[^}]*animation-play-state:\s*running;/);
   assert.match(game, /loot-toast-icon-stage[\s\S]{0,260}?inventory-screen-rarity-spectacle--\$\{lootNotice\.rarity\}[\s\S]{0,180}?<GearIcon item=\{lootNotice\}/);
@@ -7855,8 +7855,8 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.match(
     finalCss,
-    /\.inventory-screen-slot-clip\s*\{[\s\S]{0,240}?z-index:\s*2;[\s\S]{0,220}?overflow:\s*hidden;/,
-    "the dark z2 slot plate must mask frame-shaped pixels embedded in the animated effect atlases",
+    /\.inventory-screen-slot-clip\s*\{[\s\S]{0,260}?z-index:\s*auto;[\s\S]{0,220}?overflow:\s*hidden;/,
+    "the dark slot plate must not form a z2 rectangle over the animated effects",
   );
   assert.match(
     finalCss,
@@ -7865,12 +7865,22 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.match(
     finalCss,
-    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,300}?z-index:\s*1;/,
-    "the animated aura must remain behind the opaque icon plate",
+    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*1;/,
+    "the animated aura must remain above the base plate and below the item icon",
   );
   assert.match(finalCss, /Full names belong in the workbench[\s\S]{0,260}?\.inventory-screen-grid-name\s*\{\s*display:\s*none;/);
   assert.match(finalCss, /Fixed structural frame contract V5[\s\S]{0,760}?\.inventory-screen-tooltip-crest::after[\s\S]{0,180}?z-index:\s*4;[\s\S]{0,80}?inset:\s*-2\.632%;[\s\S]{0,360}?background-size:\s*800%\s+100%;[\s\S]{0,180}?animation:\s*none;/);
-  assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*2;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
+  assert.match(
+    css,
+    /\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-rarity-spectacle\s*\{[^}]*z-index:\s*1;/,
+    "the tooltip spectacle must remain above its dark plate",
+  );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-rarity-aura\s*\{[^}]*z-index:\s*2;[\s\S]{0,260}?\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-gear-icon\s*\{[^}]*z-index:\s*3;/,
+    "the tooltip aura must remain below its item icon",
+  );
+  assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*0;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
   assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
   assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/inventory-chrome\/tooltip-panel\.png"\)/);
   assert.match(finalCss, /@container game-viewport \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);

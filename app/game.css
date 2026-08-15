@@ -2734,9 +2734,9 @@ button.map-cell {
 }
 
 /* All-rarity authored spectacle V4 --------------------------------------
-   This is deliberately a transparent effect layer behind both the opaque
-   icon plate and the fixed rarity frame. Its changing flames, wings, circles,
-   and constellations must never become the structural slot border. */
+   This transparent effect sits above the dark slot plate, below the item icon
+   and fixed rarity frame. Its changing flames, wings, circles, and
+   constellations must never become the structural slot border. */
 .inventory-screen-rarity-spectacle {
   --inventory-rarity-spectacle-image: none;
   --inventory-rarity-spectacle-duration: 4.8s;
@@ -2747,7 +2747,7 @@ button.map-cell {
   --inventory-rarity-spectacle-brightness: 1;
   --inventory-rarity-spectacle-saturation: 1;
   position: absolute;
-  z-index: 0;
+  z-index: 1;
   inset: -20%;
   display: block;
   overflow: visible;
@@ -2872,7 +2872,7 @@ button.map-cell {
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-rarity-spectacle {
-  z-index: 0;
+  z-index: 1;
   opacity: var(--inventory-rarity-spectacle-active-opacity);
 }
 
@@ -9398,9 +9398,9 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-slot-clip {
   position: absolute;
-  /* The opaque plate masks frame-shaped pixels embedded in the animated
-     effect atlases. Only their glow outside the slot remains visible. */
-  z-index: 2;
+  /* Do not create a stacking context here. The dark plate stays at the base,
+     the z1 effects paint over it, and the clipped z2 icon remains above them. */
+  z-index: auto;
   inset: 0;
   display: grid;
   place-items: center;
@@ -10774,10 +10774,9 @@ button.equipment-slot-card:hover {
 }
 
 /* Rare+ authored aura contract V3 ---------------------------------------
-   Every generated atlas is 1536x768: eight 384px square cells. The sheets
-   include frame-like pixels whose aperture and centre differ per animation
-   frame, so this layer is strictly a rear glow. The opaque z2 slot plate masks
-   its interior while the fixed z4 rarity frame remains perfectly still. */
+   Every generated atlas is 1536x768: eight 384px square cells. The z1 aura
+   paints over the base plate and below the z2 icon, while the fixed z4 rarity
+   frame remains perfectly still. */
 .inventory-screen-rarity-aura {
   --inventory-rarity-aura-image: none;
   --inventory-rarity-aura-duration: 2.8s;
@@ -10900,7 +10899,7 @@ button.equipment-slot-card:hover {
 }
 
 .inventory-screen-tooltip-crest > .inventory-screen-rarity-aura {
-  z-index: 1;
+  z-index: 2;
   opacity: 1;
 }
 
@@ -10918,7 +10917,7 @@ button.equipment-slot-card:hover {
 
 .inventory-screen-tooltip-crest::before {
   position: absolute;
-  z-index: 2;
+  z-index: 0;
   inset: 0;
   border: 1px solid color-mix(in srgb, var(--inventory-rarity) 33%, #252822 67%);
   border-radius: 2px;
