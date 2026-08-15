@@ -7231,8 +7231,18 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   );
   assert.match(
     workbenchContract,
-    /\.inventory-screen-enhancement\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;/,
-    "enhancement rules must scroll without covering the equip controls",
+    /\.inventory-screen-enhancement\s*\{[^}]*display:\s*grid;[^}]*grid-template-rows:\s*minmax\(0,\s*1fr\)\s+auto;[^}]*overflow:\s*hidden;/,
+    "the enhancement shell must reserve a fixed footer row for its primary action",
+  );
+  assert.match(
+    workbenchContract,
+    /\.inventory-screen-enhancement-scroll\s*\{[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;[^}]*overscroll-behavior:\s*contain;[^}]*scrollbar-gutter:\s*stable;/,
+    "only enhancement information may scroll while the enhance button stays visible",
+  );
+  assert.doesNotMatch(
+    workbenchContract,
+    /\.inventory-screen-enhancement\s*\{[^}]*overflow-y:\s*auto;/,
+    "the shell itself must never scroll the enhance button out of reach",
   );
   assert.match(
     workbenchContract,
@@ -7246,8 +7256,13 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   );
   assert.match(
     overlay,
-    /className="inventory-screen-enhancement"[\s\S]{0,180}?aria-labelledby="inventory-screen-enhancement-title"[\s\S]{0,100}?tabIndex=\{0\}/,
-    "the enhancement scroller must be keyboard reachable",
+    /className="inventory-screen-enhancement-scroll"[\s\S]{0,180}?role="region"[\s\S]{0,180}?aria-label="강화 정보 스크롤 영역"[\s\S]{0,100}?tabIndex=\{0\}/,
+    "the enhancement information scroller must be keyboard reachable and announced",
+  );
+  assert.match(
+    overlay,
+    /className="inventory-screen-enhancement-scroll"[\s\S]{0,5000}?<\/div>\s*\{enhancementRule && \(\s*<button[\s\S]{0,160}?className="inventory-screen-enhancement-button"/,
+    "the enhance button must be rendered after and outside the information scroller",
   );
   assert.match(
     css,
@@ -7269,7 +7284,19 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   assert.match(
     geometryContract,
     /@container\s+game-viewport\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,900}?\.inventory-screen-layout\s*\{[^}]*overflow-y:\s*auto;[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*grid-template-rows:\s*440px\s+270px;[^}]*min-height:\s*720px/,
-    "low desktop layouts must scroll instead of collapsing the five paperdoll rows",
+    "the narrower desktop fallback must scroll instead of collapsing the five paperdoll rows",
+  );
+
+  const desktopDeck = css.slice(css.indexOf("Desktop armory workbench deck V9"));
+  assert.match(
+    desktopDeck,
+    /@container\s+game-viewport\s*\(min-width:\s*1180px\)[\s\S]{0,650}?\.inventory-screen-layout\s*\{[^}]*grid-template-columns:[^}]*minmax\(360px,\s*0\.95fr\)[^}]*minmax\(300px,\s*0\.8fr\)[^}]*minmax\(380px,\s*1\.25fr\);[^}]*overflow:\s*hidden;/,
+    "the release-width armory must expose equipment, workbench, and backpack as three full-height columns",
+  );
+  assert.match(
+    desktopDeck,
+    /\.inventory-screen-left-column\s*\{[^}]*display:\s*contents;[\s\S]{0,650}?\.inventory-screen-equipment\s*\{[^}]*grid-column:\s*1;[\s\S]{0,300}?\.inventory-screen-details\s*\{[^}]*grid-column:\s*2;[\s\S]{0,300}?\.inventory-screen-backpack\s*\{[^}]*grid-column:\s*3;/,
+    "each desktop armory surface must occupy its own column instead of stacking the workbench below equipment",
   );
 });
 

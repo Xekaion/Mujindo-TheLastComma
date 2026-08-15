@@ -1199,66 +1199,81 @@ export default function InventoryOverlay({
                         <section
                           className="inventory-screen-enhancement"
                           aria-labelledby="inventory-screen-enhancement-title"
-                          tabIndex={0}
                         >
-                        <div className="inventory-screen-enhancement-heading">
-                          <div>
-                            <small>기억 각인</small>
-                            <h5 id="inventory-screen-enhancement-title">장비 강화</h5>
-                          </div>
-                          <div className="inventory-screen-ash" aria-label={`기억의 재 보유량 ${memoryAsh}`}>
-                            <span className="inventory-screen-ash-icon" aria-hidden="true">✦</span>
-                            <b>{memoryAsh.toLocaleString("ko-KR")}</b>
-                          </div>
-                        </div>
+                          <div
+                            className="inventory-screen-enhancement-scroll"
+                            role="region"
+                            aria-label="강화 정보 스크롤 영역"
+                            tabIndex={0}
+                          >
+                            <div className="inventory-screen-enhancement-heading">
+                              <div>
+                                <small>기억 각인</small>
+                                <h5 id="inventory-screen-enhancement-title">장비 강화</h5>
+                              </div>
+                              <div className="inventory-screen-ash" aria-label={`기억의 재 보유량 ${memoryAsh}`}>
+                                <span className="inventory-screen-ash-icon" aria-hidden="true">✦</span>
+                                <b>{memoryAsh.toLocaleString("ko-KR")}</b>
+                              </div>
+                            </div>
 
-                        {enhancementRule ? (
-                          <>
-                            <div className="inventory-screen-enhancement-stages">
-                              <span>현재 <b>+{selectedItem.enhancement}</b></span>
-                              <i aria-hidden="true">→</i>
-                              <span>목표 <b>+{enhancementRule.target}</b></span>
-                              <em>
-                                단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}% 추가
-                              </em>
-                            </div>
-                            <div className="inventory-screen-enhancement-affix-gains">
-                              <strong>이번 단계 증가</strong>
-                              <ul>
-                                <li>
-                                  <span>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.totalLabel) : ""}</span>
-                                  <em>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.nextStageGainLabel) : ""}</em>
-                                </li>
-                              </ul>
-                            </div>
-                            <dl className="inventory-screen-enhancement-rates">
-                              <div className="inventory-screen-enhancement-rate--cost">
-                                <dt>재</dt>
-                                <dd>{enhancementRule.ashCost.toLocaleString("ko-KR")}</dd>
+                            {enhancementRule ? (
+                              <>
+                                <div className="inventory-screen-enhancement-stages">
+                                  <span>현재 <b>+{selectedItem.enhancement}</b></span>
+                                  <i aria-hidden="true">→</i>
+                                  <span>목표 <b>+{enhancementRule.target}</b></span>
+                                  <em>
+                                    단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}% 추가
+                                  </em>
+                                </div>
+                                <div className="inventory-screen-enhancement-affix-gains">
+                                  <strong>이번 단계 증가</strong>
+                                  <ul>
+                                    <li>
+                                      <span>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.totalLabel) : ""}</span>
+                                      <em>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.nextStageGainLabel) : ""}</em>
+                                    </li>
+                                  </ul>
+                                </div>
+                                <dl className="inventory-screen-enhancement-rates">
+                                  <div className="inventory-screen-enhancement-rate--cost">
+                                    <dt>재</dt>
+                                    <dd>{enhancementRule.ashCost.toLocaleString("ko-KR")}</dd>
+                                  </div>
+                                  <div className="inventory-screen-enhancement-rate--success">
+                                    <dt>성공</dt>
+                                    <dd>{enhancementRule.successPercent}%</dd>
+                                  </div>
+                                  <div className="inventory-screen-enhancement-rate--failure">
+                                    <dt>실패</dt>
+                                    <dd>{enhancementRule.failurePercent}%</dd>
+                                  </div>
+                                  <div className="inventory-screen-enhancement-rate--destroy">
+                                    <dt>파괴</dt>
+                                    <dd>{enhancementRule.destroyPercent}%</dd>
+                                  </div>
+                                </dl>
+                                {enhancementRule.destroyPercent > 0 && (
+                                  <p className="inventory-screen-enhancement-warning" role="alert">
+                                    실패 시 {enhancementRule.destroyPercent}% 확률로 장비가 파괴됩니다.
+                                  </p>
+                                )}
+                                {!canAffordEnhancement && (
+                                  <p className="inventory-screen-ash-shortage">
+                                    기억의 재가 {(enhancementRule.ashCost - memoryAsh).toLocaleString("ko-KR")}개 부족합니다.
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <div className="inventory-screen-enhancement-max">
+                                <strong>최대 강화 +{MAX_GEAR_ENHANCEMENT}</strong>
+                                <span>모든 강화 단계가 적용되었습니다.</span>
                               </div>
-                              <div className="inventory-screen-enhancement-rate--success">
-                                <dt>성공</dt>
-                                <dd>{enhancementRule.successPercent}%</dd>
-                              </div>
-                              <div className="inventory-screen-enhancement-rate--failure">
-                                <dt>실패</dt>
-                                <dd>{enhancementRule.failurePercent}%</dd>
-                              </div>
-                              <div className="inventory-screen-enhancement-rate--destroy">
-                                <dt>파괴</dt>
-                                <dd>{enhancementRule.destroyPercent}%</dd>
-                              </div>
-                            </dl>
-                            {enhancementRule.destroyPercent > 0 && (
-                              <p className="inventory-screen-enhancement-warning" role="alert">
-                                실패 시 {enhancementRule.destroyPercent}% 확률로 장비가 파괴됩니다.
-                              </p>
                             )}
-                            {!canAffordEnhancement && (
-                              <p className="inventory-screen-ash-shortage">
-                                기억의 재가 {(enhancementRule.ashCost - memoryAsh).toLocaleString("ko-KR")}개 부족합니다.
-                              </p>
-                            )}
+                          </div>
+
+                          {enhancementRule && (
                             <button
                               type="button"
                               className="inventory-screen-enhancement-button"
@@ -1270,13 +1285,7 @@ export default function InventoryOverlay({
                                 장착 보스 전투력 +{enhancementPowerGain.toLocaleString("ko-KR")} · 재 {enhancementRule.ashCost.toLocaleString("ko-KR")}
                               </small>
                             </button>
-                          </>
-                        ) : (
-                          <div className="inventory-screen-enhancement-max">
-                            <strong>최대 강화 +{MAX_GEAR_ENHANCEMENT}</strong>
-                            <span>모든 강화 단계가 적용되었습니다.</span>
-                          </div>
-                        )}
+                          )}
                         </section>
 
                       {selectedIsEquipped ? (
