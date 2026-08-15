@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
 import sharp from "sharp";
@@ -406,5 +406,27 @@ test("runtime renders one complete map frame and uses only same-map clips at sea
     ),
     /playerImpact|doorEffects\.push/,
     "entering a room must not add a vector impact over the authored room image",
+  );
+});
+
+test("production assets omit retired standalone door overlays and superseded equipment atlases", async () => {
+  const retiredPaths = [
+    "public/assets/effects/room-doors-v2",
+    "public/assets/equipment/equipment-types.png",
+    "public/assets/equipment/equipment-types-v2.png",
+    "public/assets/equipment/equipment-types-v3.png",
+  ];
+
+  for (const retiredPath of retiredPaths) {
+    await assert.rejects(
+      access(path.join(root, retiredPath)),
+      (error) => error?.code === "ENOENT",
+      `${retiredPath} must not be copied into the production build`,
+    );
+  }
+
+  await access(path.join(root, "public/assets/maps/room-doors-v4"));
+  await access(
+    path.join(root, "public/assets/equipment/equipment-types-v4.png"),
   );
 });
