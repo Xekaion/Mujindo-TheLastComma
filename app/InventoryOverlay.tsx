@@ -52,6 +52,15 @@ import {
 } from "./inventory-sort";
 import { BASE_INVENTORY_CAPACITY } from "./shop";
 import InventoryPaperdollFigure from "./InventoryPaperdollFigure";
+import {
+  MAX_DIVINE_FORGE_REROLLS,
+  getDivineForgeRerollsRemaining,
+  getDivineForgeRule,
+  isDivineForgeMaterialEligible,
+  sortDivineForgeMaterials,
+  validateDivineForgeAttempt,
+  type DivineForgeResult,
+} from "./divine-forge";
 
 export type InventoryOverlayProps = {
   open: boolean;
@@ -73,6 +82,11 @@ export type InventoryOverlayProps = {
   onGrantRarityShowcase?: () => void;
   memoryAsh: number;
   onEnhance: (gearId: string) => void;
+  onDivineForgeReroll: (
+    gearId: string,
+    materialIds: readonly string[],
+  ) => DivineForgeResult | null;
+  onGrantDivineForgeShowcase?: () => void;
   equippedPower: number;
 };
 
@@ -602,6 +616,358 @@ function GearTooltip({
   );
 }
 
+type DivineForgeStep = "prepare" | "confirm" | "result";
+
+function DivineForgeAffixList({ item }: { item: GearItem }) {
+  return (
+    <ul className="inventory-screen-divine-forge-affixes">
+      {item.affixes.map((affix) => (
+        <li key={affix.stat}>
+          {formatCompactGearLabel(getGearAffixDisplay(affix, item).totalLabel)}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function DivineForgeDialog({
+  targets,
+  targetId,
+  inventory,
+  memoryAsh,
+  step,
+  result,
+  onTargetChange,
+  onRequestConfirmation,
+  onCancelConfirmation,
+  onExecute,
+  onClose,
+  onGrantShowcase,
+}: {
+  targets: GearItem[];
+  targetId: string | null;
+  inventory: GearItem[];
+  memoryAsh: number;
+  step: DivineForgeStep;
+  result: DivineForgeResult | null;
+  onTargetChange: (targetId: string) => void;
+  onRequestConfirmation: () => void;
+  onCancelConfirmation: () => void;
+  onExecute: (targetId: string, materialIds: readonly string[]) => void;
+  onClose: () => void;
+  onGrantShowcase?: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const target =
+    targets.find((item) => item.id === targetId) ?? targets[0] ?? null;
+  const rule = target ? getDivineForgeRule(target) : null;
+  const eligibleMaterials = target
+    ? sortDivineForgeMaterials(
+        inventory.filter((item) => isDivineForgeMaterialEligible(target, item)),
+      )
+    : [];
+  const materials = rule
+    ? eligibleMaterials.slice(0, rule.materialCount)
+    : [];
+  const validation = target
+    ? validateDivineForgeAttempt(target, materials, memoryAsh)
+    : null;
+  const materialRarityLabel = rule
+    ? GEAR_RARITY_META[rule.materialRarity].label
+    : "전설/신화";
+  const remaining = target ? getDivineForgeRerollsRemaining(target) : 0;
+  const status = !target
+    ? "가방이나 장착 장비에서 신화 또는 우주 장비를 먼저 준비하세요."
+    : target.divineForgeRerolls >= MAX_DIVINE_FORGE_REROLLS
+      ? "이 장비는 최대 재련 3회를 모두 사용했습니다."
+      : materials.length < (rule?.materialCount ?? 5)
+        ? `${materialRarityLabel} 재료가 ${(rule?.materialCount ?? 5) - materials.length}개 부족합니다. 대상보다 아이템 레벨이 높아야 합니다.`
+        : memoryAsh < (rule?.ashCost ?? 0)
+          ? `기억의 재가 ${((rule?.ashCost ?? 0) - memoryAsh).toLocaleString("ko-KR")}개 부족합니다.`
+          : "헌납할 재료 5개와 비용을 확인했습니다. 모든 무작위 옵션을 새로 재련할 수 있습니다.";
+  const shownBefore = result?.before ?? target;
+  const shownAfter = result?.after ?? null;
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const preferredSelector =
+      step === "confirm"
+        ? ".inventory-screen-divine-forge-cancel"
+        : step === "result"
+          ? ".inventory-screen-divine-forge-action--complete"
+          : "#inventory-screen-divine-forge-target-select, .inventory-screen-divine-forge-close";
+    const focusFrame = window.requestAnimationFrame(() => {
+      const preferred = dialog.querySelector<HTMLElement>(preferredSelector);
+      (preferred ?? dialog).focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(focusFrame);
+  }, [step, targets.length]);
+
+  const trapDialogFocus = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ),
+    ).filter((element) => element.getClientRects().length > 0);
+    if (focusable.length === 0) {
+      event.preventDefault();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    const active = document.activeElement;
+    if (event.shiftKey && (active === first || !event.currentTarget.contains(active))) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && (active === last || !event.currentTarget.contains(active))) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <div
+      className="inventory-screen-divine-forge-backdrop"
+      onMouseDown={(event) => {
+        event.stopPropagation();
+        if (event.target !== event.currentTarget) return;
+        if (step === "confirm") onCancelConfirmation();
+        else onClose();
+      }}
+    >
+      <section
+        ref={dialogRef}
+        className={`inventory-screen-divine-forge-dialog inventory-screen-divine-forge-dialog--${step}`}
+        role={step === "confirm" ? "alertdialog" : "dialog"}
+        aria-modal="true"
+        aria-labelledby="inventory-screen-divine-forge-title"
+        aria-describedby={step === "result" ? undefined : "inventory-screen-divine-forge-status"}
+        tabIndex={-1}
+        onMouseDown={(event) => event.stopPropagation()}
+        onKeyDown={trapDialogFocus}
+      >
+        <header className="inventory-screen-divine-forge-heading">
+          <span className="inventory-screen-divine-forge-crest" aria-hidden="true" />
+          <div>
+            <small>DIVINE REFORGING</small>
+            <h3 id="inventory-screen-divine-forge-title">
+              {step === "result"
+                ? "신의 대장간 · 재련 완료"
+                : step === "confirm"
+                  ? "신의 대장간 · 최종 헌납"
+                  : "신의 대장간"}
+            </h3>
+            <p>
+              신화와 우주 장비의 모든 무작위 옵션을 신의 불꽃으로 다시 새깁니다.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="inventory-screen-divine-forge-close"
+            onClick={step === "confirm" ? onCancelConfirmation : onClose}
+            aria-label={step === "confirm" ? "최종 헌납 확인 취소" : "신의 대장간 닫기"}
+          >
+            ×
+          </button>
+        </header>
+
+        {step === "result" && result && shownBefore && shownAfter ? (
+          <div className="inventory-screen-divine-forge-result">
+            <div className="inventory-screen-divine-forge-result-summary">
+              <GearIcon item={shownAfter} size={72} />
+              <div>
+                <small>{GEAR_RARITY_META[shownAfter.rarity].label} 재련 {shownAfter.divineForgeRerolls}/3</small>
+                <strong>{formatGearDisplayName(shownAfter)}</strong>
+                <span>
+                  품질 {shownBefore.qualityScore} → {shownAfter.qualityScore} · 보스 화력 {shownBefore.powerScore.toLocaleString("ko-KR")} → {shownAfter.powerScore.toLocaleString("ko-KR")}
+                </span>
+              </div>
+            </div>
+            <div className="inventory-screen-divine-forge-result-columns">
+              <section>
+                <h4>변경 전</h4>
+                <DivineForgeAffixList item={shownBefore} />
+              </section>
+              <span className="inventory-screen-divine-forge-result-arrow" aria-hidden="true">→</span>
+              <section>
+                <h4>변경 후</h4>
+                <DivineForgeAffixList item={shownAfter} />
+              </section>
+            </div>
+            <p className="inventory-screen-divine-forge-result-footnote">
+              아이템 레벨·부위·등급·강화 단계·고유 효과는 그대로 유지되었습니다.
+            </p>
+            <button
+              type="button"
+              className="inventory-screen-divine-forge-action inventory-screen-divine-forge-action--complete"
+              onClick={onClose}
+              autoFocus
+            >
+              <span>재련 결과 확인 완료</span>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="inventory-screen-divine-forge-body">
+              <section className="inventory-screen-divine-forge-target">
+                <div className="inventory-screen-divine-forge-target-heading">
+                  <label htmlFor="inventory-screen-divine-forge-target-select">재련 대상</label>
+                  {onGrantShowcase && step === "prepare" && (
+                    <button type="button" onClick={onGrantShowcase}>
+                      로컬 검수 재료 지급
+                    </button>
+                  )}
+                </div>
+                {targets.length > 0 ? (
+                  <select
+                    id="inventory-screen-divine-forge-target-select"
+                    value={target?.id ?? ""}
+                    onChange={(event) => onTargetChange(event.target.value)}
+                    disabled={step === "confirm"}
+                  >
+                    {targets.map((item) => (
+                      <option value={item.id} key={item.id}>
+                        {GEAR_RARITY_META[item.rarity].label} · LV.{item.level} · {formatGearDisplayName(item)} · 재련 {item.divineForgeRerolls}/3
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div className="inventory-screen-divine-forge-no-target">
+                    신화 또는 우주 장비가 없습니다.
+                  </div>
+                )}
+
+                {target && rule && (
+                  <div className="inventory-screen-divine-forge-target-card">
+                    <GearIcon item={target} size={74} />
+                    <div>
+                      <small>{GEAR_RARITY_META[target.rarity].label} · {EQUIPMENT_SLOT_LABELS[target.slot]} · 아이템 레벨 {target.level}</small>
+                      <strong>{formatGearDisplayName(target)}</strong>
+                      <span>무작위 옵션 {target.affixes.length}개 전체 변경</span>
+                    </div>
+                    <dl>
+                      <div><dt>사용</dt><dd>{target.divineForgeRerolls}/3</dd></div>
+                      <div><dt>남음</dt><dd>{remaining}회</dd></div>
+                    </dl>
+                  </div>
+                )}
+              </section>
+
+              <section className="inventory-screen-divine-forge-offering">
+                <div className="inventory-screen-divine-forge-offering-heading">
+                  <div>
+                    <small>SACRIFICE</small>
+                    <h4>헌납 장비 5개</h4>
+                  </div>
+                  {rule && (
+                    <span>
+                      {materialRarityLabel} · 대상보다 높은 아이템 레벨
+                    </span>
+                  )}
+                </div>
+                <div className="inventory-screen-divine-forge-materials" role="list">
+                  {Array.from({ length: 5 }, (_, index) => {
+                    const material = materials[index] ?? null;
+                    return (
+                      <div
+                        className={`inventory-screen-divine-forge-material ${material ? rarityClass(material) : "inventory-screen-divine-forge-material--empty"}`}
+                        role="listitem"
+                        aria-label={material
+                          ? `재료 ${index + 1}, ${formatGearDisplayName(material)}, 아이템 레벨 ${material.level}, 강화 +${material.enhancement}`
+                          : `재료 ${index + 1}, 미충족`}
+                        key={material?.id ?? `empty-${index}`}
+                      >
+                        <span className="inventory-screen-divine-forge-material-art" aria-hidden="true" />
+                        <b>{index + 1}</b>
+                        {material ? (
+                          <>
+                            <GearIcon item={material} size={56} />
+                            <span>LV.{material.level}</span>
+                            <small>+{material.enhancement}</small>
+                          </>
+                        ) : (
+                          <em>미충족</em>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {eligibleMaterials.length > 5 && step === "prepare" && (
+                  <p className="inventory-screen-divine-forge-auto-note">
+                    조건을 충족한 {eligibleMaterials.length}개 중 아이템 레벨·강화·화력이 낮은 순서로 5개를 자동 선택했습니다.
+                  </p>
+                )}
+              </section>
+
+              <aside className="inventory-screen-divine-forge-contract">
+                <div>
+                  <small>기억의 재</small>
+                  <strong>{rule ? rule.ashCost.toLocaleString("ko-KR") : "—"}</strong>
+                  <span>보유 {memoryAsh.toLocaleString("ko-KR")}</span>
+                </div>
+                <p>
+                  모든 무작위 옵션만 변경됩니다. 아이템 레벨·부위·등급·강화 단계·고유 효과는 유지됩니다.
+                </p>
+              </aside>
+
+              {step === "confirm" && target && (
+                <section className="inventory-screen-divine-forge-confirm-options">
+                  <h4>현재 무작위 옵션 {target.affixes.length}개</h4>
+                  <DivineForgeAffixList item={target} />
+                </section>
+              )}
+            </div>
+
+            <footer className="inventory-screen-divine-forge-footer">
+              <p
+                id="inventory-screen-divine-forge-status"
+                role="status"
+                data-ready={validation?.ok ? "true" : "false"}
+              >
+                {step === "confirm"
+                  ? "이 재련은 되돌릴 수 없습니다. 표시된 장비 5개와 기억의 재가 즉시 소모됩니다."
+                  : status}
+              </p>
+              {step === "confirm" ? (
+                <div className="inventory-screen-divine-forge-confirm-actions">
+                  <button
+                    type="button"
+                    className="inventory-screen-divine-forge-cancel"
+                    onClick={onCancelConfirmation}
+                    autoFocus
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    className="inventory-screen-divine-forge-action"
+                    onClick={() => target && onExecute(target.id, materials.map((item) => item.id))}
+                  >
+                    <span>재료 5개를 바쳐 전체 옵션 재련</span>
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  className="inventory-screen-divine-forge-action"
+                  onClick={onRequestConfirmation}
+                  disabled={!validation?.ok}
+                  aria-describedby="inventory-screen-divine-forge-status"
+                >
+                  <span>신의 불꽃으로 재련</span>
+                  <small>{rule ? `기억의 재 ${rule.ashCost.toLocaleString("ko-KR")} · 재료 5개` : "대상을 준비하세요"}</small>
+                </button>
+              )}
+            </footer>
+          </>
+        )}
+      </section>
+    </div>
+  );
+}
+
 export default function InventoryOverlay({
   open,
   readOnly = false,
@@ -622,6 +988,8 @@ export default function InventoryOverlay({
   onGrantRarityShowcase,
   memoryAsh,
   onEnhance,
+  onDivineForgeReroll,
+  onGrantDivineForgeShowcase,
   equippedPower,
 }: InventoryOverlayProps) {
   const [hoveredItem, setHoveredItem] = useState<GearItem | null>(null);
@@ -642,12 +1010,28 @@ export default function InventoryOverlay({
   );
   const [inventorySortMode, setInventorySortMode] =
     useState<InventorySortMode>("power");
+  const [divineForgeOpen, setDivineForgeOpen] = useState(false);
+  const [divineForgeTargetId, setDivineForgeTargetId] = useState<string | null>(null);
+  const [divineForgeStep, setDivineForgeStep] =
+    useState<DivineForgeStep>("prepare");
+  const [divineForgeResult, setDivineForgeResult] =
+    useState<DivineForgeResult | null>(null);
   const salvageModeActive = !readOnly && salvageMode;
   const inventoryViewportRef = useRef<HTMLDivElement>(null);
+  const divineForgeTriggerRef = useRef<HTMLButtonElement>(null);
   const tooltipAnchorRef = useRef({ x: 12, y: 12 });
   const handleTooltipMeasure = useCallback((width: number, height: number) => {
     const anchor = tooltipAnchorRef.current;
     setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y, width, height));
+  }, []);
+  const closeDivineForge = useCallback(() => {
+    setDivineForgeOpen(false);
+    setDivineForgeStep("prepare");
+    setDivineForgeResult(null);
+    window.requestAnimationFrame(() => {
+      const trigger = divineForgeTriggerRef.current;
+      if (trigger?.isConnected) trigger.focus({ preventScroll: true });
+    });
   }, []);
   const normalizedInventoryCapacity = Math.max(
     BASE_INVENTORY_CAPACITY,
@@ -683,6 +1067,19 @@ export default function InventoryOverlay({
   }, [open, salvageConfirmationOpen]);
 
   useEffect(() => {
+    if (!open || !divineForgeOpen) return undefined;
+    const dismissForge = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" && event.key.toLowerCase() !== "i") return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (divineForgeStep === "confirm") setDivineForgeStep("prepare");
+      else closeDivineForge();
+    };
+    window.addEventListener("keydown", dismissForge, true);
+    return () => window.removeEventListener("keydown", dismissForge, true);
+  }, [closeDivineForge, divineForgeOpen, divineForgeStep, open]);
+
+  useEffect(() => {
     if (!open) return undefined;
     return () => {
       setHoveredItem(null);
@@ -702,6 +1099,16 @@ export default function InventoryOverlay({
   const selectedEquippedItem =
     equippedItems.find((item) => item.id === selectedGearId) ?? null;
   const selectedItem = selectedInventoryItem ?? selectedEquippedItem;
+  const divineForgeTargets = [...inventory, ...equippedItems]
+    .filter((item) => getDivineForgeRule(item) !== null)
+    .sort(
+      (left, right) =>
+        (left.id === selectedGearId ? -1 : 0) -
+          (right.id === selectedGearId ? -1 : 0) ||
+        right.rarity.localeCompare(left.rarity) ||
+        right.level - left.level ||
+        left.id.localeCompare(right.id),
+    );
   const selectedIsEquipped = selectedEquippedItem !== null;
   const selectedRequiredLevel = selectedItem
     ? getGearRequiredLevel(selectedItem)
@@ -778,6 +1185,35 @@ export default function InventoryOverlay({
     ? null
     : equipment[hoveredItem.slot];
   const equippedResonance = resolveEquipmentRarityResonance(equipment);
+
+  const openDivineForge = () => {
+    if (readOnly) return;
+    const preferred =
+      selectedItem && getDivineForgeRule(selectedItem)
+        ? selectedItem
+        : divineForgeTargets[0] ?? null;
+    setSalvageMode(false);
+    clearSalvageSelection();
+    setHoveredItem(null);
+    setDivineForgeTargetId(preferred?.id ?? null);
+    setDivineForgeResult(null);
+    setDivineForgeStep("prepare");
+    setDivineForgeOpen(true);
+  };
+
+  const executeDivineForge = (
+    targetId: string,
+    materialIds: readonly string[],
+  ) => {
+    const forged = onDivineForgeReroll(targetId, materialIds);
+    if (!forged) {
+      setDivineForgeStep("prepare");
+      return;
+    }
+    setDivineForgeResult(forged);
+    setDivineForgeTargetId(forged.after.id);
+    setDivineForgeStep("result");
+  };
 
   const showPointerTooltip = (
     item: GearItem,
@@ -960,6 +1396,7 @@ export default function InventoryOverlay({
   const handleBackdropMouseDown = (event: MouseEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
     closeSalvageConfirmation();
+    closeDivineForge();
     setHoveredItem(null);
     setResonanceDetail(null);
     onClose();
@@ -967,6 +1404,7 @@ export default function InventoryOverlay({
 
   const handleInventoryClose = () => {
     closeSalvageConfirmation();
+    closeDivineForge();
     setHoveredItem(null);
     setResonanceDetail(null);
     onClose();
@@ -998,13 +1436,15 @@ export default function InventoryOverlay({
     <div
       className={`inventory-screen${readOnly ? " inventory-screen--read-only" : ""}`}
       data-inventory-mode={readOnly ? "inspect" : "manage"}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="inventory-screen-title"
+      role={divineForgeOpen ? undefined : "dialog"}
+      aria-modal={divineForgeOpen ? undefined : "true"}
+      aria-labelledby={divineForgeOpen ? undefined : "inventory-screen-title"}
       onMouseDown={handleBackdropMouseDown}
     >
       <div
         className="inventory-screen-panel"
+        inert={divineForgeOpen ? true : undefined}
+        aria-hidden={divineForgeOpen ? true : undefined}
         onMouseDown={(event) => event.stopPropagation()}
       >
         <div className="inventory-screen-art" aria-hidden="true" />
@@ -1034,6 +1474,19 @@ export default function InventoryOverlay({
             <span>기억의 재</span>
             <b>{memoryAsh.toLocaleString("ko-KR")}</b>
           </div>
+          {!readOnly && (
+            <button
+              ref={divineForgeTriggerRef}
+              type="button"
+              className="inventory-screen-divine-forge-open"
+              onClick={openDivineForge}
+              aria-haspopup="dialog"
+            >
+              <span aria-hidden="true" />
+              <small>DIVINE</small>
+              <b>신의 대장간</b>
+            </button>
+          )}
           <button
             type="button"
             className="inventory-screen-close"
@@ -1653,6 +2106,27 @@ export default function InventoryOverlay({
             </div>
           </section>
         </div>
+      )}
+
+      {!readOnly && divineForgeOpen && (
+        <DivineForgeDialog
+          targets={divineForgeTargets}
+          targetId={divineForgeTargetId}
+          inventory={inventory}
+          memoryAsh={memoryAsh}
+          step={divineForgeStep}
+          result={divineForgeResult}
+          onTargetChange={(targetId) => {
+            setDivineForgeTargetId(targetId);
+            setDivineForgeResult(null);
+            setDivineForgeStep("prepare");
+          }}
+          onRequestConfirmation={() => setDivineForgeStep("confirm")}
+          onCancelConfirmation={() => setDivineForgeStep("prepare")}
+          onExecute={executeDivineForge}
+          onClose={closeDivineForge}
+          onGrantShowcase={onGrantDivineForgeShowcase}
+        />
       )}
 
       {!salvageModeActive && hoveredItem && typeof document !== "undefined" &&

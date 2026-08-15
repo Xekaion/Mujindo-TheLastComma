@@ -1283,7 +1283,7 @@ export const LEGENDARY_POWER_BY_SLOT: Readonly<
 };
 
 export type GearItem = {
-  /** Deterministic stable identifier derived from the seed and rolled contents. */
+  /** Stable item-instance identifier. Divine-forge rerolls deliberately preserve it. */
   id: string;
   slot: EquipmentSlot;
   rarity: GearRarity;
@@ -1296,6 +1296,8 @@ export type GearItem = {
   legendaryPowerId: LegendaryPowerId | null;
   /** Current memory-ash enhancement stage. Canonical range: +0 through +10. */
   enhancement: number;
+  /** Completed divine-forge full-affix rerolls. Canonical range: 0 through 3. */
+  divineForgeRerolls: number;
   /** Mean affix percentile, recomputed from canonical affixes (1–100). */
   qualityScore: number;
   powerScore: number;
@@ -2607,6 +2609,7 @@ export function rollGear(seed: GearSeed, options: RollGearOptions = {}): GearIte
     affixes,
     legendaryPowerId,
     enhancement: 0,
+    divineForgeRerolls: 0,
   };
   return {
     id: `gear-${hashString(fingerprint).toString(36)}`,
@@ -2997,6 +3000,17 @@ export function normalizeGearItem(value: unknown): GearItem | null {
     return null;
   }
 
+  const divineForgeRerolls =
+    value.divineForgeRerolls === undefined ? 0 : value.divineForgeRerolls;
+  if (
+    typeof divineForgeRerolls !== "number" ||
+    !Number.isSafeInteger(divineForgeRerolls) ||
+    divineForgeRerolls < 0 ||
+    divineForgeRerolls > 3
+  ) {
+    return null;
+  }
+
   const affixes = normalizeAffixes(
     value.affixes,
     value.id,
@@ -3021,6 +3035,7 @@ export function normalizeGearItem(value: unknown): GearItem | null {
     affixes,
     legendaryPowerId,
     enhancement,
+    divineForgeRerolls,
   };
   return {
     id: value.id,
@@ -3041,6 +3056,7 @@ export function isGearItem(value: unknown): value is GearItem {
     value.iconIndex !== normalized.iconIndex ||
     value.legendaryPowerId !== normalized.legendaryPowerId ||
     value.enhancement !== normalized.enhancement ||
+    value.divineForgeRerolls !== normalized.divineForgeRerolls ||
     value.qualityScore !== normalized.qualityScore ||
     value.powerScore !== normalized.powerScore ||
     !Array.isArray(originalAffixes) ||

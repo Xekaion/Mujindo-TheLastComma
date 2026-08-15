@@ -2727,6 +2727,842 @@ button.map-cell {
   }
 }
 
+/* Divine forge inventory chamber V1 -----------------------------------
+   The forge owns a centered, fixed-action chamber so the existing paper
+   doll, enhancement workbench, and backpack never lose usable height. */
+.inventory-screen-header {
+  grid-template-columns:
+    minmax(210px, 0.72fr)
+    minmax(150px, 0.9fr)
+    auto
+    auto
+    118px
+    50px;
+  gap: 11px;
+}
+
+.inventory-screen-divine-forge-open {
+  position: relative;
+  display: grid;
+  width: 118px;
+  height: 46px;
+  grid-template-columns: 38px 1fr;
+  grid-template-rows: 18px 18px;
+  align-items: center;
+  border: 1px solid rgba(224, 161, 63, 0.42);
+  padding: 4px 7px 4px 3px;
+  overflow: hidden;
+  color: #f4d997;
+  background:
+    radial-gradient(circle at 26% 50%, rgba(194, 26, 118, 0.22), transparent 36%),
+    radial-gradient(circle at 80% 50%, rgba(31, 175, 218, 0.16), transparent 42%),
+    #08090b;
+  box-shadow: inset 0 0 18px rgba(222, 123, 31, 0.09), 0 0 12px rgba(0, 0, 0, 0.7);
+  cursor: pointer;
+}
+
+.inventory-screen-divine-forge-open > span {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  width: 38px;
+  height: 38px;
+  background: url("/assets/ui/divine-forge-crest-v1.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 7px rgba(232, 58, 171, 0.4));
+}
+
+.inventory-screen-divine-forge-open small,
+.inventory-screen-divine-forge-open b {
+  position: relative;
+  z-index: 1;
+  grid-column: 2;
+  min-width: 0;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.inventory-screen-divine-forge-open small {
+  align-self: end;
+  color: #ca6ea9;
+  font-size: 7px;
+  letter-spacing: 0.18em;
+}
+
+.inventory-screen-divine-forge-open b {
+  align-self: start;
+  color: #f2ddb1;
+  font-size: 11px;
+}
+
+.inventory-screen-divine-forge-open:hover,
+.inventory-screen-divine-forge-open:focus-visible {
+  border-color: rgba(255, 206, 102, 0.84);
+  outline: 1px solid rgba(70, 225, 255, 0.48);
+  outline-offset: 2px;
+  filter: brightness(1.16);
+}
+
+.inventory-screen-divine-forge-backdrop {
+  position: absolute;
+  z-index: 460;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background:
+    radial-gradient(circle at 50% 47%, rgba(95, 10, 62, 0.21), transparent 42%),
+    rgba(0, 0, 0, 0.84);
+  backdrop-filter: blur(3px);
+}
+
+.inventory-screen-divine-forge-dialog {
+  position: relative;
+  display: grid;
+  width: min(930px, calc(100% - 24px));
+  height: min(624px, calc(100% - 20px));
+  min-height: 0;
+  grid-template-rows: 126px minmax(0, 1fr) 92px;
+  border: 1px solid rgba(226, 170, 72, 0.54);
+  overflow: hidden;
+  isolation: isolate;
+  color: #eadfc8;
+  background:
+    radial-gradient(circle at 18% 24%, rgba(157, 20, 99, 0.16), transparent 35%),
+    radial-gradient(circle at 82% 22%, rgba(17, 149, 190, 0.13), transparent 36%),
+    linear-gradient(180deg, #0b0a0c, #08090b 58%, #050607);
+  box-shadow:
+    0 30px 90px rgba(0, 0, 0, 0.94),
+    inset 0 0 0 3px rgba(38, 27, 15, 0.74),
+    inset 0 0 70px rgba(174, 76, 24, 0.08);
+}
+
+.inventory-screen-divine-forge-dialog::before,
+.inventory-screen-divine-forge-dialog::after {
+  position: absolute;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+}
+
+.inventory-screen-divine-forge-dialog::before {
+  inset: 8px;
+  border: 1px solid rgba(202, 143, 53, 0.17);
+}
+
+.inventory-screen-divine-forge-dialog::after {
+  inset: 126px 0 91px;
+  opacity: 0.12;
+  background:
+    linear-gradient(90deg, transparent 49.8%, rgba(255, 199, 101, 0.45) 50%, transparent 50.2%),
+    repeating-linear-gradient(135deg, transparent 0 24px, rgba(221, 174, 81, 0.08) 25px, transparent 26px 52px);
+}
+
+.inventory-screen-divine-forge-heading {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(218, 161, 62, 0.25);
+  padding: 10px 20px 8px 22px;
+  overflow: hidden;
+  text-align: left;
+}
+
+.inventory-screen-divine-forge-heading::before {
+  position: absolute;
+  z-index: -1;
+  top: -52px;
+  left: 50%;
+  width: 560px;
+  height: 234px;
+  opacity: 0.66;
+  background: url("/assets/ui/divine-forge-title-v1.png") center / contain no-repeat;
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 15px rgba(229, 44, 159, 0.2));
+}
+
+.inventory-screen-divine-forge-crest {
+  width: 106px;
+  height: 96px;
+  background: url("/assets/ui/divine-forge-crest-v1.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 12px rgba(246, 77, 185, 0.26));
+}
+
+.inventory-screen-divine-forge-heading > div {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  padding: 11px 26px;
+  text-align: center;
+  text-shadow: 0 2px 5px #000;
+}
+
+.inventory-screen-divine-forge-heading small {
+  color: #e56eb5;
+  font-size: 8px;
+  letter-spacing: 0.28em;
+}
+
+.inventory-screen-divine-forge-heading h3 {
+  margin: 1px 0 2px;
+  color: #ffe7ab;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: 0.08em;
+  text-shadow: 0 2px 5px #000, 0 0 13px rgba(255, 178, 66, 0.3);
+}
+
+.inventory-screen-divine-forge-heading p {
+  margin: 0;
+  color: rgba(234, 221, 197, 0.66);
+  font-size: 10px;
+}
+
+.inventory-screen-divine-forge-close {
+  align-self: start;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(204, 151, 65, 0.37);
+  color: #d8b87c;
+  background: rgba(5, 6, 8, 0.8);
+  font-size: 21px;
+  cursor: pointer;
+}
+
+.inventory-screen-divine-forge-close:hover,
+.inventory-screen-divine-forge-close:focus-visible {
+  border-color: #ffd47a;
+  outline: 1px solid rgba(82, 218, 255, 0.5);
+}
+
+.inventory-screen-divine-forge-body {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(260px, 0.86fr) minmax(430px, 1.35fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px 12px;
+  padding: 11px 16px 8px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-target,
+.inventory-screen-divine-forge-offering,
+.inventory-screen-divine-forge-contract,
+.inventory-screen-divine-forge-confirm-options,
+.inventory-screen-divine-forge-result-columns > section {
+  border: 1px solid rgba(198, 146, 57, 0.22);
+  background: linear-gradient(145deg, rgba(18, 17, 19, 0.88), rgba(6, 8, 10, 0.78));
+  box-shadow: inset 0 0 20px rgba(198, 75, 25, 0.04);
+}
+
+.inventory-screen-divine-forge-target {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 7px;
+  padding: 10px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-target-heading,
+.inventory-screen-divine-forge-offering-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.inventory-screen-divine-forge-target-heading label,
+.inventory-screen-divine-forge-offering-heading h4,
+.inventory-screen-divine-forge-confirm-options h4 {
+  margin: 0;
+  color: #e9c981;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+}
+
+.inventory-screen-divine-forge-target-heading button {
+  border: 1px solid rgba(77, 195, 208, 0.34);
+  padding: 3px 7px;
+  color: #8fd9dd;
+  background: rgba(7, 25, 29, 0.7);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.inventory-screen-divine-forge-target select {
+  width: 100%;
+  min-height: 30px;
+  border: 1px solid rgba(217, 158, 69, 0.3);
+  padding: 4px 7px;
+  overflow: hidden;
+  color: #e9dfc8;
+  background: #090a0c;
+  font: inherit;
+  font-size: 9px;
+  text-overflow: ellipsis;
+}
+
+.inventory-screen-divine-forge-target select:focus-visible {
+  outline: 1px solid #59d7ec;
+  outline-offset: 1px;
+}
+
+.inventory-screen-divine-forge-no-target {
+  display: grid;
+  min-height: 30px;
+  place-items: center;
+  border: 1px dashed rgba(225, 164, 72, 0.27);
+  color: rgba(228, 212, 180, 0.54);
+  font-size: 9px;
+}
+
+.inventory-screen-divine-forge-target-card {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: 76px minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 17% 50%, rgba(234, 48, 163, 0.13), transparent 34%),
+    rgba(3, 5, 7, 0.66);
+}
+
+.inventory-screen-divine-forge-target-card > .inventory-screen-gear-icon {
+  filter: drop-shadow(0 0 8px rgba(237, 65, 176, 0.36));
+}
+
+.inventory-screen-divine-forge-target-card > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+  text-align: left;
+}
+
+.inventory-screen-divine-forge-target-card small,
+.inventory-screen-divine-forge-target-card span {
+  color: rgba(224, 214, 194, 0.65);
+  font-size: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-screen-divine-forge-target-card strong {
+  overflow: hidden;
+  color: #f2d59c;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-screen-divine-forge-target-card dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+
+.inventory-screen-divine-forge-target-card dl > div {
+  display: grid;
+  justify-items: center;
+  border: 1px solid rgba(224, 160, 62, 0.18);
+  padding: 3px;
+}
+
+.inventory-screen-divine-forge-target-card dt {
+  color: rgba(218, 199, 165, 0.52);
+  font-size: 7px;
+}
+
+.inventory-screen-divine-forge-target-card dd {
+  margin: 0;
+  color: #ffce72;
+  font-size: 10px;
+}
+
+.inventory-screen-divine-forge-offering {
+  display: grid;
+  min-height: 0;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-offering-heading small {
+  display: block;
+  color: #cf5fa9;
+  font-size: 7px;
+  letter-spacing: 0.2em;
+}
+
+.inventory-screen-divine-forge-offering-heading > span {
+  color: rgba(233, 211, 171, 0.65);
+  font-size: 8px;
+}
+
+.inventory-screen-divine-forge-materials {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: repeat(5, minmax(68px, 1fr));
+  align-items: center;
+  gap: 4px;
+}
+
+.inventory-screen-divine-forge-material {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  height: 128px;
+  place-items: center;
+  grid-template-rows: 1fr auto auto;
+  padding: 26px 7px 18px;
+  overflow: hidden;
+  isolation: isolate;
+  color: #e9d7b6;
+}
+
+.inventory-screen-divine-forge-material-art {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: url("/assets/ui/divine-forge-socket-v1.png") center / contain no-repeat;
+  filter: drop-shadow(0 0 7px rgba(255, 94, 46, 0.23));
+}
+
+.inventory-screen-divine-forge-material > b {
+  position: absolute;
+  z-index: 2;
+  top: 13px;
+  left: 50%;
+  color: #ffd782;
+  font-size: 8px;
+  transform: translateX(-50%);
+}
+
+.inventory-screen-divine-forge-material > .inventory-screen-gear-icon {
+  align-self: end;
+  filter: drop-shadow(0 0 7px rgba(236, 95, 179, 0.35));
+}
+
+.inventory-screen-divine-forge-material > span:not(.inventory-screen-divine-forge-material-art),
+.inventory-screen-divine-forge-material > small {
+  position: relative;
+  z-index: 2;
+  font-size: 8px;
+  line-height: 1.05;
+}
+
+.inventory-screen-divine-forge-material > span:not(.inventory-screen-divine-forge-material-art) {
+  color: #f0cf91;
+}
+
+.inventory-screen-divine-forge-material > small {
+  color: #80dbe4;
+}
+
+.inventory-screen-divine-forge-material em {
+  color: rgba(222, 202, 171, 0.35);
+  font-size: 8px;
+  font-style: normal;
+}
+
+.inventory-screen-divine-forge-material--empty .inventory-screen-divine-forge-material-art {
+  opacity: 0.38;
+  filter: grayscale(0.8) brightness(0.55);
+}
+
+.inventory-screen-divine-forge-auto-note {
+  margin: 0;
+  color: rgba(213, 201, 183, 0.52);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.inventory-screen-divine-forge-contract {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-contract > div {
+  display: grid;
+  justify-items: center;
+  border-right: 1px solid rgba(212, 154, 63, 0.17);
+  padding-right: 8px;
+}
+
+.inventory-screen-divine-forge-contract small,
+.inventory-screen-divine-forge-contract span {
+  color: rgba(202, 224, 222, 0.58);
+  font-size: 7px;
+}
+
+.inventory-screen-divine-forge-contract strong {
+  color: #9be2dc;
+  font-size: 14px;
+  text-shadow: 0 0 10px rgba(90, 229, 220, 0.24);
+}
+
+.inventory-screen-divine-forge-contract p {
+  margin: 0;
+  color: rgba(230, 216, 190, 0.64);
+  font-size: 8px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.inventory-screen-divine-forge-footer {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border-top: 1px solid rgba(216, 158, 61, 0.22);
+  padding: 3px 18px 5px 22px;
+  background: rgba(4, 5, 7, 0.82);
+}
+
+.inventory-screen-divine-forge-footer > p {
+  margin: 0;
+  padding-left: 10px;
+  color: #d37c77;
+  font-size: 9px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.inventory-screen-divine-forge-footer > p[data-ready="true"] {
+  color: #8fd8ca;
+}
+
+.inventory-screen-divine-forge-action {
+  position: relative;
+  display: grid;
+  width: 318px;
+  height: 82px;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  border: 0;
+  padding: 16px 40px 18px;
+  overflow: visible;
+  isolation: isolate;
+  color: #fff0bb;
+  background: transparent;
+  text-shadow: 0 2px 4px #000, 0 0 8px rgba(255, 192, 79, 0.26);
+  cursor: pointer;
+}
+
+.inventory-screen-divine-forge-action::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background: url("/assets/ui/divine-forge-button-v1.png") center / contain no-repeat;
+  content: "";
+  filter: drop-shadow(0 0 10px rgba(234, 48, 164, 0.2));
+}
+
+.inventory-screen-divine-forge-action > span {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.inventory-screen-divine-forge-action > small {
+  color: rgba(221, 224, 216, 0.62);
+  font-size: 8px;
+}
+
+.inventory-screen-divine-forge-action:hover:not(:disabled),
+.inventory-screen-divine-forge-action:focus-visible:not(:disabled) {
+  outline: none;
+  filter: brightness(1.18);
+}
+
+.inventory-screen-divine-forge-action:focus-visible:not(:disabled)::before {
+  filter: brightness(1.2) drop-shadow(0 0 13px rgba(81, 222, 255, 0.55));
+}
+
+.inventory-screen-divine-forge-action:disabled {
+  color: rgba(218, 208, 188, 0.34);
+  cursor: not-allowed;
+  filter: grayscale(0.8) brightness(0.52);
+}
+
+.inventory-screen-divine-forge-confirm-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inventory-screen-divine-forge-cancel {
+  min-width: 74px;
+  min-height: 34px;
+  border: 1px solid rgba(220, 176, 89, 0.32);
+  color: #d6c8ad;
+  background: rgba(12, 12, 13, 0.86);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.inventory-screen-divine-forge-cancel:hover,
+.inventory-screen-divine-forge-cancel:focus-visible {
+  border-color: #e9c478;
+  outline: 1px solid rgba(89, 215, 236, 0.38);
+}
+
+.inventory-screen-divine-forge-confirm-options {
+  display: none;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-body {
+  grid-template-columns: 230px minmax(370px, 1fr) 250px;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-target {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-target-card {
+  grid-template-columns: 62px minmax(0, 1fr);
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-target-card dl {
+  display: none;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-offering {
+  grid-column: 2;
+  grid-row: 1 / 3;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-contract {
+  grid-column: 1;
+  grid-row: 2;
+  grid-template-columns: 1fr;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-contract p {
+  display: none;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-contract > div {
+  border: 0;
+  padding: 0;
+}
+
+.inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-confirm-options {
+  display: grid;
+  min-height: 0;
+  grid-column: 3;
+  grid-row: 1 / 3;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 6px;
+  padding: 9px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-affixes {
+  display: grid;
+  min-height: 0;
+  align-content: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.inventory-screen-divine-forge-affixes li {
+  border-left: 2px solid rgba(214, 89, 171, 0.58);
+  padding: 4px 7px;
+  overflow: hidden;
+  color: #e6dcc9;
+  background: rgba(5, 7, 9, 0.63);
+  font-size: 9px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inventory-screen-divine-forge-result {
+  display: grid;
+  min-height: 0;
+  grid-row: 2 / 4;
+  grid-template-rows: 82px minmax(0, 1fr) 28px 86px;
+  gap: 7px;
+  padding: 8px 22px 7px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-result-summary {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(220, 161, 63, 0.2);
+  text-align: left;
+}
+
+.inventory-screen-divine-forge-result-summary > div {
+  display: grid;
+  gap: 2px;
+}
+
+.inventory-screen-divine-forge-result-summary small {
+  color: #df6db2;
+  font-size: 9px;
+}
+
+.inventory-screen-divine-forge-result-summary strong {
+  color: #ffe1a0;
+  font-size: 15px;
+}
+
+.inventory-screen-divine-forge-result-summary span {
+  color: rgba(221, 215, 200, 0.67);
+  font-size: 9px;
+}
+
+.inventory-screen-divine-forge-result-columns {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+  gap: 7px;
+}
+
+.inventory-screen-divine-forge-result-columns > section {
+  display: grid;
+  min-height: 0;
+  grid-template-rows: 29px minmax(0, 1fr);
+  padding: 8px 10px;
+  overflow: hidden;
+}
+
+.inventory-screen-divine-forge-result-columns h4 {
+  margin: 0;
+  color: #e7c77f;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.inventory-screen-divine-forge-result-arrow {
+  display: grid;
+  place-items: center;
+  color: #fff0a8;
+  font-size: 28px;
+  text-shadow: 0 0 12px #dd4caa, 0 0 20px #36c6e7;
+}
+
+.inventory-screen-divine-forge-result-columns > section:last-child .inventory-screen-divine-forge-affixes li {
+  border-color: rgba(62, 207, 230, 0.7);
+  color: #f5ead4;
+  box-shadow: inset 0 0 10px rgba(52, 203, 225, 0.04);
+}
+
+.inventory-screen-divine-forge-result-footnote {
+  margin: 0;
+  color: rgba(218, 206, 183, 0.6);
+  font-size: 8px;
+  text-align: center;
+}
+
+.inventory-screen-divine-forge-action--complete {
+  align-self: center;
+  justify-self: center;
+}
+
+@container game-viewport (max-width: 900px) {
+  .inventory-screen-divine-forge-dialog {
+    width: calc(100% - 12px);
+    height: calc(100% - 12px);
+    grid-template-rows: 108px minmax(0, 1fr) 82px;
+  }
+
+  .inventory-screen-divine-forge-body,
+  .inventory-screen-divine-forge-dialog--confirm .inventory-screen-divine-forge-body {
+    display: block;
+    padding: 10px;
+    overflow-y: auto;
+  }
+
+  .inventory-screen-divine-forge-target,
+  .inventory-screen-divine-forge-offering,
+  .inventory-screen-divine-forge-contract,
+  .inventory-screen-divine-forge-confirm-options {
+    margin-bottom: 9px;
+  }
+
+  .inventory-screen-divine-forge-offering {
+    min-height: 190px;
+  }
+
+  .inventory-screen-divine-forge-footer {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+@container game-viewport (max-width: 620px) {
+  .inventory-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto 98px 36px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-screen-header-resources {
+    grid-column: 2;
+  }
+
+  .inventory-screen-divine-forge-open {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    width: 98px;
+  }
+
+  .inventory-screen-close {
+    grid-column: 4;
+  }
+
+  .inventory-screen-divine-forge-heading {
+    grid-template-columns: 82px minmax(0, 1fr) 32px;
+    padding-inline: 10px;
+  }
+
+  .inventory-screen-divine-forge-crest {
+    width: 78px;
+    height: 74px;
+  }
+
+  .inventory-screen-divine-forge-materials {
+    grid-template-columns: repeat(5, minmax(58px, 1fr));
+  }
+
+  .inventory-screen-divine-forge-result {
+    padding-inline: 10px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inventory-screen-divine-forge-open,
+  .inventory-screen-divine-forge-action,
+  .inventory-screen-divine-forge-material-art,
+  .inventory-screen-divine-forge-crest {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .inventory-screen-rarity-salvage-filter {
     transition: none;
@@ -12610,5 +13446,76 @@ button.equipment-slot-card:hover {
 
   .inventory-screen-resonance-chip > strong {
     font-size: 10px;
+  }
+}
+
+/* Divine forge header placement must win after the compact V9 overrides. */
+.inventory-screen:not(.inventory-screen--read-only) .inventory-screen-header {
+  grid-template-columns:
+    minmax(210px, 0.72fr)
+    minmax(150px, 0.9fr)
+    auto
+    auto
+    118px
+    50px;
+  gap: 11px;
+}
+
+@container game-viewport (max-width: 900px) {
+  .inventory-screen:not(.inventory-screen--read-only) .inventory-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto auto 98px 38px;
+    gap: 8px;
+  }
+
+  .inventory-screen--read-only .inventory-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto auto 38px;
+    gap: 8px;
+  }
+
+  .inventory-screen-divine-forge-open {
+    width: 98px;
+  }
+}
+
+@container game-viewport (max-width: 620px) {
+  .inventory-screen:not(.inventory-screen--read-only) .inventory-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto 98px 36px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-screen--read-only .inventory-screen-header {
+    grid-template-columns: minmax(0, 1fr) auto 36px;
+    grid-template-rows: repeat(2, minmax(0, 1fr));
+  }
+
+  .inventory-screen-header > div:first-child {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .inventory-screen-header > .inventory-screen-resonance-summary {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .inventory-screen-header-resources {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+
+  .inventory-screen:not(.inventory-screen--read-only) .inventory-screen-divine-forge-open {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    width: 98px;
+  }
+
+  .inventory-screen:not(.inventory-screen--read-only) .inventory-screen-close {
+    grid-column: 4;
+    grid-row: 1 / 3;
+  }
+
+  .inventory-screen--read-only .inventory-screen-close {
+    grid-column: 3;
+    grid-row: 1 / 3;
   }
 }

@@ -1,0 +1,169 @@
+{
+  "asset": "divine-forge-ui-v1",
+  "version": 1,
+  "builder": "scripts/build_divine_forge_ui_v1.py",
+  "inputs": [
+    {
+      "path": "asset-sources/imagegen/divine-forge-ui-v1-source.png",
+      "sha256": "58e07f30aa07ad561d7017bb57b1a5610d27c8e5c81a51e63f8262d4d9c8cf87",
+      "bytes": 1944296,
+      "size": [
+        1672,
+        941
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/divine-forge-ui-v1-keyed.png",
+      "sha256": "58e07f30aa07ad561d7017bb57b1a5610d27c8e5c81a51e63f8262d4d9c8cf87",
+      "bytes": 1944296,
+      "size": [
+        1672,
+        941
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/divine-forge-ui-v1.prompt.json",
+      "sha256": "879f6ea577b986e947da32e1a4e6a7c58f7b1b008ad49b3cacc9101f4a60a321",
+      "bytes": 1781
+    }
+  ],
+  "pipeline": {
+    "nativeTransparentImageGenSource": true,
+    "alphaThreshold": 4,
+    "transparentGutterPixels": 10,
+    "resampling": "premultiplied-alpha Lanczos",
+    "zeroAlphaRgbCleared": true
+  },
+  "outputs": [
+    {
+      "path": "public/assets/ui/divine-forge-crest-v1.png",
+      "sha256": "71e3bf28dffd60ab62a2dce77668894b0ba787dabade7a7486d63541bfb96002",
+      "bytes": 298528,
+      "size": [
+        460,
+        411
+      ],
+      "mode": "RGBA",
+      "role": "forge emblem",
+      "cssConsumer": ".inventory-screen-divine-forge-crest",
+      "renderMode": "contain",
+      "sourceRegion": [
+        24,
+        0,
+        620,
+        493
+      ],
+      "sourceAlphaBox": [
+        32,
+        13,
+        571,
+        493
+      ],
+      "productionAlphaBox": [
+        8,
+        8,
+        450,
+        403
+      ],
+      "name": "crest"
+    },
+    {
+      "path": "public/assets/ui/divine-forge-title-v1.png",
+      "sha256": "158db10948014bcce8b4e6e555040418a69a5259e55d608daa0fe5c25f1f1d27",
+      "bytes": 286388,
+      "size": [
+        700,
+        292
+      ],
+      "mode": "RGBA",
+      "role": "modal title plaque",
+      "cssConsumer": ".inventory-screen-divine-forge-heading::before",
+      "renderMode": "contain",
+      "sourceRegion": [
+        630,
+        18,
+        1668,
+        486
+      ],
+      "sourceAlphaBox": [
+        24,
+        25,
+        1015,
+        427
+      ],
+      "productionAlphaBox": [
+        8,
+        7,
+        693,
+        285
+      ],
+      "name": "title"
+    },
+    {
+      "path": "public/assets/ui/divine-forge-socket-v1.png",
+      "sha256": "c57c008c710f62c2d31cf42f75e2f19964c6766a908be78c77d5153448d6c152",
+      "bytes": 301747,
+      "size": [
+        430,
+        437
+      ],
+      "mode": "RGBA",
+      "role": "sacrificial material socket",
+      "cssConsumer": ".inventory-screen-divine-forge-material-art",
+      "renderMode": "contain",
+      "sourceRegion": [
+        48,
+        490,
+        620,
+        936
+      ],
+      "sourceAlphaBox": [
+        63,
+        0,
+        490,
+        434
+      ],
+      "productionAlphaBox": [
+        10,
+        9,
+        420,
+        427
+      ],
+      "name": "socket"
+    },
+    {
+      "path": "public/assets/ui/divine-forge-button-v1.png",
+      "sha256": "7f25061a7dfb8012308c696d26fb5e24285585ea8aa6303a5fdf0175742c093f",
+      "bytes": 269582,
+      "size": [
+        700,
+        239
+      ],
+      "mode": "RGBA",
+      "role": "primary forge action plate",
+      "cssConsumer": ".inventory-screen-divine-forge-action::before",
+      "renderMode": "stretchable background",
+      "sourceRegion": [
+        630,
+        520,
+        1668,
+        900
+      ],
+      "sourceAlphaBox": [
+        47,
+        17,
+        987,
+        325
+      ],
+      "productionAlphaBox": [
+        7,
+        9,
+        693,
+        232
+      ],
+      "name": "button"
+    }
+  ]
+}

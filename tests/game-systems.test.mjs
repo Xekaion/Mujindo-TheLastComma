@@ -5950,7 +5950,11 @@ test("I opens the centered inventory overlay and equipped-slot clicks drive its 
     "the inventory must occupy and center within the viewport",
   );
   assert.match(css, /url\(["']?\/assets\/ui\/inventory-sanctum\.png["']?\)/);
-  assert.match(overlay, /role=["']dialog["'][\s\S]{0,100}?aria-modal=["']true["']/);
+  assert.match(
+    overlay,
+    /role=\{divineForgeOpen \? undefined : ["']dialog["']\}[\s\S]{0,140}?aria-modal=\{divineForgeOpen \? undefined : ["']true["']\}/,
+    "the inventory owns modal semantics until the nested divine forge takes them over",
+  );
   assert.match(
     overlay,
     /const selectedEquippedItem\s*=[\s\S]{0,180}?equippedItems\.find\(\(item\) => item\.id === selectedGearId\)/,

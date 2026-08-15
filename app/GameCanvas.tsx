@@ -348,6 +348,10 @@ import {
   type GearItem,
   type GearStatTotals,
 } from "./equipment";
+import {
+  applyDivineForgeTransaction,
+  type DivineForgeResult,
+} from "./divine-forge";
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -4335,6 +4339,45 @@ export default function GameCanvas({
     syncHud();
   }, [syncHud]);
 
+  const grantLocalDivineForgeShowcase = useCallback(() => {
+    if (!isLocalVfxShowcase) return;
+    const player = playerRef.current;
+    const specifications = [
+      { id: "local-divine-forge-target-mythic", rarity: "mythic", level: 40, slot: "weapon" },
+      { id: "local-divine-forge-legendary-1", rarity: "legendary", level: 41, slot: "offhand" },
+      { id: "local-divine-forge-legendary-2", rarity: "legendary", level: 42, slot: "helm" },
+      { id: "local-divine-forge-legendary-3", rarity: "legendary", level: 43, slot: "shoulders" },
+      { id: "local-divine-forge-legendary-4", rarity: "legendary", level: 44, slot: "armor" },
+      { id: "local-divine-forge-legendary-5", rarity: "legendary", level: 45, slot: "gloves" },
+      { id: "local-divine-forge-target-cosmic", rarity: "cosmic", level: 30, slot: "relic" },
+      { id: "local-divine-forge-mythic-1", rarity: "mythic", level: 31, slot: "belt" },
+      { id: "local-divine-forge-mythic-2", rarity: "mythic", level: 32, slot: "legs" },
+      { id: "local-divine-forge-mythic-3", rarity: "mythic", level: 33, slot: "boots" },
+      { id: "local-divine-forge-mythic-4", rarity: "mythic", level: 34, slot: "offhand" },
+      { id: "local-divine-forge-mythic-5", rarity: "mythic", level: 35, slot: "helm" },
+    ] as const;
+    const showcaseItems = specifications.map((specification) => ({
+      ...rollGear(`local-divine-forge:${specification.id}`, {
+        level: specification.level,
+        rarity: specification.rarity,
+        slot: specification.slot,
+      }),
+      id: specification.id,
+    }));
+    const ownedIds = new Set(player.inventory.map((item) => item.id));
+    const missingItems = showcaseItems.filter((item) => !ownedIds.has(item.id));
+    const openSlots = inventoryCapacityRef.current - player.inventory.length;
+    if (openSlots < missingItems.length) {
+      setToast(`신의 대장간 검수 재료 지급에는 빈 가방 ${missingItems.length}칸이 필요합니다.`);
+      return;
+    }
+    player.inventory.unshift(...missingItems);
+    player.memoryAsh = Math.max(player.memoryAsh, 1_300_000);
+    setSelectedGearId("local-divine-forge-target-mythic");
+    setToast("메모리 전용 신의 대장간 검수 장비와 기억의 재 1,300,000개를 지급했습니다.");
+    syncHud();
+  }, [isLocalVfxShowcase, syncHud]);
+
   const performGearEnhancement = useCallback(
     (itemId: string) => {
       const player = playerRef.current;
@@ -4459,6 +4502,57 @@ export default function GameCanvas({
       );
     },
     [performGearEnhancement, requestGameConfirmation],
+  );
+
+  const performDivineForgeReroll = useCallback(
+    (itemId: string, materialIds: readonly string[]): DivineForgeResult | null => {
+      const player = playerRef.current;
+      const transaction = applyDivineForgeTransaction({
+        inventory: player.inventory,
+        equipment: player.equipment,
+        memoryAsh: player.memoryAsh,
+        targetId: itemId,
+        materialIds,
+        seed: `${itemId}:${Date.now()}:${Math.random()}`,
+      });
+      if (!transaction.ok) {
+        const message =
+          transaction.code === "target-not-found"
+            ? "신의 대장간 대상을 찾을 수 없습니다."
+            : transaction.code === "reroll-limit"
+            ? "이 장비는 신의 대장간 최대 재련 3회를 모두 사용했습니다."
+            : transaction.code === "insufficient-ash"
+              ? "신의 대장간에 바칠 기억의 재가 부족합니다."
+              : transaction.code === "material-count"
+                ? "조건을 충족하는 재료 장비 5개가 필요합니다."
+                : "신의 대장간 재료 조건이 달라졌습니다. 다시 확인해 주세요.";
+        setToast(message);
+        return null;
+      }
+
+      const previousMaxHp = transaction.equippedSlot
+        ? aggregateEquipmentStats(player.equipment).maxHpFlat
+        : 0;
+      player.memoryAsh = transaction.memoryAsh;
+      player.inventory = transaction.inventory;
+      player.equipment = transaction.equipment;
+      if (transaction.equippedSlot) {
+        reconcileLegendaryRuntime(player);
+        const nextMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
+        const maxHpDelta = nextMaxHp - previousMaxHp;
+        player.maxHp = Math.max(1, player.maxHp + maxHpDelta);
+        player.hp = clamp(player.hp + Math.max(0, maxHpDelta), 1, player.maxHp);
+      }
+
+      playGameSfx("enhanceSuccess", { priority: 9 });
+      setSelectedGearId(transaction.result.after.id);
+      setToast(
+        `신의 대장간 재련 완료 · ${formatGearDisplayName(transaction.result.after)} · ${transaction.result.after.divineForgeRerolls}/3회`,
+      );
+      syncHud();
+      return transaction.result;
+    },
+    [syncHud],
   );
 
   const returnToMenu = useCallback(() => {
@@ -11508,6 +11602,7 @@ export default function GameCanvas({
         open={inventoryOpen && started && mode === "playing"}
         memoryAsh={hud.player.memoryAsh}
         onEnhance={enhanceGearItem}
+        onDivineForgeReroll={performDivineForgeReroll}
         onClose={() => setInventoryScreenOpen(false)}
         equipment={hud.player.equipment}
         inventory={hud.player.inventory}
@@ -11523,6 +11618,7 @@ export default function GameCanvas({
         autoSalvageMaxRarity={hud.player.autoSalvageMaxRarity}
         onAutoSalvageMaxRarityChange={changeAutoSalvageMaxRarity}
         onGrantRarityShowcase={isLocalRarityShowcaseHost() ? grantLocalRarityShowcase : undefined}
+        onGrantDivineForgeShowcase={isLocalVfxShowcase && isLocalRarityShowcaseHost() ? grantLocalDivineForgeShowcase : undefined}
         equippedPower={equippedPower}
       />
 

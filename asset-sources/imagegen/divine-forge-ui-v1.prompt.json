@@ -1,0 +1,29 @@
+{
+  "asset": "divine-forge-ui-v1",
+  "date": "2026-08-16",
+  "mode": "original-create",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "dark gothic ARPG divine-forge inventory UI chrome",
+  "generationPrompt": "Create a production-ready 2D dark gothic action-RPG UI asset sheet for an in-game divine forge. Early-2000s Diablo-like medieval occult interface; blackened iron, aged gold, deep crimson embers, restrained mythic magenta and cosmic cyan-violet highlights; crisp hand-painted UI, symmetrical and readable at small sizes. Wide sheet with exactly four isolated assets: square anvil-and-celestial-rune crest, wide empty title plaque, square empty sacrificial equipment socket, and wide empty confirm-action button plate. No text, letters, numbers, logos, inventory items, characters, scene, perspective, clipping, overlap, or watermark. The requested flat #00ff00 chroma backdrop was returned by the generator as native transparency.",
+  "generationResult": {
+    "nativeMode": "RGBA",
+    "nativeSize": [1672, 941],
+    "nativeTransparentBackground": true,
+    "requestedBackdrop": "#00ff00",
+    "generatedSource": "asset-sources/imagegen/divine-forge-ui-v1-source.png",
+    "keyedSource": "asset-sources/imagegen/divine-forge-ui-v1-keyed.png"
+  },
+  "productionOutputs": [
+    "public/assets/ui/divine-forge-crest-v1.png",
+    "public/assets/ui/divine-forge-title-v1.png",
+    "public/assets/ui/divine-forge-socket-v1.png",
+    "public/assets/ui/divine-forge-button-v1.png"
+  ],
+  "pipeline": {
+    "builder": "scripts/build_divine_forge_ui_v1.py",
+    "alphaThreshold": 4,
+    "transparentGutterPixels": 10,
+    "resize": "premultiplied-alpha Lanczos only when an extracted asset exceeds its role budget",
+    "hiddenRgb": "zeroed wherever alpha is zero"
+  }
+}
