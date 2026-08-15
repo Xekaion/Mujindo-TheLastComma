@@ -1,0 +1,1993 @@
+{
+  "version": 4,
+  "assetType": "map-specific full-room portcullis animation atlases",
+  "generator": "scripts/build_room_full_door_assets.py",
+  "promptMetadata": "asset-sources/imagegen/room-doors-v4/room-doors-v4.prompt.json",
+  "sourceSize": [
+    1600,
+    900
+  ],
+  "runtimeFrameSize": [
+    1280,
+    720
+  ],
+  "frameOrder": "fully closed to fully open",
+  "atlas": {
+    "columns": 2,
+    "rows": 3,
+    "width": 2560,
+    "height": 2160
+  },
+  "encoding": {
+    "format": "WEBP",
+    "lossless": true,
+    "reason": "keep every non-door room pixel stable across animation frames"
+  },
+  "productionContract": {
+    "completeFrame": "every cell is a complete opaque room image",
+    "perMapAuthorship": "every base and stairs room owns its ImageGen closed-room source",
+    "motion": "authored passage content translates along its doorway-plane lift vector and is never scaled",
+    "openFrame": "exact 1280x720 Lanczos render of the production room backplate",
+    "runtime": "draw one complete room frame; no standalone gate sprite or doorway-patch atlas"
+  },
+  "doorRegions1600x900": {
+    "north": {
+      "crop": [
+        718,
+        0,
+        164,
+        128
+      ],
+      "polygon": [
+        [
+          35,
+          8
+        ],
+        [
+          129,
+          8
+        ],
+        [
+          126,
+          125
+        ],
+        [
+          38,
+          125
+        ]
+      ],
+      "lift": [
+        0.0,
+        112.0
+      ]
+    },
+    "east": {
+      "crop": [
+        1444,
+        374,
+        156,
+        152
+      ],
+      "polygon": [
+        [
+          55,
+          32
+        ],
+        [
+          131,
+          8
+        ],
+        [
+          139,
+          116
+        ],
+        [
+          63,
+          145
+        ]
+      ],
+      "lift": [
+        8.0,
+        102.0
+      ]
+    },
+    "south": {
+      "crop": [
+        706,
+        770,
+        188,
+        130
+      ],
+      "polygon": [
+        [
+          35,
+          8
+        ],
+        [
+          153,
+          8
+        ],
+        [
+          159,
+          125
+        ],
+        [
+          29,
+          125
+        ]
+      ],
+      "lift": [
+        0.0,
+        117.0
+      ]
+    },
+    "west": {
+      "crop": [
+        0,
+        374,
+        156,
+        152
+      ],
+      "polygon": [
+        [
+          24,
+          8
+        ],
+        [
+          100,
+          32
+        ],
+        [
+          92,
+          145
+        ],
+        [
+          16,
+          116
+        ]
+      ],
+      "lift": [
+        -8.0,
+        102.0
+      ]
+    }
+  },
+  "rooms": {
+    "room-battle": {
+      "source": {
+        "path": "public/assets/maps/room-battle.webp",
+        "sha256": "e972b5f7708b3e1c1cc198ff311e7b0d094eaaa7d43ee3deef6a24e715a5adec",
+        "bytes": 462594,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-battle-closed-generated.png",
+        "sha256": "8b51d8e30e4aa47514687cb09af011bfa250cb404c55e7a3c0cb05c101ded266",
+        "bytes": 2715345,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28179,
+          "pixelHash": "aab078fd81075b068770175138880161ff21667bd0548f4d559fe8c842cfa160"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22693,
+          "pixelHash": "6067188c6d1357b99a81c78ebb473447ce5ffc756a83b27c88d865da3ce8ca1a"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17161,
+          "pixelHash": "737165ec241fa22dd4e3da2f787b6d351b59ec31f91e90a65db61771c1fb19ab"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11574,
+          "pixelHash": "c35c57a51b8e95ae25f2e508a316b0c62477c4eeeec8443160eb2598605e950a"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6011,
+          "pixelHash": "28f74f5addc21e09975932406fcffc58841977701d2be685c5acd335a049b0c8"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "4147f7ee58095ea858a2d3edd6ea74629149d672290bc62cbce6d2ae08db8c82"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-battle-doors-v4.webp",
+        "sha256": "eb8f4fd90422482e1ed7cf45e0f0a7bca5e15dea93ef5cd4b740e0d97a823275",
+        "bytes": 3603810,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-battle-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-battle-stairs-v1.webp",
+        "sha256": "57fe4a1656e567f59d472e19fd68b239a06482b1244b8fa0765c8277997170df",
+        "bytes": 337544,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-battle-stairs-v1-closed-generated.png",
+        "sha256": "3321a364de4e35c553dd926a19a28dbc81f59fedfa2b8fc5a0cfc0b2ee55bcff",
+        "bytes": 2525023,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28085,
+          "pixelHash": "da79954a7c625ea4539f456dcf46f66652ce2f965e406e3220da4d1e6885992f"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22520,
+          "pixelHash": "f7bb68f455421cec99323e0172fb8e222b6c19cf37718409298f3d3ff69fdbe9"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 16979,
+          "pixelHash": "19d321bd9af29c71b72f7ef5135e3cae921067ea4cbdfee2373402a99e4443e0"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11444,
+          "pixelHash": "aa16a11c5d1f14f061899a423906439f0817a3df377e67fd3dfbf8e934dbadac"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5908,
+          "pixelHash": "1f9430f5da9c7235413cd4f7e36cad03ca2a473de80d5b83071f7b72df9ad5ab"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "4b8b40e0b4db6c94151df7a551f7484e1022f3f32425ade6dedc92b464eb2e00"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-battle-stairs-v1-doors-v4.webp",
+        "sha256": "0eb301390e477c0fe2f4aa7bb616edf41e49619e898aa3ef1a4fb5c770a0f4f6",
+        "bytes": 3285496,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-horde": {
+      "source": {
+        "path": "public/assets/maps/room-horde.webp",
+        "sha256": "047064de01403cc0e29a6dcf9a2e8bdcec505e1a3a1a824f66b521acce3f8810",
+        "bytes": 540502,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-horde-closed-generated.png",
+        "sha256": "cdd7b28094e12ba25f0ccefb2053c0d880212153a8332dec809fe04729fd3fb0",
+        "bytes": 2863285,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28557,
+          "pixelHash": "f8cf6f409f7127675c53294b8a4650eabe2de2eb182ea5fb877ff62536a71537"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22818,
+          "pixelHash": "99631156d543a819b479d37ab5deeec1c52a5c76f1bfa016270c375b3982d234"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17286,
+          "pixelHash": "fce0a9e4dc3dc8c85c0405e0fc702ce1615d6cb84bdcbef071755ee7cdaff6ae"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11702,
+          "pixelHash": "b47c3f71323775a3f779434951238db3c4e9e5b4fe59c906474a150e7762b922"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5968,
+          "pixelHash": "c2546e3c4d51aa5d08592be551f524a9f65b09abbef64380cade15ca5d38d481"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "1bd5d9e6dd281c236900524a5e72e043d98283aedfb7c866b625b9a28a796f3e"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-horde-doors-v4.webp",
+        "sha256": "10d31fc6ed38e0c21ed0b6c12c33987c8a1e7192fa9e9bf2acedc29a1bab21c4",
+        "bytes": 3677166,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-horde-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-horde-stairs-v1.webp",
+        "sha256": "3b18dc4f389e24b5794ac2de9477049775dbeeeb70834cb9f44d937fcd5017b6",
+        "bytes": 366162,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-horde-stairs-v1-closed-generated.png",
+        "sha256": "b71c897c29b6425a2ad14614cb620d60ff1549c35d97ff406934fa503ff4d4ca",
+        "bytes": 2799496,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28293,
+          "pixelHash": "59b4e67a7aef3eec838b30f05ee7ffd61b709de5560eb885c14b544c9feee107"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22720,
+          "pixelHash": "f7dd76367c082edc5cef9f9efe90c65790973c1f8a8690aa3433168c2747bb0e"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17150,
+          "pixelHash": "2d728461013871c69ab62bf448476ff8b16a0b76be4ff3e4b7faa15e89ddca04"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11544,
+          "pixelHash": "f9def4b90577b925736f9347c8203c45fa0606e5cbe5da25b4192917f2d295c0"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6006,
+          "pixelHash": "1021dc202a03c33136d79f3fa308dba5f306d2facaaa2ed48304bcf0ccc1cc6c"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "778337763bf347e9e71f339bc6ae114935d8729ab2967d59a7a80712abed1fc5"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-horde-stairs-v1-doors-v4.webp",
+        "sha256": "6b4d11394514492e154ba64a1ce77c161782328d50a4707154f5170954a28804",
+        "bytes": 3259430,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-elite": {
+      "source": {
+        "path": "public/assets/maps/room-elite.webp",
+        "sha256": "3abd9301431a9aaaf14c1633ff9db7400b37aa024735c7382fbec222e8f7a0c8",
+        "bytes": 501596,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-elite-closed-generated.png",
+        "sha256": "5ea45f3c71ba1299a962099b3778c33e5574caba898776204121e82d5c8d956a",
+        "bytes": 2650740,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 27684,
+          "pixelHash": "c72e33d4b8de3ae3d348a928784bc7957a98242642cc1ceec10a442ea1c00869"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22181,
+          "pixelHash": "c3d5a3591edc29fb12bccdeee06e6b0abdabae36520c26b0c6f1406674d84605"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 16701,
+          "pixelHash": "bdf7fb36f2875e7c6f1092d5bb9281f994f17d8b954cff490e891b365a1e3ba4"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11127,
+          "pixelHash": "d1e4a5b2ef29ac24cb21763dd34d1f67825e2b8bc372c8f93f1ed9ca5b392ca1"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5818,
+          "pixelHash": "db8730612739ee9acc2cdbe018dd511042a6465d7ee2eafdadd7f3e472195fa9"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "384368c6aacd21ea43c6dc6959eb95945a0761a421b8893510fc3cc2c9c33f0d"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-elite-doors-v4.webp",
+        "sha256": "884ca668c41209f9c05d9bbcf8e568d3f257062878e7604310a5bcb15bb3cc1f",
+        "bytes": 4112066,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-elite-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-elite-stairs-v1.webp",
+        "sha256": "ae453cfb035a86869531b8716fd59967ace3afc32865c245409a057a704f37bd",
+        "bytes": 338684,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-elite-stairs-v1-closed-generated.png",
+        "sha256": "38678b07c0cfd64b04013bf0743ebc21d9408478319c79693c4adf84753c7d86",
+        "bytes": 2540234,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 27772,
+          "pixelHash": "8a85a457ab3b84b6cfcf3a34ee2c36e95b8751fc62a1ccda14fa2e564394fdfc"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22096,
+          "pixelHash": "8ecae292a45de7e4e751e073a06488987c75ea8cf02e3f7811394448faaa5b05"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 16590,
+          "pixelHash": "bb3b42b3cd10f45fa54253f71631477ed45f280f4f94bebea67136fd9c989db9"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11176,
+          "pixelHash": "71176e4ce3fdfeabd2af699aa608921788444b3bfbed6a9d6c1b1635d3b6d7a7"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5665,
+          "pixelHash": "eecc71e86229347bb1c0a766c4a637e5a9e91fa2db294c74a00183c710aaf374"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "8006b7ee5ff1f8e3ce7a6c5eef5691ddbd707f85a7268c891700994e7a5c3f56"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-elite-stairs-v1-doors-v4.webp",
+        "sha256": "f9d2c15c9e3ca8083ed896dd1306768676f4876aa1d2210b22eec8a1552bc1e8",
+        "bytes": 3462506,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-memory": {
+      "source": {
+        "path": "public/assets/maps/room-memory.webp",
+        "sha256": "9ef16d7c8bf06b498b1f20f4312c1e9d50666504617040bd8c932d50940a4064",
+        "bytes": 605612,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-memory-closed-generated.png",
+        "sha256": "a43a012f04c8b7a15a98b6e40fd24f1859a3ed1d625ab7c15c01afe295c0c498",
+        "bytes": 3007478,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28693,
+          "pixelHash": "a8a59f32efc58f90b1a327b4ee62f7c06fc5586d00abcacd26e5d09347dced95"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22950,
+          "pixelHash": "ffc29a23a627d2bfa1607df2480b182d0720823cd20bc72d64f81eef3c064938"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17483,
+          "pixelHash": "400239c7231c832d9a9da06289a8d6f0761d56fcfc12a1bc49596f5e2f6c8de5"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11808,
+          "pixelHash": "b548cba19ed7da0f8878ff3216553d841912b589705fd7b7b33240e0421783c3"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6145,
+          "pixelHash": "1921da18a6df333ef38cf38584740089804ed3d6f73730ac3886f5571c6ed298"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "dc364860679d61ed9c6232f2b139bde46a3ce4dd9eb820ecb44c0dab295fd933"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-memory-doors-v4.webp",
+        "sha256": "1d014d61bdec95681b3c650c42a5b89546c14a298da53c7c91c3a65ea984f494",
+        "bytes": 4044812,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-memory-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-memory-stairs-v1.webp",
+        "sha256": "a758cfc8017d1755697b7cf4c493959b1e23102a77ec43e15f2c2b79143c6044",
+        "bytes": 421504,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-memory-stairs-v1-closed-generated.png",
+        "sha256": "497ea901d574cfffa74c2bc8f72eb85e908b8092e13ad2a93e4e108e426170f0",
+        "bytes": 2801617,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28616,
+          "pixelHash": "f2065641b79808e36a7358144542e3f38e698864eb3ca3a711610e607aeb8107"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22926,
+          "pixelHash": "0b9e644da32aad1072c7d8ec15a3c37c0055b42993cce8368055437b6a03e53a"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17418,
+          "pixelHash": "2cd74656cda46b8a95727923bfc35d8a6c50d9e3ddcd0e59ce6cd5c69925e175"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11689,
+          "pixelHash": "693aa6e2cfa4728498be35c1f1de3c2800eb78d548fe8615fe4038a2f1dcc8c1"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6048,
+          "pixelHash": "8048fa0499c90c1751b5a747a0de36b30daf5d593a7a7d3b8edcb12d8a851b94"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "cc6206440037543a96ecfb1330674e41931d1a3a2d7b37e596c9266aec02b6d6"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-memory-stairs-v1-doors-v4.webp",
+        "sha256": "68aabed88e20f2c52290e2915c2165206e19c7d459b456312eda6db4bde15f5b",
+        "bytes": 3445162,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-shelter": {
+      "source": {
+        "path": "public/assets/maps/room-shelter.webp",
+        "sha256": "36afd75525820262a61768429860db94eae9b1adaff8c2aeb582290b6211b4cd",
+        "bytes": 497644,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-shelter-closed-generated.png",
+        "sha256": "a1c453e861ffbb3f6946b605a1a01be64ca8a14e58017805ce266ed73c3d1683",
+        "bytes": 2660561,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28693,
+          "pixelHash": "b02cb2d87046c1221817339e6fc92c05925f4b1211332066d95b43d9dd13e2d9"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22860,
+          "pixelHash": "e60794bf775be46536017e0d24c90620cac7dd9d8578ca50ee52e471655e7d7b"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17192,
+          "pixelHash": "4a9bfcbf6c1bb188e4b6fafa4f45a6435b7f285cd57aad563251a57f00f40534"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11779,
+          "pixelHash": "69b09aeb53173692a45f19446f6ba679d9f8ad966b961907c07b02b3452fa103"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6162,
+          "pixelHash": "24b5bfd8c5f2af89613daaa0fbffc9bbe61bf1a10971764a202fd647d5996c6f"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "3dd53e8201533c65506bbe3277369d1b75e18fa6e741281e1dc1a071178d2b5a"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-shelter-doors-v4.webp",
+        "sha256": "9b7027813e7aba57cfec7d75a20ab9230fcea83b0f7c861b11d7631a5572cbfa",
+        "bytes": 3895740,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-shelter-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-shelter-stairs-v1.webp",
+        "sha256": "b1a413932fbb1483a83de138b95a48cf9a37b0ed529a349cfa97dc96bc22a70c",
+        "bytes": 363662,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-shelter-stairs-v1-closed-generated.png",
+        "sha256": "e8b2b52122b1c87f1fca61a2f27d7fd45d15099b1ee0113db78c15a28a73ec83",
+        "bytes": 2705398,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28599,
+          "pixelHash": "81ffcd7fe76f37e98abb5c0c3bf54f231c276ea0fe7686a5ec2598de3689db46"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22790,
+          "pixelHash": "aa6bdfd67e25f5e953f820ad0188fb3a352b86a52720426a730c1850016317c0"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17228,
+          "pixelHash": "6a0dfa4d62a6ac0e60e7fca227d1570c43f553fd7c3c87d8a4fbfee65308058f"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11646,
+          "pixelHash": "048a3a7b5bdbdd9161513a622cfa7e96113af74ac63b1ae4ac75f50e730d304f"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6073,
+          "pixelHash": "ca39d4acb0df5c6b6569aaf58cc8df42dd9bee3dcc96d7ef3ba8e38b3b48217c"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "e0bcbcf2860e0a060080083b308e9e5c87928f4dd1c9ca5f5c4a19c417940310"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-shelter-stairs-v1-doors-v4.webp",
+        "sha256": "f20c37a497dab66bb0fa0c5c62d1e8f6d006b937f5025561ee6b79152e12b94f",
+        "bytes": 3519282,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-boss": {
+      "source": {
+        "path": "public/assets/maps/room-boss.webp",
+        "sha256": "84f5fa2e06e66a3541ce553612e62dedcf6d277ce37b14006cb219ce3d66c6fc",
+        "bytes": 601872,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-boss-closed-generated.png",
+        "sha256": "8c0425f7ca5dbaf258e3ae8d1b83103bb43396339161e96db0b99e7b2e65326e",
+        "bytes": 3093651,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28400,
+          "pixelHash": "eea506ea016ccd362f44413641c2090c61b5927d1d7d4c909f9da9daee7a7137"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22767,
+          "pixelHash": "adb941195cac0beee3e4119f740e0d3c7410b4ba9e2b295b53e127829a01fdbc"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17284,
+          "pixelHash": "d64965215d928d3f72b729278f07c79030e6048123479c6acb3608b4682f219a"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11706,
+          "pixelHash": "eac47e32bc4b223cfa19d55608a82cec58880989d2d85fbfc860a292b1430b0a"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5927,
+          "pixelHash": "a957faa2eace1d03ca0923f02fe3d067ad89641717022f24e52dcfaca4e6aba3"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "f361e8993c0deb1f8df184ad83b9749045bdb769c7d2c717987ded095ef988f5"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-boss-doors-v4.webp",
+        "sha256": "584b61c21d26ea147d262e479f9a2b3c1f58f5a18b2f3476da1e2215d14d764d",
+        "bytes": 4136582,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-boss-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-boss-stairs-v1.webp",
+        "sha256": "893872dbb711b937dd24bd108ebbf1dc3319648d965aade8eb4cca2cf99a84c3",
+        "bytes": 455010,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-boss-stairs-v1-closed-generated.png",
+        "sha256": "e6f2c84b8beddab77f9b0866b17f018a6141bc2ea9b87c230b0bb4cabc3c1321",
+        "bytes": 3037637,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28543,
+          "pixelHash": "7db93255c79e970da86a194efac7e92f21cf6bae30c844d8212cab3f0c0ff286"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22914,
+          "pixelHash": "ec5521677a04bd4c8ed48d2e14739931bc70dead895892be897a3a91d7117a40"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17364,
+          "pixelHash": "8c0b06a5cb01a98c5ff4534ca29c64ccb2c35402f95b5790f110672a5682d89a"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11716,
+          "pixelHash": "701adfd611e1af23b633100f599f22db1e3e1a42acfca50778100f5f5e33e7e0"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 6056,
+          "pixelHash": "d4e90f648e67e598bd7a95b0252b873dc3f4a7ce9dc4912c06ff44a9d5e23089"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "ecf16e37df2bb63b6d1528730475d92f63e1de9cd344f1472c72a71af0aecb09"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-boss-stairs-v1-doors-v4.webp",
+        "sha256": "341bab2ae348ac6957860ebd1746cd2027023ed706e9c289d4d345342e829740",
+        "bytes": 3752050,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-drowned-archive": {
+      "source": {
+        "path": "public/assets/maps/room-drowned-archive.webp",
+        "sha256": "bb3b5af8174c520a1e0bce4c468212a919347282635148df42af663648b62820",
+        "bytes": 443146,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-drowned-archive-closed-generated.png",
+        "sha256": "e1a9a67ee11c0655b20ac4d4a4e6617f5a1f9a9e9c8948d6046124ac1f6d88a7",
+        "bytes": 2812434,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28368,
+          "pixelHash": "948b3f53ddd2017e2dcacba17dd2d5262b3d840a9e0de789a6922c780da196b9"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22776,
+          "pixelHash": "d3cc4a038a45482d234e73d0030813af4e481115f5af5a667887d2e504bc5af3"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17318,
+          "pixelHash": "46df696491cbb687102d7d123b7054cfc97abbb4b1620dc25ebfbf876ac70a30"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11647,
+          "pixelHash": "b1d58bd79b3615f2a729936a3d5e80b7a4bf7103d69d229044974751520bc5c6"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5966,
+          "pixelHash": "c1f0d42395a8a651aa39e695977b08087e5c6dcc81ffbfa1afa7b1388c88ee1d"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "2ff85f654655760c72a57fcf8a10f3c352948843cc80d1596f75fe1ea2f8e1d4"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-drowned-archive-doors-v4.webp",
+        "sha256": "fb8ee57ef6ea3dbeee229bc80dfa68ec07e8e7e7042bb92af6f05f3213c15a54",
+        "bytes": 3840844,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-drowned-archive-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-drowned-archive-stairs-v1.webp",
+        "sha256": "8fe2f375eeabc8ba81288ae4d85eb262de5189d870be5d8724126483cdf1faa4",
+        "bytes": 361792,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-drowned-archive-stairs-v1-closed-generated.png",
+        "sha256": "1012fb74578e875841a14013427a0009e9e30dd9640221f3e9b54d8eb1d686cb",
+        "bytes": 2682808,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28226,
+          "pixelHash": "5ddf34eeb2934c584c931477210587d5380ed3bf20ce97cbdd589d19200d0731"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22681,
+          "pixelHash": "ac9503da1e97c8e2b20ab6832c6fb53d9cb2ed3f242956f7de13c979632209c1"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17068,
+          "pixelHash": "ea039a8a07e0def56cc6d2226ccc941f4a81d86eabc18a9b2d8ada095c8c7254"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11529,
+          "pixelHash": "e554d698b35730ab3386873325b1415f63ef8012c58af0a2a64d996fb340a65a"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5956,
+          "pixelHash": "5bd2767e3b9dc495857aaf6d31cf3d2f089a0c26a5e23b415f54c458dd7ca9f6"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "614616ca11b98e84820fc29e2885c481a81545f40e28e370f7f875d87ea5fd49"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-drowned-archive-stairs-v1-doors-v4.webp",
+        "sha256": "064cb7f6789fd44fa265682a0e0a1513fe6f242621c6021142af65384bf95820",
+        "bytes": 3352630,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-rootbound-ossuary": {
+      "source": {
+        "path": "public/assets/maps/room-rootbound-ossuary.webp",
+        "sha256": "39fbbe30e0ef4bae06c5dcbb60747ffef014b03b4404999c8471777d9cbfb2ed",
+        "bytes": 434874,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-rootbound-ossuary-closed-generated.png",
+        "sha256": "0f0a7b0de536bcec594d772ba14808b79d9d0845c0b52999ea0e6cb5f9756e8d",
+        "bytes": 2876831,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28291,
+          "pixelHash": "a0cd30f8903a8ae0bbdd25cbcd3ab8b0534d1278e9bcc0b5b3374d02e032cc9a"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22748,
+          "pixelHash": "0fcf609b791396df99dd34c361e19d731d89515224eebcb5fb548fbae7c99837"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17234,
+          "pixelHash": "199176d7ddc37da975df01b9891515bf1d21469b83d1d4fcb57b15ab39994879"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11615,
+          "pixelHash": "f3361b42d1d5aad4df72f89a136eab1a9b2f4748ea206dc22b1a6ae341163092"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5954,
+          "pixelHash": "d71b3e7e1d2cd81a50cb73a33e3da76731e03b94f687360c9ec02d49be0e6710"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "8b6e497c91c01b6a1e2597886c3d66b855de2b6702fc8c420e35227262102f08"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-rootbound-ossuary-doors-v4.webp",
+        "sha256": "1c9f38b022b1a43b93e5f6f3843810875f349e917b656ff91833c2a4d28ebe8a",
+        "bytes": 3789376,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-rootbound-ossuary-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-rootbound-ossuary-stairs-v1.webp",
+        "sha256": "585ed819ccaab60a9c5e9af731aa781dfa8917eb5766396edc8e27027f844296",
+        "bytes": 369300,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-rootbound-ossuary-stairs-v1-closed-generated.png",
+        "sha256": "d4b23b0aaaf0fd5453e1ba403ed0471f54112c02974cb35f4e1becad398e5f26",
+        "bytes": 2744243,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28190,
+          "pixelHash": "84e3364b8878bf606bcdef7f6af63b447e90a17663c4f00d0c1a573352764020"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22701,
+          "pixelHash": "959bb57f05f14a1dcc8ab25e3698598ab90a179ffdbfa5793f40986f72a6a035"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17122,
+          "pixelHash": "4382f4e1dfb9a0d6d512c1f65cf72e2968e075387cc306d53a681047574d7575"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11513,
+          "pixelHash": "25bbbe7e16dc8b4d858dcbb70bf11f35aaed624f149e99f50bdd381af5e75dac"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5841,
+          "pixelHash": "601e24826586aceb290236cd5bf2e388e60e1f6f764ba742f5478bb024d9e37b"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "76d245bace8ee3c3e8860d19b3e2d3b474b2ed1a3a4b2ac5bdee3fce8ebdb632"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-rootbound-ossuary-stairs-v1-doors-v4.webp",
+        "sha256": "28375e6d2e04772efdd1757be1614eb3111b3b32e88d92f3a6278140399bc641",
+        "bytes": 3432376,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-shattered-astrarium": {
+      "source": {
+        "path": "public/assets/maps/room-shattered-astrarium.webp",
+        "sha256": "cf08d51ab24419e766ababde1bcad3d6077895a0e7d6c5b89a5232daa0549a70",
+        "bytes": 273364,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-shattered-astrarium-closed-generated.png",
+        "sha256": "b2b171b0ac7245187d099ce9b92bc671703377c6302189dd80fca542a232f8de",
+        "bytes": 2384608,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28229,
+          "pixelHash": "718ccc975cd9454bc6fbf0455cb72b8dd70756bd5b3527cbe66638e8c3f22771"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22566,
+          "pixelHash": "7c2f3a7c5c78552fe6929fd77a088d9df5a783e847b6dd8f4611f833bc1d71a8"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17038,
+          "pixelHash": "1be514f047876ebdbdd8b3be87722e8c551f4cb9e6a73a6a6705fd2d8dc36b68"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11434,
+          "pixelHash": "1fc395dfabb494d482396340cf5aeae7bc863ded3d44bc57bee00a30be1a3e98"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5909,
+          "pixelHash": "9b905c5f1546371944b826ee37931049b76a3af88e9a300049e147f72a53630e"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "4c174f2362ec7a3e13d577be19ba6cf25e0f69eec2ae71718f24418ce4278856"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-shattered-astrarium-doors-v4.webp",
+        "sha256": "4c69e1c63b4e6d42d65c7cd8219de62e03b073c618479cb2d017cfb42af70624",
+        "bytes": 3110280,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    },
+    "room-shattered-astrarium-stairs-v1": {
+      "source": {
+        "path": "public/assets/maps/room-shattered-astrarium-stairs-v1.webp",
+        "sha256": "4f1de9af818f568bb3c450a4a3b1c688922ce1a56df3875adaa2d5da727f7df9",
+        "bytes": 293694,
+        "size": [
+          1600,
+          900
+        ],
+        "mode": "RGB"
+      },
+      "generatedClosedSource": {
+        "path": "asset-sources/imagegen/room-doors-v4/room-shattered-astrarium-stairs-v1-closed-generated.png",
+        "sha256": "713c274394ff19bf6e2320098d4d9094d4e0488b2409411189a739518ca56186",
+        "bytes": 2481845,
+        "size": [
+          1672,
+          941
+        ],
+        "mode": "RGB",
+        "normalizedSize": [
+          1600,
+          900
+        ],
+        "originalGeneratedSize": [
+          1672,
+          941
+        ]
+      },
+      "frames": [
+        {
+          "frame": 0,
+          "raisedPercent": 0,
+          "atlasCell": [
+            0,
+            0
+          ],
+          "changedPixelsFromOpen": 28092,
+          "pixelHash": "9d343d59b013878823ab8fc53388ed60b398af272e588568ca5fc30da03b7a8c"
+        },
+        {
+          "frame": 1,
+          "raisedPercent": 20,
+          "atlasCell": [
+            1,
+            0
+          ],
+          "changedPixelsFromOpen": 22547,
+          "pixelHash": "589128217265c21d33b3b354d356bac32039e7b978754ae4320e8771c12097f9"
+        },
+        {
+          "frame": 2,
+          "raisedPercent": 40,
+          "atlasCell": [
+            0,
+            1
+          ],
+          "changedPixelsFromOpen": 17065,
+          "pixelHash": "5fc6efeda7aa77b60b56dd005e4438e875cebadac7ef9eb3d54c7718dd52fc4b"
+        },
+        {
+          "frame": 3,
+          "raisedPercent": 60,
+          "atlasCell": [
+            1,
+            1
+          ],
+          "changedPixelsFromOpen": 11429,
+          "pixelHash": "a6a5051a8ce23e87d6d48b17218e0187853a670ddbed8a2dae530804e538675b"
+        },
+        {
+          "frame": 4,
+          "raisedPercent": 80,
+          "atlasCell": [
+            0,
+            2
+          ],
+          "changedPixelsFromOpen": 5835,
+          "pixelHash": "33c475ec9322ce5c8bc9b374e34ed4c870f7be7b1354089848a8f6c0142ef79a"
+        },
+        {
+          "frame": 5,
+          "raisedPercent": 100,
+          "atlasCell": [
+            1,
+            2
+          ],
+          "changedPixelsFromOpen": 0,
+          "pixelHash": "bf38d7ce15125118f82d97c4dd65c04f797ad56d1281ca3eacfa81bdfb3ba3ea"
+        }
+      ],
+      "output": {
+        "path": "public/assets/maps/room-doors-v4/room-shattered-astrarium-stairs-v1-doors-v4.webp",
+        "sha256": "c9076ed66992199006c0ffef3103b8edac522849e896f8948e3c8b5a5795801d",
+        "bytes": 3059012,
+        "size": [
+          2560,
+          2160
+        ],
+        "mode": "RGB"
+      }
+    }
+  }
+}

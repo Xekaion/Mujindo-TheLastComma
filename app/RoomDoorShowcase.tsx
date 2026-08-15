@@ -2,13 +2,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  ROOM_DOOR_SIDES,
   ROOM_DOOR_VISUALS,
-  mirroredRoomDoorSide,
-  roomDoorAtlasSourceRect,
-  roomDoorCanvasRect,
+  roomDoorAtlasFrameSourceRect,
   type RoomDoorBackdropKey,
-  type RoomDoorSide,
 } from "./room-door-visuals";
 import {
   advanceRoomDoorMotion,
@@ -19,8 +15,6 @@ import {
   type RoomDoorPhase,
 } from "./room-doors";
 import {
-  ROOM_ART_PATHS,
-  ROOM_STAIR_ART_PATHS,
   resolveStairRoomArtKey,
   type RoomArtKey,
 } from "./room-visuals";
@@ -34,14 +28,9 @@ const CANVAS_WIDTH = 1280;
 const CANVAS_HEIGHT = 720;
 const CLOSED_HOLD_SECONDS = 0.72;
 const OPEN_HOLD_SECONDS = 0.9;
-const SHOWCASE_RENDER_ORDER: readonly RoomDoorSide[] = [
-  ...ROOM_DOOR_SIDES.filter((side) => side !== "south"),
-  "south",
-];
 
 type LoadedAssets = Readonly<{
-  backplate: HTMLImageElement;
-  doors: HTMLImageElement;
+  atlas: HTMLImageElement;
 }>;
 
 type AnimationSnapshot = Readonly<{
@@ -92,20 +81,13 @@ export default function RoomDoorShowcase(request: RoomDoorShowcaseRequest) {
   const stairRoomArtKey = resolveStairRoomArtKey(roomArtKey);
   const backdropKey: RoomDoorBackdropKey =
     request.variant === "stairs" ? stairRoomArtKey : roomArtKey;
-  const backplatePath =
-    request.variant === "stairs"
-      ? ROOM_STAIR_ART_PATHS[stairRoomArtKey]
-      : ROOM_ART_PATHS[roomArtKey];
   const doorVisual = ROOM_DOOR_VISUALS[backdropKey];
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([
-      loadImage(backplatePath),
-      loadImage(doorVisual.imagePath),
-    ])
-      .then(([backplate, doors]) => {
-        if (!cancelled) setAssets({ backplate, doors });
+    void loadImage(doorVisual.imagePath)
+      .then((atlas) => {
+        if (!cancelled) setAssets({ atlas });
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -115,7 +97,7 @@ export default function RoomDoorShowcase(request: RoomDoorShowcaseRequest) {
     return () => {
       cancelled = true;
     };
-  }, [backplatePath, doorVisual.imagePath]);
+  }, [doorVisual.imagePath]);
 
   useEffect(() => {
     if (request.fixedFrame !== null) return undefined;
@@ -176,43 +158,20 @@ export default function RoomDoorShowcase(request: RoomDoorShowcaseRequest) {
       context.translate(CANVAS_WIDTH, 0);
       context.scale(-1, 1);
     }
+    const source = roomDoorAtlasFrameSourceRect(animation.frame);
     context.drawImage(
-      assets.backplate,
+      assets.atlas,
+      source.x,
+      source.y,
+      source.width,
+      source.height,
       0,
       0,
       CANVAS_WIDTH,
       CANVAS_HEIGHT,
     );
-
-    for (const physicalSide of SHOWCASE_RENDER_ORDER) {
-      const authoredSide = request.mirror
-        ? mirroredRoomDoorSide(physicalSide)
-        : physicalSide;
-      const crop = doorVisual.sides[authoredSide];
-      const source = roomDoorAtlasSourceRect(
-        authoredSide,
-        animation.frame,
-        crop,
-      );
-      const destination = roomDoorCanvasRect(
-        crop,
-        CANVAS_WIDTH,
-        CANVAS_HEIGHT,
-      );
-      context.drawImage(
-        assets.doors,
-        source.x,
-        source.y,
-        source.width,
-        source.height,
-        destination.x,
-        destination.y,
-        destination.width,
-        destination.height,
-      );
-    }
     context.restore();
-  }, [animation.frame, assets, doorVisual, request.mirror]);
+  }, [animation.frame, assets, request.mirror]);
 
   return (
     <main
@@ -243,7 +202,7 @@ export default function RoomDoorShowcase(request: RoomDoorShowcaseRequest) {
             aria-label={`${request.room} ${request.variant} room door frame ${animation.frame}`}
           />
           {!assets && !assetError && (
-            <div className={styles.loading}>DECODING BACKPLATE + DOOR PATCHES…</div>
+            <div className={styles.loading}>DECODING ROOM DOOR FRAME…</div>
           )}
           {assetError && <div className={styles.error}>{assetError}</div>}
         </div>

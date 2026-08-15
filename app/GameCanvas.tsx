@@ -175,10 +175,12 @@ import {
   ROOM_DOOR_SIDES,
   ROOM_DOOR_VISUALS,
   mirroredRoomDoorSide,
-  roomDoorAtlasSourceRect,
-  roomDoorCanvasRect,
-  roomDoorVisualImageKey,
+  roomDoorAtlasClipSourceRect,
+  roomDoorAtlasFrameSourceRect,
+  roomDoorAtlasImageKey,
+  roomDoorClipCanvasRect,
   type RoomDoorBackdropKey,
+  type RoomDoorClip,
 } from "./room-door-visuals";
 import {
   ROOM_ART_NAMES,
@@ -187,7 +189,6 @@ import {
   ROOM_STAIR_ASSET_ANCHOR,
   resolveRoomArtKey,
   resolveStairRoomArtKey,
-  type RoomArtKey,
   type RoomStairArtKey,
 } from "./room-visuals";
 import {
@@ -1740,6 +1741,28 @@ const ROOM_DIRECTIONS = [
 ] as const;
 
 const keyOf = (x: number, y: number) => `${x},${y}`;
+const roomDoorBackdropKeyForWorld = (
+  world: Pick<
+    World,
+    | "seed"
+    | "dungeonFloor"
+    | "roomX"
+    | "roomY"
+    | "roomKind"
+    | "stairRoomLookup"
+  >,
+): RoomDoorBackdropKey => {
+  const roomArtKey = resolveRoomArtKey({
+    seed: world.seed,
+    dungeonFloor: world.dungeonFloor,
+    roomX: world.roomX,
+    roomY: world.roomY,
+    roomKind: world.roomKind,
+  });
+  return world.stairRoomLookup[keyOf(world.roomX, world.roomY)] === true
+    ? resolveStairRoomArtKey(roomArtKey)
+    : roomArtKey;
+};
 const rankOf = (player: Player, id: string) =>
   clampAugmentStack(player.augments[id]);
 const powerRankOf = (player: Player, id: string) =>
@@ -2394,11 +2417,14 @@ export default function GameCanvas({
     Partial<Record<RoomStairArtKey, { attempts: number; retryAt: number }>>
   >({});
   const stairRoomArtLastUsedRef = useRef(new Map<RoomStairArtKey, number>());
-  const decodedRoomDoorVisualRef = useRef(new Set<RoomDoorBackdropKey>());
-  const roomDoorVisualRetryRef = useRef<
+  const decodedRoomDoorAtlasRef = useRef(new Set<RoomDoorBackdropKey>());
+  const roomDoorAtlasRetryRef = useRef<
     Partial<Record<RoomDoorBackdropKey, { attempts: number; retryAt: number }>>
   >({});
-  const roomDoorVisualLastUsedRef = useRef(
+  const roomDoorAtlasLastUsedRef = useRef(
+    new Map<RoomDoorBackdropKey, number>(),
+  );
+  const roomDoorAtlasRevealDeadlineRef = useRef(
     new Map<RoomDoorBackdropKey, number>(),
   );
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
@@ -3407,6 +3433,9 @@ export default function GameCanvas({
       world.gearDrops = [];
       world.effects = [];
       world.transition = 0.55;
+      roomDoorAtlasRevealDeadlineRef.current.delete(
+        roomDoorBackdropKeyForWorld(world),
+      );
       if (
         isExpeditionStartingRoom({
           clearedRoomCount: player.rooms,
@@ -5835,13 +5864,46 @@ export default function GameCanvas({
       // Equipment changes only on explicit inventory/forge actions. Keep the
       // aggregate and cosmetic loadout stable across the 60 FPS loop.
       const equipmentStats = getEquipmentRuntimeCache(player.equipment).stats;
-      world.transition = Math.max(0, world.transition - dt);
+      let roomDoorAtlasSettled = world.transition <= 0;
+      if (!roomDoorAtlasSettled) {
+        const activeRoomDoorBackdropKey = roomDoorBackdropKeyForWorld(world);
+        const roomDoorAtlasReady = decodedRoomDoorAtlasRef.current.has(
+          activeRoomDoorBackdropKey,
+        );
+        const roomDoorAtlasFailed =
+          (roomDoorAtlasRetryRef.current[activeRoomDoorBackdropKey]?.attempts ??
+            0) >= 2;
+        const doorLoadNow = performance.now();
+        const roomDoorAtlasRevealDeadline =
+          roomDoorAtlasRevealDeadlineRef.current.get(
+            activeRoomDoorBackdropKey,
+          ) ?? doorLoadNow + 6_000;
+        roomDoorAtlasRevealDeadlineRef.current.set(
+          activeRoomDoorBackdropKey,
+          roomDoorAtlasRevealDeadline,
+        );
+        roomDoorAtlasSettled =
+          roomDoorAtlasReady ||
+          roomDoorAtlasFailed ||
+          doorLoadNow >= roomDoorAtlasRevealDeadline;
+        // Keep the crossfade fully opaque until this map's complete-room atlas
+        // has decoded. The door lifecycle cannot outrun a cold network request.
+        if (roomDoorAtlasSettled) {
+          world.transition = Math.max(0, world.transition - dt);
+          if (world.transition <= 0) {
+            roomDoorAtlasRevealDeadlineRef.current.delete(
+              activeRoomDoorBackdropKey,
+            );
+          }
+        }
+      }
       // Keep the raised gate behind the first half of the room-crossfade, then
       // visibly slam it down as the new room is revealed. Collision is already
       // locked while the motion is in `closing`, so visuals and traversal stay honest.
       if (
-        world.doorMotion.phase !== "closing" ||
-        world.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION
+        roomDoorAtlasSettled &&
+        (world.doorMotion.phase !== "closing" ||
+          world.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION)
       ) {
         world.doorMotion = advanceRoomDoorMotion(world.doorMotion, dt);
       }
@@ -9682,7 +9744,141 @@ export default function GameCanvas({
         context.drawImage(image, 0, 0, WIDTH, HEIGHT);
         context.restore();
       };
+      const backdropKey = roomDoorBackdropKeyForWorld(world);
+      const roomDoorVisual = ROOM_DOOR_VISUALS[backdropKey];
+      const roomDoorAtlasKey = roomDoorAtlasImageKey(backdropKey);
+      const roomDoorRetryState =
+        roomDoorAtlasRetryRef.current[backdropKey];
+      let roomDoorAtlasImage = images[roomDoorAtlasKey];
       if (
+        !roomDoorAtlasImage &&
+        (!roomDoorRetryState ||
+          (roomDoorRetryState.attempts < 2 &&
+            performance.now() >= roomDoorRetryState.retryAt))
+      ) {
+        const attempts = (roomDoorRetryState?.attempts ?? 0) + 1;
+        roomDoorAtlasImage = new Image();
+        const requestedImage = roomDoorAtlasImage;
+        requestedImage.decoding = "async";
+        requestedImage.onload = async () => {
+          try {
+            await requestedImage.decode();
+          } catch {
+            // A loaded image can still be drawn when decode() is unavailable.
+          }
+          if (!requestedImage.naturalWidth || !requestedImage.naturalHeight) return;
+          decodedRoomDoorAtlasRef.current.add(backdropKey);
+          delete roomDoorAtlasRetryRef.current[backdropKey];
+          roomDoorAtlasLastUsedRef.current.set(
+            backdropKey,
+            performance.now(),
+          );
+
+          const activeBackdropKey = roomDoorBackdropKeyForWorld(
+            worldRef.current,
+          );
+          const retainedKeys = new Set<RoomDoorBackdropKey>([
+            activeBackdropKey,
+          ]);
+          for (const [recentKey] of [
+            ...roomDoorAtlasLastUsedRef.current.entries(),
+          ]
+            .filter(([key]) => key !== activeBackdropKey)
+            .sort((left, right) => right[1] - left[1])
+            .slice(0, 1)) {
+            retainedKeys.add(recentKey);
+          }
+          for (const decodedKey of decodedRoomDoorAtlasRef.current) {
+            if (retainedKeys.has(decodedKey)) continue;
+            delete imagesRef.current[roomDoorAtlasImageKey(decodedKey)];
+            decodedRoomDoorAtlasRef.current.delete(decodedKey);
+            roomDoorAtlasLastUsedRef.current.delete(decodedKey);
+          }
+        };
+        requestedImage.onerror = () => {
+          if (imagesRef.current[roomDoorAtlasKey] === requestedImage) {
+            delete imagesRef.current[roomDoorAtlasKey];
+          }
+          decodedRoomDoorAtlasRef.current.delete(backdropKey);
+          roomDoorAtlasRetryRef.current[backdropKey] = {
+            attempts,
+            retryAt: performance.now() + 1500,
+          };
+        };
+        requestedImage.src = roomDoorVisual.imagePath;
+        images[roomDoorAtlasKey] = requestedImage;
+      }
+
+      const roomDoorAtlasReady = Boolean(
+        roomDoorAtlasImage?.complete &&
+          roomDoorAtlasImage.naturalWidth &&
+          roomDoorAtlasImage.naturalHeight &&
+          decodedRoomDoorAtlasRef.current.has(backdropKey),
+      );
+      const animatedDoorFrame = roomDoorFrame(world.doorMotion);
+      const existingDoorways = dungeonDoorAccess(
+        world.roomX,
+        world.roomY,
+        true,
+      );
+      const authoredDoorwayClip = (
+        physicalSide: (typeof ROOM_DOOR_SIDES)[number],
+      ) => {
+        const authoredSide = mirrorRoom
+          ? mirroredRoomDoorSide(physicalSide)
+          : physicalSide;
+        return roomDoorVisual.doorwayClips[authoredSide];
+      };
+      const drawRoomDoorAtlasFrame = (
+        frame: number,
+        doorwayClip?: RoomDoorClip,
+      ) => {
+        if (!roomDoorAtlasReady || !roomDoorAtlasImage) return null;
+        const source = doorwayClip
+          ? roomDoorAtlasClipSourceRect(frame, doorwayClip)
+          : roomDoorAtlasFrameSourceRect(frame);
+        const destination = doorwayClip
+          ? roomDoorClipCanvasRect(doorwayClip, WIDTH, HEIGHT)
+          : { x: 0, y: 0, width: WIDTH, height: HEIGHT };
+        context.save();
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        if (mirrorRoom) {
+          context.translate(WIDTH, 0);
+          context.scale(-1, 1);
+        }
+        context.drawImage(
+          roomDoorAtlasImage,
+          source.x,
+          source.y,
+          source.width,
+          source.height,
+          destination.x,
+          destination.y,
+          destination.width,
+          destination.height,
+        );
+        context.restore();
+        return {
+          ...destination,
+          x: mirrorRoom
+            ? WIDTH - destination.x - destination.width
+            : destination.x,
+        };
+      };
+
+      if (roomDoorAtlasReady) {
+        // The selected v4 cell is the room itself, so no legacy backplate or
+        // small runtime door patches are composited beneath it.
+        drawRoomDoorAtlasFrame(animatedDoorFrame);
+
+        // A global frame opens every authored gate. Seal only directions that
+        // do not exist at the 99x99 boundary with the same atlas's closed cell.
+        for (const physicalSide of ROOM_DOOR_SIDES) {
+          if (existingDoorways[physicalSide]) continue;
+          drawRoomDoorAtlasFrame(0, authoredDoorwayClip(physicalSide));
+        }
+      } else if (
         stairRoomArtReady &&
         stairRoomArt?.complete &&
         stairRoomArt.naturalWidth &&
@@ -9711,156 +9907,9 @@ export default function GameCanvas({
         context.fillRect(0, 0, WIDTH, HEIGHT);
         context.globalAlpha = 1;
       }
-      const backdropKey =
-        stairRoomArtReady && stairRoomArtKey ? stairRoomArtKey : roomArtKey;
-      const roomDoorVisual = ROOM_DOOR_VISUALS[backdropKey];
-      const roomDoorVisualKey = roomDoorVisualImageKey(backdropKey);
-      const roomDoorRetryState =
-        roomDoorVisualRetryRef.current[backdropKey];
-      let roomDoorVisualImage = images[roomDoorVisualKey];
-      if (
-        !roomDoorVisualImage &&
-        (!roomDoorRetryState ||
-          (roomDoorRetryState.attempts < 2 &&
-            performance.now() >= roomDoorRetryState.retryAt))
-      ) {
-        const attempts = (roomDoorRetryState?.attempts ?? 0) + 1;
-        roomDoorVisualImage = new Image();
-        const requestedImage = roomDoorVisualImage;
-        requestedImage.decoding = "async";
-        requestedImage.onload = async () => {
-          try {
-            await requestedImage.decode();
-          } catch {
-            // A loaded image can still be drawn when decode() is unavailable.
-          }
-          if (!requestedImage.naturalWidth || !requestedImage.naturalHeight) return;
-          decodedRoomDoorVisualRef.current.add(backdropKey);
-          delete roomDoorVisualRetryRef.current[backdropKey];
-          roomDoorVisualLastUsedRef.current.set(
-            backdropKey,
-            performance.now(),
-          );
 
-          const activeWorld = worldRef.current;
-          const activeRoomArtKey = resolveRoomArtKey({
-            seed: activeWorld.seed,
-            dungeonFloor: activeWorld.dungeonFloor,
-            roomX: activeWorld.roomX,
-            roomY: activeWorld.roomY,
-            roomKind: activeWorld.roomKind,
-          });
-          const activeRoomKey = keyOf(
-            activeWorld.roomX,
-            activeWorld.roomY,
-          );
-          const activeStairRoomArtKey =
-            activeWorld.stairRoomLookup[activeRoomKey] === true
-              ? resolveStairRoomArtKey(activeRoomArtKey)
-              : null;
-          const activeStairRoomArt = activeStairRoomArtKey
-            ? imagesRef.current[activeStairRoomArtKey]
-            : undefined;
-          const activeBackdropKey: RoomDoorBackdropKey =
-            activeStairRoomArtKey &&
-            activeStairRoomArt?.complete &&
-            activeStairRoomArt.naturalWidth &&
-            activeStairRoomArt.naturalHeight &&
-            decodedStairRoomArtRef.current.has(activeStairRoomArtKey)
-              ? activeStairRoomArtKey
-              : activeRoomArtKey;
-          const retainedKeys = new Set<RoomDoorBackdropKey>([
-            activeBackdropKey,
-          ]);
-          for (const [recentKey] of [
-            ...roomDoorVisualLastUsedRef.current.entries(),
-          ]
-            .filter(([key]) => key !== activeBackdropKey)
-            .sort((left, right) => right[1] - left[1])
-            .slice(0, 1)) {
-            retainedKeys.add(recentKey);
-          }
-          for (const decodedKey of decodedRoomDoorVisualRef.current) {
-            if (retainedKeys.has(decodedKey)) continue;
-            delete imagesRef.current[roomDoorVisualImageKey(decodedKey)];
-            decodedRoomDoorVisualRef.current.delete(decodedKey);
-            roomDoorVisualLastUsedRef.current.delete(decodedKey);
-          }
-        };
-        requestedImage.onerror = () => {
-          if (imagesRef.current[roomDoorVisualKey] === requestedImage) {
-            delete imagesRef.current[roomDoorVisualKey];
-          }
-          decodedRoomDoorVisualRef.current.delete(backdropKey);
-          roomDoorVisualRetryRef.current[backdropKey] = {
-            attempts,
-            retryAt: performance.now() + 1500,
-          };
-        };
-        requestedImage.src = roomDoorVisual.imagePath;
-        images[roomDoorVisualKey] = requestedImage;
-      }
-
-      const roomDoorVisualReady = Boolean(
-        roomDoorVisualImage?.complete &&
-          roomDoorVisualImage.naturalWidth &&
-          roomDoorVisualImage.naturalHeight &&
-          decodedRoomDoorVisualRef.current.has(backdropKey),
-      );
-      const animatedDoorFrame = roomDoorFrame(world.doorMotion);
-      const existingDoorways = dungeonDoorAccess(
-        world.roomX,
-        world.roomY,
-        true,
-      );
-      const drawRoomDoorPatch = (physicalSide: (typeof ROOM_DOOR_SIDES)[number]) => {
-        if (!roomDoorVisualReady || !roomDoorVisualImage) return null;
-        const authoredSide = mirrorRoom
-          ? mirroredRoomDoorSide(physicalSide)
-          : physicalSide;
-        const crop = roomDoorVisual.sides[authoredSide];
-        const frame = existingDoorways[physicalSide]
-          ? animatedDoorFrame
-          : 0;
-        const source = roomDoorAtlasSourceRect(
-          authoredSide,
-          frame,
-          roomDoorVisual.sides[authoredSide],
-        );
-        const destination = roomDoorCanvasRect(crop, WIDTH, HEIGHT);
-        context.save();
-        context.imageSmoothingEnabled = true;
-        context.imageSmoothingQuality = "high";
-        if (mirrorRoom) {
-          context.translate(WIDTH, 0);
-          context.scale(-1, 1);
-        }
-        context.drawImage(
-          roomDoorVisualImage,
-          source.x,
-          source.y,
-          source.width,
-          source.height,
-          destination.x,
-          destination.y,
-          destination.width,
-          destination.height,
-        );
-        context.restore();
-        return {
-          ...destination,
-          x: mirrorRoom
-            ? WIDTH - destination.x - destination.width
-            : destination.x,
-        };
-      };
-
-      // Opaque v3 patches replace the exact room pixels before the shared room
-      // grade, so the baked ironwork receives the same tint and vignette once.
-      for (const physicalSide of ROOM_DOOR_SIDES) {
-        if (physicalSide === "south") continue;
-        drawRoomDoorPatch(physicalSide);
-      }
+      const southDoorFrame = existingDoorways.south ? animatedDoorFrame : 0;
+      const southDoorwayClip = authoredDoorwayClip("south");
 
       context.save();
       context.globalCompositeOperation = "soft-light";
@@ -9889,10 +9938,10 @@ export default function GameCanvas({
       }
       context.restore();
 
-      if (roomDoorVisualReady && roomDoorVisualImage) {
+      if (roomDoorAtlasReady && roomDoorAtlasImage) {
         // Track the atlas that was actually composited, rather than merely
         // requested, so base/stair cache eviction follows the visible backdrop.
-        roomDoorVisualLastUsedRef.current.set(backdropKey, performance.now());
+        roomDoorAtlasLastUsedRef.current.set(backdropKey, performance.now());
       }
 
       if (inputRef.current.hasMoveTarget) {
@@ -10585,18 +10634,21 @@ export default function GameCanvas({
         }
       }
 
-      // The southern doorway belongs to the foreground wall. Replace its baked
-      // room patch after actors, then grade only that patch because the opaque
-      // pixels necessarily covered the earlier full-room tint and vignette.
-      const southDoorPatch = drawRoomDoorPatch("south");
-      if (southDoorPatch) {
+      // The southern doorway belongs to the foreground wall. Redraw its clip
+      // from the same v4 room frame after actors, then restore the room grade
+      // over only the pixels that the foreground clip replaced.
+      const southDoorForeground = drawRoomDoorAtlasFrame(
+        southDoorFrame,
+        southDoorwayClip,
+      );
+      if (southDoorForeground) {
         context.save();
         context.beginPath();
         context.rect(
-          southDoorPatch.x,
-          southDoorPatch.y,
-          southDoorPatch.width,
-          southDoorPatch.height,
+          southDoorForeground.x,
+          southDoorForeground.y,
+          southDoorForeground.width,
+          southDoorForeground.height,
         );
         context.clip();
         context.globalCompositeOperation = "soft-light";

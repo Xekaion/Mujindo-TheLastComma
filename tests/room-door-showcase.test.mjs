@@ -70,15 +70,22 @@ test("room door showcase is local-only and bypasses saves, storage, and hub entr
     "utf8",
   );
   for (const productionSymbol of [
-    "ROOM_ART_PATHS",
-    "ROOM_STAIR_ART_PATHS",
     "ROOM_DOOR_VISUALS",
-    "roomDoorAtlasSourceRect",
-    "roomDoorCanvasRect",
-    "mirroredRoomDoorSide",
+    "roomDoorAtlasFrameSourceRect",
   ]) {
     assert.match(component, new RegExp(`\\b${productionSymbol}\\b`));
   }
+  assert.doesNotMatch(
+    component,
+    /ROOM_ART_PATHS|ROOM_STAIR_ART_PATHS|roomDoorAtlasSourceRect|roomDoorCanvasRect|ROOM_DOOR_SIDES/,
+    "the showcase must draw a complete map cell instead of composing door patches",
+  );
+  assert.match(component, /type LoadedAssets = Readonly<\{\s*atlas: HTMLImageElement;\s*\}>/);
+  assert.match(component, /\.then\(\(atlas\) => \{[\s\S]{0,100}?setAssets\(\{ atlas \}\)/);
+  assert.match(
+    component,
+    /context\.drawImage\(\s*assets\.atlas,\s*source\.x,\s*source\.y,\s*source\.width,\s*source\.height,\s*0,\s*0,\s*CANVAS_WIDTH,\s*CANVAS_HEIGHT,?\s*\)/,
+  );
   assert.match(component, /width=\{CANVAS_WIDTH\}/);
   assert.match(component, /height=\{CANVAS_HEIGHT\}/);
   assert.doesNotMatch(

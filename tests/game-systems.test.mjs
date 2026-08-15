@@ -5129,10 +5129,15 @@ test("generated room backplates and the archived cartography texture remain inta
   assert.match(game, /ROOM_DOOR_VISUALS\[backdropKey\]/);
   assert.match(
     game,
-    /roomDoorAtlasSourceRect\(\s*authoredSide,\s*frame,\s*roomDoorVisual\.sides\[authoredSide\],?\s*\)/,
+    /roomDoorAtlasFrameSourceRect\(frame\)/,
   );
-  assert.match(game, /roomDoorCanvasRect\(/);
-  assert.doesNotMatch(game, /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis/);
+  assert.match(game, /drawRoomDoorAtlasFrame\(animatedDoorFrame\)/);
+  assert.match(game, /roomDoorAtlasClipSourceRect\(frame, doorwayClip\)/);
+  assert.match(game, /roomDoorClipCanvasRect\(doorwayClip, WIDTH, HEIGHT\)/);
+  assert.doesNotMatch(
+    game,
+    /ROOM_DOOR_PLACEMENTS|ROOM_DOOR_ASSET_PATH|roomPortcullis|room-doors-v3|roomDoorAtlasSourceRect|roomDoorCanvasRect/,
+  );
   assert.doesNotMatch(game, /drawDoorWard|traceDiamond/);
   assert.match(game, /transitionOpacity = clamp\(world\.transition \/ 0\.55, 0, 1\)/);
   assert.doesNotMatch(game, /context\.strokeRect\(68, 64, WIDTH - 136, HEIGHT - 128\)/);
@@ -5507,11 +5512,22 @@ test("room gates use opaque room-baked assets for closing, opening, rendering, a
   assert.match(source, /world\.doorMotion = beginRoomDoorOpening\(world\.doorMotion\)/);
   assert.match(source, /world\.doorMotion = advanceRoomDoorMotion\(world\.doorMotion, dt\)/);
   assert.match(source, /world\.transition <= ROOM_DOOR_CLOSE_REVEAL_TRANSITION/);
-  assert.match(source, /roomDoorCanvasRect\(/);
-  assert.match(source, /roomDoorVisual\.sides\[authoredSide\]/);
+  assert.match(source, /roomDoorAtlasFrameSourceRect\(frame\)/);
+  assert.match(source, /roomDoorVisual\.doorwayClips\[authoredSide\]/);
   assert.match(
     source,
-    /roomDoorAtlasSourceRect\(\s*authoredSide,\s*frame,\s*roomDoorVisual\.sides\[authoredSide\],?\s*\)/,
+    /drawRoomDoorAtlasFrame\(animatedDoorFrame\)/,
+  );
+  assert.match(source, /roomDoorAtlasClipSourceRect\(frame, doorwayClip\)/);
+  assert.match(source, /roomDoorClipCanvasRect\(doorwayClip, WIDTH, HEIGHT\)/);
+  assert.match(
+    source,
+    /if \(existingDoorways\[physicalSide\]\) continue;\s*drawRoomDoorAtlasFrame\(0, authoredDoorwayClip\(physicalSide\)\)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /room-doors-v3|roomDoorAtlasSourceRect|roomDoorCanvasRect|drawRoomDoorPatch/,
+    "each state must remain a complete room map, not a standalone door overlay",
   );
   assert.match(source, /const animatedDoorFrame = roomDoorFrame\(world\.doorMotion\)/);
   assert.match(source, /roomDoorsPassable\(world\.doorMotion\) && world\.transition <= 0/);

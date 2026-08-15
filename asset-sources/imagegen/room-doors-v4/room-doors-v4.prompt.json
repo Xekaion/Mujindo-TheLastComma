@@ -1,0 +1,65 @@
+{
+  "asset": "room-doors-v4",
+  "generatedAt": "2026-08-15",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "map-specific complete-room portcullis states",
+  "targets": [
+    "room-battle",
+    "room-battle-stairs-v1",
+    "room-horde",
+    "room-horde-stairs-v1",
+    "room-elite",
+    "room-elite-stairs-v1",
+    "room-memory",
+    "room-memory-stairs-v1",
+    "room-shelter",
+    "room-shelter-stairs-v1",
+    "room-boss",
+    "room-boss-stairs-v1",
+    "room-drowned-archive",
+    "room-drowned-archive-stairs-v1",
+    "room-rootbound-ossuary",
+    "room-rootbound-ossuary-stairs-v1",
+    "room-shattered-astrarium",
+    "room-shattered-astrarium-stairs-v1"
+  ],
+  "baseRoomPromptTemplate": "Use case: precise production game-asset edit. Image 1 is the exact target 16:9 full-room backplate for a gothic early-2000s Diablo-like 2D 3/4 top-down ARPG. Return one COMPLETE FULL ROOM IMAGE, never an isolated gate, cutout, sprite, overlay, crop, contact sheet, or UI mockup. Preserve Image 1's exact camera, 16:9 framing, room footprint, floor, walls, stairs, doorway positions, lighting, color grade, and empty arena. Do not redesign, reframe, crop, zoom, mirror, move, or add anything outside the four existing doorway interiors. Edit only the north/top, east/right, south/bottom, and west/left passages so each contains a fully lowered heavy aged iron portcullis installed behind its original jambs. Each gate spans the full dark doorway mouth, recessed at the threshold, with bars descending from a hidden overhead slot, pointed tips meeting the threshold, restrained contact shadow, and the room's native reflected light. No runes or floating plaques. Perspective is critical: east and west gates are narrow oblique vertical barriers following each side corridor and stairs; south is a vertical foreground portcullis, never a floor grate. All iron remains behind native jambs and never spills onto the arena floor. Images 2 and 3 are reference only for recessed installation and 3/4 perspective. Keep Image 1's identity and geometry. No characters, monsters, loot, effects, text, logos, borders, or transparency.",
+  "stairsPromptTemplate": "Precise production game-asset edit. Image 1 is the exact target 16:9 full-room STAIRS backplate. Return one COMPLETE FULL ROOM IMAGE, not a gate sprite, overlay, crop, contact sheet, or UI. Preserve Image 1's exact camera, framing, large central descending staircase, floor, walls, all four perimeter passages, native lighting, and empty arena. Do not alter anything outside the four perimeter doorway interiors. Image 2 shows the desired fully closed portcullis installation and material for this same room family; install matching gates into Image 1's north/east/south/west passages while preserving the central staircase. Every gate is behind native jambs, fills only its dark doorway mouth, meets the threshold, and receives native room reflections and contact shadow. East and west are narrow oblique vertical barriers following side stairs. South is a clearly visible upright foreground portcullis, never a floor grate. No runes or plaques. Image 3 is only a side-perspective reference. No characters, monsters, loot, effects, text, logos, borders, or transparency.",
+  "roomSpecificDirections": {
+    "room-battle": "neutral black iron with restrained bronze torch reflections",
+    "room-horde": "bone-and-root architecture with warm bone/bronze torch reflections",
+    "room-elite": "aged iron with crimson crystal and candle reflections",
+    "room-memory": "aged iron with cool cyan and violet spectral reflections",
+    "room-shelter": "aged iron with warm amber lantern reflections",
+    "room-boss": "imposing iron and dark bronze with warm gold/crimson reflections",
+    "room-drowned-archive": "corroded iron with damp cyan/teal reflected light",
+    "room-rootbound-ossuary": "ancient iron with restrained green/verdigris reflections",
+    "room-shattered-astrarium": "ancient black iron with restrained violet reflections"
+  },
+  "eliteStairsCorrectionPrompt": "Precise correction of a production full-room game asset. Preserve the complete edited elite stairs room and its north/east/west gates. Install the missing fully lowered upright iron portcullis across the SOUTH/BOTTOM perimeter doorway behind its native jambs, matching the dark iron and crimson reflections of the family. It must be vertical foreground architecture, never a horizontal floor grate. No other edits.",
+  "references": {
+    "baseRooms": "each matching public/assets/maps/<stem>.webp",
+    "baseInstallation": "asset-sources/imagegen/room-portcullis-v3-room-reference.png",
+    "sidePerspective": "asset-sources/imagegen/room-portcullis-v3-west-reference.png",
+    "stairsFamilyReference": "the matching room-doors-v4/<base-stem>-closed-generated.png"
+  },
+  "generatedOutput": {
+    "directory": "asset-sources/imagegen/room-doors-v4",
+    "naming": "<room-stem>-closed-generated.png",
+    "size": [
+      1672,
+      941
+    ],
+    "mode": "RGB"
+  },
+  "productionPipeline": {
+    "script": "scripts/build_room_full_door_assets.py",
+    "normalization": "Lanczos 1672x941 to 1600x900",
+    "authoredPixels": "only each matching full-room edit's four recessed passage interiors",
+    "intermediateMotion": "translate the authored passage content along its doorway-plane lift vector without scaling",
+    "runtimeFrame": "complete opaque 1280x720 room",
+    "atlas": "two columns by three rows, frame 0 fully closed through frame 5 fully open",
+    "encoding": "lossless WebP so untouched room pixels remain identical between frames",
+    "openState": "exact Lanczos rendering of the matching production room"
+  }
+}
