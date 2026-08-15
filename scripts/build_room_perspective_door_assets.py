@@ -20,7 +20,7 @@ from PIL import Image, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "public" / "assets" / "effects" / "room-portcullis-source-v1.png"
+SOURCE = ROOT / "asset-sources" / "legacy-arpg" / "room-portcullis-source-v1.png"
 OUTPUT_DIR = ROOT / "public" / "assets" / "effects" / "room-doors-v2"
 CELL = (256, 192)
 REFERENCE_CELL = (512, 384)

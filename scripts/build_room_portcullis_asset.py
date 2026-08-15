@@ -80,7 +80,7 @@ def main() -> None:
     parser.add_argument(
         "--source",
         type=Path,
-        default=root / "public" / "assets" / "effects" / "room-portcullis-source-v1.png",
+        default=root / "asset-sources" / "legacy-arpg" / "room-portcullis-source-v1.png",
     )
     parser.add_argument(
         "--output",

@@ -415,6 +415,11 @@ test("production assets omit retired standalone door overlays and superseded equ
     "public/assets/equipment/equipment-types.png",
     "public/assets/equipment/equipment-types-v2.png",
     "public/assets/equipment/equipment-types-v3.png",
+    "public/assets/equipment/equipment-icons.png",
+    "public/assets/ui/rarity-frames-v2.png",
+    "public/assets/walk/proofreader-walk.png",
+    "public/assets/effects/equipped-rarity-aura-source-v1.png",
+    "public/assets/effects/room-portcullis-source-v1.png",
   ];
 
   for (const retiredPath of retiredPaths) {
@@ -428,5 +433,17 @@ test("production assets omit retired standalone door overlays and superseded equ
   await access(path.join(root, "public/assets/maps/room-doors-v4"));
   await access(
     path.join(root, "public/assets/equipment/equipment-types-v4.png"),
+  );
+  await access(
+    path.join(
+      root,
+      "asset-sources/legacy-arpg/equipped-rarity-aura-source-v1.png",
+    ),
+  );
+  await access(
+    path.join(
+      root,
+      "asset-sources/legacy-arpg/room-portcullis-source-v1.png",
+    ),
   );
 });

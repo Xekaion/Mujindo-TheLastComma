@@ -24,7 +24,7 @@ from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps
 ROOT = Path(__file__).resolve().parents[1]
 MAP_DIR = ROOT / "public" / "assets" / "maps"
 OUTPUT_DIR = ROOT / "public" / "assets" / "effects" / "room-doors-v3"
-FRONT_SOURCE = ROOT / "public" / "assets" / "effects" / "room-portcullis-source-v1.png"
+FRONT_SOURCE = ROOT / "asset-sources" / "legacy-arpg" / "room-portcullis-source-v1.png"
 SIDE_SOURCE = ROOT / "asset-sources" / "imagegen" / "room-portcullis-v3-keyed.png"
 PROMPT_METADATA = ROOT / "asset-sources" / "imagegen" / "room-portcullis-v3.prompt.json"
 

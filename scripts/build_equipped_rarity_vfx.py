@@ -15,7 +15,7 @@ from PIL import Image, ImageEnhance
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "public/assets/effects/equipped-rarity-aura-source-v1.png"
+SOURCE = ROOT / "asset-sources/legacy-arpg/equipped-rarity-aura-source-v1.png"
 OUTPUTS = {
     "mythic": ROOT / "public/assets/effects/equipped-mythic-aura-v1.png",
     "cosmic": ROOT / "public/assets/effects/equipped-cosmic-aura-v1.png",
