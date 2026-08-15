@@ -311,6 +311,63 @@ function rgbaCellBuffer(image, column, row, columns, rows, label) {
   return output;
 }
 
+function centreClearComponentMetrics(image, column, row, columns, rows, label, threshold = 8) {
+  assert.equal(image.width % columns, 0, `${label} atlas width must divide evenly`);
+  assert.equal(image.height % rows, 0, `${label} atlas height must divide evenly`);
+  const cellWidth = image.width / columns;
+  const cellHeight = image.height / rows;
+  const cellLeft = column * cellWidth;
+  const cellTop = row * cellHeight;
+  const centreX = Math.floor(cellWidth / 2);
+  const centreY = Math.floor(cellHeight / 2);
+  const alphaAt = (x, y) =>
+    image.pixels[((cellTop + y) * image.width + cellLeft + x) * 4 + 3];
+  assert.ok(alphaAt(centreX, centreY) <= threshold, `${label} centre is not transparent`);
+
+  const visited = new Uint8Array(cellWidth * cellHeight);
+  const queueX = new Int16Array(cellWidth * cellHeight);
+  const queueY = new Int16Array(cellWidth * cellHeight);
+  let head = 0;
+  let tail = 1;
+  queueX[0] = centreX;
+  queueY[0] = centreY;
+  visited[centreY * cellWidth + centreX] = 1;
+  let minimumX = centreX;
+  let maximumX = centreX;
+  let minimumY = centreY;
+  let maximumY = centreY;
+  while (head < tail) {
+    const x = queueX[head];
+    const y = queueY[head];
+    head += 1;
+    for (const [nextX, nextY] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) {
+      if (nextX < 0 || nextX >= cellWidth || nextY < 0 || nextY >= cellHeight) continue;
+      const index = nextY * cellWidth + nextX;
+      if (visited[index] || alphaAt(nextX, nextY) > threshold) continue;
+      visited[index] = 1;
+      queueX[tail] = nextX;
+      queueY[tail] = nextY;
+      tail += 1;
+      minimumX = Math.min(minimumX, nextX);
+      maximumX = Math.max(maximumX, nextX);
+      minimumY = Math.min(minimumY, nextY);
+      maximumY = Math.max(maximumY, nextY);
+    }
+  }
+  assert.ok(tail >= 100, `${label} centre clear component is unexpectedly small`);
+  return {
+    left: minimumX,
+    top: minimumY,
+    right: maximumX + 1,
+    bottom: maximumY + 1,
+    width: maximumX - minimumX + 1,
+    height: maximumY - minimumY + 1,
+    centerX: (minimumX + maximumX) / 2,
+    centerY: (minimumY + maximumY) / 2,
+    pixels: tail,
+  };
+}
+
 function rgbToHsv(red, green, blue) {
   const maximum = Math.max(red, green, blue) / 255;
   const minimum = Math.min(red, green, blue) / 255;
@@ -2043,7 +2100,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
     ["public/assets/effects/loot-cosmic-awakening.png", [1536, 768]],
     ["public/assets/equipment/paperdoll-equipment.png", [1000, 1536]],
-    ["public/assets/ui/rarity-frames.png", [2560, 320]],
+    ["public/assets/ui/rarity-frames-v6.png", [2560, 320]],
     ["public/assets/ui/inventory-cosmic-aura.png", [1536, 768]],
     ["public/assets/ui/inventory-rarity-aura-rare-v3.png", [1536, 768]],
     ["public/assets/ui/inventory-rarity-aura-epic-v3.png", [1536, 768]],
@@ -7901,7 +7958,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     "the animated aura must remain above the base plate and below the item icon",
   );
   assert.match(finalCss, /Full names belong in the workbench[\s\S]{0,260}?\.inventory-screen-grid-name\s*\{\s*display:\s*none;/);
-  assert.match(finalCss, /Fixed structural frame contract V5[\s\S]{0,760}?\.inventory-screen-tooltip-crest::after[\s\S]{0,180}?z-index:\s*4;[\s\S]{0,80}?inset:\s*-2\.632%;[\s\S]{0,360}?background-size:\s*800%\s+100%;[\s\S]{0,180}?animation:\s*none;/);
+  assert.match(finalCss, /Fixed structural frame contract V6[\s\S]{0,760}?\.inventory-screen-tooltip-crest::after[\s\S]{0,180}?z-index:\s*4;[\s\S]{0,80}?inset:\s*-2\.632%;[\s\S]{0,360}?rarity-frames-v6\.png[\s\S]{0,180}?background-size:\s*800%\s+100%;[\s\S]{0,180}?animation:\s*none;/);
   assert.match(
     css,
     /\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-rarity-spectacle\s*\{[^}]*z-index:\s*1;/,
@@ -9092,16 +9149,20 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   );
 });
 
-test("inventory v2 artwork, eight rarity frames, and every rare+ authored animation remain connected", async () => {
+test("inventory v2 artwork, square V6 rarity frames, and every rare+ authored animation remain connected", async () => {
   const backgroundPath = "public/assets/ui/inventory-sanctum-v2.png";
-  const framesPath = "public/assets/ui/rarity-frames.png";
+  const framesPath = "public/assets/ui/rarity-frames-v6.png";
+  const sourceFramesPath = "public/assets/ui/rarity-frames.png";
+  const frameBuildPath = "public/assets/ui/rarity-frames-v6.build.json";
   const auraAssets = ["rare", "epic", "legendary", "mythic", "cosmic"].map((tier) => [
     tier,
     `public/assets/ui/inventory-rarity-aura-${tier}-v3.png`,
   ]);
-  const [backgroundPng, framePng, overlay, css, ...auraPngs] = await Promise.all([
+  const [backgroundPng, framePng, sourceFramePng, frameBuildText, overlay, css, ...auraPngs] = await Promise.all([
     readFile(path.join(root, backgroundPath)),
     readFile(path.join(root, framesPath)),
+    readFile(path.join(root, sourceFramesPath)),
+    readFile(path.join(root, frameBuildPath), "utf8"),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
     ...auraAssets.map(([, assetPath]) => readFile(path.join(root, assetPath))),
@@ -9121,7 +9182,20 @@ test("inventory v2 artwork, eight rarity frames, and every rare+ authored animat
   assert.ok(backgroundWidth / backgroundHeight >= 1.5, `${backgroundPath} must remain a wide panel`);
 
   const frames = decodeRgbaPng(framePng, framesPath);
+  const sourceFrames = decodeRgbaPng(sourceFramePng, sourceFramesPath);
+  const frameBuild = JSON.parse(frameBuildText);
   assert.equal(frames.width, frames.height * 8, "rarity frames must form an eight-column by one-row atlas");
+  assert.equal(sourceFrames.width, frames.width, "V6 source and output atlas widths must match");
+  assert.equal(sourceFrames.height, frames.height, "V6 source and output atlas heights must match");
+  assert.equal(frameBuild.version, 6);
+  assert.equal(frameBuild.source, sourceFramesPath);
+  assert.equal(frameBuild.output, framesPath);
+  assert.equal(frameBuild.pipeline.mode, "source-preserving deterministic vertical three-band resize");
+  assert.deepEqual(frameBuild.pipeline.editedCells, ["mythic"]);
+  assert.equal(frameBuild.pipeline.horizontalCoordinatesChanged, false);
+  assert.equal(frameBuild.pipeline.spectacleAssetsChanged, false);
+  assert.equal(createHash("sha256").update(sourceFramePng).digest("hex"), frameBuild.sourceSha256);
+  assert.equal(createHash("sha256").update(framePng).digest("hex"), frameBuild.outputSha256);
   const frameWidth = frames.width / 8;
   for (let column = 0; column < 8; column += 1) {
     let opaquePixels = 0;
@@ -9156,6 +9230,38 @@ test("inventory v2 artwork, eight rarity frames, and every rare+ authored animat
       `rarity frame ${column} must share the structural frame centre`,
     );
   }
+
+  for (let column = 0; column < 8; column += 1) {
+    const sourceCell = rgbaCellBuffer(sourceFrames, column, 0, 8, 1, `V5 rarity frame ${column}`);
+    const outputCell = rgbaCellBuffer(frames, column, 0, 8, 1, `V6 rarity frame ${column}`);
+    if (column === 6) {
+      assert.notDeepEqual(outputCell, sourceCell, "mythic must receive the square-window geometry correction");
+    } else {
+      assert.deepEqual(outputCell, sourceCell, `rarity frame ${column} must remain pixel-identical`);
+    }
+  }
+  const sourceMythicWindow = centreClearComponentMetrics(
+    sourceFrames,
+    6,
+    0,
+    8,
+    1,
+    "V5 mythic rarity frame",
+  );
+  const mythicWindow = centreClearComponentMetrics(frames, 6, 0, 8, 1, "V6 mythic rarity frame");
+  assert.deepEqual(
+    [sourceMythicWindow.width, sourceMythicWindow.height],
+    [173, 148],
+    "the regression fixture must retain the original rectangular mythic opening",
+  );
+  assert.deepEqual(
+    [mythicWindow.left, mythicWindow.top, mythicWindow.right, mythicWindow.bottom],
+    [74, 74, 247, 247],
+    "the mythic equipment opening must be the exact centred source-width square",
+  );
+  assert.equal(mythicWindow.width, mythicWindow.height, "the mythic structural frame must be square");
+  assert.ok(Math.abs(mythicWindow.centerX - 160) <= 0.5, "mythic opening drifts horizontally");
+  assert.ok(Math.abs(mythicWindow.centerY - 160) <= 0.5, "mythic opening drifts vertically");
 
   const assertEightFrameAura = (png, assetPath, tierName) => {
     const aura = decodeRgbaPng(png, assetPath);
@@ -9195,7 +9301,8 @@ test("inventory v2 artwork, eight rarity frames, and every rare+ authored animat
   }
 
   assert.match(css, /url\(["']?\/assets\/ui\/inventory-sanctum-v2\.png["']?\)/);
-  assert.match(css, /url\(["']?\/assets\/ui\/rarity-frames\.png["']?\)/);
+  assert.match(css, /url\(["']?\/assets\/ui\/rarity-frames-v6\.png["']?\)/);
+  assert.doesNotMatch(css, /url\(["']?\/assets\/ui\/rarity-frames\.png["']?\)/);
   for (const [tierName] of auraAssets) {
     assert.match(
       css,

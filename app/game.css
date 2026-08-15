@@ -6027,7 +6027,7 @@ button.equipment-slot-card:hover {
   inset: -7px;
   background-image:
     url("/assets/ui/inventory-chrome-atlas.png"),
-    url("/assets/ui/rarity-frames.png");
+    url("/assets/ui/rarity-frames-v6.png");
   background-repeat: no-repeat, no-repeat;
   background-size: 400% 200%, 700% 100%;
   background-position: 100% 100%, var(--inventory-rarity-frame-x) center;
@@ -7637,7 +7637,7 @@ button.equipment-slot-card:hover {
   border: 0;
   content: "";
   pointer-events: none;
-  background-image: url("/assets/ui/rarity-frames.png");
+  background-image: url("/assets/ui/rarity-frames-v6.png");
   background-repeat: no-repeat;
   background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
@@ -8363,7 +8363,7 @@ button.equipment-slot-card:hover {
   inset: -1px;
   content: "";
   pointer-events: none;
-  background-image: url("/assets/ui/rarity-frames.png");
+  background-image: url("/assets/ui/rarity-frames-v6.png");
   background-repeat: no-repeat;
   background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;
@@ -8974,7 +8974,7 @@ button.equipment-slot-card:hover {
 .inventory-screen-tooltip::before {
   background-image:
     url("/assets/ui/inventory-chrome-atlas.png"),
-    url("/assets/ui/rarity-frames.png");
+    url("/assets/ui/rarity-frames-v6.png");
   background-size: 400% 200%, 800% 100%;
   background-position: 100% 100%, var(--inventory-rarity-frame-x) center;
 }
@@ -9471,8 +9471,8 @@ button.equipment-slot-card:hover {
   pointer-events: none;
 }
 
-/* Fixed structural frame contract V5 ------------------------------------
-   rarity-frames.png contains eight equal 320px cells whose outer painted
+/* Fixed structural frame contract V6 ------------------------------------
+   rarity-frames-v6.png contains eight equal 320px cells whose outer painted
    bounds are all 304px and share the same centre. This non-animated layer is
    the single source of slot geometry for every rarity and every inventory
    presentation; the animated layers stay behind it as light only. */
@@ -9488,7 +9488,7 @@ button.equipment-slot-card:hover {
   border: 0;
   content: "";
   pointer-events: none;
-  background-image: url("/assets/ui/rarity-frames.png");
+  background-image: url("/assets/ui/rarity-frames-v6.png");
   background-repeat: no-repeat;
   background-size: 800% 100%;
   background-position: var(--inventory-rarity-frame-x) center;

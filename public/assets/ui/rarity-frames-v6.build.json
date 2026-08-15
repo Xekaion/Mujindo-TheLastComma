@@ -1,0 +1,323 @@
+{
+  "version": 6,
+  "format": "RGBA PNG",
+  "sheet": {
+    "columns": 8,
+    "rows": 1,
+    "cell": [
+      320,
+      320
+    ],
+    "size": [
+      2560,
+      320
+    ]
+  },
+  "source": "public/assets/ui/rarity-frames.png",
+  "sourceSha256": "f8bc09f0374abc84b762d35ba2b2fd30fa30028743ffab150727f0d8e88d1153",
+  "output": "public/assets/ui/rarity-frames-v6.png",
+  "pipeline": {
+    "mode": "source-preserving deterministic vertical three-band resize",
+    "editedCells": [
+      "mythic"
+    ],
+    "alphaClearThreshold": 8,
+    "sourceVerticalBands": [
+      8,
+      100,
+      248,
+      312
+    ],
+    "targetVerticalBands": [
+      8,
+      74,
+      247,
+      312
+    ],
+    "horizontalCoordinatesChanged": false,
+    "spectacleAssetsChanged": false
+  },
+  "cells": [
+    {
+      "index": 0,
+      "rarity": "common",
+      "sourcePixelSha256": "53b049a44731f44453fe390d10033f08991de19c2e0b49d591f55f503a3c0c04",
+      "outputPixelSha256": "53b049a44731f44453fe390d10033f08991de19c2e0b49d591f55f503a3c0c04",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        45,
+        45,
+        275,
+        275
+      ],
+      "outputClearWindow": [
+        45,
+        45,
+        275,
+        275
+      ],
+      "outputClearWindowSize": [
+        230,
+        230
+      ]
+    },
+    {
+      "index": 1,
+      "rarity": "magic",
+      "sourcePixelSha256": "7ed50e6f3e9112813e80d0a1d3f9201fe2bd2e729d5bf191b5f1b25f3872da00",
+      "outputPixelSha256": "7ed50e6f3e9112813e80d0a1d3f9201fe2bd2e729d5bf191b5f1b25f3872da00",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        48,
+        48,
+        273,
+        273
+      ],
+      "outputClearWindow": [
+        48,
+        48,
+        273,
+        273
+      ],
+      "outputClearWindowSize": [
+        225,
+        225
+      ]
+    },
+    {
+      "index": 2,
+      "rarity": "superior",
+      "sourcePixelSha256": "0cb22ef988271cc5f263221ee2ca1eb1ccdafc1f2468e73f04839d9aab5f9a80",
+      "outputPixelSha256": "0cb22ef988271cc5f263221ee2ca1eb1ccdafc1f2468e73f04839d9aab5f9a80",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        47,
+        46,
+        273,
+        291
+      ],
+      "outputClearWindow": [
+        47,
+        46,
+        273,
+        291
+      ],
+      "outputClearWindowSize": [
+        226,
+        245
+      ]
+    },
+    {
+      "index": 3,
+      "rarity": "rare",
+      "sourcePixelSha256": "fa4daf8670c01cff5c15c06f1094df48b5d69787a3c8e68f133139591e3eeaae",
+      "outputPixelSha256": "fa4daf8670c01cff5c15c06f1094df48b5d69787a3c8e68f133139591e3eeaae",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        57,
+        54,
+        264,
+        265
+      ],
+      "outputClearWindow": [
+        57,
+        54,
+        264,
+        265
+      ],
+      "outputClearWindowSize": [
+        207,
+        211
+      ]
+    },
+    {
+      "index": 4,
+      "rarity": "epic",
+      "sourcePixelSha256": "6e4871fbd3645a0ce4d5df83819cec625d2a390f2067450c1f0178957ce6e89d",
+      "outputPixelSha256": "6e4871fbd3645a0ce4d5df83819cec625d2a390f2067450c1f0178957ce6e89d",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        64,
+        69,
+        256,
+        256
+      ],
+      "outputClearWindow": [
+        64,
+        69,
+        256,
+        256
+      ],
+      "outputClearWindowSize": [
+        192,
+        187
+      ]
+    },
+    {
+      "index": 5,
+      "rarity": "legendary",
+      "sourcePixelSha256": "e455ffbac3fead22b0f019f6aa46defd97d5ebdcda9a6428687f3a4633e1f529",
+      "outputPixelSha256": "e455ffbac3fead22b0f019f6aa46defd97d5ebdcda9a6428687f3a4633e1f529",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        72,
+        75,
+        246,
+        245
+      ],
+      "outputClearWindow": [
+        72,
+        75,
+        246,
+        245
+      ],
+      "outputClearWindowSize": [
+        174,
+        170
+      ]
+    },
+    {
+      "index": 6,
+      "rarity": "mythic",
+      "sourcePixelSha256": "ebe47dae03e4fac78497d123aa34a363850b79f918e9e937c7ef7ec97b38f941",
+      "outputPixelSha256": "8370e891c17a38543c284bd61fbdd9d71e799402e2c6d4cd79262e0591aa2db4",
+      "pixelIdentical": false,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        74,
+        100,
+        247,
+        248
+      ],
+      "outputClearWindow": [
+        74,
+        74,
+        247,
+        247
+      ],
+      "outputClearWindowSize": [
+        173,
+        173
+      ]
+    },
+    {
+      "index": 7,
+      "rarity": "cosmic",
+      "sourcePixelSha256": "5be97214c34b3d7896d5ebd86581d3507b5651396386f149a877ea34feb74b7c",
+      "outputPixelSha256": "5be97214c34b3d7896d5ebd86581d3507b5651396386f149a877ea34feb74b7c",
+      "pixelIdentical": true,
+      "sourceOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "outputOuterBounds": [
+        8,
+        8,
+        312,
+        312
+      ],
+      "sourceClearWindow": [
+        64,
+        60,
+        256,
+        261
+      ],
+      "outputClearWindow": [
+        64,
+        60,
+        256,
+        261
+      ],
+      "outputClearWindowSize": [
+        192,
+        201
+      ]
+    }
+  ],
+  "outputSha256": "ccc5d0b99eff0e2105da22abaff28d65360336774f7e066904cc405b7ba97ace"
+}
