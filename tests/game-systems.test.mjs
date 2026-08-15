@@ -7263,13 +7263,13 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   const geometryContract = css.slice(css.indexOf("Inventory geometry contract V3"));
   assert.match(
     geometryContract,
-    /\.inventory-screen-left-column\s*\{[^}]*grid-template-rows:\s*minmax\(360px,\s*1\.08fr\)\s+minmax\(250px,\s*0\.92fr\)/,
+    /\.inventory-screen-left-column\s*\{[^}]*grid-template-rows:\s*minmax\(360px,\s*1\.28fr\)\s+minmax\(250px,\s*0\.72fr\)/,
     "the desktop paperdoll and workbench must retain dedicated non-overlapping tracks",
   );
   assert.match(
     geometryContract,
-    /@container\s+game-viewport\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*minmax\(320px,\s*1\.1fr\)\s+minmax\(210px,\s*0\.9fr\)/,
-    "low desktop layouts must reserve the larger share for five safe paperdoll rows",
+    /@container\s+game-viewport\s*\(min-height:\s*681px\)\s*and\s*\(max-height:\s*800px\)\s*and\s*\(min-width:\s*901px\)[\s\S]{0,900}?\.inventory-screen-layout\s*\{[^}]*overflow-y:\s*auto;[\s\S]{0,500}?\.inventory-screen-left-column\s*\{[^}]*grid-template-rows:\s*440px\s+270px;[^}]*min-height:\s*720px/,
+    "low desktop layouts must scroll instead of collapsing the five paperdoll rows",
   );
 });
 
@@ -7832,6 +7832,11 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     /\.inventory-screen-equipment-card\s*\{[\s\S]{0,520}?width:\s*auto;[\s\S]{0,100}?height:\s*100%;[\s\S]{0,160}?max-width:\s*var\(--inventory-paperdoll-slot-cap\);[\s\S]{0,160}?aspect-ratio:\s*1;/,
   );
   assert.match(finalCss, /@container game-viewport \(max-width:\s*1240px\)[\s\S]{0,1100}?--inventory-paperdoll-slot-cap:\s*66px;[\s\S]{0,120}?--inventory-paperdoll-aura-safe:\s*30px;/);
+  assert.match(
+    finalCss,
+    /@container game-viewport \(min-height:\s*681px\) and \(max-height:\s*800px\) and \(min-width:\s*901px\)\s*\{[\s\S]{0,480}?\.inventory-screen-layout\s*\{[^}]*overflow-y:\s*auto;[^}]*scrollbar-gutter:\s*stable;[\s\S]{0,260}?\.inventory-screen-left-column\s*\{[^}]*grid-template-rows:\s*440px\s+270px;[^}]*min-height:\s*720px;[\s\S]{0,180}?\.inventory-screen-backpack\s*\{[^}]*min-height:\s*720px;[\s\S]{0,260}?--inventory-paperdoll-slot-cap:\s*58px;[\s\S]{0,120}?--inventory-paperdoll-aura-safe:\s*28px;[\s\S]{0,160}?--inventory-paperdoll-row-spread:\s*0px;[\s\S]{0,120}?--inventory-paperdoll-row-spread-double:\s*0px;/,
+    "low desktop armories must scroll the chrome instead of shrinking equipped items below 58px",
+  );
   assert.doesNotMatch(
     finalCss,
     /grid-template-rows:\s*repeat\(5,\s*var\(--inventory-paperdoll-slot-size\)\)/,

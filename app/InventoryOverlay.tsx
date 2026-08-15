@@ -404,6 +404,7 @@ function ResonanceSetSummary({
     <>
       <div
         className="inventory-screen-resonance-summary"
+        role="group"
         aria-label={`세트 효과, 신화세트 ${resonance.highTierCount}개, 우주세트 ${resonance.cosmicCount}개`}
       >
         <ResonanceSetBadge
@@ -1020,6 +1021,15 @@ export default function InventoryOverlay({
               ? "광장에서 장착 장비와 가방의 모든 옵션을 안전하게 확인합니다."
               : "장비 위에 커서를 올리면 모든 접사와 비교 수치가 펼쳐집니다."}
           </p>
+          <ResonanceSetSummary
+            resonance={equippedResonance}
+            detail={resonanceDetail}
+            setDetail={setResonanceDetail}
+            onOpenDetail={() => {
+              setHoveredItem(null);
+              setHoveredItemIsEquipped(false);
+            }}
+          />
           <div className="inventory-screen-header-resources">
             <span>기억의 재</span>
             <b>{memoryAsh.toLocaleString("ko-KR")}</b>
@@ -1042,20 +1052,9 @@ export default function InventoryOverlay({
             >
               <div className="inventory-screen-section-heading">
                 <h3 id="inventory-screen-equipment-title">장착 장비</h3>
-                <div className="inventory-screen-equipment-summary">
-                  <span className="inventory-screen-equipment-summary__power">
-                    장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
-                  </span>
-                  <ResonanceSetSummary
-                    resonance={equippedResonance}
-                    detail={resonanceDetail}
-                    setDetail={setResonanceDetail}
-                    onOpenDetail={() => {
-                      setHoveredItem(null);
-                      setHoveredItemIsEquipped(false);
-                    }}
-                  />
-                </div>
+                <span className="inventory-screen-equipment-summary__power">
+                  장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
+                </span>
               </div>
 
               <div className="inventory-screen-equipment-slots">

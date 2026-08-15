@@ -327,6 +327,65 @@ test("inventory exposes compact set badges, detailed tooltips, and an equip/uneq
   assert.match(source, /다음/);
 });
 
+test("inventory keeps set badges in the global header without shrinking the paperdoll", async () => {
+  const [source, css] = await Promise.all([
+    readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
+  const headerStart = source.indexOf('<header className="inventory-screen-header">');
+  const layoutStart = source.indexOf(
+    '<div className="inventory-screen-layout">',
+    headerStart,
+  );
+  const equipmentHeadingStart = source.indexOf(
+    '<div className="inventory-screen-section-heading">',
+    layoutStart,
+  );
+  const equipmentSlotsStart = source.indexOf(
+    '<div className="inventory-screen-equipment-slots">',
+    equipmentHeadingStart,
+  );
+  assert.ok(headerStart >= 0 && layoutStart > headerStart);
+  assert.ok(
+    equipmentHeadingStart > layoutStart && equipmentSlotsStart > equipmentHeadingStart,
+  );
+
+  const headerSource = source.slice(headerStart, layoutStart);
+  const equipmentHeadingSource = source.slice(
+    equipmentHeadingStart,
+    equipmentSlotsStart,
+  );
+  assert.match(headerSource, /<ResonanceSetSummary/);
+  assert.ok(
+    headerSource.indexOf("<ResonanceSetSummary") <
+      headerSource.indexOf('className="inventory-screen-header-resources"'),
+    "set badges must sit before the memory-ash counter in the global header",
+  );
+  assert.match(
+    source,
+    /className="inventory-screen-resonance-summary"\s*role="group"/,
+  );
+  assert.doesNotMatch(equipmentHeadingSource, /ResonanceSetSummary/);
+  assert.doesNotMatch(equipmentHeadingSource, /inventory-screen-equipment-summary"/);
+  assert.match(
+    equipmentHeadingSource,
+    /<span className="inventory-screen-equipment-summary__power">/,
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-header\s*\{[\s\S]{0,180}?grid-template-columns:\s*minmax\(245px,\s*0\.72fr\)\s+minmax\(220px,\s*1fr\)\s+auto\s+auto\s+50px;/,
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-left-column\s*\{\s*grid-template-rows:\s*minmax\(360px,\s*1\.28fr\)\s+minmax\(250px,\s*0\.72fr\);/,
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-slot-clip\s*>\s*\.inventory-screen-gear-icon\s*\{[^}]*width:\s*calc\(100% - 4px\)\s*!important;[^}]*height:\s*calc\(100% - 4px\)\s*!important;/,
+  );
+  assert.doesNotMatch(css, /\.inventory-screen-equipment-summary\s*\{/);
+});
+
 test("stats overlay has a dedicated current/next rarity resonance section", async () => {
   const source = await readFile(path.join(root, "app/StatsOverlay.tsx"), "utf8");
   assert.match(source, /고위 장비 공명/);
