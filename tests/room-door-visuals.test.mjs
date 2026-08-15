@@ -420,6 +420,7 @@ test("production assets omit retired standalone door overlays and superseded equ
     "public/assets/walk/proofreader-walk.png",
     "public/assets/effects/equipped-rarity-aura-source-v1.png",
     "public/assets/effects/room-portcullis-source-v1.png",
+    "public/assets/characters-sprite-atlas-chroma.png",
   ];
 
   for (const retiredPath of retiredPaths) {
@@ -444,6 +445,12 @@ test("production assets omit retired standalone door overlays and superseded equ
     path.join(
       root,
       "asset-sources/legacy-arpg/room-portcullis-source-v1.png",
+    ),
+  );
+  await access(
+    path.join(
+      root,
+      "asset-sources/legacy-arpg/characters-sprite-atlas-chroma.png",
     ),
   );
 });
