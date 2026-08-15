@@ -6,9 +6,11 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type Dispatch,
   type FocusEvent,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent,
+  type SetStateAction,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { createPortal } from "react-dom";
@@ -251,6 +253,197 @@ function formatCosmicResonance(
   return `최종 피해 +${bonus.finalDamagePercent}% · 행동 속도 +${bonus.actionSpeedPercent}%`;
 }
 
+const RESONANCE_DETAIL_WIDTH = 286;
+const RESONANCE_DETAIL_HEIGHT = 126;
+
+type ResonanceSetTone = "mythic" | "cosmic";
+
+type ResonanceSetDetail = {
+  tone: ResonanceSetTone;
+  source: "pointer" | "focus";
+  label: string;
+  count: number;
+  current: string;
+  next: string;
+  position: TooltipPosition;
+};
+
+function ResonanceSetBadge({
+  tone,
+  label,
+  count,
+  current,
+  next,
+  active,
+  onShow,
+  onHide,
+}: {
+  tone: ResonanceSetTone;
+  label: string;
+  count: number;
+  current: string;
+  next: string;
+  active: boolean;
+  onShow: (detail: ResonanceSetDetail) => void;
+  onHide: (tone: ResonanceSetTone, source: ResonanceSetDetail["source"]) => void;
+}) {
+  const detailId = `inventory-screen-${tone}-set-detail`;
+
+  const showAt = (
+    clientX: number,
+    clientY: number,
+    source: ResonanceSetDetail["source"],
+  ) => {
+    onShow({
+      tone,
+      source,
+      label,
+      count,
+      current,
+      next,
+      position: clampTooltipPosition(
+        clientX,
+        clientY,
+        RESONANCE_DETAIL_WIDTH,
+        RESONANCE_DETAIL_HEIGHT,
+      ),
+    });
+  };
+
+  const showFromPointer = (event: MouseEvent<HTMLSpanElement>) => {
+    showAt(
+      event.clientX,
+      event.clientY,
+      document.activeElement === event.currentTarget ? "focus" : "pointer",
+    );
+  };
+
+  const showFromFocus = (event: FocusEvent<HTMLSpanElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    showAt(
+      rect.left + rect.width / 2,
+      rect.top + rect.height / 2,
+      "focus",
+    );
+  };
+
+  const hideFromPointer = (event: MouseEvent<HTMLSpanElement>) => {
+    if (document.activeElement === event.currentTarget) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      showAt(
+        rect.left + rect.width / 2,
+        rect.top + rect.height / 2,
+        "focus",
+      );
+      return;
+    }
+    onHide(tone, "pointer");
+  };
+
+  return (
+    <span
+      className={`inventory-screen-resonance-chip inventory-screen-resonance-chip--${tone}`}
+      tabIndex={0}
+      aria-label={`${label}, 장착 ${count}개`}
+      aria-describedby={active ? detailId : undefined}
+      onMouseEnter={showFromPointer}
+      onMouseMove={showFromPointer}
+      onMouseLeave={hideFromPointer}
+      onFocus={showFromFocus}
+      onBlur={() => onHide(tone, "focus")}
+    >
+      <strong>{label}</strong>
+    </span>
+  );
+}
+
+function ResonanceSetSummary({
+  resonance,
+  detail,
+  setDetail,
+  onOpenDetail,
+}: {
+  resonance: EquipmentResonance;
+  detail: ResonanceSetDetail | null;
+  setDetail: Dispatch<SetStateAction<ResonanceSetDetail | null>>;
+  onOpenDetail: () => void;
+}) {
+  useEffect(() => {
+    const hideWhenPointerLeavesBadges = (event: globalThis.MouseEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(".inventory-screen-resonance-chip")
+      ) return;
+      setDetail((current) => current?.source === "pointer" ? null : current);
+    };
+    document.addEventListener("mousemove", hideWhenPointerLeavesBadges);
+    return () => document.removeEventListener("mousemove", hideWhenPointerLeavesBadges);
+  }, [setDetail]);
+
+  const showDetail = (nextDetail: ResonanceSetDetail) => {
+    onOpenDetail();
+    setDetail(nextDetail);
+  };
+  const hideDetail = (
+    tone: ResonanceSetTone,
+    source: ResonanceSetDetail["source"],
+  ) => {
+    setDetail((current) =>
+      current?.tone === tone && current.source === source ? null : current,
+    );
+  };
+  const mythicNext = resonance.highTierNext
+    ? `${resonance.highTierNext.count}개 ${formatHighTierResonance(resonance.highTierNext)}`
+    : "최종 단계";
+  const cosmicNext = resonance.cosmicNext
+    ? `${resonance.cosmicNext.count}개 ${formatCosmicResonance(resonance.cosmicNext)}`
+    : "최종 단계";
+
+  return (
+    <>
+      <div
+        className="inventory-screen-resonance-summary"
+        aria-label={`세트 효과, 신화세트 ${resonance.highTierCount}개, 우주세트 ${resonance.cosmicCount}개`}
+      >
+        <ResonanceSetBadge
+          tone="mythic"
+          label="신화세트"
+          count={resonance.highTierCount}
+          current={formatHighTierResonance(resonance.highTierBonus)}
+          next={mythicNext}
+          active={detail?.tone === "mythic"}
+          onShow={showDetail}
+          onHide={hideDetail}
+        />
+        <ResonanceSetBadge
+          tone="cosmic"
+          label="우주세트"
+          count={resonance.cosmicCount}
+          current={formatCosmicResonance(resonance.cosmicBonus)}
+          next={cosmicNext}
+          active={detail?.tone === "cosmic"}
+          onShow={showDetail}
+          onHide={hideDetail}
+        />
+      </div>
+      {detail && typeof document !== "undefined" && createPortal(
+        <span
+          id={`inventory-screen-${detail.tone}-set-detail`}
+          className={`inventory-screen-resonance-detail inventory-screen-resonance-detail--${detail.tone}`}
+          role="tooltip"
+          style={{ left: detail.position.x, top: detail.position.y }}
+        >
+          <b>{detail.label} · 장착 {detail.count}개</b>
+          <em>현재 · {detail.current}</em>
+          <small>다음 · {detail.next}</small>
+        </span>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 function ResonanceTransition({
   equipment,
   item,
@@ -432,6 +625,8 @@ export default function InventoryOverlay({
 }: InventoryOverlayProps) {
   const [hoveredItem, setHoveredItem] = useState<GearItem | null>(null);
   const [hoveredItemIsEquipped, setHoveredItemIsEquipped] = useState(false);
+  const [resonanceDetail, setResonanceDetail] =
+    useState<ResonanceSetDetail | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<TooltipPosition>({
     x: 12,
     y: 12,
@@ -485,6 +680,15 @@ export default function InventoryOverlay({
     window.addEventListener("keydown", dismissConfirmation, true);
     return () => window.removeEventListener("keydown", dismissConfirmation, true);
   }, [open, salvageConfirmationOpen]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    return () => {
+      setHoveredItem(null);
+      setHoveredItemIsEquipped(false);
+      setResonanceDetail(null);
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -580,6 +784,7 @@ export default function InventoryOverlay({
     event: MouseEvent<HTMLElement>,
   ) => {
     if (salvageModeActive) return;
+    setResonanceDetail(null);
     tooltipAnchorRef.current = { x: event.clientX, y: event.clientY };
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
@@ -592,6 +797,7 @@ export default function InventoryOverlay({
     event: FocusEvent<HTMLElement>,
   ) => {
     if (salvageModeActive) return;
+    setResonanceDetail(null);
     const rect = event.currentTarget.getBoundingClientRect();
     const anchor = {
       x: rect.right,
@@ -754,12 +960,14 @@ export default function InventoryOverlay({
     if (event.target !== event.currentTarget) return;
     closeSalvageConfirmation();
     setHoveredItem(null);
+    setResonanceDetail(null);
     onClose();
   };
 
   const handleInventoryClose = () => {
     closeSalvageConfirmation();
     setHoveredItem(null);
+    setResonanceDetail(null);
     onClose();
   };
 
@@ -838,29 +1046,15 @@ export default function InventoryOverlay({
                   <span className="inventory-screen-equipment-summary__power">
                     장비 보스 전투력 <b>{equippedPower.toLocaleString("ko-KR")}</b>
                   </span>
-                  <div
-                    className="inventory-screen-resonance-summary"
-                    aria-label={`신화 공명 ${equippedResonance.highTierCount}개, 우주 초월 ${equippedResonance.cosmicCount}개`}
-                  >
-                    <span className="inventory-screen-resonance-chip inventory-screen-resonance-chip--mythic">
-                      <strong>신화 공명 {equippedResonance.highTierCount}</strong>
-                      <em>현재 · {formatHighTierResonance(equippedResonance.highTierBonus)}</em>
-                      <small>
-                        다음 · {equippedResonance.highTierNext
-                          ? `${equippedResonance.highTierNext.count}개 ${formatHighTierResonance(equippedResonance.highTierNext)}`
-                          : "최종 단계"}
-                      </small>
-                    </span>
-                    <span className="inventory-screen-resonance-chip inventory-screen-resonance-chip--cosmic">
-                      <strong>우주 초월 {equippedResonance.cosmicCount}</strong>
-                      <em>현재 · {formatCosmicResonance(equippedResonance.cosmicBonus)}</em>
-                      <small>
-                        다음 · {equippedResonance.cosmicNext
-                          ? `${equippedResonance.cosmicNext.count}개 ${formatCosmicResonance(equippedResonance.cosmicNext)}`
-                          : "최종 단계"}
-                      </small>
-                    </span>
-                  </div>
+                  <ResonanceSetSummary
+                    resonance={equippedResonance}
+                    detail={resonanceDetail}
+                    setDetail={setResonanceDetail}
+                    onOpenDetail={() => {
+                      setHoveredItem(null);
+                      setHoveredItemIsEquipped(false);
+                    }}
+                  />
                 </div>
               </div>
 

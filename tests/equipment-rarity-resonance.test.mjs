@@ -271,8 +271,11 @@ function assertReadableCss(css, selector) {
   );
 }
 
-test("inventory exposes current resonance chips and an equip/unequip threshold transition", async () => {
-  const source = await readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8");
+test("inventory exposes compact set badges, detailed tooltips, and an equip/unequip threshold transition", async () => {
+  const [source, css] = await Promise.all([
+    readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
   assert.match(source, /resolveEquipmentRarityResonance\s*\(\s*equipment\s*\)/);
   assert.ok(
     [...source.matchAll(/resolveEquipmentRarityResonance\s*\(/g)].length >= 2,
@@ -280,10 +283,45 @@ test("inventory exposes current resonance chips and an equip/unequip threshold t
   );
   assert.match(source, /inventory-screen-resonance-summary/);
   assert.match(source, /inventory-screen-resonance-chip/);
+  assert.match(source, /inventory-screen-resonance-detail/);
   assert.match(source, /inventory-screen-resonance-transition/);
   assert.match(source, /고위 장비 공명/);
   assert.match(source, /신화 공명/);
   assert.match(source, /우주 초월/);
+  assert.match(source, /label="신화세트"/);
+  assert.match(source, /label="우주세트"/);
+  assert.match(source, /<strong>\{label\}<\/strong>/);
+  assert.match(source, /role="tooltip"/);
+  assert.match(source, /useState<ResonanceSetDetail \| null>\(null\)/);
+  assert.match(source, /aria-describedby=\{active \? detailId : undefined\}/);
+  assert.match(source, /tabIndex=\{0\}/);
+  assert.match(source, /onMouseEnter=\{showFromPointer\}/);
+  assert.match(source, /onMouseLeave=\{hideFromPointer\}/);
+  assert.match(source, /onFocus=\{showFromFocus\}/);
+  assert.match(source, /onBlur=\{\(\) => onHide\(tone, "focus"\)\}/);
+  assert.match(source, /onShow=\{showDetail\}/);
+  assert.match(source, /current\?\.source === "pointer" \? null : current/);
+  assert.match(source, /document\.activeElement === event\.currentTarget/);
+  assert.ok(
+    [...source.matchAll(/setResonanceDetail\(null\)/g)].length >= 4,
+    "item tooltips and close paths must dismiss the set tooltip",
+  );
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\s*if \(!open\) return undefined;[\s\S]{0,220}?setResonanceDetail\(null\);[\s\S]{0,60}?\}, \[open\]\);/,
+  );
+  assert.match(source, /onOpenDetail=\{\(\) => \{[\s\S]{0,180}?setHoveredItem\(null\)/);
+  assert.match(source, /document\.addEventListener\("mousemove", hideWhenPointerLeavesBadges\)/);
+  assert.match(source, /document\.removeEventListener\("mousemove", hideWhenPointerLeavesBadges\)/);
+  assert.match(source, /createPortal\([\s\S]{0,700}?document\.body/);
+  assert.match(
+    css,
+    /\.inventory-screen-resonance-detail\s*\{[\s\S]{0,180}?position:\s*fixed/,
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-resonance-detail\s*\{[\s\S]{0,260}?max-width:\s*calc\(100cqw - 24px\)/,
+  );
   assert.match(source, /(?:장착 시|해제 시)/);
   assert.match(source, /현재/);
   assert.match(source, /다음/);
@@ -308,7 +346,7 @@ test("inventory and stats resonance copy remains readable and clipping-safe", as
   ]);
   for (const selector of [
     ".inventory-screen-resonance-summary",
-    ".inventory-screen-resonance-chip",
+    ".inventory-screen-resonance-detail",
     ".inventory-screen-resonance-transition",
   ]) {
     assertReadableCss(gameCss, selector);
