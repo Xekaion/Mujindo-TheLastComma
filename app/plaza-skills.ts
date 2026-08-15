@@ -1,10 +1,12 @@
 import {
+  EQUIPMENT_SLOTS,
   LEGENDARY_POWERS,
   aggregateEquipmentStats,
   createEmptyEquipment,
   equippedLegendaryPowers,
   rollGear,
   type EquipmentLoadout,
+  type LegendaryPowerId,
 } from "./equipment";
 
 /** Expedition-compatible plaza dash timing and velocity. */
@@ -46,6 +48,8 @@ export type PlazaMobilityProfile = {
   hasStarfallMantle: boolean;
   hasRiftStride: boolean;
   hasPhantomMarch: boolean;
+  /** Every equipped high-tier slot power in canonical equipment-slot order. */
+  equippedPowerIds: readonly LegendaryPowerId[];
 };
 
 const BASE_PLAZA_MOBILITY_PROFILE: PlazaMobilityProfile = {
@@ -59,6 +63,7 @@ const BASE_PLAZA_MOBILITY_PROFILE: PlazaMobilityProfile = {
   hasStarfallMantle: false,
   hasRiftStride: false,
   hasPhantomMarch: false,
+  equippedPowerIds: [],
 };
 
 /**
@@ -72,7 +77,8 @@ export function resolvePlazaMobilityProfile(
 
   try {
     const stats = aggregateEquipmentStats(equipment);
-    const powers = new Set(equippedLegendaryPowers(equipment));
+    const equippedPowerIds = equippedLegendaryPowers(equipment);
+    const powers = new Set(equippedPowerIds);
     const moveSpeedPercent = finitePercent(stats.moveSpeedPercent);
     const cosmicActionSpeedPercent = finitePercent(
       stats.cosmicActionSpeedPercent,
@@ -100,12 +106,145 @@ export function resolvePlazaMobilityProfile(
       hasStarfallMantle: powers.has("starfallMantle"),
       hasRiftStride,
       hasPhantomMarch: powers.has("phantomMarch"),
+      equippedPowerIds,
     };
   } catch {
     // Normalized saves never reach this branch. It keeps a malformed transient
     // loadout from breaking plaza input/rendering before reconciliation.
     return { ...BASE_PLAZA_MOBILITY_PROFILE };
   }
+}
+
+export type PlazaDashPowerVfxSpec = Readonly<{
+  powerId: LegendaryPowerId;
+  layer: "body" | "ground";
+  /** Delay after dash activation, allowing a full ten-piece loadout to read. */
+  delaySeconds: number;
+  durationSeconds: number;
+  size: number;
+  /** Signed distance along the normalized dash direction. */
+  forwardOffset: number;
+  /** Signed distance along the dash direction's right-hand normal. */
+  lateralOffset: number;
+  /** Radians added to the dash direction when drawing directional artwork. */
+  angleOffset: number;
+}>;
+
+type PlazaDashPowerVfxTuning = Omit<PlazaDashPowerVfxSpec, "powerId">;
+
+/**
+ * Peaceful-plaza presentation for every slot power shared by legendary,
+ * mythic, and cosmic equipment. These values contain no damage, shields,
+ * counters, projectiles, or save mutations: PlazaHub may render them without
+ * accidentally running expedition combat rules.
+ */
+export const PLAZA_DASH_POWER_VFX_CONFIG = {
+  crescentEcho: {
+    layer: "body",
+    delaySeconds: 0,
+    durationSeconds: 0.44,
+    size: 86,
+    forwardOffset: 24,
+    lateralOffset: -16,
+    angleOffset: -0.2,
+  },
+  mirrorAegis: {
+    layer: "body",
+    delaySeconds: 0.03,
+    durationSeconds: 0.62,
+    size: 112,
+    forwardOffset: 0,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+  hunterSigil: {
+    layer: "body",
+    delaySeconds: 0.06,
+    durationSeconds: 0.56,
+    size: 96,
+    forwardOffset: 4,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+  starfallMantle: {
+    layer: "body",
+    delaySeconds: 0.09,
+    durationSeconds: 0.54,
+    size: 118,
+    forwardOffset: 0,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+  lastMemory: {
+    layer: "body",
+    delaySeconds: 0.12,
+    durationSeconds: 0.84,
+    size: 132,
+    forwardOffset: -4,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+  bloodwovenGrip: {
+    layer: "body",
+    delaySeconds: 0.15,
+    durationSeconds: 0.46,
+    size: 88,
+    forwardOffset: 24,
+    lateralOffset: 16,
+    angleOffset: 0.2,
+  },
+  ashboundGirdle: {
+    layer: "body",
+    delaySeconds: 0.18,
+    durationSeconds: 0.72,
+    size: 112,
+    forwardOffset: -2,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+  phantomMarch: {
+    layer: "ground",
+    delaySeconds: 0.21,
+    durationSeconds: 0.95,
+    size: 74,
+    forwardOffset: -34,
+    lateralOffset: -12,
+    angleOffset: 0,
+  },
+  riftStride: {
+    layer: "ground",
+    delaySeconds: 0.24,
+    durationSeconds: 0.3,
+    size: 52,
+    forwardOffset: -18,
+    lateralOffset: 12,
+    angleOffset: 0,
+  },
+  commaResonance: {
+    layer: "body",
+    delaySeconds: 0.27,
+    durationSeconds: 0.52,
+    size: 82,
+    forwardOffset: 18,
+    lateralOffset: 0,
+    angleOffset: 0,
+  },
+} as const satisfies Readonly<
+  Record<LegendaryPowerId, PlazaDashPowerVfxTuning>
+>;
+
+/**
+ * Resolves every requested power without a render-count cap. Canonical
+ * equipment already supplies unique IDs in slot order; keeping this mapper
+ * order-preserving also makes its stagger deterministic for partial loadouts.
+ */
+export function resolvePlazaDashPowerVfxSpecs(
+  powerIds: readonly LegendaryPowerId[],
+): PlazaDashPowerVfxSpec[] {
+  return powerIds.flatMap((powerId) => {
+    const tuning = PLAZA_DASH_POWER_VFX_CONFIG[powerId];
+    return tuning ? [{ powerId, ...tuning }] : [];
+  });
 }
 
 export type PlazaDirection = Readonly<{ x: number; y: number }>;
@@ -155,24 +294,16 @@ export function plazaDashDirection(
 
 /**
  * Deterministic, storage-free equipment for the localhost plaza skill QA route.
- * Exactly the three plaza-observable legendary powers are present.
+ * Every slot power is represented, split between legendary and mythic gear.
  */
 export function createPlazaSkillShowcaseEquipment(): EquipmentLoadout {
   const equipment = createEmptyEquipment();
-  equipment.shoulders = rollGear("plaza-skill-showcase-starfall-v1", {
-    slot: "shoulders",
-    rarity: "legendary",
-    level: 100,
-  });
-  equipment.legs = rollGear("plaza-skill-showcase-phantom-v1", {
-    slot: "legs",
-    rarity: "legendary",
-    level: 100,
-  });
-  equipment.boots = rollGear("plaza-skill-showcase-rift-v1", {
-    slot: "boots",
-    rarity: "legendary",
-    level: 100,
-  });
+  for (const [index, slot] of EQUIPMENT_SLOTS.entries()) {
+    equipment[slot] = rollGear(`plaza-skill-showcase-${slot}-v2`, {
+      slot,
+      rarity: index % 2 === 0 ? "legendary" : "mythic",
+      level: 100,
+    });
+  }
   return equipment;
 }

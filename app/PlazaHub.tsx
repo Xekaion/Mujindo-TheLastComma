@@ -65,6 +65,7 @@ import {
 } from "./hub-protocol";
 import {
   GAMEPLAY_VFX_MANIFEST,
+  LEGENDARY_VFX_IDS,
   drawGameplayVfxFrame,
   gameplayVfxImageKey,
   legendaryVfxId,
@@ -79,6 +80,7 @@ import {
   PLAZA_PHANTOM_MOVE_MULTIPLIER,
   PLAZA_STARFALL_SECONDS,
   plazaDashDirection,
+  resolvePlazaDashPowerVfxSpecs,
   resolvePlazaMobilityProfile,
 } from "./plaza-skills";
 // Keep optimistic movement aligned with the worker's authoritative budget.
@@ -181,13 +183,60 @@ type PlazaSkillEffect = {
   life: number;
   duration: number;
   angle: number;
+  delaySeconds: number;
+  layer: "body" | "ground";
 };
 
-const PLAZA_MOBILITY_VFX_IDS = [
-  legendaryVfxId("starfallMantle"),
-  legendaryVfxId("riftStride"),
-  legendaryVfxId("phantomMarch"),
-] as const;
+const PLAZA_SKILL_FALLBACK_COLORS = {
+  [legendaryVfxId("crescentEcho")]: "#bdeeff",
+  [legendaryVfxId("mirrorAegis")]: "#8fcaff",
+  [legendaryVfxId("hunterSigil")]: "#ffb45e",
+  [legendaryVfxId("starfallMantle")]: "#ffe69a",
+  [legendaryVfxId("lastMemory")]: "#f2fff0",
+  [legendaryVfxId("bloodwovenGrip")]: "#ff5d78",
+  [legendaryVfxId("ashboundGirdle")]: "#ff9d63",
+  [legendaryVfxId("phantomMarch")]: "#a68cff",
+  [legendaryVfxId("riftStride")]: "#bd6cff",
+  [legendaryVfxId("commaResonance")]: "#7df8ff",
+} satisfies Partial<Record<GameplayVfxId, string>>;
+
+function drawPlazaSkillEffect(
+  context: CanvasRenderingContext2D,
+  effect: PlazaSkillEffect,
+  images: ReadonlyMap<string, HTMLImageElement>,
+) {
+  if (effect.delaySeconds > 0) return;
+  const progress = Math.max(
+    0,
+    Math.min(0.999_999, 1 - effect.life / effect.duration),
+  );
+  const drawn = drawGameplayVfxFrame(
+    context,
+    images.get(gameplayVfxImageKey(effect.vfxId)),
+    GAMEPLAY_VFX_MANIFEST[effect.vfxId],
+    {
+      x: effect.x,
+      y: effect.y,
+      size: effect.size,
+      progress,
+      angle: effect.angle,
+      alpha: Math.min(1, Math.sin(progress * Math.PI) * 1.38),
+      interpolateFrames: true,
+    },
+  );
+  if (drawn) return;
+
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.globalAlpha = Math.sin(progress * Math.PI) * 0.72;
+  context.fillStyle = PLAZA_SKILL_FALLBACK_COLORS[effect.vfxId] ?? "#ffe69a";
+  context.shadowColor = context.fillStyle;
+  context.shadowBlur = 18;
+  context.beginPath();
+  context.arc(effect.x, effect.y, effect.size * 0.18, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
+}
 
 export function isPlazaPointNearViewport(
   point: PlazaPoint,
@@ -925,7 +974,8 @@ export default function PlazaHub({
   useEffect(() => {
     const images = skillVfxImagesRef.current;
     const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
-    for (const vfxId of PLAZA_MOBILITY_VFX_IDS) {
+    for (const powerId of LEGENDARY_VFX_IDS) {
+      const vfxId = legendaryVfxId(powerId);
       const key = gameplayVfxImageKey(vfxId);
       const image = new Image();
       image.decoding = "async";
@@ -1134,7 +1184,11 @@ export default function PlazaHub({
       riftTrailCooldownRef.current = Math.max(0, riftTrailCooldownRef.current - dt);
       phantomTrailCooldownRef.current = Math.max(0, phantomTrailCooldownRef.current - dt);
       starfallMantleTimeRef.current = Math.max(0, starfallMantleTimeRef.current - dt);
-      for (const effect of skillEffectsRef.current) effect.life -= dt;
+      for (const effect of skillEffectsRef.current) {
+        const activeSeconds = Math.max(0, dt - effect.delaySeconds);
+        effect.delaySeconds = Math.max(0, effect.delaySeconds - dt);
+        effect.life -= activeSeconds;
+      }
       skillEffectsRef.current = skillEffectsRef.current.filter((effect) => effect.life > 0);
 
       if (dashQueuedRef.current && !pausedRef.current && dashCooldownRef.current <= 0) {
@@ -1145,6 +1199,37 @@ export default function PlazaHub({
           facingRef.current,
         );
         dashTimeRef.current = PLAZA_DASH_DURATION_SECONDS;
+        const dashDirection = dashDirectionRef.current;
+        const dashAngle = Math.atan2(dashDirection.y, dashDirection.x);
+        const dashRight = { x: -dashDirection.y, y: dashDirection.x };
+        const dashPowerVfxSpecs = resolvePlazaDashPowerVfxSpecs(mobility.equippedPowerIds);
+        for (const spec of dashPowerVfxSpecs) {
+          const anchorY =
+            spec.layer === "body"
+              ? paperdollVisualCenterY(
+                  positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+                  PAPERDOLL_WORLD_RENDER_HEIGHT,
+                )
+              : positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y;
+          skillEffectsRef.current.push({
+            id: ++skillEffectIdRef.current,
+            vfxId: legendaryVfxId(spec.powerId),
+            x:
+              positionRef.current.x +
+              dashDirection.x * spec.forwardOffset +
+              dashRight.x * spec.lateralOffset,
+            y:
+              anchorY +
+              dashDirection.y * spec.forwardOffset +
+              dashRight.y * spec.lateralOffset,
+            size: spec.size,
+            life: spec.durationSeconds,
+            duration: spec.durationSeconds,
+            angle: dashAngle + spec.angleOffset,
+            delaySeconds: spec.delaySeconds,
+            layer: spec.layer,
+          });
+        }
         // The worker accepts the fastest legitimate RiftStride cadence but
         // never trusts arbitrary client cooldown claims. Online prediction
         // keeps a small transport margin so a second local dash cannot race
@@ -1156,22 +1241,8 @@ export default function PlazaHub({
         if (mobility.hasRiftStride) riftTrailCooldownRef.current = 0;
         if (mobility.hasStarfallMantle) {
           starfallMantleTimeRef.current = PLAZA_STARFALL_SECONDS;
-          skillEffectsRef.current.push({
-            id: ++skillEffectIdRef.current,
-            vfxId: legendaryVfxId("starfallMantle"),
-            x: positionRef.current.x,
-            y: paperdollVisualCenterY(
-              positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
-              PAPERDOLL_WORLD_RENDER_HEIGHT,
-            ),
-            size: 118,
-            life: 0.54,
-            duration: 0.54,
-            angle: 0,
-          });
           playGameSfx("playerDash", { playbackRate: 1.28, gain: 0.7 });
         }
-        const dashDirection = dashDirectionRef.current;
         playGameSfx("playerDash", {
           pan: Math.max(-0.45, Math.min(0.45, dashDirection.x * 0.45)),
         });
@@ -1207,6 +1278,8 @@ export default function PlazaHub({
             life: 0.3,
             duration: 0.3,
             angle: Math.atan2(direction.y, direction.x),
+            delaySeconds: 0,
+            layer: "ground",
           });
         }
       } else if (hasMovementInput) {
@@ -1237,6 +1310,16 @@ export default function PlazaHub({
             x: correctionX * correctionAlpha,
             y: correctionY * correctionAlpha,
           });
+        }
+      }
+
+      const playerDeltaX = positionRef.current.x - previousPosition.x;
+      const playerDeltaY = positionRef.current.y - previousPosition.y;
+      if (playerDeltaX !== 0 || playerDeltaY !== 0) {
+        for (const effect of skillEffectsRef.current) {
+          if (effect.layer !== "body") continue;
+          effect.x += playerDeltaX;
+          effect.y += playerDeltaY;
         }
       }
 
@@ -1273,6 +1356,8 @@ export default function PlazaHub({
             positionRef.current.y - previousPosition.y,
             positionRef.current.x - previousPosition.x,
           ),
+          delaySeconds: 0,
+          layer: "ground",
         });
       }
       if (motion.moving) {
@@ -1366,40 +1451,8 @@ export default function PlazaHub({
       }
 
       for (const effect of skillEffectsRef.current) {
-        const progress = Math.max(
-          0,
-          Math.min(0.999_999, 1 - effect.life / effect.duration),
-        );
-        const drawn = drawGameplayVfxFrame(
-          context,
-          skillVfxImagesRef.current.get(gameplayVfxImageKey(effect.vfxId)),
-          GAMEPLAY_VFX_MANIFEST[effect.vfxId],
-          {
-            x: effect.x,
-            y: effect.y,
-            size: effect.size,
-            progress,
-            angle: effect.angle,
-            alpha: Math.min(1, Math.sin(progress * Math.PI) * 1.38),
-            interpolateFrames: true,
-          },
-        );
-        if (!drawn) {
-          context.save();
-          context.globalCompositeOperation = "lighter";
-          context.globalAlpha = Math.sin(progress * Math.PI) * 0.72;
-          context.fillStyle = effect.vfxId === legendaryVfxId("riftStride")
-            ? "#bd6cff"
-            : effect.vfxId === legendaryVfxId("phantomMarch")
-              ? "#a68cff"
-              : "#ffe69a";
-          context.shadowColor = context.fillStyle;
-          context.shadowBlur = 18;
-          context.beginPath();
-          context.arc(effect.x, effect.y, effect.size * 0.18, 0, Math.PI * 2);
-          context.fill();
-          context.restore();
-        }
+        if (effect.layer !== "ground") continue;
+        drawPlazaSkillEffect(context, effect, skillVfxImagesRef.current);
       }
 
       const currentTime = Date.now();
@@ -1485,6 +1538,10 @@ export default function PlazaHub({
           now,
           readableCanvasFontSize,
         );
+      }
+      for (const effect of skillEffectsRef.current) {
+        if (effect.layer !== "body") continue;
+        drawPlazaSkillEffect(context, effect, skillVfxImagesRef.current);
       }
       if (starfallMantleTimeRef.current > 0) {
         const mantleVfxId = legendaryVfxId("starfallMantle");

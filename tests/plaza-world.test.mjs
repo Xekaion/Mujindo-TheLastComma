@@ -132,7 +132,7 @@ test("PlazaHub uses the generated map, authoritative intent, and accessible cont
   );
 });
 
-test("PlazaHub supports keyboard and touch dash with authored mobility-power VFX", async () => {
+test("PlazaHub supports keyboard and touch dash with every equipped power VFX", async () => {
   const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
   assert.match(source, /key === " " && !event\.repeat/);
   assert.match(source, /const queueDash = useCallback/);
@@ -147,10 +147,83 @@ test("PlazaHub supports keyboard and touch dash with authored mobility-power VFX
   assert.match(source, /isDashing \? 220 : undefined/);
   assert.match(source, /className="is-dash"/);
   assert.match(source, /aria-label="회피 대시"/);
-  assert.match(source, /legendaryVfxId\("starfallMantle"\)/);
-  assert.match(source, /legendaryVfxId\("riftStride"\)/);
-  assert.match(source, /legendaryVfxId\("phantomMarch"\)/);
-  assert.match(source, /paperdollVisualCenterY\(/);
+
+  const skillImageLoaderStart = source.indexOf(
+    "const images = skillVfxImagesRef.current",
+  );
+  assert.ok(skillImageLoaderStart >= 0, "the plaza skill image loader is missing");
+  const skillImageLoaderEnd = source.indexOf(
+    "return () =>",
+    skillImageLoaderStart,
+  );
+  assert.ok(
+    skillImageLoaderEnd > skillImageLoaderStart,
+    "the plaza skill image loader cleanup is missing",
+  );
+  const skillImageLoader = source.slice(
+    skillImageLoaderStart,
+    skillImageLoaderEnd,
+  );
+  assert.match(
+    skillImageLoader,
+    /for \(const powerId of LEGENDARY_VFX_IDS\)/,
+    "the plaza must preload every authored legendary power VFX",
+  );
+  assert.match(skillImageLoader, /const vfxId = legendaryVfxId\(powerId\)/);
+  assert.match(skillImageLoader, /GAMEPLAY_VFX_MANIFEST\[vfxId\]\.assetPath/);
+
+  const acceptedDashStart = source.indexOf(
+    "if (dashQueuedRef.current && !pausedRef.current && dashCooldownRef.current <= 0)",
+  );
+  const acceptedDashEnd = source.indexOf(
+    "} else if (dashQueuedRef.current && dashCooldownRef.current > 0)",
+    acceptedDashStart,
+  );
+  assert.ok(acceptedDashStart >= 0 && acceptedDashEnd > acceptedDashStart);
+  const acceptedDash = source.slice(acceptedDashStart, acceptedDashEnd);
+  assert.match(
+    acceptedDash,
+    /resolvePlazaDashPowerVfxSpecs\(mobility\.equippedPowerIds\)/,
+    "an accepted dash must resolve every equipped high-tier power",
+  );
+  assert.match(
+    acceptedDash,
+    /for \(const spec of dashPowerVfxSpecs\)/,
+    "every resolved power VFX spec must be enqueued",
+  );
+  assert.match(acceptedDash, /skillEffectsRef\.current\.push\(\{/);
+  assert.match(acceptedDash, /layer: spec\.layer/);
+  assert.doesNotMatch(
+    acceptedDash,
+    /(?:dashPowerVfxSpecs|mobility\.equippedPowerIds)\.slice\(/,
+    "equipped power VFX must not be truncated by the old render cap",
+  );
+  assert.match(
+    acceptedDash,
+    /spec\.layer === "body"[\s\S]{0,260}?paperdollVisualCenterY\([\s\S]{0,180}?positionRef\.current\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/,
+    "body-layer power VFX must follow the paperdoll's visual centre",
+  );
+  assert.match(
+    acceptedDash,
+    /:\s*positionRef\.current\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/,
+    "ground-layer power VFX must stay at the character's feet",
+  );
+
+  const groundLayerRender = source.indexOf('effect.layer !== "ground"');
+  const playerRender = source.indexOf("for (const player of players)");
+  const bodyLayerRender = source.indexOf('effect.layer !== "body"', playerRender);
+  assert.ok(groundLayerRender >= 0, "ground-layer power VFX render pass is missing");
+  assert.ok(bodyLayerRender >= 0, "body-layer power VFX render pass is missing");
+  assert.ok(
+    groundLayerRender < playerRender && playerRender < bodyLayerRender,
+    "ground effects must render below actors and body effects above them",
+  );
+  assert.match(
+    source,
+    /const playerDeltaX = positionRef\.current\.x - previousPosition\.x;[\s\S]{0,420}?if \(effect\.layer !== "body"\) continue;[\s\S]{0,140}?effect\.x \+= playerDeltaX;[\s\S]{0,100}?effect\.y \+= playerDeltaY;/,
+    "body-layer power VFX must follow the local paperdoll through the dash",
+  );
+
   assert.match(source, /advanceContinuousMovement\(/);
   assert.match(source, /equipment\?: EquipmentLoadout \| null/);
   assert.match(source, /Local-only loadout/);

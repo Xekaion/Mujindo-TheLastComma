@@ -63,10 +63,11 @@ test("plaza mobility keeps expedition dash constants and a safe null baseline", 
     hasStarfallMantle: false,
     hasRiftStride: false,
     hasPhantomMarch: false,
+    equippedPowerIds: [],
   });
 });
 
-test("showcase loadout is deterministic, storage-free, and contains exactly the three plaza powers", async () => {
+test("showcase loadout is deterministic, storage-free, and preserves all ten slot powers", async () => {
   const [equipment, plaza] = await Promise.all([
     equipmentPromise,
     plazaSkillsPromise,
@@ -76,11 +77,26 @@ test("showcase loadout is deterministic, storage-free, and contains exactly the 
   assert.deepEqual(first, second);
   assert.equal(
     equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot] !== null).length,
-    3,
+    equipment.EQUIPMENT_SLOTS.length,
   );
+  const expectedPowerIds = equipment.EQUIPMENT_SLOTS.map(
+    (slot) => equipment.LEGENDARY_POWER_BY_SLOT[slot],
+  );
+  const equippedPowerIds = equipment.equippedLegendaryPowers(first);
+  assert.deepEqual(equippedPowerIds, expectedPowerIds);
+  assert.equal(equippedPowerIds.length, equipment.LEGENDARY_POWER_IDS.length);
+  assert.equal(new Set(equippedPowerIds).size, equippedPowerIds.length);
   assert.deepEqual(
-    equipment.equippedLegendaryPowers(first).sort(),
-    ["phantomMarch", "riftStride", "starfallMantle"].sort(),
+    new Set(equipment.EQUIPMENT_SLOTS.map((slot) => first[slot].rarity)),
+    new Set(["legendary", "mythic"]),
+  );
+  assert.equal(
+    equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot].rarity === "legendary").length,
+    5,
+  );
+  assert.equal(
+    equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot].rarity === "mythic").length,
+    5,
   );
   assert.equal(first.shoulders.legendaryPowerId, "starfallMantle");
   assert.equal(first.legs.legendaryPowerId, "phantomMarch");
@@ -108,6 +124,50 @@ test("showcase loadout is deterministic, storage-free, and contains exactly the 
   assert.equal(profile.hasStarfallMantle, true);
   assert.equal(profile.hasRiftStride, true);
   assert.equal(profile.hasPhantomMarch, true);
+  assert.deepEqual(profile.equippedPowerIds, expectedPowerIds);
+});
+
+test("dash visual specs cover every equipped power once without a three-effect cap", async () => {
+  const [equipment, plaza] = await Promise.all([
+    equipmentPromise,
+    plazaSkillsPromise,
+  ]);
+  const powerIds = equipment.EQUIPMENT_SLOTS.map(
+    (slot) => equipment.LEGENDARY_POWER_BY_SLOT[slot],
+  );
+  assert.deepEqual(Object.keys(plaza.PLAZA_DASH_POWER_VFX_CONFIG), powerIds);
+
+  const specs = plaza.resolvePlazaDashPowerVfxSpecs(powerIds);
+  assert.equal(specs.length, equipment.LEGENDARY_POWER_IDS.length);
+  assert.deepEqual(specs.map((spec) => spec.powerId), powerIds);
+  assert.equal(new Set(specs.map((spec) => spec.powerId)).size, specs.length);
+  assert.ok(specs.length > 3, "the old three-mobility-power scope must not cap dash visuals");
+  assert.deepEqual(
+    new Set(specs.map((spec) => spec.layer)),
+    new Set(["body", "ground"]),
+  );
+
+  for (const spec of specs) {
+    assert.ok(spec.layer === "body" || spec.layer === "ground");
+    assert.ok(Number.isFinite(spec.delaySeconds) && spec.delaySeconds >= 0);
+    assert.ok(Number.isFinite(spec.durationSeconds) && spec.durationSeconds > 0);
+    assert.ok(Number.isFinite(spec.size) && spec.size > 0);
+    assert.ok(Number.isFinite(spec.forwardOffset));
+    assert.ok(Number.isFinite(spec.lateralOffset));
+    assert.ok(Number.isFinite(spec.angleOffset));
+  }
+  assert.equal(
+    new Set(specs.map((spec) => spec.delaySeconds)).size,
+    specs.length,
+    "a full loadout needs distinct stagger phases rather than ten simultaneous flashes",
+  );
+
+  const partial = ["commaResonance", "crescentEcho"];
+  assert.deepEqual(
+    plaza.resolvePlazaDashPowerVfxSpecs(partial).map((spec) => spec.powerId),
+    partial,
+    "partial loadouts keep their canonical caller order",
+  );
 });
 
 test("plaza mobility clamps corrupted percentages and falls back from malformed equipment", async () => {
@@ -158,6 +218,11 @@ test("plaza mobility clamps corrupted percentages and falls back from malformed 
   assert.deepEqual(
     plaza.resolvePlazaMobilityProfile(malformed),
     plaza.resolvePlazaMobilityProfile(null),
+  );
+  assert.deepEqual(
+    plaza.resolvePlazaMobilityProfile(malformed).equippedPowerIds,
+    [],
+    "malformed transient gear must not leak bogus power activations",
   );
 });
 
