@@ -2587,6 +2587,9 @@ export default function GameCanvas({
   const [shopPreferredProductId, setShopPreferredProductId] =
     useState<ShopProductId | null>(null);
   const [selectedGearId, setSelectedGearId] = useState<string | null>(null);
+  const [selectedBuildAugmentId, setSelectedBuildAugmentId] = useState<string | null>(
+    null,
+  );
   const [menuStage, setMenuStage] = useState<"landing" | "archive">("landing");
   const [lootNotice, setLootNotice] = useState<GearItem | null>(null);
   const [gameConfirmation, setGameConfirmation] = useState<GameConfirmation | null>(null);
@@ -12064,34 +12067,64 @@ export default function GameCanvas({
                   ownedAugments.map((augment) => {
                     const level = rankOf(hud.player, augment.id);
                     const stable = level <= (hud.stableAugments[augment.id] ?? 0);
+                    const selected = selectedBuildAugmentId === augment.id;
+                    const triggerId = `build-augment-trigger-${augment.id}`;
+                    const detailId = `build-augment-detail-${augment.id}`;
                     return (
                       <article
                         key={augment.id}
+                        className={selected ? "is-selected" : undefined}
                         style={{ "--augment-color": augment.color } as CSSProperties}
                       >
-                        <AugmentIcon icon={augment.icon} iconAsset={augment.iconAsset} size={52} />
-                        <div>
-                          <strong>{augment.name}</strong>
-                          <small>
-                            {hud.player.profession === augment.id
-                              ? `${PROFESSION_TITLES[augment.id]} · 전문 효율 +${PROFESSION_BONUS_PERCENT}%`
-                              : stable
-                                ? "고정된 기억"
-                                : "불안정한 기억"}
-                          </small>
-                          <span className="mastery-track" aria-label={`전직 진행 ${Math.min(level, PROFESSION_THRESHOLD)} / ${PROFESSION_THRESHOLD}`}>
-                            <i style={{ width: `${Math.min(100, (level / PROFESSION_THRESHOLD) * 100)}%` }} />
+                        <button
+                          id={triggerId}
+                          type="button"
+                          className="augment-stack-trigger"
+                          aria-expanded={selected}
+                          aria-controls={detailId}
+                          onClick={() =>
+                            setSelectedBuildAugmentId((current) =>
+                              current === augment.id ? null : augment.id,
+                            )
+                          }
+                        >
+                          <AugmentIcon icon={augment.icon} iconAsset={augment.iconAsset} size={52} />
+                          <span className="augment-stack-copy">
+                            <strong>{augment.name}</strong>
+                            <small>
+                              {hud.player.profession === augment.id
+                                ? `${PROFESSION_TITLES[augment.id]} · 전문 효율 +${PROFESSION_BONUS_PERCENT}%`
+                                : stable
+                                  ? "고정된 기억"
+                                  : "불안정한 기억"}
+                            </small>
+                            <span className="mastery-track" aria-label={`전직 진행 ${Math.min(level, PROFESSION_THRESHOLD)} / ${PROFESSION_THRESHOLD}`}>
+                              <i style={{ width: `${Math.min(100, (level / PROFESSION_THRESHOLD) * 100)}%` }} />
+                            </span>
                           </span>
-                          {level >= PROFESSION_THRESHOLD && hud.player.profession !== augment.id && (
-                            <button
-                              className="profession-inline-button"
-                              onClick={() => openProfessionChoice(augment)}
-                            >
-                              {hud.player.profession ? "전향 가능" : "전직 가능"}
-                            </button>
-                          )}
-                        </div>
-                        <b>×{level}/{MAX_AUGMENT_STACKS}</b>
+                          <b>×{level}/{MAX_AUGMENT_STACKS}</b>
+                        </button>
+                        {selected && (
+                          <div
+                            id={detailId}
+                            className="augment-stack-detail"
+                            role="region"
+                            aria-labelledby={triggerId}
+                          >
+                            <small>{augment.tags.join(" · ")}</small>
+                            <p>{augment.description}</p>
+                            <em>“{augment.flavor}”</em>
+                          </div>
+                        )}
+                        {level >= PROFESSION_THRESHOLD && hud.player.profession !== augment.id && (
+                          <button
+                            type="button"
+                            className="profession-inline-button"
+                            onClick={() => openProfessionChoice(augment)}
+                          >
+                            {hud.player.profession ? "전향 가능" : "전직 가능"}
+                          </button>
+                        )}
                       </article>
                     );
                   })

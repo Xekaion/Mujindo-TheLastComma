@@ -964,6 +964,51 @@ test("ten simple augments use exact card values and affect runtime calculations"
   );
 });
 
+test("build augment rows disclose their authored descriptions without nesting profession actions", async () => {
+  const [source, css] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
+  const listStart = source.indexOf('<section className="augment-stack-list">');
+  const listEnd = source.indexOf("</section>", listStart);
+  assert.ok(listStart >= 0 && listEnd > listStart, "the build augment list must remain auditable");
+  const list = source.slice(listStart, listEnd);
+
+  assert.match(
+    source,
+    /const \[selectedBuildAugmentId, setSelectedBuildAugmentId\] = useState<string \| null>\(/,
+  );
+  assert.match(list, /type="button"\s+className="augment-stack-trigger"/);
+  assert.match(list, /aria-expanded=\{selected\}/);
+  assert.match(list, /aria-controls=\{detailId\}/);
+  assert.match(list, /current === augment\.id \? null : augment\.id/);
+  assert.match(
+    list,
+    /id=\{detailId\}[\s\S]{0,180}?role="region"[\s\S]{0,180}?aria-labelledby=\{triggerId\}/,
+  );
+  assert.match(list, /\{augment\.tags\.join\(" · "\)\}/);
+  assert.match(list, /<p>\{augment\.description\}<\/p>/);
+  assert.match(list, /<em>“\{augment\.flavor\}”<\/em>/);
+
+  const triggerStart = list.indexOf('className="augment-stack-trigger"');
+  const triggerEnd = list.indexOf("</button>", triggerStart);
+  assert.ok(triggerStart >= 0 && triggerEnd > triggerStart, "the disclosure trigger must close");
+  assert.doesNotMatch(
+    list.slice(triggerStart, triggerEnd),
+    /profession-inline-button/,
+    "the profession action must not become a nested button",
+  );
+  assert.ok(
+    list.indexOf("profession-inline-button", triggerEnd) > triggerEnd,
+    "the profession action must remain a sibling of the disclosure trigger",
+  );
+
+  assert.match(css, /\.augment-stack-trigger \{[\s\S]{0,220}?min-height:\s*60px;/);
+  assert.match(css, /\.augment-stack-trigger:focus-visible \{/);
+  assert.match(css, /\.augment-stack-detail \{[\s\S]{0,260}?overflow-wrap:\s*anywhere;/);
+  assert.match(css, /\.augment-stack-detail > p \{[\s\S]{0,180}?font-size:\s*11px;[\s\S]{0,100}?line-height:\s*1\.55;/);
+});
+
 test("opening basic attacks defeat common enemies in two unmodified hits", async () => {
   const [combatBalance, equipment, source] = await Promise.all([
     importTypeScriptModule("app/combat-balance.ts"),

@@ -989,19 +989,35 @@
 }
 
 .augment-stack-list article {
-  display: grid;
-  grid-template-columns: 52px 1fr auto;
-  align-items: center;
-  gap: 10px;
   border: 1px solid rgba(208, 188, 146, 0.15);
-  padding: 4px 10px 4px 4px;
   background: rgba(255, 255, 255, 0.025);
 }
 
-.augment-stack-list article > div {
+.augment-stack-trigger {
+  display: grid;
+  width: 100%;
+  min-height: 60px;
+  grid-template-columns: 52px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  padding: 4px 10px 4px 4px;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+.augment-stack-copy {
   display: flex;
   min-width: 0;
   flex-direction: column;
+}
+
+.augment-stack-trigger:focus-visible {
+  outline: 1px solid color-mix(in srgb, var(--augment-color) 74%, #f2ddb0);
+  outline-offset: -3px;
 }
 
 .augment-stack-list strong {
@@ -1019,8 +1035,7 @@
 }
 
 .profession-inline-button {
-  align-self: flex-start;
-  margin-top: 5px;
+  margin: 0 10px 8px 66px;
   border: 1px solid rgba(198, 161, 91, 0.42);
   border-radius: 999px;
   padding: 3px 7px;
@@ -1036,10 +1051,42 @@
   background: rgba(198, 161, 91, 0.16);
 }
 
-.augment-stack-list article > b {
+.augment-stack-trigger > b {
   color: #d3b976;
   font-family: Georgia, serif;
   font-size: 15px;
+}
+
+.augment-stack-detail {
+  margin: 0 10px 9px 66px;
+  border-top: 1px solid color-mix(in srgb, var(--augment-color) 38%, transparent);
+  padding-top: 8px;
+  overflow-wrap: anywhere;
+}
+
+.augment-stack-detail > small {
+  display: block;
+  margin: 0 0 4px;
+  color: color-mix(in srgb, var(--augment-color) 72%, #d9cda9);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.augment-stack-detail > p {
+  margin: 0;
+  color: rgba(236, 228, 207, 0.92);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.augment-stack-detail > em {
+  display: block;
+  margin-top: 5px;
+  color: rgba(205, 194, 168, 0.58);
+  font-family: Georgia, serif;
+  font-size: 9px;
+  line-height: 1.45;
 }
 
 .augment-icon {
@@ -4397,7 +4444,8 @@ button.map-cell {
   transition: border-color 140ms ease, background 140ms ease;
 }
 
-.augment-stack-list article:hover {
+.augment-stack-list article:hover,
+.augment-stack-list article.is-selected {
   border-left-color: #c6a15b;
   background: rgba(198, 161, 91, 0.055);
 }
