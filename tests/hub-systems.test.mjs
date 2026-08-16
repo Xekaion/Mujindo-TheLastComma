@@ -46,6 +46,12 @@ async function importPlazaModules() {
 async function importHubServer() {
   const plazaSource = await readSource("app/plaza-world.ts");
   const plazaUrl = dataModule(transpile(plazaSource, "app/plaza-world.ts"));
+  const nicknameUrl = dataModule(
+    transpile(
+      await readSource("app/character-nickname.ts"),
+      "app/character-nickname.ts",
+    ),
+  );
   const equipmentUrl = dataModule(
     transpile(await readSource("app/equipment.ts"), "app/equipment.ts"),
   );
@@ -61,7 +67,11 @@ async function importHubServer() {
     "worker/hub-d1.ts",
   )
     .replace(/from\s+["']\.\.\/app\/hub-protocol["']/, `from ${JSON.stringify(protocolUrl)}`)
-    .replace(/from\s+["']\.\.\/app\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`);
+    .replace(/from\s+["']\.\.\/app\/plaza-world["']/, `from ${JSON.stringify(plazaUrl)}`)
+    .replace(
+      /from\s+["']\.\.\/app\/character-nickname["']/,
+      `from ${JSON.stringify(nicknameUrl)}`,
+    );
   return import(dataModule(serverSource));
 }
 
@@ -409,7 +419,7 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
     readSource("worker/hub-d1.ts"),
     readSource("app/hub-client.ts"),
   ]);
-  for (const route of ["session", "sync", "heartbeat", "appearance", "profile", "leave", "health"]) {
+  for (const route of ["characters", "session", "sync", "heartbeat", "appearance", "profile", "leave", "health"]) {
     assert.ok(server.includes(`/api/hub/${route}`), `missing hub route ${route}`);
   }
   assert.match(entry, /headers\.delete\("x-mujindo-hub-auth-mode"\)/);
@@ -432,7 +442,22 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
   assert.match(server, /hub_rate_limits/);
   assert.match(server, /DELETE FROM hub_sessions WHERE expires_at<=\? OR last_seen_at<\?/);
   assert.match(server, /account_id LIKE 'guest:%'/);
+  assert.match(server, /GUEST_CHARACTER_ORPHAN_GRACE_MS\s*=\s*30_000/);
+  assert.match(server, /AND created_at<\?/);
   assert.match(server, /`guest:\$\{crypto\.randomUUID\(\)\}`/);
+  assert.match(server, /CREATE UNIQUE INDEX IF NOT EXISTS hub_character_nickname_key/);
+  assert.match(server, /WHERE nickname_key IS NOT NULL/);
+  assert.match(server, /throw new HubProblem\(\s*409,\s*"nickname_taken"/);
+  assert.match(server, /Create this character's nickname before entering the plaza/);
+  const hubBranch = entry.slice(
+    entry.indexOf('if (url.pathname.startsWith("/api/hub/"))'),
+    entry.indexOf('if (url.pathname === "/_vinext/image")'),
+  );
+  assert.doesNotMatch(
+    hubBranch,
+    /x-mujindo-player-name/,
+    "the account display label must never override the selected character nickname",
+  );
   assert.match(server, /SET moving=0,last_seen_at=/);
   assert.match(server, /MAX_NEARBY_PLAYERS\s*=\s*48/);
   assert.doesNotMatch(server, /row\.account_id[^\n]*playerId|account_id:\s*row\.account_id/);
@@ -452,6 +477,120 @@ test("hub worker is token-bound, rate-limited, CAS protected, and prunes stale s
     /this\.acceptSnapshot\(payload\);\s*if \(!hidden && dash\) this\.dashQueued = false/,
     "a dash latch must be consumed only after a successful visible sync snapshot",
   );
+});
+
+test("authenticated character nicknames are immutable per slot and globally unique", async () => {
+  const { handleHubRequest } = await importHubServer();
+  const db = new D1DatabaseAdapter();
+  const env = { DB: db };
+  const accountA = "11111111-1111-4111-8111-111111111111";
+  const accountB = "22222222-2222-4222-8222-222222222222";
+  const makeRequest = (route, method, body, accountId) =>
+    new Request(`https://game.local/api/hub/${route}`, {
+      method,
+      headers: {
+        origin: "https://game.local",
+        ...(body === undefined ? {} : { "content-type": "application/json" }),
+        "x-mujindo-account-id": accountId,
+        "x-mujindo-hub-auth-mode": "account",
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+
+  const claim = async (accountId, slot, nickname) => {
+    const response = await handleHubRequest(
+      makeRequest("characters", "POST", { slot, nickname }, accountId),
+      env,
+    );
+    return { response, payload: await response.json() };
+  };
+
+  const first = await claim(accountA, 1, "Alice");
+  assert.equal(first.response.status, 200);
+  assert.equal(first.payload.nickname, "Alice");
+  assert.match(first.payload.publicCharacterId, /^[a-f0-9-]{36}$/i);
+
+  const idempotent = await claim(accountA, 1, "ＡＬＩＣＥ");
+  assert.equal(idempotent.response.status, 200);
+  assert.equal(idempotent.payload.publicCharacterId, first.payload.publicCharacterId);
+  assert.equal(
+    idempotent.payload.nickname,
+    "Alice",
+    "equivalent retries must not silently recase the stored character identity",
+  );
+
+  const globalCollision = await claim(accountB, 1, "alice");
+  assert.equal(globalCollision.response.status, 409);
+  assert.equal(globalCollision.payload.error, "nickname_taken");
+
+  const sameAccountCollision = await claim(accountA, 2, "Alice");
+  assert.equal(sameAccountCollision.response.status, 409);
+  assert.equal(sameAccountCollision.payload.error, "nickname_taken");
+
+  const renameAttempt = await claim(accountA, 1, "기억자");
+  assert.equal(renameAttempt.response.status, 409);
+  assert.equal(renameAttempt.payload.error, "slot_occupied");
+
+  const rosterResponse = await handleHubRequest(
+    makeRequest("characters", "GET", undefined, accountA),
+    env,
+  );
+  assert.equal(rosterResponse.status, 200);
+  const roster = await rosterResponse.json();
+  assert.deepEqual(roster.characters, [{
+    slot: 1,
+    publicCharacterId: first.payload.publicCharacterId,
+    nickname: "Alice",
+  }]);
+  assert.equal("accountId" in roster.characters[0], false);
+  assert.equal("nicknameKey" in roster.characters[0], false);
+
+  const forgedSessionResponse = await handleHubRequest(
+    makeRequest("session", "POST", {
+      characterSlot: 1,
+      displayName: "ForgedName",
+      level: 17,
+      dungeonFloor: 9,
+      appearance: { spriteKey: "harin" },
+    }, accountA),
+    env,
+  );
+  assert.equal(forgedSessionResponse.status, 201);
+  assert.equal((await forgedSessionResponse.json()).self.displayName, "Alice");
+
+  const guestImpersonationResponse = await handleHubRequest(
+    new Request("https://game.local/api/hub/session", {
+      method: "POST",
+      headers: {
+        origin: "https://game.local",
+        "content-type": "application/json",
+        "x-mujindo-hub-auth-mode": "guest",
+      },
+      body: JSON.stringify({
+        characterSlot: 3,
+        displayName: "ＡＬＩＣＥ",
+        level: 1,
+        appearance: { spriteKey: "harin" },
+      }),
+    }),
+    env,
+  );
+  assert.equal(guestImpersonationResponse.status, 409);
+  assert.equal((await guestImpersonationResponse.json()).error, "nickname_taken");
+
+  const unnamedSessionResponse = await handleHubRequest(
+    makeRequest("session", "POST", {
+      characterSlot: 2,
+      displayName: "ForgedName",
+      level: 1,
+      appearance: { spriteKey: "harin" },
+    }, accountB),
+    env,
+  );
+  assert.equal(unnamedSessionResponse.status, 409);
+  assert.equal((await unnamedSessionResponse.json()).error, "nickname_required");
+
+  db.close();
 });
 
 test("hub client keeps one dash latched through failure and consumes it after sync success", async () => {
@@ -515,7 +654,7 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   const responseA = await handleHubRequest(
     makeRequest("session", {
       characterSlot: 1,
-      displayName: "A",
+      displayName: "GuestA",
       level: 20,
       dungeonFloor: 17,
       appearance: { spriteKey: "harin" },
@@ -531,10 +670,22 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   assert.equal("accountId" in sessionA.self, false);
   assert.equal("publicEquipment" in sessionA.self, false);
 
+  const invalidGuestResponse = await handleHubRequest(
+    makeRequest("session", {
+      characterSlot: 2,
+      displayName: "A",
+      level: 1,
+      appearance: { spriteKey: "harin" },
+    }),
+    env,
+  );
+  assert.equal(invalidGuestResponse.status, 400);
+  assert.equal((await invalidGuestResponse.json()).error, "nickname_too_short");
+
   const responseB = await handleHubRequest(
     makeRequest("session", {
       characterSlot: 3,
-      displayName: "B",
+      displayName: "GuestB",
       level: 33,
       appearance: { spriteKey: "harin-equipped" },
     }),
@@ -543,13 +694,13 @@ test("guest A/B sessions share snapshots while forged coordinates never reach st
   assert.equal(responseB.status, 201);
   const sessionB = await responseB.json();
   assert.equal(sessionB.self.dungeonFloor, 1, "missing legacy claims default to floor one");
-  assert.equal(sessionB.nearbyPlayers.some((player) => player.displayName === "A"), true);
+  assert.equal(sessionB.nearbyPlayers.some((player) => player.displayName === "GuestA"), true);
   assert.equal(
-    sessionB.nearbyPlayers.find((player) => player.displayName === "A").dungeonFloor,
+    sessionB.nearbyPlayers.find((player) => player.displayName === "GuestA").dungeonFloor,
     17,
   );
   assert.equal(
-    "publicEquipment" in sessionB.nearbyPlayers.find((player) => player.displayName === "A"),
+    "publicEquipment" in sessionB.nearbyPlayers.find((player) => player.displayName === "GuestA"),
     false,
     "exact gear must stay out of high-frequency presence snapshots",
   );
@@ -768,7 +919,7 @@ test("hub schema cache self-heals when local D1 state is recreated", async () =>
   db.close();
 });
 
-test("runtime schema setup adds floor-one claims to pre-floor D1 tables", async () => {
+test("runtime schema setup upgrades legacy claims and purges pre-nickname sessions", async () => {
   const [{ handleHubRequest }, legacyMigration] = await Promise.all([
     importHubServer(),
     readSource("drizzle/0003_sparkling_smasher.sql"),
@@ -805,19 +956,20 @@ test("runtime schema setup adds floor-one claims to pre-floor D1 tables", async 
       .some((column) => column.name === "dungeon_floor"),
   );
   assert.equal(
-    db.database.prepare("SELECT last_dash_at FROM hub_sessions WHERE id='legacy-player'")
-      .get().last_dash_at,
+    db.database.prepare("SELECT COUNT(*) AS count FROM hub_sessions")
+      .get().count,
     0,
-    "legacy sessions must self-heal to a ready dash cooldown without data loss",
+    "sessions carrying legacy account display labels must not survive identity migration",
   );
   db.close();
 });
 
-test("hub migration enforces selected-slot ownership and one live session per identity", async () => {
-  const [migration, floorMigration, dashMigration] = await Promise.all([
+test("hub migration enforces slot ownership, live identity, and unique nicknames", async () => {
+  const [migration, floorMigration, dashMigration, nicknameMigration] = await Promise.all([
     readSource("drizzle/0003_sparkling_smasher.sql"),
     readSource("drizzle/0004_superb_the_anarchist.sql"),
     readSource("drizzle/0005_slippery_red_ghost.sql"),
+    readSource("drizzle/0006_faulty_baron_zemo.sql"),
   ]);
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
@@ -879,6 +1031,27 @@ test("hub migration enforces selected-slot ownership and one live session per id
   assert.equal(
     db.prepare("SELECT last_dash_at FROM hub_sessions WHERE id=?").get("player-a").last_dash_at,
     0,
+  );
+  for (const statement of nicknameMigration.split("--> statement-breakpoint")) {
+    if (statement.trim()) db.exec(statement);
+  }
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS count FROM hub_sessions").get().count,
+    0,
+    "the nickname migration must purge account-label sessions",
+  );
+  db.prepare(`UPDATE hub_character_slots
+    SET nickname='Alice',nickname_key='alice',nickname_claimed_at=?,identity_version=1
+    WHERE account_id='guest-a' AND slot=1`).run(now);
+  assert.throws(
+    () => db.prepare(`INSERT INTO hub_character_slots
+      (account_id,slot,public_character_id,nickname,nickname_key,
+       nickname_claimed_at,identity_version,level,dungeon_floor,
+       appearance_json,created_at,updated_at)
+      VALUES(?,?,?,?,?,?,1,1,1,?,?,?)`).run(
+        "guest-b", 1, "character-b", "ALICE", "alice", now, "{}", now, now,
+      ),
+    /UNIQUE constraint failed: hub_character_slots\.nickname_key/,
   );
   db.close();
 });

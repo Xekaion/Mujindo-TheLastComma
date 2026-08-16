@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import CharacterEntryGate, {
+  type CharacterNicknameRejection,
   type CharacterEntrySelection,
 } from "./CharacterEntryGate";
 import GameCanvas, {
@@ -58,6 +59,10 @@ import {
   writeSaveSlot,
   type SaveRunPayload,
 } from "./save-slots";
+import {
+  readCharacterNickname,
+  removeCharacterNickname,
+} from "./character-nickname";
 import { inventoryCapacityFor, readShopEntitlements } from "./shop";
 import type { PlazaPortalDefinition } from "./plaza-world";
 import { createPlazaSkillShowcaseEquipment } from "./plaza-skills";
@@ -186,6 +191,8 @@ export default function GameEntryFlow({
   localVfxShowcaseRequested = false,
 }: GameEntryFlowProps) {
   const [selection, setSelection] = useState<CharacterEntrySelection | null>(null);
+  const [nicknameRejection, setNicknameRejection] =
+    useState<CharacterNicknameRejection | null>(null);
   const [localEnemyVfxShowcase, setLocalEnemyVfxShowcase] =
     useState<LocalEnemyVfxShowcaseMode | null>(null);
   const [localLootVfxShowcase, setLocalLootVfxShowcase] =
@@ -271,8 +278,10 @@ export default function GameEntryFlow({
       }
       if (!isSaveSlotId(slot)) return;
       const save = readSaveSlot(slot);
+      const displayName = readCharacterNickname(slot);
+      if (!displayName) return;
       plazaSaveSnapshotRef.current = save;
-      setSelection({ slot, occupied: save !== null, save });
+      setSelection({ slot, occupied: save !== null, displayName, save });
     }, 0);
     return () => window.clearTimeout(timer);
   }, [
@@ -286,6 +295,7 @@ export default function GameEntryFlow({
   ]);
 
   const enterCharacter = useCallback((next: CharacterEntrySelection) => {
+    setNicknameRejection(null);
     plazaSaveSnapshotRef.current = next.save;
     setSaveRevision(0);
     setSelection(next);
@@ -395,7 +405,7 @@ export default function GameEntryFlow({
     savedCharacter?.world?.dungeonFloor,
   );
   const inventoryCount = inventory.length;
-  const displayName = accountName?.trim() || "이름 없는 기록자";
+  const displayName = selection?.displayName ?? "기록자";
   const hubPublishedProfileRef = useRef({
     level,
     dungeonFloor,
@@ -418,7 +428,22 @@ export default function GameEntryFlow({
     const unsubscribe = client.subscribe((event) => {
       if (event.type === "connection") setHubConnection(event.state);
       if (event.type === "snapshot") setHubSnapshot(event.snapshot);
-      if (event.type === "error" && !event.retryable) setHubConnection("offline");
+      if (event.type === "error" && !event.retryable) {
+        if (
+          event.code === "nickname_taken" ||
+          event.code === "nickname_required"
+        ) {
+          removeCharacterNickname(selection.slot);
+          setNicknameRejection({
+            slot: selection.slot,
+            nickname: selection.displayName,
+            code: event.code,
+          });
+          setSelection(null);
+          return;
+        }
+        setHubConnection("offline");
+      }
     });
     void client.enter({
       characterSlot: selection.slot,
@@ -1021,7 +1046,14 @@ export default function GameEntryFlow({
   }
 
   if (selection === null) {
-    return <CharacterEntryGate accountName={accountName} onEnter={enterCharacter} />;
+    return (
+      <CharacterEntryGate
+        accountName={accountName}
+        nicknameRejection={nicknameRejection}
+        onNicknameRejectionHandled={() => setNicknameRejection(null)}
+        onEnter={enterCharacter}
+      />
+    );
   }
 
   if (view === "expedition") {

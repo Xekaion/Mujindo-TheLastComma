@@ -52,6 +52,10 @@ export const hubCharacterSlots = sqliteTable(
     accountId: text("account_id").notNull(),
     slot: integer("slot").notNull(),
     publicCharacterId: text("public_character_id").notNull().unique(),
+    nickname: text("nickname"),
+    nicknameKey: text("nickname_key"),
+    nicknameClaimedAt: integer("nickname_claimed_at"),
+    identityVersion: integer("identity_version").notNull().default(0),
     level: integer("level").notNull(),
     dungeonFloor: integer("dungeon_floor").notNull().default(1),
     appearanceJson: text("appearance_json").notNull(),
@@ -60,6 +64,9 @@ export const hubCharacterSlots = sqliteTable(
   },
   (table) => [
     primaryKey({ columns: [table.accountId, table.slot] }),
+    uniqueIndex("hub_character_nickname_key")
+      .on(table.nicknameKey)
+      .where(sql`${table.nicknameKey} IS NOT NULL`),
     check("hub_character_slot_range", sql`${table.slot} BETWEEN 1 AND 3`),
     check("hub_character_level_range", sql`${table.level} BETWEEN 1 AND 999`),
     check(

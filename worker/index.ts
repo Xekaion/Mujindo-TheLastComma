@@ -101,7 +101,6 @@ const worker = {
       if (hubIdentity instanceof Response) return hubIdentity;
       if (hubIdentity) {
         headers.set("x-mujindo-account-id", hubIdentity.accountId);
-        headers.set("x-mujindo-player-name", hubIdentity.displayName);
         headers.set("x-mujindo-hub-auth-mode", "account");
       } else {
         // Closed-beta/local worlds still receive a server-issued opaque guest

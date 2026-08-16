@@ -52,7 +52,7 @@ test("keeps the gated game shell, save system, profession system, and assets wir
   ]);
 
   assert.match(page, /<GameEntryFlow[\s\S]{0,160}?accountName=/);
-  assert.match(flow, /<CharacterEntryGate accountName=/);
+  assert.match(flow, /<CharacterEntryGate[\s\S]{0,180}?accountName=/);
   assert.match(flow, /<GameCanvas[\s\S]{0,160}?initialSaveSlot=\{selection\.slot\}/);
   assert.match(gate, /SAVE_SLOT_IDS\.map/);
   assert.match(gate, /migrateLegacySave\(\)/);

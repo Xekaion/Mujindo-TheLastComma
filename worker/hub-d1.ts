@@ -28,6 +28,10 @@ import {
   type HubFacing,
   type HubPlayerSnapshot,
 } from "../app/hub-protocol";
+import {
+  isCharacterNicknameSlot,
+  validateCharacterNickname,
+} from "../app/character-nickname";
 import { resolvePlazaSweptMovement } from "../app/plaza-world";
 
 export type HubD1Env = {
@@ -36,6 +40,12 @@ export type HubD1Env = {
 
 type CharacterRow = {
   public_character_id: string;
+  nickname: string | null;
+  nickname_key: string | null;
+};
+
+type CharacterRosterRow = CharacterRow & {
+  slot: number;
 };
 
 type SessionRow = {
@@ -80,6 +90,7 @@ type NearbyRow = Pick<
 const MAX_BODY_BYTES = 24 * 1_024;
 const MAX_MOVE_STEP_MS = 250;
 const STALE_SESSION_RETENTION_MS = 60_000;
+const GUEST_CHARACTER_ORPHAN_GRACE_MS = 30_000;
 const MAX_NEARBY_PLAYERS = 48;
 const SNAPSHOT_QUERY_CANDIDATES = 96;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -133,17 +144,6 @@ function trustedAccountId(request: Request): string | null {
   throw new HubProblem(401, "account_required", "An authenticated account or server-issued guest identity is required.");
 }
 
-function trustedDisplayName(request: Request, guestFallback = "방랑자"): string {
-  const value = request.headers.get("x-mujindo-player-name") ?? guestFallback;
-  const normalized = value
-    .normalize("NFKC")
-    .replace(/[\u0000-\u001f\u007f]/g, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, 18);
-  return normalized || "방랑자";
-}
-
 function bearerToken(request: Request): string {
   const authorization = request.headers.get("authorization") ?? "";
   const match = /^Bearer\s+([a-f0-9]{64})$/i.exec(authorization);
@@ -187,6 +187,10 @@ async function ensureSchema(db: D1Database): Promise<void> {
         account_id TEXT NOT NULL,
         slot INTEGER NOT NULL CHECK (slot BETWEEN 1 AND 3),
         public_character_id TEXT NOT NULL UNIQUE,
+        nickname TEXT,
+        nickname_key TEXT,
+        nickname_claimed_at INTEGER,
+        identity_version INTEGER NOT NULL DEFAULT 0,
         level INTEGER NOT NULL CHECK (level BETWEEN 1 AND 999),
         dungeon_floor INTEGER NOT NULL DEFAULT 1 CHECK (dungeon_floor BETWEEN 1 AND ${HUB_MAX_DUNGEON_FLOOR}),
         appearance_json TEXT NOT NULL,
@@ -262,6 +266,49 @@ async function ensureSchema(db: D1Database): Promise<void> {
         if (!/duplicate column name:\s*last_dash_at/i.test(message)) throw error;
       }
     }
+
+    const characterColumns = await db
+      .prepare(`PRAGMA table_info(hub_character_slots)`)
+      .all<{ name: string }>();
+    const existingCharacterColumns = new Set(
+      (characterColumns.results ?? []).map((column) => column.name),
+    );
+    const missingCharacterColumns = [
+      ["nickname", "TEXT"],
+      ["nickname_key", "TEXT"],
+      ["nickname_claimed_at", "INTEGER"],
+      ["identity_version", "INTEGER NOT NULL DEFAULT 0"],
+    ] as const;
+    const upgradedCharacterIdentity = missingCharacterColumns.some(
+      ([column]) => !existingCharacterColumns.has(column),
+    );
+    for (const [column, definition] of missingCharacterColumns) {
+      if (existingCharacterColumns.has(column)) continue;
+      try {
+        await db
+          .prepare(
+            `ALTER TABLE hub_character_slots ADD COLUMN ${column} ${definition}`,
+          )
+          .run();
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!new RegExp(`duplicate column name:\\s*${column}`, "i").test(message)) {
+          throw error;
+        }
+      }
+    }
+    await db
+      .prepare(
+        `CREATE UNIQUE INDEX IF NOT EXISTS hub_character_nickname_key
+          ON hub_character_slots(nickname_key)
+          WHERE nickname_key IS NOT NULL`,
+      )
+      .run();
+    if (upgradedCharacterIdentity) {
+      // Match the numbered migration: sessions created before character-bound
+      // nicknames still contain account display labels and must not survive.
+      await db.prepare(`DELETE FROM hub_sessions`).run();
+    }
   })().catch((error: unknown) => {
       schemaReady.delete(db as object);
       throw error;
@@ -317,9 +364,10 @@ async function pruneStaleSessions(db: D1Database, now: number): Promise<void> {
       .bind(now, now - STALE_SESSION_RETENTION_MS),
     db.prepare(`DELETE FROM hub_character_slots
       WHERE account_id LIKE 'guest:%'
+        AND created_at<?
         AND NOT EXISTS (
           SELECT 1 FROM hub_sessions WHERE hub_sessions.account_id=hub_character_slots.account_id
-        )`),
+        )`).bind(now - GUEST_CHARACTER_ORPHAN_GRACE_MS),
     db.prepare(`DELETE FROM hub_rate_limits WHERE window_started_at<? AND (blocked_until IS NULL OR blocked_until<?)`)
       .bind(now - HUB_SESSION_TTL_MS, now),
   ]);
@@ -473,6 +521,206 @@ function resolveDashDirection(
   ] as const)[facing];
 }
 
+function nicknameValidationProblem(
+  validation: Exclude<
+    ReturnType<typeof validateCharacterNickname>,
+    { ok: true }
+  >,
+): HubProblem {
+  return new HubProblem(
+    400,
+    validation.code,
+    "The character nickname does not satisfy the creation rules.",
+  );
+}
+
+function isNicknameUniqueConstraint(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /UNIQUE constraint failed:\s*hub_character_slots\.nickname_key/i.test(
+    message,
+  );
+}
+
+async function characterRoster(
+  request: Request,
+  db: D1Database,
+): Promise<Response> {
+  const accountId = trustedAccountId(request);
+  const url = new URL(request.url);
+  const requestedNickname = url.searchParams.get("nickname");
+
+  if (requestedNickname !== null) {
+    const validation = validateCharacterNickname(requestedNickname);
+    if (!validation.ok) throw nicknameValidationProblem(validation);
+    const requestedSlot = Number(url.searchParams.get("slot"));
+    if (!isCharacterNicknameSlot(requestedSlot)) {
+      throw new HubProblem(
+        400,
+        "invalid_character_slot",
+        "Choose character slot 1, 2, or 3.",
+      );
+    }
+    const rateSubject =
+      accountId ??
+      `guest:${await sha256(
+        request.headers.get("cf-connecting-ip") ?? url.hostname,
+      )}`;
+    await enforceRateLimit(db, rateSubject, "nickname-check", 30, 60_000, 60_000);
+    const existing = await db
+      .prepare(
+        `SELECT account_id,slot FROM hub_character_slots
+          WHERE nickname_key=? LIMIT 1`,
+      )
+      .bind(validation.nicknameKey)
+      .first<{ account_id: string; slot: number }>();
+    const available =
+      !existing ||
+      (accountId !== null &&
+        existing.account_id === accountId &&
+        existing.slot === requestedSlot);
+    return json({
+      available,
+      authority: accountId === null ? "device" : "account",
+    });
+  }
+
+  if (!accountId) {
+    throw new HubProblem(
+      401,
+      "account_required",
+      "Link Steam before synchronizing account character nicknames.",
+    );
+  }
+  await enforceRateLimit(db, accountId, "character-roster", 20, 60_000, 60_000);
+  const rows = await db
+    .prepare(
+      `SELECT slot,public_character_id,nickname,nickname_key
+        FROM hub_character_slots
+        WHERE account_id=? AND nickname IS NOT NULL
+        ORDER BY slot ASC`,
+    )
+    .bind(accountId)
+    .all<CharacterRosterRow>();
+  return json({
+    characters: (rows.results ?? []).flatMap((row) => {
+      const validation = validateCharacterNickname(row.nickname);
+      return isCharacterNicknameSlot(row.slot) &&
+        validation.ok &&
+        row.nickname_key === validation.nicknameKey
+        ? [{
+            slot: row.slot,
+            publicCharacterId: row.public_character_id,
+            nickname: validation.nickname,
+          }]
+        : [];
+    }),
+  });
+}
+
+async function claimCharacterNickname(
+  request: Request,
+  db: D1Database,
+): Promise<Response> {
+  const accountId = trustedAccountId(request);
+  if (!accountId) {
+    throw new HubProblem(
+      401,
+      "account_required",
+      "Link Steam before reserving an account character nickname.",
+    );
+  }
+  const body = await readJson(request);
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    throw new HubProblem(400, "nickname_invalid", "A nickname claim is required.");
+  }
+  const record = body as Record<string, unknown>;
+  if (!isCharacterNicknameSlot(record.slot)) {
+    throw new HubProblem(
+      400,
+      "invalid_character_slot",
+      "Choose character slot 1, 2, or 3.",
+    );
+  }
+  const validation = validateCharacterNickname(record.nickname);
+  if (!validation.ok) throw nicknameValidationProblem(validation);
+  await enforceRateLimit(db, accountId, "nickname-claim", 10, 60_000, 60_000);
+
+  const now = Date.now();
+  const publicCharacterId = crypto.randomUUID();
+  const initialAppearanceJson = JSON.stringify({
+    appearance: DEFAULT_HUB_APPEARANCE,
+    publicEquipment: null,
+  });
+  let character: CharacterRow | null = null;
+  try {
+    character = await db
+      .prepare(
+        `INSERT INTO hub_character_slots
+          (account_id,slot,public_character_id,nickname,nickname_key,
+           nickname_claimed_at,identity_version,level,dungeon_floor,
+           appearance_json,created_at,updated_at)
+        VALUES(?,?,?,?,?,?,1,1,1,?,?,?)
+        ON CONFLICT(account_id,slot) DO UPDATE SET
+          nickname=CASE
+            WHEN hub_character_slots.nickname_key IS NULL
+              THEN excluded.nickname
+            ELSE hub_character_slots.nickname
+          END,
+          nickname_key=CASE
+            WHEN hub_character_slots.nickname_key IS NULL
+              THEN excluded.nickname_key
+            ELSE hub_character_slots.nickname_key
+          END,
+          nickname_claimed_at=COALESCE(
+            hub_character_slots.nickname_claimed_at,
+            excluded.nickname_claimed_at
+          ),
+          identity_version=CASE
+            WHEN hub_character_slots.nickname_key IS NULL
+              THEN hub_character_slots.identity_version+1
+            ELSE hub_character_slots.identity_version
+          END,
+          updated_at=excluded.updated_at
+        WHERE hub_character_slots.nickname_key IS NULL
+           OR hub_character_slots.nickname_key=excluded.nickname_key
+        RETURNING public_character_id,nickname,nickname_key`,
+      )
+      .bind(
+        accountId,
+        record.slot,
+        publicCharacterId,
+        validation.nickname,
+        validation.nicknameKey,
+        now,
+        initialAppearanceJson,
+        now,
+        now,
+      )
+      .first<CharacterRow>();
+  } catch (error) {
+    if (isNicknameUniqueConstraint(error)) {
+      throw new HubProblem(
+        409,
+        "nickname_taken",
+        "That character nickname is already in use.",
+      );
+    }
+    throw error;
+  }
+  if (!character) {
+    throw new HubProblem(
+      409,
+      "slot_occupied",
+      "This character slot already owns another nickname.",
+    );
+  }
+  return json({
+    slot: record.slot,
+    publicCharacterId: character.public_character_id,
+    nickname: character.nickname,
+  });
+}
+
 async function createSession(request: Request, db: D1Database): Promise<Response> {
   const authenticatedAccountId = trustedAccountId(request);
   const parsed = parseHubSessionRequest(await readJson(request));
@@ -501,25 +749,85 @@ async function createSession(request: Request, db: D1Database): Promise<Response
     appearance: parsed.appearance,
     publicEquipment: parsed.publicEquipment,
   });
-  const generatedCharacterId = crypto.randomUUID();
-  const character = await db.prepare(`INSERT INTO hub_character_slots
-      (account_id,slot,public_character_id,level,dungeon_floor,appearance_json,created_at,updated_at)
-    VALUES(?,?,?,?,?,?,?,?)
-    ON CONFLICT(account_id,slot) DO UPDATE SET
-      level=excluded.level,dungeon_floor=excluded.dungeon_floor,
-      appearance_json=excluded.appearance_json,updated_at=excluded.updated_at
-    RETURNING public_character_id`)
-    .bind(
-      accountId,
-      parsed.characterSlot,
-      generatedCharacterId,
-      parsed.level,
-      parsed.dungeonFloor,
-      appearanceJson,
-      now,
-      now,
-    )
-    .first<CharacterRow>();
+  let character: CharacterRow | null;
+  let characterDisplayName: string;
+  if (authenticatedAccountId) {
+    character = await db
+      .prepare(
+        `SELECT public_character_id,nickname,nickname_key
+          FROM hub_character_slots WHERE account_id=? AND slot=? LIMIT 1`,
+      )
+      .bind(accountId, parsed.characterSlot)
+      .first<CharacterRow>();
+    const storedNickname = validateCharacterNickname(character?.nickname);
+    if (
+      !character ||
+      !storedNickname.ok ||
+      character.nickname_key !== storedNickname.nicknameKey
+    ) {
+      throw new HubProblem(
+        409,
+        "nickname_required",
+        "Create this character's nickname before entering the plaza.",
+      );
+    }
+    characterDisplayName = storedNickname.nickname;
+    await db
+      .prepare(
+        `UPDATE hub_character_slots
+          SET level=?,dungeon_floor=?,appearance_json=?,updated_at=?
+          WHERE account_id=? AND slot=?`,
+      )
+      .bind(
+        parsed.level,
+        parsed.dungeonFloor,
+        appearanceJson,
+        now,
+        accountId,
+        parsed.characterSlot,
+      )
+      .run();
+  } else {
+    const guestNickname = validateCharacterNickname(parsed.displayName);
+    if (!guestNickname.ok) throw nicknameValidationProblem(guestNickname);
+    characterDisplayName = guestNickname.nickname;
+    const guestNicknameKey = guestNickname.nicknameKey;
+    const generatedCharacterId = crypto.randomUUID();
+    try {
+      character = await db
+        .prepare(
+          `INSERT INTO hub_character_slots
+            (account_id,slot,public_character_id,nickname,nickname_key,
+             nickname_claimed_at,identity_version,level,dungeon_floor,
+             appearance_json,created_at,updated_at)
+          VALUES(?,?,?,?,?,?,1,?,?,?,?,?)
+          RETURNING public_character_id,nickname,nickname_key`,
+        )
+        .bind(
+          accountId,
+          parsed.characterSlot,
+          generatedCharacterId,
+          characterDisplayName,
+          guestNicknameKey,
+          now,
+          parsed.level,
+          parsed.dungeonFloor,
+          appearanceJson,
+          now,
+          now,
+        )
+        .first<CharacterRow>();
+    } catch (error) {
+      if (isNicknameUniqueConstraint(error)) {
+        throw new HubProblem(
+          409,
+          "nickname_taken",
+          "That character nickname is already in use.",
+        );
+      }
+      throw error;
+    }
+  }
   if (!character) throw new HubProblem(503, "hub_storage_error", "Could not bind the selected character.", true);
 
   const rawToken = `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
@@ -549,7 +857,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
       accountId,
       parsed.characterSlot,
       character.public_character_id,
-      trustedDisplayName(request, parsed.displayName),
+      characterDisplayName,
       parsed.level,
       parsed.dungeonFloor,
       appearanceJson,
@@ -751,6 +1059,11 @@ async function dispatchHubRequest(
   db: D1Database,
   route: string,
 ): Promise<Response> {
+  if (route === "/api/hub/characters") {
+    if (request.method === "GET") return characterRoster(request, db);
+    if (request.method === "POST") return claimCharacterNickname(request, db);
+    return methodNotAllowed("GET, POST");
+  }
   if (route === "/api/hub/session") {
     return request.method === "POST" ? createSession(request, db) : methodNotAllowed("POST");
   }
@@ -780,6 +1093,7 @@ export async function handleHubRequest(request: Request, env: HubD1Env): Promise
     const db = env.DB;
     const route = new URL(request.url).pathname.replace(/\/+$/, "");
     const knownRoute = [
+      "/api/hub/characters",
       "/api/hub/session",
       "/api/hub/sync",
       "/api/hub/heartbeat",

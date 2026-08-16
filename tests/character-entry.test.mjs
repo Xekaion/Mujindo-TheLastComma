@@ -16,8 +16,9 @@ test("the root route requires an explicit three-slot character selection", async
   assert.doesNotMatch(page, /<GameCanvas\s*\/>/);
   assert.match(gate, /SAVE_SLOT_IDS\.map\(\(slot, index\) =>/);
   assert.match(gate, /aria-label="캐릭터 저장 슬롯"/);
+  assert.match(gate, /type CharacterEntrySelection = \{[\s\S]*?displayName: string;/);
   assert.match(gate, /const selectedSave = readSaveSlot\(selectedSlot\);/);
-  assert.match(gate, /occupied: selectedSave !== null,[\s\S]{0,80}?save: selectedSave/);
+  assert.match(gate, /beginCharacterEntry\(\s*\{[\s\S]{0,120}?occupied: selectedSave !== null,[\s\S]{0,80}?save: selectedSave/);
   assert.match(
     gate,
     /onDoubleClick[\s\S]*?const selectedSave = readSaveSlot\(slot\);[\s\S]*?occupied: selectedSave !== null,[\s\S]{0,80}?save: selectedSave/,
@@ -26,6 +27,42 @@ test("the root route requires an explicit three-slot character selection", async
   assert.match(flow, /selection === null[\s\S]*?<CharacterEntryGate[\s\S]*?onEnter=\{enterCharacter\}/);
   assert.match(flow, /data-entry-save-slot=\{selection\.slot\}/);
   assert.match(flow, /if \(saveRevision === 0 && selection\.save\) return selection\.save;/);
+  assert.match(flow, /const displayName = selection\?\.displayName \?\? "기록자";/);
+  assert.doesNotMatch(flow, /이름 없는 기록자/);
+});
+
+test("new and legacy unnamed characters must claim a nickname before entry", async () => {
+  const gate = await readFile(path.join(root, "app/CharacterEntryGate.tsx"), "utf8");
+
+  assert.match(gate, /const nickname =\s*slotNicknames\[SAVE_SLOT_IDS\.indexOf\(target\.slot\)\] \?\? null;/);
+  assert.match(gate, /if \(!nickname\) \{\s*openNicknameDialog\(target\);\s*return;/);
+  assert.match(
+    gate,
+    /const claimed = await claimCharacterNickname\(target\.slot, nickname\);[\s\S]{0,300}?writeCharacterNickname\([\s\S]{0,100}?target\.slot,[\s\S]{0,100}?claimed\.nickname[\s\S]{0,600}?onEnter\(\{[\s\S]{0,160}?displayName: claimed\.nickname/,
+    "the atomic claim result must be mirrored and passed into the selected character entry",
+  );
+  assert.match(
+    gate,
+    /if \(!mirroredLocally && claimed\.authority === "device"\)/,
+    "an account-authoritative character must still enter if its optional local cache is unavailable",
+  );
+  assert.match(gate, /Steam 프로필명은 자동 사용하지 않습니다/);
+  assert.match(gate, /role="dialog"[\s\S]{0,180}?aria-modal="true"/);
+  assert.match(gate, /onCompositionStart=\{\(\) => setNicknameComposing\(true\)\}/);
+  assert.match(gate, /if \(!nicknameComposing\) void submitNickname\(\)/);
+  assert.match(gate, /aria-live="polite"/);
+  assert.match(gate, /nicknameCheckSequenceRef/);
+  assert.match(gate, /window\.setTimeout\(\(\) => \{[\s\S]{0,500}?checkCharacterNicknameAvailability/);
+  assert.match(gate, /CHARACTER_ROSTER_TIMEOUT_MS = 5_000/);
+  assert.match(gate, /rosterTimeout = window\.setTimeout\([\s\S]{0,120}?controller\.abort\(\)/);
+  assert.match(
+    gate,
+    /if \(roster\.authority === "account"\) \{[\s\S]{0,180}?removeCharacterNickname\(slot\)[\s\S]{0,100}?localNicknames\.fill\(null\)/,
+    "an authenticated roster must not inherit unscoped names from another browser account",
+  );
+  assert.match(gate, /type CharacterNicknameRejection = \{[\s\S]{0,140}?code: "nickname_taken" \| "nickname_required"/);
+  assert.match(gate, /nicknameRejection\.nickname/);
+  assert.match(gate, /nicknameErrorMessage\(nicknameRejection\.code\)/);
 });
 
 test("character selection preserves migration and isolates destructive slot actions", async () => {
@@ -36,15 +73,15 @@ test("character selection preserves migration and isolates destructive slot acti
   assert.match(hydration, /readActiveSaveSlot\(\)/);
   assert.match(hydration, /readSaveSlotSummaries\(\)|refreshSummaries\(\)/);
   assert.match(gate, /setSummaries\(readSaveSlotSummaries\(\)\);/);
-  assert.match(gate, /writeActiveSaveSlot\(selectedSlot\);/);
+  assert.match(gate, /writeActiveSaveSlot\(target\.slot\);/);
   assert.match(gate, /지하 \{summary\.dungeonFloor\}층/);
   assert.doesNotMatch(gate, /방 돌파 \{summary\.roomsCleared\}/);
   assert.match(gate, /if \(!removeSaveSlot\(deleteTarget\)\)/);
   assert.doesNotMatch(gate, /localStorage\.(?:clear|removeItem)/);
   assert.doesNotMatch(gate, /window\.(?:alert|confirm)\(/);
   assert.match(gate, /role="alertdialog"/);
-  assert.match(gate, /마지막 보호본은 남습니다/);
-  assert.match(gate, /다른 두 캐릭터의 저장\s*데이터에는\s*영향을 주지 않습니다/);
+  assert.match(gate, /마지막 보호본과 캐릭터 닉네임·계정 귀속은\s*유지합니다/);
+  assert.match(gate, /다른 두 캐릭터의 데이터에는 영향을 주지 않습니다/);
 });
 
 test("character selection exposes protected recovery cards and restores before entry", async () => {
@@ -58,7 +95,7 @@ test("character selection exposes protected recovery cards and restores before e
     "refreshing slot summaries must discover protected saves",
   );
   assert.match(gate, /const recoveryBySlot = useMemo\(\(\) => \{/);
-  assert.match(gate, /data-save-state=\{summary \? "occupied" : recovery \? "recoverable"/);
+  assert.match(gate, /const state = summary\s*\? "occupied"\s*:\s*recovery\s*\? "recoverable"/);
   assert.match(gate, /RECOVERY AVAILABLE · LV\.\{recovery\.summary\.level\}/);
   assert.match(gate, /삭제·덮어쓰기 전 마지막 보호본이 남아 있습니다\./);
   assert.match(
@@ -67,8 +104,8 @@ test("character selection exposes protected recovery cards and restores before e
   );
   assert.match(
     gate,
-    /if \(!restoreRecovery\(selectedRecovery\)\) return;\s*writeActiveSaveSlot\(selectedSlot\);\s*const restoredSave = readSaveSlot\(selectedSlot\);\s*if \(!restoredSave\) return;\s*onEnter\(\{ slot: selectedSlot, occupied: true, save: restoredSave \}\);/,
-    "entry must occur only after the byte-preserving restore succeeds",
+    /const restoredSave = restoreRecovery\(selectedRecovery\);\s*if \(!restoredSave\) return;\s*beginCharacterEntry\(\s*\{ slot: selectedSlot, occupied: true, save: restoredSave \}/,
+    "the byte-preserving restore must succeed before nickname verification and entry",
   );
   assert.match(gate, /보호본 복구 후 입장/);
 });
@@ -81,13 +118,14 @@ test("unreadable raw slots are protected from accidental character creation", as
     gate,
     /const selectedHasUnreadableData =\s*selectedSlot !== null &&\s*selectedSummary === null &&\s*slotHasData\[SAVE_SLOT_IDS\.indexOf\(selectedSlot\)\];/,
   );
-  assert.match(gate, /if \(selectedHasUnreadableData\) return;/);
+  assert.match(gate, /if \(!ready \|\| selectedSlot === null \|\| selectedHasUnreadableData\) return;/);
   assert.match(gate, /if \(unreadable\) return;/);
-  assert.match(gate, /data-save-state=\{summary \? "occupied" : recovery \? "recoverable" : unreadable \? "unreadable"/);
-  assert.match(gate, /원본 형식 확인이 필요해 새 캐릭터 생성을 차단했습니다\./);
+  assert.match(gate, /const state = summary[\s\S]{0,180}?"unreadable"/);
+  assert.match(gate, /data-save-state=\{state\}/);
+  assert.match(gate, /원본 형식 확인이 필요해 새 원정 생성을 차단했습니다\./);
   assert.match(
     gate,
-    /disabled=\{!ready \|\| selectedSlot === null \|\| selectedHasUnreadableData\}/,
+    /disabled=\{!ready \|\| entryBusy \|\| selectedSlot === null \|\| selectedHasUnreadableData\}/,
   );
   assert.match(gate, /원본 기록 보호 중/);
 });

@@ -13,6 +13,12 @@ test("character selection enters the shared plaza before every service", async (
   ]);
 
   assert.match(flow, /selection === null[\s\S]*<CharacterEntryGate/);
+  assert.match(
+    flow,
+    /event\.code === "nickname_taken" \|\|[\s\S]{0,100}?event\.code === "nickname_required"[\s\S]{0,180}?removeCharacterNickname\(selection\.slot\)[\s\S]{0,260}?setSelection\(null\)/,
+    "a lost guest claim race must return to the nickname dialog instead of stranding the player offline",
+  );
+  assert.match(flow, /nicknameRejection=\{nicknameRejection\}/);
   assert.match(flow, /data-entry-view="plaza"[\s\S]*<PlazaHub/);
   assert.match(flow, /portal\.id === "expedition"[\s\S]*setView\("expedition"\)/);
   assert.match(flow, /portal\.id === "caravan"[\s\S]*setShopOpen\(true\)/);
