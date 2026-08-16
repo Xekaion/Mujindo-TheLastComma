@@ -82,11 +82,11 @@ test("the PVP canvas applies the same scale floor to names, respawn text, and co
   );
   assert.match(
     source,
-    /readableCanvasFontSize\(12, 10\).*?Pretendard[\s\S]{0,180}?context\.fillText\("MEMORY DUEL"/,
+    /readableCanvasFontSize\(12, 10\).*?Pretendard[\s\S]{0,180}?context\.fillText\("기억 결투"/,
   );
   assert.match(
     source,
-    /return \(\) => \{\s*canvasResizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(animationFrame\);\s*\};/,
+    /return \(\) => \{\s*canvasResizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(animationFrame\);[\s\S]{0,360}?roomAtlas\.src = "";[\s\S]{0,120}?fallbackRoom\.src = "";/,
   );
 });
 

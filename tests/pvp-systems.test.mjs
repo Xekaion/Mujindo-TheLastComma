@@ -10,8 +10,13 @@ async function readSource(relativePath) {
   return readFile(path.join(root, relativePath), "utf8");
 }
 
-async function importTypeScriptModule(relativePath) {
-  const source = await readSource(relativePath);
+async function typeScriptModuleUrl(relativePath, dependencyUrls = {}) {
+  let source = await readSource(relativePath);
+  for (const [specifier, dependencyUrl] of Object.entries(dependencyUrls)) {
+    source = source
+      .replaceAll(`"${specifier}"`, `"${dependencyUrl}"`)
+      .replaceAll(`'${specifier}'`, `'${dependencyUrl}'`);
+  }
   const output = ts.transpileModule(source, {
     compilerOptions: {
       module: ts.ModuleKind.ESNext,
@@ -19,7 +24,16 @@ async function importTypeScriptModule(relativePath) {
     },
     fileName: relativePath,
   }).outputText;
-  return import(`data:text/javascript;base64,${Buffer.from(output).toString("base64")}`);
+  return `data:text/javascript;base64,${Buffer.from(output).toString("base64")}`;
+}
+
+const equipmentModuleUrlPromise = typeScriptModuleUrl("app/equipment.ts");
+
+async function importTypeScriptModule(relativePath) {
+  const dependencyUrls = relativePath === "app/pvp-protocol.ts"
+    ? { "./equipment": await equipmentModuleUrlPromise }
+    : {};
+  return import(await typeScriptModuleUrl(relativePath, dependencyUrls));
 }
 
 test("PVP protocol normalizes input and strips client-authority fields", async () => {
@@ -125,7 +139,11 @@ test("PVP build profiles clamp authored inputs and strip injected combat authori
   );
   assert.deepEqual(
     protocol.parseRealtimeClientMessage({ type: "queue", profile: injectedProfile }),
-    { type: "queue", profile: sanitized },
+    {
+      type: "queue",
+      profile: sanitized,
+      appearance: protocol.DEFAULT_PVP_APPEARANCE,
+    },
     "the queue parser must sanitize again at the network trust boundary",
   );
   assert.deepEqual(
@@ -134,9 +152,118 @@ test("PVP build profiles clamp authored inputs and strip injected combat authori
       damage: 999_999,
       maxHp: 1,
     }),
-    { type: "queue", profile: protocol.DEFAULT_PVP_BUILD_PROFILE },
+    {
+      type: "queue",
+      profile: protocol.DEFAULT_PVP_BUILD_PROFILE,
+      appearance: protocol.DEFAULT_PVP_APPEARANCE,
+    },
     "legacy clients stay compatible while injected derived combat fields are discarded",
   );
+});
+
+test("PVP appearance admits only renderer-safe cosmetic metadata", async () => {
+  const protocol = await importTypeScriptModule("app/pvp-protocol.ts");
+  const untrustedAppearance = {
+    weapon: {
+      slot: "weapon",
+      variant: 9,
+      rarity: "cosmic",
+      enhancement: 10,
+      id: "private-item-id",
+      affixes: [{ stat: "damage", value: 999_999 }],
+      powerScore: 999_999,
+      spriteUrl: "https://attacker.invalid/weapon.png",
+      css: "body { display: none }",
+    },
+    armor: {
+      slot: "armor",
+      variant: 4,
+      rarity: "legendary",
+      enhancement: 3,
+      save: { player: { hp: 999_999 } },
+    },
+    offhand: {
+      slot: "weapon",
+      variant: 2,
+      rarity: "mythic",
+      enhancement: 5,
+    },
+    helm: {
+      slot: "helm",
+      variant: 10,
+      rarity: "mythic",
+      enhancement: 5,
+    },
+    boots: {
+      slot: "boots",
+      variant: 1,
+      rarity: "admin",
+      enhancement: 0,
+    },
+    relic: {
+      slot: "relic",
+      variant: 0,
+      rarity: "rare",
+      enhancement: 11,
+    },
+    prototypePollution: {
+      slot: "weapon",
+      variant: 0,
+      rarity: "cosmic",
+      enhancement: 10,
+    },
+  };
+  const sanitized = protocol.sanitizePvpAppearance(untrustedAppearance);
+  assert.deepEqual(sanitized, {
+    weapon: {
+      slot: "weapon",
+      variant: 9,
+      rarity: "cosmic",
+      enhancement: 10,
+    },
+    armor: {
+      slot: "armor",
+      variant: 4,
+      rarity: "legendary",
+      enhancement: 3,
+    },
+  });
+  assert.deepEqual(Object.keys(sanitized.weapon), [
+    "slot",
+    "variant",
+    "rarity",
+    "enhancement",
+  ]);
+  for (const forbidden of [
+    "id",
+    "affixes",
+    "powerScore",
+    "spriteUrl",
+    "css",
+    "save",
+  ]) {
+    assert.equal(forbidden in sanitized.weapon, false);
+    assert.equal(forbidden in sanitized.armor, false);
+  }
+  assert.deepEqual(protocol.sanitizePvpAppearance(undefined), {});
+  assert.deepEqual(protocol.sanitizePvpAppearance([]), {});
+
+  const parsed = protocol.parseRealtimeClientMessage({
+    type: "queue",
+    profile: { level: 20, equipmentPower: 5_000, augmentStacks: 12 },
+    appearance: untrustedAppearance,
+    equipment: { weapon: untrustedAppearance.weapon },
+    affixes: [{ stat: "damage", value: 999_999 }],
+    spriteUrl: "https://attacker.invalid/body.png",
+  });
+  assert.deepEqual(parsed, {
+    type: "queue",
+    profile: { level: 20, equipmentPower: 5_000, augmentStacks: 12 },
+    appearance: sanitized,
+  });
+  assert.equal("equipment" in parsed, false);
+  assert.equal("affixes" in parsed, false);
+  assert.equal("spriteUrl" in parsed, false);
 });
 
 test("adaptive PVP balance is symmetric, monotonic, and preserves minimum survival budgets", async () => {
@@ -269,6 +396,59 @@ test("polling client creates an authenticated session, syncs, and coalesces only
     client,
     /Date\.now\(\)\s*-\s*this\.lastSyncStartedAt[\s\S]*FAST_POLL_MS\s*-\s*elapsed/,
   );
+  assert.match(
+    client,
+    /joinQueue\(profile:\s*PvpBuildProfile,\s*appearance\?:\s*PvpAppearance\)/,
+  );
+  assert.match(client, /appearance:\s*sanitizePvpAppearance\(appearance\)/);
+});
+
+test("cosmetic appearance is persisted and snapshotted independently from combat authority", async () => {
+  const [protocol, server] = await Promise.all([
+    readSource("app/pvp-protocol.ts"),
+    readSource("worker/realtime-d1.ts"),
+  ]);
+
+  assert.match(protocol, /from\s+["']\.\/equipment["']/);
+  assert.doesNotMatch(protocol, /character-paperdoll/);
+  assert.match(server, /appearance\?:\s*PvpAppearance;/);
+  assert.match(
+    server,
+    /session\.combatProfile\s*=\s*sanitizePvpBuildProfile\(profile\);\s*session\.appearance\s*=\s*sanitizePvpAppearance\(appearance\);/,
+  );
+  assert.match(
+    server,
+    /appearance:\s*sanitizePvpAppearance\(session\.appearance\)/,
+    "the match must freeze the queued appearance instead of reading another client later",
+  );
+  assert.match(
+    server,
+    /appearance:\s*sanitizePvpAppearance\(player\.appearance\)/,
+    "every snapshot must sanitize persisted and rolling-upgrade match state again",
+  );
+  assert.match(
+    server,
+    /message\.profile,\s*message\.appearance,\s*directMessages/,
+  );
+  assert.match(
+    server,
+    /left\.appearance = \{ \.\.\.DEFAULT_PVP_APPEARANCE \};\s*right\.appearance = \{ \.\.\.DEFAULT_PVP_APPEARANCE \};/,
+    "session cosmetics must be released after immutable match copies are made",
+  );
+  assert.match(
+    server,
+    /function leaveQueue[\s\S]{0,220}?session\.appearance = \{ \.\.\.DEFAULT_PVP_APPEARANCE \};/,
+    "cancelled queues must not retain cosmetic payloads for the session TTL",
+  );
+  assert.match(
+    server,
+    /now - session\.lastSeenAt > QUEUE_STALE_MS[\s\S]{0,180}?session\.appearance = \{ \.\.\.DEFAULT_PVP_APPEARANCE \};/,
+    "stale queued sessions must release cosmetic payloads",
+  );
+  assert.doesNotMatch(
+    server,
+    /appearance[^\n]*(?:affixes|spriteUrl|powerScore|GearItem)/,
+  );
 });
 
 test("D1 realtime handler exposes authenticated routes and compare-and-swap persistence", async () => {
@@ -308,6 +488,24 @@ test("D1 simulation remains fixed-step and server authoritative for movement, da
   assert.match(server, /input\.sequence\s*<=\s*player\.lastInputSequence/);
   assert.match(server, /MAX_SIMULATION_DEBT_MS\s*=\s*2_000/);
   assert.match(server, /MAX_STEPS_PER_REQUEST\s*=\s*20/);
+  assert.match(server, /PVP_PLAYER_COLLISION_CLEARANCE\s*=\s*27/);
+  assert.match(
+    server,
+    /constrainPointToConvexPolygon\(\s*player,\s*WALKABLE_FLOOR_POLYGON,\s*PVP_PLAYER_COLLISION_CLEARANCE,?\s*\)/,
+    "server movement must be constrained to the expedition floor polygon",
+  );
+  assert.match(server, /const arenaVersion = match\.arenaVersion \?\? 1;/);
+  assert.match(server, /arenaVersion:\s*PVP_ARENA_VERSION/);
+  assert.match(
+    server,
+    /arenaVersion < PVP_ARENA_VERSION[\s\S]{0,120}?legacyArenaCollision\(player\)/,
+    "only persisted pre-v2 matches may keep their frozen legacy geometry",
+  );
+  assert.match(
+    server,
+    /arenaVersion < PVP_ARENA_VERSION &&\s*legacyProjectileHitsObstacle\(projectile\)/,
+  );
+  assert.doesNotMatch(server, /const\s+ARENA_OBSTACLES\s*=/);
   assert.match(server, /if\s*\(match\)\s*advanceMatch\(state,\s*match,\s*now\)/);
   assert.doesNotMatch(server, /function\s+advanceMatches\s*\(/);
   assert.match(
@@ -327,7 +525,11 @@ test("D1 and the arena wire saved build profiles into adaptive HP, damage caps, 
     /const save = readSaveSlot\(readActiveSaveSlot\(\)\);[\s\S]{0,400}?reconcileEquipmentLevelRequirements\(\s*save\.player\.level,\s*save\.player\.equipment,\s*save\.player\.inventory,?\s*\)[\s\S]{0,300}?level: save\.player\.level,[\s\S]{0,300}?calculateEquipmentCombatPower\(gear\.equipment\)[\s\S]{0,300}?augmentStacks: Object\.values\(save\.player\.augments\)\.reduce/,
     "the queue profile must be rebuilt from the active save's level, equipment, and capped augments",
   );
-  assert.match(arena, /getRealtimeClient\(\)\.joinQueue\(buildProfile\)/);
+  assert.match(
+    arena,
+    /getRealtimeClient\(\)\.joinQueue\(buildProfile,\s*activeLocalAppearance\)/,
+    "the queue must send the renderer-safe local appearance beside the combat profile",
+  );
   assert.match(arena, /RATING \{localBuildRating\.toLocaleString\(["']ko-KR["']\)\}/);
   assert.match(
     arena,
@@ -384,6 +586,11 @@ test("D1 and the arena wire saved build profiles into adaptive HP, damage caps, 
     server,
     /hp: player\.hp,[\s\S]{0,80}?maxHp: player\.maxHp,[\s\S]{0,300}?buildRating: player\.buildRating \?\? 100,[\s\S]{0,120}?offenseScale: player\.offenseScale \?\? 1,[\s\S]{0,120}?projectileDamage: player\.projectileDamage \?\? PROJECTILE_DAMAGE/,
     "each snapshot player must carry authoritative health and offense labels",
+  );
+  assert.match(
+    server,
+    /projectileDamage: player\.projectileDamage \?\? PROJECTILE_DAMAGE,[\s\S]{0,100}?appearance: sanitizePvpAppearance\(player\.appearance\)/,
+    "each player snapshot must carry only the server-sanitized cosmetic appearance",
   );
   assert.match(
     server,

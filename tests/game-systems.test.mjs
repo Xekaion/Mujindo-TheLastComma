@@ -6806,7 +6806,7 @@ test("expedition and plaza render independent fitted layers and preserve public 
   );
 });
 
-test("PVP preserves grounded gait and renders only the local save through the shared paperdoll", async () => {
+test("PVP preserves expedition gait and renders both sanitized duel appearances", async () => {
   const source = await readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8");
   assert.doesNotMatch(
     source,
@@ -6817,17 +6817,24 @@ test("PVP preserves grounded gait and renders only the local save through the sh
   assert.match(source, /createBrowserPaperdollImageStore/);
   assert.match(source, /reconcileEquipmentLevelRequirements\(\s*save\.player\.level,\s*save\.player\.equipment,\s*save\.player\.inventory/);
   assert.match(source, /paperdollLoadoutFromEquipment\(gear\.equipment\)/);
-  assert.match(source, /paperdollLayerPathsForLoadout\(localPaperdollLoadout\)/);
+  assert.match(source, /paperdollLayerPathsForLoadout\(activeLocalAppearance\)/);
+  assert.match(
+    source,
+    /activeSnapshot\?\.players[\s\S]{0,300}?paperdollLayerPathsForLoadout\(\s*sanitizePvpAppearance\(participant\.appearance\)/,
+    "both participants must preload only their allowlisted wearable atlases",
+  );
   assert.match(source, /drawPaperdollCharacterDirect\(context, \{/);
   assert.match(
     source,
-    /player\.id === playerIdRef\.current \? localPaperdollLoadout : \{\}/,
-    "only the local player may use local save cosmetics; remote snapshots expose no trusted appearance",
+    /const snapshotAppearance = sanitizePvpAppearance\(player\.appearance\);/,
+    "remote cosmetics must pass through the same strict appearance sanitizer",
   );
+  assert.doesNotMatch(source, /player\.id === playerIdRef\.current \? localPaperdollLoadout : \{\}/);
+  assert.match(source, /getRealtimeClient\(\)\.joinQueue\(buildProfile, activeLocalAppearance\)/);
   assert.doesNotMatch(
     source,
-    /RealtimeClientMessage[\s\S]{0,500}?equipment|joinQueue\([^)]*paperdoll/i,
-    "cosmetic rendering must not widen the realtime protocol with canonical equipment",
+    /joinQueue\([^)]*(?:GearItem|affix|equipment\.)/i,
+    "the realtime path must not send canonical equipment or affixes",
   );
   assert.match(
     source,
@@ -6845,6 +6852,76 @@ test("PVP preserves grounded gait and renders only the local save through the sh
     source,
     /width:\s*PAPERDOLL_WORLD_RENDER_WIDTH,\s*height:\s*PAPERDOLL_WORLD_RENDER_HEIGHT,/,
     "PVP must share the same fitted silhouette scale as expedition and plaza",
+  );
+  assert.match(
+    source,
+    /y:\s*rendered\.y \+ PVP_PLAYER_GROUND_OFFSET_Y/,
+    "PVP must share the expedition collision-foot baseline instead of sinking actors",
+  );
+});
+
+test("active PVP combat reuses the authored expedition room and fills the 16:9 frame", async () => {
+  const [source, css, worker] = await Promise.all([
+    readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
+    readFile(path.join(root, "app/pvp/pvp.css"), "utf8"),
+    readFile(path.join(root, "worker/realtime-d1.ts"), "utf8"),
+  ]);
+
+  assert.match(source, /ROOM_DOOR_VISUALS\.roomElite/);
+  assert.match(source, /roomDoorAtlasFrameSourceRect\(0\)/);
+  assert.match(source, /drawSouthDoorForeground\(\)/);
+  assert.match(source, /drawGameplayVfxFrame\(/);
+  assert.match(source, /loopingGameplayVfxProgress\(/);
+  assert.doesNotMatch(source, /ARENA_OBSTACLES|setLineDash\(\[5, 12\]\)/);
+  assert.match(
+    css,
+    /\.pvp-screen\.is-match-view \.pvp-match-stage\s*\{[^}]*position:\s*absolute;[^}]*inset:\s*0;[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*padding:\s*0;/,
+  );
+  assert.match(
+    css,
+    /\.pvp-screen\.is-match-view \.pvp-canvas\s*\{[^}]*width:\s*100%;[^}]*height:\s*100%;[^}]*max-height:\s*none;[^}]*border:\s*0;/,
+  );
+  assert.match(worker, /constrainPointToConvexPolygon\(\s*player,\s*WALKABLE_FLOOR_POLYGON,\s*PVP_PLAYER_COLLISION_CLEARANCE/);
+  assert.match(worker, /arenaVersion:\s*PVP_ARENA_VERSION/);
+  assert.match(worker, /const arenaVersion = match\.arenaVersion \?\? 1;/);
+  assert.match(worker, /arenaVersion < PVP_ARENA_VERSION[\s\S]{0,120}?legacyArenaCollision\(player\)/);
+  assert.doesNotMatch(worker, /const\s+ARENA_OBSTACLES\s*=/);
+});
+
+test("localhost PVP visual QA bypasses saves and realtime sessions", async () => {
+  const [source, showcase, page, audio] = await Promise.all([
+    readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
+    readFile(path.join(root, "app/pvp-showcase.ts"), "utf8"),
+    readFile(path.join(root, "app/pvp/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameAudioProvider.tsx"), "utf8"),
+  ]);
+  assert.match(showcase, /mode === "match" && isLocalPvpShowcaseHost\(host\)/);
+  assert.match(showcase, /normalized\.startsWith\("localhost:"\)/);
+  assert.match(
+    source,
+    /isLocalPvpShowcaseRequest\(\s*new URLSearchParams\(window\.location\.search\)\.get\("pvpShowcase"\),\s*window\.location\.hostname/,
+  );
+  assert.match(
+    source,
+    /useEffect\(\(\) => \{\s*if \(localShowcase \|\| localPvpShowcaseBrowserSnapshot\(\)\) return;\s*const frame = window\.requestAnimationFrame/,
+    "the local QA route must exit before reading the active save",
+  );
+  assert.match(
+    source,
+    /if \(localShowcase \|\| localPvpShowcaseBrowserSnapshot\(\)\) \{\s*playerIdRef\.current = PVP_SHOWCASE_PLAYER_ID;[\s\S]{0,140}?return;\s*\}\s*const realtime = getRealtimeClient\(\);/,
+    "the local QA route must exit before creating a realtime session",
+  );
+  assert.match(source, /data-pvp-local-gear-count=\{localGearCount\}/);
+  assert.match(source, /data-pvp-opponent-gear-count=\{opponentGearCount\}/);
+  assert.match(
+    page,
+    /const user = localShowcase \? null : await getChatGPTUser\(\);[\s\S]{0,180}?\{!localShowcase && \(\s*<WorldAnnouncementBanner/,
+    "the server route must not mount the realtime announcement subscriber in local QA",
+  );
+  assert.match(
+    audio,
+    /isLocalPvpShowcaseRequest\(\s*search\.get\("pvpShowcase"\),\s*window\.location\.hostname/,
+    "the root audio provider must not initialize storage-backed audio in local QA",
   );
 });
 

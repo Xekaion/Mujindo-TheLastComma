@@ -495,34 +495,39 @@
 }
 
 .pvp-match-stage {
-  position: relative;
+  position: absolute;
+  inset: 0;
   display: grid;
-  height: calc(100cqh - 76px);
-  place-items: center;
-  padding: 88px 24px 24px;
+  width: 100%;
+  height: 100%;
+  place-items: stretch;
+  overflow: hidden;
+  padding: 0;
 }
 
 .pvp-canvas {
   display: block;
-  width: min(1280px, calc(100cqw - 48px), calc((100cqh - 186px) * 16 / 9));
-  max-height: calc(100cqh - 186px);
+  width: 100%;
+  height: 100%;
+  max-height: none;
   aspect-ratio: 16 / 9;
-  border: 1px solid rgba(216, 177, 106, 0.35);
+  border: 0;
   background: #08090c;
-  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.74), 0 0 0 5px rgba(6, 7, 9, 0.75);
+  box-shadow: none;
+  cursor: crosshair;
   touch-action: none;
 }
 
 .pvp-match-hud {
   position: absolute;
-  top: 13px;
+  top: 20px;
   left: 50%;
   z-index: 4;
   display: grid;
-  width: min(1060px, calc(100cqw - 64px));
-  grid-template-columns: minmax(210px, 1fr) 210px minmax(210px, 1fr);
+  width: calc(100cqw - 44px);
+  grid-template-columns: minmax(310px, 390px) 1fr minmax(310px, 390px);
   align-items: stretch;
-  gap: 13px;
+  gap: 20px;
   transform: translateX(-50%);
   pointer-events: none;
 }
@@ -530,20 +535,29 @@
 .pvp-combatant,
 .pvp-scoreboard {
   border: 1px solid rgba(213, 174, 105, 0.24);
-  background: linear-gradient(180deg, rgba(12, 13, 17, 0.94), rgba(6, 7, 10, 0.94));
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.35), inset 0 1px rgba(255, 241, 211, 0.04);
+  background:
+    linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84)),
+    url("/assets/augment-ui-atlas.png") 50% 98% / 640% auto;
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+    0 10px 35px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(10px);
 }
 
 .pvp-combatant {
   display: grid;
   min-width: 0;
+  min-height: 72px;
   grid-template-columns: auto 1fr;
   gap: 1px 12px;
-  padding: 10px 14px;
+  padding: 10px 20px 10px 14px;
+  clip-path: polygon(0 0, 94% 0, 100% 50%, 94% 100%, 0 100%);
 }
 
 .pvp-combatant.is-opponent {
   grid-template-columns: 1fr auto;
+  padding: 10px 14px 10px 20px;
+  clip-path: polygon(6% 0, 100% 0, 100% 100%, 6% 100%, 0 50%);
   text-align: right;
 }
 
@@ -611,7 +625,11 @@
   display: grid;
   place-items: center;
   padding: 5px 17px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
   text-align: center;
+  text-shadow: 0 3px 12px #000;
 }
 
 .pvp-scoreboard small {
@@ -908,4 +926,31 @@
 
 .pvp-queue-card {
   height: auto;
+}
+
+/* Expedition-parity combat view: the authored room owns the whole 16:9 frame. */
+.pvp-screen.is-match-view {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pvp-screen.is-match-view .pvp-navigation,
+.pvp-screen.is-match-view .pvp-backdrop {
+  display: none;
+}
+
+.pvp-screen.is-match-view .pvp-match-stage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+}
+
+.pvp-screen.is-match-view .pvp-canvas {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  border: 0;
+  box-shadow: none;
 }

@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import {
+  DEFAULT_PVP_APPEARANCE,
   PVP_BASE_PROJECTILE_DAMAGE,
   PVP_BASE_SHOT_COOLDOWN_MS,
   PVP_BALANCE_VERSION,
@@ -16,8 +17,10 @@ import {
   capPvpHitDamage,
   parseRealtimeClientMessage,
   resolvePvpMatchBalance,
+  sanitizePvpAppearance,
   sanitizePvpBuildProfile,
   sanitizeDisplayName,
+  type PvpAppearance,
   type PvpBuildProfile,
   type PvpInput,
   type PvpPhase,
@@ -27,6 +30,10 @@ import {
   type RealtimeServerMessage,
   type WorldLootAnnouncement,
 } from "../app/pvp-protocol";
+import {
+  WALKABLE_FLOOR_POLYGON,
+  constrainPointToConvexPolygon,
+} from "../app/room-collision";
 
 export type RealtimeD1Env = {
   DB?: D1Database;
@@ -45,6 +52,7 @@ type StoredSession = {
   lastLootAnnouncementAt: number;
   inputWindowStartedAt: number;
   inputCount: number;
+  appearance?: PvpAppearance;
   combatProfile?: PvpBuildProfile;
 };
 
@@ -75,6 +83,7 @@ type MatchPlayer = {
   projectileDamage: number;
   damageWindowStartedAt: number;
   damageWindowAmount: number;
+  appearance?: PvpAppearance;
 };
 
 type MatchProjectile = PvpProjectileSnapshot & {
@@ -84,6 +93,8 @@ type MatchProjectile = PvpProjectileSnapshot & {
 
 type PvpMatch = {
   id: string;
+  /** Missing means the persisted legacy arena, preserving in-flight matches. */
+  arenaVersion?: number;
   tick: number;
   phase: PvpPhase;
   startsAt: number;
@@ -150,9 +161,7 @@ const SESSION_TTL_MS = 12 * 60 * 60 * 1_000;
 const MAX_INPUTS_PER_SECOND = 42;
 const LOOT_ANNOUNCEMENT_COOLDOWN_MS = 3_000;
 const ACQUISITION_RETENTION_MS = SESSION_TTL_MS;
-const ARENA_MARGIN_X = 88;
-const ARENA_MARGIN_TOP = 112;
-const ARENA_MARGIN_BOTTOM = 76;
+const PVP_PLAYER_COLLISION_CLEARANCE = 27;
 const MAX_REQUEST_BYTES = 32 * 1_024;
 const MAX_SYNC_MESSAGES = 48;
 const MAX_SESSIONS = 512;
@@ -163,10 +172,17 @@ const MAX_ACQUISITION_IDS = 256;
 const MAX_RECENT_ANNOUNCEMENTS = 12;
 const MAX_STATE_BYTES = 900_000;
 const CAS_RETRIES = 8;
-const ARENA_OBSTACLES = [
+const PVP_ARENA_VERSION = 2;
+const LEGACY_ARENA_MARGIN_X = 88;
+const LEGACY_ARENA_MARGIN_TOP = 112;
+const LEGACY_ARENA_MARGIN_BOTTOM = 76;
+const LEGACY_ARENA_OBSTACLES = [
   { x: 510, y: 360, radius: 66 },
   { x: 770, y: 360, radius: 66 },
 ] as const;
+
+const clamp = (value: number, minimum: number, maximum: number) =>
+  Math.max(minimum, Math.min(maximum, value));
 
 const schemaReady = new WeakMap<object, Promise<void>>();
 
@@ -210,9 +226,6 @@ const json = (body: unknown, status = 200, extraHeaders?: HeadersInit): Response
   headers.set("x-content-type-options", "nosniff");
   return new Response(JSON.stringify(body), { status, headers });
 };
-
-const clamp = (value: number, minimum: number, maximum: number): number =>
-  Math.max(minimum, Math.min(maximum, value));
 
 const distanceSquared = (ax: number, ay: number, bx: number, by: number): number => {
   const dx = ax - bx;
@@ -483,14 +496,22 @@ function activeMatchCount(state: RealtimeWorldState): number {
   return Object.values(state.matches).filter((match) => match.phase !== "finished").length;
 }
 
-function resolveArenaCollision(player: MatchPlayer): void {
-  player.x = clamp(player.x, ARENA_MARGIN_X, PVP_ARENA_WIDTH - ARENA_MARGIN_X);
-  player.y = clamp(player.y, ARENA_MARGIN_TOP, PVP_ARENA_HEIGHT - ARENA_MARGIN_BOTTOM);
-  for (const obstacle of ARENA_OBSTACLES) {
+function legacyArenaCollision(player: MatchPlayer): void {
+  player.x = clamp(
+    player.x,
+    LEGACY_ARENA_MARGIN_X,
+    PVP_ARENA_WIDTH - LEGACY_ARENA_MARGIN_X,
+  );
+  player.y = clamp(
+    player.y,
+    LEGACY_ARENA_MARGIN_TOP,
+    PVP_ARENA_HEIGHT - LEGACY_ARENA_MARGIN_BOTTOM,
+  );
+  for (const obstacle of LEGACY_ARENA_OBSTACLES) {
     const dx = player.x - obstacle.x;
     const dy = player.y - obstacle.y;
     const distance = Math.hypot(dx, dy);
-    const minimumDistance = obstacle.radius + 27;
+    const minimumDistance = obstacle.radius + PVP_PLAYER_COLLISION_CLEARANCE;
     if (distance >= minimumDistance) continue;
     const safeDistance = distance || 1;
     player.x = obstacle.x + (dx / safeDistance) * minimumDistance;
@@ -498,8 +519,20 @@ function resolveArenaCollision(player: MatchPlayer): void {
   }
 }
 
-function projectileHitsObstacle(projectile: MatchProjectile): boolean {
-  return ARENA_OBSTACLES.some(
+function resolveArenaCollision(player: MatchPlayer, arenaVersion: number): void {
+  if (arenaVersion < PVP_ARENA_VERSION) {
+    legacyArenaCollision(player);
+    return;
+  }
+  constrainPointToConvexPolygon(
+    player,
+    WALKABLE_FLOOR_POLYGON,
+    PVP_PLAYER_COLLISION_CLEARANCE,
+  );
+}
+
+function legacyProjectileHitsObstacle(projectile: MatchProjectile): boolean {
+  return LEGACY_ARENA_OBSTACLES.some(
     (obstacle) =>
       distanceSquared(projectile.x, projectile.y, obstacle.x, obstacle.y) <=
       (obstacle.radius + projectile.radius) ** 2,
@@ -534,6 +567,7 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
   if (match.phase !== "playing") return;
   match.tick += 1;
   const deltaSeconds = TICK_MS / 1_000;
+  const arenaVersion = match.arenaVersion ?? 1;
 
   for (const player of match.players) {
     player.shotCooldownMs = Math.max(0, player.shotCooldownMs - TICK_MS);
@@ -557,7 +591,7 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
     player.vy = player.input.moveY * speed;
     player.x += player.vx * deltaSeconds;
     player.y += player.vy * deltaSeconds;
-    resolveArenaCollision(player);
+    resolveArenaCollision(player, arenaVersion);
 
     if (
       player.input.fire &&
@@ -592,7 +626,8 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
       projectile.x > PVP_ARENA_WIDTH ||
       projectile.y < 0 ||
       projectile.y > PVP_ARENA_HEIGHT ||
-      projectileHitsObstacle(projectile)
+      (arenaVersion < PVP_ARENA_VERSION &&
+        legacyProjectileHitsObstacle(projectile))
     ) {
       continue;
     }
@@ -740,6 +775,7 @@ function pruneWorld(state: RealtimeWorldState, now: number): void {
   for (const [token, session] of Object.entries(state.sessions)) {
     if (session.expiresAt > now) continue;
     session.queued = false;
+    session.appearance = { ...DEFAULT_PVP_APPEARANCE };
     if (!session.matchId || !hasOwn(state.matches, session.matchId)) {
       delete state.sessions[token];
     }
@@ -757,7 +793,10 @@ function pruneWorld(state: RealtimeWorldState, now: number): void {
       session.matchId ||
       now - session.lastSeenAt > QUEUE_STALE_MS
     ) {
-      if (session) session.queued = false;
+      if (session) {
+        session.queued = false;
+        session.appearance = { ...DEFAULT_PVP_APPEARANCE };
+      }
       continue;
     }
     cleanedQueue.push(token);
@@ -821,6 +860,7 @@ function makeMatchPlayer(
     projectileDamage: balance.projectileDamage,
     damageWindowStartedAt: 0,
     damageWindowAmount: 0,
+    appearance: sanitizePvpAppearance(session.appearance),
   };
 }
 
@@ -843,6 +883,7 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
     const matchId = crypto.randomUUID();
     const match: PvpMatch = {
       id: matchId,
+      arenaVersion: PVP_ARENA_VERSION,
       tick: 0,
       phase: "countdown",
       startsAt: now + PVP_COUNTDOWN_MS,
@@ -865,6 +906,10 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
     state.matches[match.id] = match;
     left.matchId = match.id;
     right.matchId = match.id;
+    // The match owns its immutable cosmetic copies; queued session state does
+    // not need to retain ten verbose slot records for the next twelve hours.
+    left.appearance = { ...DEFAULT_PVP_APPEARANCE };
+    right.appearance = { ...DEFAULT_PVP_APPEARANCE };
   }
 }
 
@@ -872,6 +917,7 @@ function joinQueue(
   state: RealtimeWorldState,
   session: StoredSession,
   profile: PvpBuildProfile,
+  appearance: PvpAppearance,
   directMessages: RealtimeServerMessage[],
 ): void {
   if (session.matchId) {
@@ -896,6 +942,7 @@ function joinQueue(
       return;
     }
     session.combatProfile = sanitizePvpBuildProfile(profile);
+    session.appearance = sanitizePvpAppearance(appearance);
     session.queued = true;
     state.queue.push(session.token);
   }
@@ -903,6 +950,7 @@ function joinQueue(
 
 function leaveQueue(state: RealtimeWorldState, session: StoredSession): void {
   session.queued = false;
+  session.appearance = { ...DEFAULT_PVP_APPEARANCE };
   state.queue = state.queue.filter((token) => token !== session.token);
 }
 
@@ -1001,6 +1049,7 @@ function snapshotFor(
         buildRating: player.buildRating ?? 100,
         offenseScale: player.offenseScale ?? 1,
         projectileDamage: player.projectileDamage ?? PROJECTILE_DAMAGE,
+        appearance: sanitizePvpAppearance(player.appearance),
       };
     }),
     projectiles: match.projectiles.map(
@@ -1105,6 +1154,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
       lastLootAnnouncementAt: 0,
       inputWindowStartedAt: now,
       inputCount: 0,
+      appearance: sanitizePvpAppearance(undefined),
       combatProfile: sanitizePvpBuildProfile(undefined),
     };
     state.sessions[token] = session;
@@ -1149,7 +1199,13 @@ async function syncSession(request: Request, db: D1Database): Promise<Response> 
     for (const message of body.messages) {
       switch (message.type) {
         case "queue":
-          joinQueue(state, session, message.profile, directMessages);
+          joinQueue(
+            state,
+            session,
+            message.profile,
+            message.appearance,
+            directMessages,
+          );
           break;
         case "cancel_queue":
           leaveQueue(state, session);
@@ -1297,5 +1353,6 @@ export const PVP_D1_SERVER_RULES = {
   burstWindowMs: PVP_BURST_WINDOW_MS,
   burstMaxHealthFraction: PVP_BURST_MAX_HEALTH_FRACTION,
   disconnectForfeitMs: DISCONNECT_FORFEIT_MS,
-  obstacles: ARENA_OBSTACLES,
+  playerCollisionClearance: PVP_PLAYER_COLLISION_CLEARANCE,
+  walkableFloorPolygon: WALKABLE_FLOOR_POLYGON,
 } as const;

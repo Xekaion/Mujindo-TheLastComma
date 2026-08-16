@@ -1,3 +1,12 @@
+import {
+  EQUIPMENT_SLOTS,
+  GEAR_ICON_ROWS,
+  GEAR_RARITIES,
+  MAX_GEAR_ENHANCEMENT,
+  type EquipmentSlot,
+  type GearRarity,
+} from "./equipment";
+
 export const PVP_ARENA_WIDTH = 1280;
 export const PVP_ARENA_HEIGHT = 720;
 export const PVP_ROUND_DURATION_MS = 90_000;
@@ -20,6 +29,23 @@ export type PvpBuildProfile = {
   equipmentPower: number;
   augmentStacks: number;
 };
+
+/**
+ * Renderer-only equipment metadata. It deliberately excludes item identity,
+ * affixes, combat values, trade state, save data, and client-provided URLs.
+ */
+export type PvpAppearancePiece = Readonly<{
+  slot: EquipmentSlot;
+  variant: number;
+  rarity: GearRarity;
+  enhancement: number;
+}>;
+
+export type PvpAppearance = Readonly<
+  Partial<Record<EquipmentSlot, PvpAppearancePiece>>
+>;
+
+export const DEFAULT_PVP_APPEARANCE: Readonly<PvpAppearance> = Object.freeze({});
 
 export const DEFAULT_PVP_BUILD_PROFILE: Readonly<PvpBuildProfile> = {
   level: 1,
@@ -59,6 +85,7 @@ export type PvpPlayerSnapshot = {
   buildRating: number;
   offenseScale: number;
   projectileDamage: number;
+  appearance: PvpAppearance;
 };
 
 export type PvpProjectileSnapshot = {
@@ -131,7 +158,11 @@ export type RealtimeServerMessage =
   | { type: "error"; code: string; message: string };
 
 export type RealtimeClientMessage =
-  | { type: "queue"; profile: PvpBuildProfile }
+  | {
+      type: "queue";
+      profile: PvpBuildProfile;
+      appearance: PvpAppearance;
+    }
   | { type: "cancel_queue" }
   | ({ type: "pvp_input" } & PvpInput)
   | {
@@ -149,6 +180,42 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === "number" && Number.isFinite(value);
+
+const PVP_GEAR_RARITY_SET = new Set<string>(GEAR_RARITIES);
+
+/**
+ * Copies only the four paperdoll fields from the ten canonical equipment
+ * slots. Invalid pieces are omitted rather than repaired, so untrusted input
+ * can never nominate an atlas URL or smuggle a GearItem across the wire.
+ */
+export function sanitizePvpAppearance(value: unknown): PvpAppearance {
+  if (!isRecord(value)) return { ...DEFAULT_PVP_APPEARANCE };
+  const appearance: Partial<Record<EquipmentSlot, PvpAppearancePiece>> = {};
+  for (const slot of EQUIPMENT_SLOTS) {
+    const piece = value[slot];
+    if (
+      !isRecord(piece) ||
+      piece.slot !== slot ||
+      !Number.isSafeInteger(piece.variant) ||
+      (piece.variant as number) < 0 ||
+      (piece.variant as number) >= GEAR_ICON_ROWS ||
+      typeof piece.rarity !== "string" ||
+      !PVP_GEAR_RARITY_SET.has(piece.rarity) ||
+      !Number.isSafeInteger(piece.enhancement) ||
+      (piece.enhancement as number) < 0 ||
+      (piece.enhancement as number) > MAX_GEAR_ENHANCEMENT
+    ) {
+      continue;
+    }
+    appearance[slot] = {
+      slot,
+      variant: piece.variant as number,
+      rarity: piece.rarity as GearRarity,
+      enhancement: piece.enhancement as number,
+    };
+  }
+  return appearance;
+}
 
 const clampNumber = (value: number, minimum: number, maximum: number): number =>
   Math.max(minimum, Math.min(maximum, value));
@@ -335,7 +402,11 @@ export function normalizePvpInput(value: unknown): PvpInput | null {
 export function parseRealtimeClientMessage(value: unknown): RealtimeClientMessage | null {
   if (!isRecord(value) || typeof value.type !== "string") return null;
   if (value.type === "queue") {
-    return { type: "queue", profile: sanitizePvpBuildProfile(value.profile) };
+    return {
+      type: "queue",
+      profile: sanitizePvpBuildProfile(value.profile),
+      appearance: sanitizePvpAppearance(value.appearance),
+    };
   }
   if (value.type === "cancel_queue") {
     return { type: "cancel_queue" };

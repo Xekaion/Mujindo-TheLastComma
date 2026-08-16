@@ -19,6 +19,7 @@ import {
   ROOM_DOOR_SHOWCASE_ROOMS,
   isLocalRoomDoorShowcaseHost,
 } from "./room-door-showcase";
+import { isLocalPvpShowcaseRequest } from "./pvp-showcase";
 
 type GameAudioProviderProps = {
   children: ReactNode;
@@ -73,6 +74,10 @@ const localShowcaseBrowserSnapshot = () => {
     (lootMode !== null && LOCAL_LOOT_VFX_SHOWCASE_MODES.has(lootMode)) ||
     (enemyMode !== null && LOCAL_ENEMY_VFX_SHOWCASE_MODES.has(enemyMode)) ||
     search.get("plazaMotionShowcase") === "1" ||
+    isLocalPvpShowcaseRequest(
+      search.get("pvpShowcase"),
+      window.location.hostname,
+    ) ||
     (roomMode !== null && ROOM_DOOR_SHOWCASE_ROOMS.some((room) => room === roomMode))
   );
 };

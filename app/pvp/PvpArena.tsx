@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
@@ -18,7 +19,9 @@ import {
   calculatePvpBuildRating,
   calculatePvpOffenseScale,
   sanitizeDisplayName,
+  sanitizePvpAppearance,
   sanitizePvpBuildProfile,
+  type PvpAppearance,
   type PvpBuildProfile,
   type PvpInput,
   type PvpPlayerSnapshot,
@@ -38,6 +41,7 @@ import {
   PAPERDOLL_BODY_PATH,
   PAPERDOLL_WORLD_RENDER_HEIGHT,
   PAPERDOLL_WORLD_RENDER_WIDTH,
+  createPaperdollGearSignature,
   drawPaperdollCharacterDirect,
   paperdollLayerPathsForLoadout,
   paperdollLoadoutFromEquipment,
@@ -59,6 +63,20 @@ import {
   resolveCharacterMotion,
   settleCharacterWalkCycle,
 } from "../character-motion";
+import {
+  ROOM_DOOR_VISUALS,
+  roomDoorAtlasClipSourceRect,
+  roomDoorAtlasFrameSourceRect,
+  roomDoorClipCanvasRect,
+} from "../room-door-visuals";
+import {
+  GAMEPLAY_VFX_MANIFEST,
+  drawGameplayVfxFrame,
+  loopingGameplayVfxProgress,
+  projectileVfxId,
+  type GameplayVfxId,
+} from "../augment-vfx";
+import { isLocalPvpShowcaseRequest } from "../pvp-showcase";
 import "./pvp.css";
 
 type PvpArenaProps = {
@@ -68,10 +86,126 @@ type PvpArenaProps = {
 type MatchFoundMessage = Extract<RealtimeServerMessage, { type: "match_found" }>;
 type MatchResultMessage = Extract<RealtimeServerMessage, { type: "match_result" }>;
 
-const ARENA_OBSTACLES = [
-  { x: 510, y: 360, radius: 66 },
-  { x: 770, y: 360, radius: 66 },
-] as const;
+const PVP_PLAYER_GROUND_OFFSET_Y = 8;
+const PVP_ROOM_VISUAL = ROOM_DOOR_VISUALS.roomElite;
+const PVP_ROOM_FRAME = roomDoorAtlasFrameSourceRect(0);
+const PVP_PROJECTILE_VFX = {
+  0: projectileVfxId("arcane"),
+  1: projectileVfxId("blood"),
+} as const satisfies Record<0 | 1, GameplayVfxId>;
+
+const PVP_SHOWCASE_PLAYER_ID = "local-pvp-showcase";
+const PVP_SHOWCASE_OPPONENT_ID = "opponent-pvp-showcase";
+
+const subscribeToLocalShowcaseLocation = () => () => undefined;
+const localPvpShowcaseServerSnapshot = () => false;
+const localPvpShowcaseBrowserSnapshot = () => {
+  if (typeof window === "undefined") return false;
+  return isLocalPvpShowcaseRequest(
+    new URLSearchParams(window.location.search).get("pvpShowcase"),
+    window.location.hostname,
+  );
+};
+
+const PVP_SHOWCASE_LOCAL_APPEARANCE = {
+  weapon: { slot: "weapon", variant: 3, rarity: "mythic", enhancement: 10 },
+  offhand: { slot: "offhand", variant: 3, rarity: "mythic", enhancement: 10 },
+  helm: { slot: "helm", variant: 3, rarity: "mythic", enhancement: 10 },
+  shoulders: { slot: "shoulders", variant: 3, rarity: "mythic", enhancement: 10 },
+  armor: { slot: "armor", variant: 3, rarity: "mythic", enhancement: 10 },
+  gloves: { slot: "gloves", variant: 3, rarity: "mythic", enhancement: 9 },
+  belt: { slot: "belt", variant: 3, rarity: "mythic", enhancement: 8 },
+  legs: { slot: "legs", variant: 3, rarity: "mythic", enhancement: 10 },
+  boots: { slot: "boots", variant: 3, rarity: "mythic", enhancement: 10 },
+  relic: { slot: "relic", variant: 3, rarity: "mythic", enhancement: 10 },
+} as const satisfies PvpAppearance;
+
+const PVP_SHOWCASE_OPPONENT_APPEARANCE = {
+  weapon: { slot: "weapon", variant: 9, rarity: "cosmic", enhancement: 10 },
+  offhand: { slot: "offhand", variant: 9, rarity: "cosmic", enhancement: 10 },
+  helm: { slot: "helm", variant: 9, rarity: "cosmic", enhancement: 10 },
+  shoulders: { slot: "shoulders", variant: 9, rarity: "cosmic", enhancement: 10 },
+  armor: { slot: "armor", variant: 9, rarity: "cosmic", enhancement: 10 },
+  gloves: { slot: "gloves", variant: 9, rarity: "cosmic", enhancement: 10 },
+  belt: { slot: "belt", variant: 9, rarity: "cosmic", enhancement: 10 },
+  legs: { slot: "legs", variant: 9, rarity: "cosmic", enhancement: 10 },
+  boots: { slot: "boots", variant: 9, rarity: "cosmic", enhancement: 10 },
+  relic: { slot: "relic", variant: 9, rarity: "cosmic", enhancement: 10 },
+} as const satisfies PvpAppearance;
+
+const PVP_SHOWCASE_MATCH: MatchFoundMessage = {
+  type: "match_found",
+  matchId: "local-pvp-showcase-match",
+  opponentName: "종언을 걷는 자",
+  side: 0,
+  startsAt: 0,
+  durationMs: 90_000,
+  scoreToWin: 3,
+};
+
+const PVP_SHOWCASE_SNAPSHOT: PvpSnapshot = {
+  type: "pvp_snapshot",
+  matchId: PVP_SHOWCASE_MATCH.matchId,
+  tick: 512,
+  serverTime: 0,
+  phase: "playing",
+  startsAt: 0,
+  remainingMs: 68_000,
+  winnerId: null,
+  balanceVersion: 3,
+  vitalityMultiplier: 1.38,
+  targetTtkSeconds: 4.5,
+  players: [
+    {
+      id: PVP_SHOWCASE_PLAYER_ID,
+      name: "이름 없는 기록자",
+      side: 0,
+      x: 430,
+      y: 390,
+      vx: 42,
+      vy: -8,
+      aimX: 1,
+      aimY: -0.12,
+      hp: 934,
+      maxHp: 1_120,
+      score: 2,
+      dashCooldownMs: 0,
+      respawnMs: 0,
+      connected: true,
+      lastInputSequence: 231,
+      buildRating: 6_639,
+      offenseScale: 1.42,
+      projectileDamage: 146,
+      appearance: PVP_SHOWCASE_LOCAL_APPEARANCE,
+    },
+    {
+      id: PVP_SHOWCASE_OPPONENT_ID,
+      name: "종언을 걷는 자",
+      side: 1,
+      x: 850,
+      y: 326,
+      vx: -36,
+      vy: 14,
+      aimX: -0.98,
+      aimY: 0.18,
+      hp: 781,
+      maxHp: 1_120,
+      score: 1,
+      dashCooldownMs: 420,
+      respawnMs: 0,
+      connected: true,
+      lastInputSequence: 227,
+      buildRating: 7_104,
+      offenseScale: 1.51,
+      projectileDamage: 151,
+      appearance: PVP_SHOWCASE_OPPONENT_APPEARANCE,
+    },
+  ],
+  projectiles: [
+    { id: 41, ownerId: PVP_SHOWCASE_PLAYER_ID, x: 618, y: 360, vx: 650, vy: -78, radius: 8 },
+    { id: 42, ownerId: PVP_SHOWCASE_OPPONENT_ID, x: 730, y: 346, vx: -642, vy: 102, radius: 8 },
+  ],
+};
 
 const clamp = (value: number, minimum: number, maximum: number) =>
   Math.max(minimum, Math.min(maximum, value));
@@ -118,9 +252,9 @@ function readLocalPvpBuildProfile(): PvpBuildProfile {
 }
 
 /**
- * Keeps the cosmetic path local: no GearItem, affix, combat stat, or save
- * payload is added to the realtime protocol. The opponent therefore renders
- * the common body until the server owns a dedicated slot -> variant allowlist.
+ * Converts the local save into the same renderer-only slot metadata accepted
+ * by the realtime allowlist. Gear identities, affixes, stats, and save payloads
+ * never leave this client.
  */
 function readLocalPvpPaperdollLoadout(): PaperdollLoadout {
   if (typeof window === "undefined") return {};
@@ -135,12 +269,21 @@ function readLocalPvpPaperdollLoadout(): PaperdollLoadout {
 }
 
 export default function PvpArena({ suggestedName }: PvpArenaProps) {
+  const localShowcase = useSyncExternalStore(
+    subscribeToLocalShowcaseLocation,
+    localPvpShowcaseBrowserSnapshot,
+    localPvpShowcaseServerSnapshot,
+  );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
   const equippedRarityVfxImagesRef = useRef<
     Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
   >({});
+  const projectileVfxImagesRef = useRef<
+    Partial<Record<GameplayVfxId, HTMLImageElement>>
+  >({});
   const snapshotRef = useRef<PvpSnapshot | null>(null);
+  const snapshotReceivedAtRef = useRef<number | null>(null);
   const playerIdRef = useRef<string | null>(null);
   const keysRef = useRef(new Set<string>());
   const aimRef = useRef({ x: PVP_ARENA_WIDTH / 2, y: PVP_ARENA_HEIGHT / 2 });
@@ -167,7 +310,34 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     useState<PaperdollLoadout>({});
   const [notice, setNotice] = useState("마지막 쉼터의 빌드를 읽고 적응형 생존력을 계산합니다.");
 
+  const activePlayerId = localShowcase ? PVP_SHOWCASE_PLAYER_ID : playerId;
+  const activeMatch = localShowcase ? PVP_SHOWCASE_MATCH : match;
+  const activeSnapshot = localShowcase ? PVP_SHOWCASE_SNAPSHOT : snapshot;
+  const activeLocalAppearance = localShowcase
+    ? PVP_SHOWCASE_LOCAL_APPEARANCE
+    : localPaperdollLoadout;
+  const appearanceSignature = [
+    createPaperdollGearSignature(activeLocalAppearance),
+    ...(activeSnapshot?.players.map((participant) =>
+      createPaperdollGearSignature(
+        sanitizePvpAppearance(participant.appearance),
+      ),
+    ) ?? []),
+  ].join("||");
+  const paperdollPathSignature = [
+    PAPERDOLL_BODY_PATH,
+    ...new Set([
+      ...paperdollLayerPathsForLoadout(activeLocalAppearance),
+      ...(activeSnapshot?.players.flatMap((participant) =>
+        paperdollLayerPathsForLoadout(
+          sanitizePvpAppearance(participant.appearance),
+        ),
+      ) ?? []),
+    ]),
+  ].join("|");
+
   useEffect(() => {
+    if (localShowcase || localPvpShowcaseBrowserSnapshot()) return;
     const frame = window.requestAnimationFrame(() => {
       const localName = getLocalDisplayName(suggestedName);
       setDisplayName(localName);
@@ -176,14 +346,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       setLocalPaperdollLoadout(readLocalPvpPaperdollLoadout());
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [suggestedName]);
+  }, [localShowcase, suggestedName]);
 
   useEffect(() => {
-    paperdollImagesRef.current.reconcile([
-      PAPERDOLL_BODY_PATH,
-      ...paperdollLayerPathsForLoadout(localPaperdollLoadout),
-    ]);
-  }, [localPaperdollLoadout]);
+    paperdollImagesRef.current.reconcile(paperdollPathSignature.split("|"));
+  }, [paperdollPathSignature]);
 
   useEffect(() => {
     let disposed = false;
@@ -213,6 +380,32 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     };
   }, []);
 
+  useEffect(() => {
+    let disposed = false;
+    const images = projectileVfxImagesRef.current;
+    const pending: HTMLImageElement[] = [];
+
+    for (const vfxId of Object.values(PVP_PROJECTILE_VFX)) {
+      const image = new Image();
+      image.decoding = "async";
+      image.onload = () => {
+        if (!disposed) images[vfxId] = image;
+      };
+      image.src = GAMEPLAY_VFX_MANIFEST[vfxId].assetPath;
+      pending.push(image);
+    }
+
+    return () => {
+      disposed = true;
+      for (const image of pending) {
+        image.onload = null;
+        image.onerror = null;
+        image.src = "";
+      }
+      projectileVfxImagesRef.current = {};
+    };
+  }, []);
+
   useEffect(
     () => {
       const paperdollImages = paperdollImagesRef.current;
@@ -222,6 +415,12 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   );
 
   useEffect(() => {
+    if (localShowcase || localPvpShowcaseBrowserSnapshot()) {
+      playerIdRef.current = PVP_SHOWCASE_PLAYER_ID;
+      snapshotRef.current = PVP_SHOWCASE_SNAPSHOT;
+      snapshotReceivedAtRef.current = performance.now();
+      return;
+    }
     const realtime = getRealtimeClient();
     const unsubscribe = realtime.subscribe((event) => {
       switch (event.type) {
@@ -250,6 +449,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           setNotice(`${event.opponentName}의 기억과 결투가 성립되었습니다.`);
           break;
         case "pvp_snapshot":
+          snapshotReceivedAtRef.current = performance.now();
           snapshotRef.current = event;
           setSnapshot(event);
           break;
@@ -266,19 +466,26 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
     }, suggestedName);
     return unsubscribe;
-  }, [suggestedName]);
+  }, [localShowcase, suggestedName]);
 
   useEffect(() => {
-    snapshotRef.current = snapshot;
-  }, [snapshot]);
+    snapshotRef.current = activeSnapshot;
+    if (localShowcase) {
+      playerIdRef.current = PVP_SHOWCASE_PLAYER_ID;
+      snapshotReceivedAtRef.current = performance.now();
+    } else if (!activeSnapshot) {
+      snapshotReceivedAtRef.current = null;
+    }
+  }, [activeSnapshot, localShowcase]);
 
   const enterQueue = useCallback(() => {
     setResult(null);
     setSnapshot(null);
     snapshotRef.current = null;
+    snapshotReceivedAtRef.current = null;
     setNotice("대전 상대의 기억 파장을 탐색하고 있습니다.");
-    getRealtimeClient().joinQueue(buildProfile);
-  }, [buildProfile]);
+    getRealtimeClient().joinQueue(buildProfile, activeLocalAppearance);
+  }, [activeLocalAppearance, buildProfile]);
 
   const cancelQueue = useCallback(() => {
     getRealtimeClient().cancelQueue();
@@ -329,11 +536,11 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
   }, []);
 
   useEffect(() => {
-    if (!match) return;
+    if (localShowcase || !activeMatch) return;
     const interval = window.setInterval(() => {
       const current = snapshotRef.current;
       const localId = playerIdRef.current;
-      if (!current || !localId || current.matchId !== match.matchId) return;
+      if (!current || !localId || current.matchId !== activeMatch.matchId) return;
       const localPlayer = current.players.find((player) => player.id === localId);
       const opponent = current.players.find((player) => player.id !== localId);
       if (!localPlayer) return;
@@ -372,22 +579,59 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       getRealtimeClient().sendPvpInput(input);
     }, Math.round(1_000 / PVP_INPUT_RATE_HZ));
     return () => window.clearInterval(interval);
-  }, [match]);
+  }, [activeMatch, localShowcase]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const context = canvas.getContext("2d");
     if (!context) return;
-    const localRarityVfxPlan = resolveEquippedRarityVfxPlan(
-      localPaperdollLoadout,
+    const roomAtlas = new Image();
+    roomAtlas.decoding = "async";
+    roomAtlas.src = PVP_ROOM_VISUAL.imagePath;
+    const fallbackRoom = new Image();
+    fallbackRoom.decoding = "async";
+    fallbackRoom.src = "/assets/maps/room-elite.webp";
+    const roomVignette = context.createRadialGradient(
+      PVP_ARENA_WIDTH / 2,
+      PVP_ARENA_HEIGHT / 2,
+      180,
+      PVP_ARENA_WIDTH / 2,
+      PVP_ARENA_HEIGHT / 2,
+      735,
     );
-    const background = new Image();
-    background.src = "/assets/maps/room-elite.webp";
+    roomVignette.addColorStop(0, "rgba(0,0,0,0)");
+    roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
+    roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
     const renderedPositions = new Map<
       string,
       { x: number; y: number; facing: number; walkCycle: number }
     >();
+    const renderedProjectiles = new Map<number, { x: number; y: number }>();
+    const rarityVfxPlans = new Map<
+      string,
+      ReturnType<typeof resolveEquippedRarityVfxPlan>
+    >();
+    const fallbackLocalAppearance = sanitizePvpAppearance(
+      activeLocalAppearance,
+    );
+    const appearanceByPlayerId = new Map<string, PvpAppearance>();
+    for (const player of snapshotRef.current?.players ?? []) {
+      const snapshotAppearance = sanitizePvpAppearance(player.appearance);
+      appearanceByPlayerId.set(
+        player.id,
+        Object.keys(snapshotAppearance).length > 0 ||
+          player.id !== playerIdRef.current
+          ? snapshotAppearance
+          : fallbackLocalAppearance,
+      );
+    }
+    for (const [participantId, appearance] of appearanceByPlayerId) {
+      rarityVfxPlans.set(
+        participantId,
+        resolveEquippedRarityVfxPlan(appearance),
+      );
+    }
     let animationFrame = 0;
     let canvasCssScale = 1;
     const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
@@ -410,50 +654,130 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
       Math.max(basePx, minimumCssPx / canvasCssScale);
 
-    const drawBackground = () => {
+    const appearanceForPlayer = (player: PvpPlayerSnapshot): PvpAppearance => {
+      return (
+        appearanceByPlayerId.get(player.id) ??
+        (player.id === playerIdRef.current ? fallbackLocalAppearance : {})
+      );
+    };
+    const rarityVfxPlanForPlayer = (player: PvpPlayerSnapshot) => {
+      return (
+        rarityVfxPlans.get(player.id) ??
+        resolveEquippedRarityVfxPlan(appearanceForPlayer(player))
+      );
+    };
+
+    const roomAtlasReady = () =>
+      roomAtlas.complete &&
+      roomAtlas.naturalWidth >= PVP_ROOM_FRAME.x + PVP_ROOM_FRAME.width &&
+      roomAtlas.naturalHeight >= PVP_ROOM_FRAME.y + PVP_ROOM_FRAME.height;
+
+    const drawBackground = (renderTime: number) => {
       context.fillStyle = "#07090d";
       context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
-      if (background.complete && background.naturalWidth > 0) {
-        context.globalAlpha = 0.78;
-        context.drawImage(background, 0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
-        context.globalAlpha = 1;
-      }
-      const gradient = context.createRadialGradient(640, 360, 80, 640, 360, 700);
-      gradient.addColorStop(0, "rgba(94, 28, 43, 0.04)");
-      gradient.addColorStop(0.68, "rgba(3, 5, 8, 0.18)");
-      gradient.addColorStop(1, "rgba(0, 0, 0, 0.72)");
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
-      context.strokeStyle = "rgba(218, 174, 103, 0.1)";
-      context.lineWidth = 1;
-      context.setLineDash([5, 12]);
-      context.beginPath();
-      context.moveTo(640, 115);
-      context.lineTo(640, 650);
-      context.stroke();
-      context.setLineDash([]);
-      for (const obstacle of ARENA_OBSTACLES) {
-        const aura = context.createRadialGradient(
-          obstacle.x,
-          obstacle.y,
-          obstacle.radius * 0.25,
-          obstacle.x,
-          obstacle.y,
-          obstacle.radius + 24,
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      if (roomAtlasReady()) {
+        context.drawImage(
+          roomAtlas,
+          PVP_ROOM_FRAME.x,
+          PVP_ROOM_FRAME.y,
+          PVP_ROOM_FRAME.width,
+          PVP_ROOM_FRAME.height,
+          0,
+          0,
+          PVP_ARENA_WIDTH,
+          PVP_ARENA_HEIGHT,
         );
-        aura.addColorStop(0, "rgba(7, 8, 12, 0.98)");
-        aura.addColorStop(0.72, "rgba(28, 18, 24, 0.94)");
-        aura.addColorStop(1, "rgba(184, 71, 91, 0)");
-        context.fillStyle = aura;
-        context.beginPath();
-        context.arc(obstacle.x, obstacle.y, obstacle.radius + 24, 0, Math.PI * 2);
-        context.fill();
-        context.strokeStyle = "rgba(214, 157, 99, 0.35)";
-        context.lineWidth = 2;
-        context.beginPath();
-        context.arc(obstacle.x, obstacle.y, obstacle.radius, 0, Math.PI * 2);
-        context.stroke();
+      } else if (
+        fallbackRoom.complete &&
+        fallbackRoom.naturalWidth > 0 &&
+        fallbackRoom.naturalHeight > 0
+      ) {
+        context.drawImage(
+          fallbackRoom,
+          0,
+          0,
+          PVP_ARENA_WIDTH,
+          PVP_ARENA_HEIGHT,
+        );
       }
+
+      context.save();
+      context.globalCompositeOperation = "soft-light";
+      context.globalAlpha = 0.07;
+      context.fillStyle = "#7e2527";
+      context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
+      context.restore();
+      context.fillStyle = roomVignette;
+      context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
+
+      const ambientTime = renderTime / 1_000;
+      context.save();
+      context.fillStyle = "#da7764";
+      for (let index = 0; index < 18; index += 1) {
+        const baseX = (211 + index * 379) % PVP_ARENA_WIDTH;
+        const baseY = (97 + index * 223) % PVP_ARENA_HEIGHT;
+        const drift = ambientTime * (5 + (index % 7));
+        const x =
+          (baseX + Math.sin(ambientTime * 0.43 + index) * 10 + PVP_ARENA_WIDTH) %
+          PVP_ARENA_WIDTH;
+        const y = (baseY - drift + PVP_ARENA_HEIGHT * 10) % PVP_ARENA_HEIGHT;
+        const edgeWeight = clamp(
+          Math.abs(x - PVP_ARENA_WIDTH / 2) / (PVP_ARENA_WIDTH / 2),
+          0.18,
+          1,
+        );
+        context.globalAlpha =
+          (0.04 + 0.12 * Math.sin(ambientTime * 0.8 + index) ** 2) *
+          edgeWeight;
+        context.beginPath();
+        context.arc(x, y, 0.8 + (index % 3) * 0.55, 0, Math.PI * 2);
+        context.fill();
+      }
+      context.restore();
+    };
+
+    const drawSouthDoorForeground = () => {
+      if (!roomAtlasReady()) return;
+      const clip = PVP_ROOM_VISUAL.doorwayClips.south;
+      const source = roomDoorAtlasClipSourceRect(0, clip);
+      const destination = roomDoorClipCanvasRect(
+        clip,
+        PVP_ARENA_WIDTH,
+        PVP_ARENA_HEIGHT,
+      );
+      context.save();
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        roomAtlas,
+        source.x,
+        source.y,
+        source.width,
+        source.height,
+        destination.x,
+        destination.y,
+        destination.width,
+        destination.height,
+      );
+      context.beginPath();
+      context.rect(
+        destination.x,
+        destination.y,
+        destination.width,
+        destination.height,
+      );
+      context.clip();
+      context.globalCompositeOperation = "soft-light";
+      context.globalAlpha = 0.07;
+      context.fillStyle = "#7e2527";
+      context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
+      context.globalCompositeOperation = "source-over";
+      context.globalAlpha = 1;
+      context.fillStyle = roomVignette;
+      context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
+      context.restore();
     };
 
     const drawPlayer = (
@@ -502,24 +826,39 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       const alpha = player.respawnMs > 0 ? 0.3 : 1;
       context.save();
       context.globalAlpha = alpha;
-      const aura = context.createRadialGradient(
-        rendered.x,
-        rendered.y + 14,
-        4,
-        rendered.x,
-        rendered.y + 14,
-        48,
-      );
-      aura.addColorStop(0, `${accent}70`);
-      aura.addColorStop(1, `${accent}00`);
-      context.fillStyle = aura;
+      const movementSpeed = Math.hypot(player.vx, player.vy);
+      if (movementSpeed > 420) {
+        const dashLength = clamp(movementSpeed * 0.095, 46, 92);
+        const dashAngle = Math.atan2(player.vy, player.vx);
+        const dashTrail = context.createLinearGradient(
+          rendered.x - Math.cos(dashAngle) * dashLength,
+          rendered.y - Math.sin(dashAngle) * dashLength,
+          rendered.x,
+          rendered.y,
+        );
+        dashTrail.addColorStop(0, `${accent}00`);
+        dashTrail.addColorStop(0.72, `${accent}42`);
+        dashTrail.addColorStop(1, `${accent}a8`);
+        context.strokeStyle = dashTrail;
+        context.lineWidth = 18;
+        context.lineCap = "round";
+        context.shadowColor = accent;
+        context.shadowBlur = 16;
+        context.beginPath();
+        context.moveTo(
+          rendered.x - Math.cos(dashAngle) * dashLength,
+          rendered.y - Math.sin(dashAngle) * dashLength,
+        );
+        context.lineTo(rendered.x, rendered.y);
+        context.stroke();
+        context.shadowBlur = 0;
+      }
+      context.fillStyle = "rgba(0,0,0,.55)";
       context.beginPath();
-      context.ellipse(rendered.x, rendered.y + 18, 47, 25, 0, 0, Math.PI * 2);
+      context.ellipse(rendered.x, rendered.y + 18, 28, 12, 0, 0, Math.PI * 2);
       context.fill();
       const bodyAtlas = paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH);
-      const appearance =
-        player.id === playerIdRef.current ? localPaperdollLoadout : {};
-      const isLocalPlayer = player.id === playerIdRef.current;
+      const appearance = appearanceForPlayer(player);
       if (
         bodyAtlas?.complete &&
         bodyAtlas.naturalWidth > 0 &&
@@ -534,23 +873,22 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           direction: rendered.facing,
           frame,
           x: rendered.x,
-          // Match the legacy cell's authored foot baseline (top y-79,
-          // bottom y+39) while keeping the exact 256:192 aspect.
-          y: rendered.y + 34,
+          // Expedition and PvP share the same collision-foot baseline.
+          y: rendered.y + PVP_PLAYER_GROUND_OFFSET_Y,
           width: PAPERDOLL_WORLD_RENDER_WIDTH,
           height: PAPERDOLL_WORLD_RENDER_HEIGHT,
         });
-        if (appearanceDrawn && isLocalPlayer) {
+        if (appearanceDrawn) {
           context.shadowBlur = 0;
           context.shadowColor = "transparent";
           drawEquippedRarityVfx(context, {
-            plan: localRarityVfxPlan,
+            plan: rarityVfxPlanForPlayer(player),
             images: equippedRarityVfxImagesRef.current,
             direction: rendered.facing,
             frame,
             timeMs: renderTime,
             x: rendered.x,
-            y: rendered.y + 34,
+            y: rendered.y + PVP_PLAYER_GROUND_OFFSET_Y,
             width: PAPERDOLL_WORLD_RENDER_WIDTH,
             height: PAPERDOLL_WORLD_RENDER_HEIGHT,
             context: "combat",
@@ -598,33 +936,112 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           ? 0
           : Math.min(0.1, Math.max(0, (renderTime - previousRenderTime) / 1_000));
       previousRenderTime = renderTime;
-      drawBackground();
+      drawBackground(renderTime);
       const current = snapshotRef.current;
       if (current) {
+        const currentProjectileIds = new Set<number>();
+        const snapshotLeadSeconds =
+          current.serverTime > 0 && snapshotReceivedAtRef.current !== null
+            ? clamp(
+                (renderTime - snapshotReceivedAtRef.current) / 1_000,
+                0,
+                0.11,
+              )
+            : 0;
         for (const projectile of current.projectiles) {
-          const accent =
-            current.players.find((player) => player.id === projectile.ownerId)?.side === 0
-              ? "#71e8ff"
-              : "#ff637e";
+          currentProjectileIds.add(projectile.id);
+          const owner = current.players.find(
+            (player) => player.id === projectile.ownerId,
+          );
+          const side = owner?.side ?? 0;
+          const accent = side === 0 ? "#71e8ff" : "#ff637e";
+          const targetX = projectile.x + projectile.vx * snapshotLeadSeconds;
+          const targetY = projectile.y + projectile.vy * snapshotLeadSeconds;
+          const rendered = renderedProjectiles.get(projectile.id) ?? {
+            x: targetX,
+            y: targetY,
+          };
+          const interpolation =
+            elapsedSeconds > 0 ? 1 - Math.exp(-elapsedSeconds * 24) : 1;
+          rendered.x += (targetX - rendered.x) * interpolation;
+          rendered.y += (targetY - rendered.y) * interpolation;
+          renderedProjectiles.set(projectile.id, rendered);
+          const speed = Math.max(1, Math.hypot(projectile.vx, projectile.vy));
+          const angle = Math.atan2(projectile.vy, projectile.vx);
+          const tailLength = 34 + projectile.radius * 3.2;
           context.save();
-          context.strokeStyle = `${accent}90`;
-          context.lineWidth = projectile.radius * 1.25;
+          const trail = context.createLinearGradient(
+            rendered.x - (projectile.vx / speed) * tailLength,
+            rendered.y - (projectile.vy / speed) * tailLength,
+            rendered.x,
+            rendered.y,
+          );
+          trail.addColorStop(0, `${accent}00`);
+          trail.addColorStop(0.52, `${accent}32`);
+          trail.addColorStop(1, `${accent}d8`);
+          context.globalCompositeOperation = "lighter";
+          context.strokeStyle = trail;
+          context.lineWidth = projectile.radius * 1.18;
           context.lineCap = "round";
           context.shadowColor = accent;
-          context.shadowBlur = 18;
+          context.shadowBlur = 14;
           context.beginPath();
-          context.moveTo(projectile.x - projectile.vx * 0.025, projectile.y - projectile.vy * 0.025);
-          context.lineTo(projectile.x, projectile.y);
+          context.moveTo(
+            rendered.x - (projectile.vx / speed) * tailLength,
+            rendered.y - (projectile.vy / speed) * tailLength,
+          );
+          context.lineTo(rendered.x, rendered.y);
           context.stroke();
-          context.fillStyle = "#fff8df";
-          context.beginPath();
-          context.arc(projectile.x, projectile.y, projectile.radius * 0.55, 0, Math.PI * 2);
-          context.fill();
           context.restore();
+
+          const vfxId = PVP_PROJECTILE_VFX[side];
+          const definition = GAMEPLAY_VFX_MANIFEST[vfxId];
+          const authoredDrawn = drawGameplayVfxFrame(
+            context,
+            projectileVfxImagesRef.current[vfxId],
+            definition,
+            {
+              x: rendered.x,
+              y: rendered.y,
+              size: projectile.radius,
+              progress: loopingGameplayVfxProgress(
+                renderTime / 1_000 + projectile.id * 0.037,
+                definition,
+              ),
+              angle,
+              frameOffset: projectile.id,
+              interpolateFrames: true,
+            },
+          );
+          if (!authoredDrawn) {
+            context.save();
+            context.translate(rendered.x, rendered.y);
+            context.rotate(angle);
+            context.globalCompositeOperation = "lighter";
+            context.fillStyle = accent;
+            context.shadowColor = accent;
+            context.shadowBlur = 16;
+            context.beginPath();
+            context.moveTo(projectile.radius * 2.1, 0);
+            context.lineTo(-projectile.radius * 0.6, projectile.radius);
+            context.lineTo(-projectile.radius * 1.5, 0);
+            context.lineTo(-projectile.radius * 0.6, -projectile.radius);
+            context.closePath();
+            context.fill();
+            context.restore();
+          }
         }
-        for (const player of current.players) {
+        for (const projectileId of renderedProjectiles.keys()) {
+          if (!currentProjectileIds.has(projectileId)) {
+            renderedProjectiles.delete(projectileId);
+          }
+        }
+        for (const player of [...current.players].sort(
+          (left, right) => left.y - right.y || left.side - right.side,
+        )) {
           drawPlayer(player, elapsedSeconds, renderTime);
         }
+        drawSouthDoorForeground();
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";
@@ -636,7 +1053,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
           context.shadowBlur = 0;
           context.font = `800 ${readableCanvasFontSize(12, 10)}px Pretendard, sans-serif`;
           context.letterSpacing = "0.32em";
-          context.fillText("MEMORY DUEL", 640, 370);
+          context.fillText("기억 결투", 640, 370);
         }
       }
       animationFrame = window.requestAnimationFrame(render);
@@ -645,8 +1062,14 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     return () => {
       canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
+      roomAtlas.onload = null;
+      roomAtlas.onerror = null;
+      fallbackRoom.onload = null;
+      fallbackRoom.onerror = null;
+      roomAtlas.src = "";
+      fallbackRoom.src = "";
     };
-  }, [localPaperdollLoadout, result?.matchId, snapshot?.matchId]);
+  }, [activeLocalAppearance, appearanceSignature, result?.matchId, activeSnapshot?.matchId]);
 
   const handleAim = (event: ReactPointerEvent<HTMLCanvasElement>) => {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -658,16 +1081,41 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     mobileMoveRef.current = { x, y };
   };
 
-  const localPlayer = snapshot?.players.find((player) => player.id === playerId) ?? null;
-  const opponent = snapshot?.players.find((player) => player.id !== playerId) ?? null;
+  const localPlayer =
+    activeSnapshot?.players.find(
+      (participant) => participant.id === activePlayerId,
+    ) ?? null;
+  const opponent =
+    activeSnapshot?.players.find(
+      (participant) => participant.id !== activePlayerId,
+    ) ?? null;
   const localBuildRating = calculatePvpBuildRating(buildProfile);
   const localOffenseScale = calculatePvpOffenseScale(buildProfile);
-  const matchActive = Boolean(match && snapshot && snapshot.phase !== "finished");
-  const didWin = Boolean(result && result.winnerId && result.winnerId === playerId);
+  const matchActive = Boolean(
+    activeMatch && activeSnapshot && activeSnapshot.phase !== "finished",
+  );
+  const matchView = matchActive || Boolean(result);
+  const didWin = Boolean(
+    result && result.winnerId && result.winnerId === activePlayerId,
+  );
   const isDraw = Boolean(result && result.winnerId === null);
+  const localGearCount = Object.keys(
+    sanitizePvpAppearance(localPlayer?.appearance ?? activeLocalAppearance),
+  ).length;
+  const opponentGearCount = Object.keys(
+    sanitizePvpAppearance(opponent?.appearance),
+  ).length;
 
   return (
-    <main className={`pvp-screen is-${connection}`}>
+    <main
+      className={`pvp-screen is-${localShowcase ? "online" : connection}${
+        matchView ? " is-match-view" : ""
+      }`}
+      data-pvp-view={matchView ? "match" : "lobby"}
+      data-pvp-showcase={localShowcase ? "match" : undefined}
+      data-pvp-local-gear-count={localGearCount}
+      data-pvp-opponent-gear-count={opponentGearCount}
+    >
       <div className="pvp-backdrop" aria-hidden="true" />
       <header className="pvp-navigation">
         <Link href="/?town=1" className="pvp-back-link">← 기억 광장으로</Link>
@@ -770,13 +1218,13 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
               <span>HP {Math.ceil(localPlayer?.hp ?? 0)}/{Math.ceil(localPlayer?.maxHp ?? 0)} · 화력 ×{(localPlayer?.offenseScale ?? 1).toFixed(2)}</span>
             </article>
             <div className="pvp-scoreboard">
-              <small>{snapshot?.phase === "countdown" ? "결투 동기화" : "3킬 선취"}</small>
+              <small>{activeSnapshot?.phase === "countdown" ? "결투 동기화" : "3킬 선취"}</small>
               <strong><b>{localPlayer?.score ?? 0}</b><i>:</i><b>{opponent?.score ?? 0}</b></strong>
-              <span>{formatClock(snapshot?.remainingMs ?? 90_000)} · 생존력 ×{(snapshot?.vitalityMultiplier ?? 1).toFixed(2)} · {ping ?? "--"}ms</span>
+              <span>{formatClock(activeSnapshot?.remainingMs ?? 90_000)} · 생존력 ×{(activeSnapshot?.vitalityMultiplier ?? 1).toFixed(2)} · {localShowcase ? "LOCAL QA" : `${ping ?? "--"}ms`}</span>
             </div>
             <article className="pvp-combatant is-opponent">
               <small>상대 기억</small>
-              <strong>{opponent?.name ?? match?.opponentName ?? "상대 탐색 중"}</strong>
+              <strong>{opponent?.name ?? activeMatch?.opponentName ?? "상대 탐색 중"}</strong>
               <div><i style={{ width: `${clamp(((opponent?.hp ?? 0) / (opponent?.maxHp || 100)) * 100, 0, 100)}%` }} /></div>
               <span>{opponent?.connected === false ? "재접속 대기 중" : `HP ${Math.ceil(opponent?.hp ?? 0)}/${Math.ceil(opponent?.maxHp ?? 0)} · 화력 ×${(opponent?.offenseScale ?? 1).toFixed(2)}`}</span>
             </article>
