@@ -1,0 +1,123 @@
+{
+  "asset": "inventory-enhancement-button-v1",
+  "version": 1,
+  "builder": "scripts/build_inventory_enhancement_button_v1.py",
+  "inputs": [
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-source.png",
+      "sha256": "1a28f64e045768ba4c7eb19d9a4f98f98f2afa8128e0e55751baa28a7f0d2fc5",
+      "bytes": 1041415,
+      "size": [
+        1462,
+        1076
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-keyed.png",
+      "sha256": "0e76af46c66b9e2692398f44414bc33aa9ab627823e407f39a9154e3c37a8bbd",
+      "bytes": 229325,
+      "size": [
+        1462,
+        1076
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1.prompt.json",
+      "sha256": "d286250ea16d906fbee5afed700b9e088fbb8f508ae858ebc2564efb361b0a13",
+      "bytes": 6250
+    },
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-problem-reference.png",
+      "sha256": "39964a16dfd0c37d212be622564b1fb23bf8d5c6be8dbbebb499c5f979cd4449",
+      "bytes": 103419,
+      "size": [
+        655,
+        122
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "public/assets/ui/inventory-chrome/primary-button.png",
+      "sha256": "c01db2014a4f2a69cbc90b545faf16a6a5bc121f5d6bee2b74af0f9e52183e2c",
+      "bytes": 119821,
+      "size": [
+        431,
+        197
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-draft-1.png",
+      "sha256": "75a1f3e4b2d5b2c9ca547ce6ef5bb2047824d17de4f3fcc20994ca826b18b2c7",
+      "bytes": 1207812,
+      "size": [
+        1402,
+        1122
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-draft-2.png",
+      "sha256": "5c17794c2f477571414f825cf03ba0a792b8bbf9594a03b6256ed955ba69fae3",
+      "bytes": 1081370,
+      "size": [
+        1402,
+        1122
+      ],
+      "mode": "RGB"
+    }
+  ],
+  "pipeline": {
+    "generator": "built-in image_gen",
+    "chromaRemoval": "remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill",
+    "alphaThreshold": 4,
+    "transparentGutterPixels": 2,
+    "resampling": "none; native-ratio crop",
+    "zeroAlphaRgbCleared": true
+  },
+  "qa": {
+    "sourceAlphaBox": [
+      15,
+      485,
+      1446,
+      592
+    ],
+    "sourceVisibleAspect": 13.3738,
+    "cropBox": [
+      13,
+      483,
+      1448,
+      594
+    ],
+    "productionAlphaBox": [
+      2,
+      2,
+      1433,
+      109
+    ],
+    "transparentCornerAlpha": [
+      0,
+      0,
+      0,
+      0
+    ],
+    "greenFringePixels": 0
+  },
+  "outputs": [
+    {
+      "path": "public/assets/ui/inventory-chrome/enhancement-button-v1.png",
+      "sha256": "bd8c405f8cb8f4bd7ad6848b2cb17e35671320efadefbf9457494d632de41176",
+      "bytes": 214878,
+      "size": [
+        1435,
+        111
+      ],
+      "mode": "RGBA",
+      "role": "native ultra-wide inventory enhancement action plate",
+      "cssConsumer": ".inventory-screen-enhancement-button::before",
+      "renderMode": "dedicated 9-slice background"
+    }
+  ]
+}

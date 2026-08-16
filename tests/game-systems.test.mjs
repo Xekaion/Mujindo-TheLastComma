@@ -9846,3 +9846,71 @@ test("tight inventory chrome and control assets keep safe alpha margins and indi
     "the unified serif override must win over the legacy close-icon font",
   );
 });
+
+test("the enhancement workbench uses a native ultra-wide plate instead of stretching general button chrome", async () => {
+  const assetPath = "public/assets/ui/inventory-chrome/enhancement-button-v1.png";
+  const reportPath = "public/assets/ui/inventory-chrome/enhancement-button-v1.build.json";
+  const promptPath = "asset-sources/imagegen/inventory-enhancement-button-v1.prompt.json";
+  const [png, css, reportSource, promptSource] = await Promise.all([
+    readFile(path.join(root, assetPath)),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, reportPath), "utf8"),
+    readFile(path.join(root, promptPath), "utf8"),
+  ]);
+  const image = decodeRgbaPng(png, assetPath);
+  const report = JSON.parse(reportSource);
+  const prompt = JSON.parse(promptSource);
+
+  assert.deepEqual([image.width, image.height], [1435, 111]);
+  const metrics = alphaCellMetrics(image, 0, 0, 1, 1, assetPath);
+  assert.ok(
+    metrics.width / metrics.height >= 13 && metrics.width / metrics.height <= 14,
+    `authored plaque aspect is ${(metrics.width / metrics.height).toFixed(3)}:1`,
+  );
+  for (const side of ["left", "right", "top", "bottom"]) {
+    assert.ok(metrics[side] >= 2, `${assetPath} clips its ${side} edge`);
+    assert.ok(metrics[side] <= 4, `${assetPath} has a loose ${side} gutter`);
+  }
+
+  let hiddenRgbPixels = 0;
+  let greenFringePixels = 0;
+  for (let offset = 0; offset < image.pixels.length; offset += 4) {
+    const red = image.pixels[offset];
+    const green = image.pixels[offset + 1];
+    const blue = image.pixels[offset + 2];
+    const alpha = image.pixels[offset + 3];
+    if (alpha === 0 && (red !== 0 || green !== 0 || blue !== 0)) hiddenRgbPixels += 1;
+    if (alpha >= 16 && green - red >= 48 && green - blue >= 48) greenFringePixels += 1;
+  }
+  assert.equal(hiddenRgbPixels, 0, "transparent pixels must not retain hidden RGB");
+  assert.equal(greenFringePixels, 0, "the chroma-key source must not leave a green fringe");
+
+  assert.equal(prompt.asset, "inventory-enhancement-button-v1");
+  assert.equal(prompt.tool, "built-in image_gen");
+  assert.equal(prompt.prompts.length, 3);
+  assert.equal(report.asset, prompt.asset);
+  assert.equal(report.pipeline.resampling, "none; native-ratio crop");
+  assert.equal(report.qa.greenFringePixels, 0);
+  assert.equal(report.outputs[0].path, assetPath);
+  assert.equal(
+    report.outputs[0].sha256,
+    createHash("sha256").update(png).digest("hex"),
+    "the QA report must describe the shipped PNG exactly",
+  );
+
+  const sharedPrimaryIndex = css.lastIndexOf(
+    'border-image: url("/assets/ui/inventory-chrome/primary-button.png")',
+  );
+  const dedicatedEnhancementIndex = css.lastIndexOf(
+    'border-image: url("/assets/ui/inventory-chrome/enhancement-button-v1.png")',
+  );
+  assert.ok(sharedPrimaryIndex >= 0, "the general equip button must retain its primary plate");
+  assert.ok(
+    dedicatedEnhancementIndex > sharedPrimaryIndex,
+    "the dedicated enhancement plate must override the general primary plate",
+  );
+  assert.match(
+    css,
+    /\.inventory-screen-enhancement-button::before\s*\{\s*border-image:\s*url\("\/assets\/ui\/inventory-chrome\/enhancement-button-v1\.png"\)\s+27%\s+4%\s+27%\s+4%\s+fill\s*\/\s*10px\s+13px\s*\/\s*0\s+stretch;/,
+  );
+});

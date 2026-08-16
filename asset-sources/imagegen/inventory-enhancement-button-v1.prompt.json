@@ -1,0 +1,35 @@
+{
+  "asset": "inventory-enhancement-button-v1",
+  "version": 1,
+  "tool": "built-in image_gen",
+  "workflow": "generate, then two single-change precise-object-edit refinements",
+  "references": [
+    {
+      "path": "asset-sources/imagegen/inventory-enhancement-button-v1-problem-reference.png",
+      "role": "geometry and visible stretching problem reference"
+    },
+    {
+      "path": "public/assets/ui/inventory-chrome/primary-button.png",
+      "role": "gothic material and ornament style reference"
+    }
+  ],
+  "prompts": [
+    {
+      "stage": "generate",
+      "source": "asset-sources/imagegen/inventory-enhancement-button-v1-draft-1.png",
+      "text": "Use case: stylized-concept\nAsset type: production game UI asset — inventory enhancement button background\nInput images: Image 1 is geometry/problem reference only; match its ultra-wide shallow button footprint but do not copy its stretched texture or any text. Image 2 is style/material reference only; preserve the dark early-2000s gothic ARPG bronze-and-black visual language.\nPrimary request: create a completely new, coherent ultra-wide horizontal enhancement-workbench button plaque at an exact visual aspect ratio of roughly 12.5:1. It must be authored natively at this wide ratio, never look like a short panel stretched sideways.\nScene/backdrop: perfectly flat solid #00FF00 chroma-key background for later removal; no shadows, gradients, texture, reflection, floor plane, or lighting variation in the green.\nSubject: one centered dark forged-iron and aged-bronze button plaque, with crisp symmetrical end caps, slender double-line bronze border, restrained tiny central crest at the top and bottom, and a continuous finely detailed dark leather/hammered-metal inner field. The long center texture must contain natural-scale non-repeating grain and subtle rune scratches across the full width.\nStyle/medium: high-detail painted 2D gothic ARPG UI, Diablo-era atmosphere, physically coherent metal and leather, sharp production-ready game asset.\nComposition/framing: the plaque is fully visible, perfectly horizontal, extremely wide and shallow; centered with even green padding on all sides. Target plaque dimensions within the canvas equivalent to 1400 by 112 pixels. Keep ornaments thin so they do not reduce the text-safe center.\nLighting/mood: restrained warm bronze edge highlights, dark sober interior, legible against black-teal inventory UI.\nColor palette: near-black, charred brown, antique bronze, subtle muted teal pinpoints only; do not use bright red, magenta, blue flame, or gold bloom.\nText-safe area: leave the middle 78% width and 55% height visually quiet for live CSS text.\nConstraints: no text, no letters, no numbers, no logos, no watermark; no giant gemstone; no cropped corners; no detached ornaments; no repeated mirrored texture seam in the center; no perspective tilt; no bevel that makes the button overly thick. The green background must be exactly uniform and must not appear inside the plaque."
+    },
+    {
+      "stage": "refine-height",
+      "source": "asset-sources/imagegen/inventory-enhancement-button-v1-draft-2.png",
+      "text": "Use case: precise-object-edit\nAsset type: production game UI asset — ultra-wide inventory enhancement button background\nInput image: Image 1 is the edit target.\nPrimary request: change only the plaque's vertical proportions. Make the complete plaque much thinner and shallower while keeping its full current width, so the plaque itself has an exact visual aspect ratio near 12.5:1 (approximately 1400 pixels wide by 112 pixels tall). Compress/redesign the border, end caps, inner field, top crest, and bottom crest as newly authored thin ornaments; do not merely scale the current artwork vertically.\nPreserve: the dark forged-iron, aged-bronze and leather material language; continuous natural-scale center grain; symmetry; fully visible uncropped ends; perfectly horizontal alignment.\nComposition: keep the thin plaque centered on the same perfectly flat solid #00FF00 chroma-key background with generous even padding.\nText-safe area: keep the middle 78% width and 55% height calm and unobstructed.\nConstraints: no text, letters, numbers, logos, watermark, gemstones, glow, detached pieces, perspective, repeated texture seams, cropped ornaments, or green inside the plaque. The green backdrop must remain one exact uniform color with no shadow, gradient, texture, reflection, or lighting variation.\nCritical invariant: full plaque width stays approximately the same; finished plaque height must be less than half the current plaque height and must visually match the ultra-wide shallow ratio in the screenshot reference."
+    },
+    {
+      "stage": "final-native-ratio",
+      "source": "asset-sources/imagegen/inventory-enhancement-button-v1-source.png",
+      "text": "Use case: precise-object-edit\nAsset type: production game UI asset — inventory enhancement button background\nInput image: Image 1 is the edit target.\nPrimary request: keep the full width and all material/detail quality, but redesign the plaque one final step thinner so its complete visible bounding box, including every ornament, is approximately 1360 pixels wide by 100 pixels tall (about 13.6:1).\nChange only vertical geometry: flatten the end caps and integrate the small top/bottom center crests fully inside the 100-pixel total height. Re-author their proportions cleanly; do not mechanically squash the existing pixels.\nPreserve: uninterrupted natural-scale dark leather grain across the full width, antique bronze double border, symmetric ends, centered alignment, generous quiet text-safe center, no seams.\nBackdrop: retain the perfectly flat uniform #00FF00 chroma background with padding.\nConstraints: no text, letters, numbers, logos, watermark, gemstones, glow, detached pieces, cropped corners, perspective, green inside the plaque, shadows or gradients on the green. The final plaque must be extremely wide, shallow, and authored at its target proportions—not a visibly stretched shorter panel."
+    }
+  ],
+  "selectedSource": "asset-sources/imagegen/inventory-enhancement-button-v1-source.png",
+  "keyedSource": "asset-sources/imagegen/inventory-enhancement-button-v1-keyed.png"
+}

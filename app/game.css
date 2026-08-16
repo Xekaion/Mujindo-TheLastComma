@@ -9975,6 +9975,13 @@ button.equipment-slot-card:hover {
   transform: none;
 }
 
+/* Enhancement owns a native ultra-wide plate. The general primary control is
+   intentionally shorter and made its grain and crest look horizontally pulled
+   apart when the workbench action filled a wide detail column. */
+.inventory-screen-enhancement-button::before {
+  border-image: url("/assets/ui/inventory-chrome/enhancement-button-v1.png") 27% 4% 27% 4% fill / 10px 13px / 0 stretch;
+}
+
 .inventory-screen-salvage-button::before,
 .inventory-screen-unequip-button::before,
 .inventory-screen-batch-salvage-button::before {
