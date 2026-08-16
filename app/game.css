@@ -10434,14 +10434,13 @@ button.equipment-slot-card:hover {
   pointer-events: none;
 }
 
-/* Fixed structural frame contract V6 ------------------------------------
+/* Fixed structural slot-frame contract V6 -------------------------------
    rarity-frames-v6.png contains eight equal 320px cells whose outer painted
    bounds are all 304px and share the same centre. This non-animated layer is
-   the single source of slot geometry for every rarity and every inventory
-   presentation; the animated layers stay behind it as light only. */
+   the single source of square slot geometry. Variable-height tooltips use the
+   panel compositor below so none of these square cells are stretched. */
 .inventory-screen-equipment-card:not(.inventory-screen-equipment-card--empty)::before,
-.inventory-screen-grid-item::before,
-.inventory-screen-tooltip-crest::after {
+.inventory-screen-grid-item::before {
   position: absolute;
   z-index: 4;
   inset: -2.632%;
@@ -11088,14 +11087,10 @@ button.equipment-slot-card:hover {
   box-shadow: inset 0 0 18px rgba(255, 100, 59, 0.12), 0 0 17px rgba(176, 48, 27, 0.18);
 }
 
-/* Tooltips use scalable panel chrome and a CSS glow, never a stretched slot
-   frame or animated slot aura. */
+/* Legacy generic tooltip chrome is retired by the rarity panel compositor. */
 .inventory-screen-tooltip::before {
-  inset: 0;
-  border: 18px solid transparent;
-  border-image: url("/assets/ui/gothic-nine-slice-frame-v2.png") 16% / 18px 16px / 0 round;
-  background: none;
-  background-image: none;
+  display: none;
+  content: none;
 }
 
 .inventory-screen-tooltip--rare::after,
@@ -11103,15 +11098,9 @@ button.equipment-slot-card:hover {
 .inventory-screen-tooltip--legendary::after,
 .inventory-screen-tooltip--mythic::after,
 .inventory-screen-tooltip--cosmic::after {
-  position: absolute;
-  z-index: 0;
-  inset: -5px;
-  content: "";
-  border: 1px solid currentColor;
-  background: none;
-  background-image: none;
-  filter: none;
-  pointer-events: none;
+  display: none;
+  content: none;
+  animation: none;
 }
 
 .inventory-screen-tooltip--rare::after {
@@ -11915,11 +11904,6 @@ button.equipment-slot-card:hover {
   animation: none;
 }
 
-.inventory-screen-tooltip-crest > .inventory-screen-rarity-aura {
-  z-index: 2;
-  opacity: 1;
-}
-
 .inventory-screen-tooltip-crest > .inventory-screen-gear-icon {
   position: relative;
   z-index: 3;
@@ -11936,17 +11920,15 @@ button.equipment-slot-card:hover {
   position: absolute;
   z-index: 0;
   inset: 0;
-  border: 1px solid color-mix(in srgb, var(--inventory-rarity) 33%, #252822 67%);
-  border-radius: 2px;
+  border: 0;
   content: "";
   pointer-events: none;
-  background:
-    radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--inventory-rarity) 10%, transparent), transparent 56%),
-    linear-gradient(145deg, rgba(255, 240, 204, 0.035), transparent 42%),
-    rgb(3, 5, 6);
-  box-shadow:
-    inset 0 0 18px rgba(0, 0, 0, 0.66),
-    inset 0 0 0 1px rgba(241, 216, 161, 0.025);
+  background: radial-gradient(
+    circle at 50% 50%,
+    color-mix(in srgb, var(--inventory-rarity) 12%, rgba(0, 0, 0, 0.18)),
+    transparent 68%
+  );
+  box-shadow: none;
 }
 
 .inventory-screen-tooltip.inventory-screen-rarity--rare .inventory-screen-tooltip-crest,
@@ -11980,6 +11962,93 @@ button.equipment-slot-card:hover {
     animation: none;
     will-change: auto;
   }
+}
+
+/* Tooltip rarity panel compositor V1 ------------------------------------
+   InventoryTooltipChrome draws the authored square atlases as fixed corners,
+   fixed cardinal crests, and native-aspect tiled rail fragments. The canvas
+   hugs the variable tooltip boundary; it never scales one square frame across
+   the panel and never places a second rarity frame around the item icon. */
+.inventory-screen-tooltip {
+  isolation: isolate;
+}
+
+.inventory-screen-tooltip > .inventory-screen-tooltip-chrome {
+  position: absolute;
+  z-index: 3;
+  inset: -26px;
+  display: block;
+  width: calc(100% + 52px);
+  height: calc(100% + 52px);
+  max-width: none;
+  max-height: none;
+  opacity: 1;
+  filter:
+    saturate(1.04)
+    drop-shadow(0 0 4px color-mix(in srgb, var(--inventory-rarity) 46%, transparent))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+  pointer-events: none;
+}
+
+.inventory-screen-tooltip--rare > .inventory-screen-tooltip-chrome {
+  filter:
+    brightness(1.07)
+    saturate(1.1)
+    drop-shadow(0 0 7px rgba(255, 215, 91, 0.55))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+}
+
+.inventory-screen-tooltip--epic > .inventory-screen-tooltip-chrome {
+  filter:
+    brightness(1.08)
+    saturate(1.12)
+    drop-shadow(0 0 9px rgba(195, 103, 255, 0.62))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+}
+
+.inventory-screen-tooltip--legendary > .inventory-screen-tooltip-chrome {
+  filter:
+    brightness(1.12)
+    saturate(1.16)
+    drop-shadow(0 0 10px rgba(255, 102, 30, 0.72))
+    drop-shadow(0 0 22px rgba(255, 73, 15, 0.33))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+}
+
+.inventory-screen-tooltip--mythic > .inventory-screen-tooltip-chrome {
+  filter:
+    brightness(1.13)
+    saturate(1.18)
+    drop-shadow(0 0 11px rgba(255, 52, 137, 0.76))
+    drop-shadow(0 0 25px rgba(121, 68, 255, 0.38))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+}
+
+.inventory-screen-tooltip--cosmic > .inventory-screen-tooltip-chrome {
+  filter:
+    brightness(1.14)
+    saturate(1.2)
+    drop-shadow(0 0 12px rgba(78, 237, 255, 0.78))
+    drop-shadow(0 0 28px rgba(104, 82, 255, 0.44))
+    drop-shadow(0 8px 9px rgba(0, 0, 0, 0.72));
+}
+
+.inventory-screen-tooltip > .inventory-screen-tooltip-scroll,
+.inventory-screen-tooltip > .inventory-screen-tooltip-crest {
+  position: relative;
+  z-index: 4;
+}
+
+.inventory-screen-tooltip > .inventory-screen-tooltip-crest {
+  position: absolute;
+}
+
+.inventory-screen-tooltip::before,
+.inventory-screen-tooltip::after,
+.inventory-screen-tooltip-crest::after {
+  display: none;
+  content: none;
+  animation: none;
 }
 
 /* Continuous backpack scroll contract V4 -------------------------------

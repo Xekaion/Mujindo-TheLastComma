@@ -8237,9 +8237,10 @@ test("localhost inventory can grant one deterministic visual sample for every ra
 });
 
 test("rare and higher inventory gear uses authored animated border assets plus sparkle accents", async () => {
-  const [overlay, css] = await Promise.all([
+  const [overlay, css, tooltipChrome] = await Promise.all([
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, "app/InventoryTooltipChrome.tsx"), "utf8"),
   ]);
   const auraContractStart = css.lastIndexOf("Rare+ authored aura contract V3");
   assert.ok(auraContractStart >= 0, "the authoritative rare+ aura contract is missing");
@@ -8266,8 +8267,8 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   );
   assert.equal(
     [...overlay.matchAll(/<RarityAura rarity=\{item\.rarity\} \/>/g)].length,
-    3,
-    "tooltip, equipped, and backpack render paths must all use the same authored aura",
+    2,
+    "equipped and backpack cards must retain their square authored aura",
   );
   for (const rarity of ["rare", "epic", "legendary", "mythic", "cosmic"]) {
     assert.match(css, new RegExp(`\\.inventory-screen-rarity-sparkles--${rarity}\\s*\\{`));
@@ -8304,8 +8305,21 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   );
   assert.match(css, /@keyframes\s+inventory-rarity-star-twinkle\s*\{/);
   assert.match(css, /@keyframes\s+inventory-rarity-dust-drift\s*\{/);
-  assert.match(css, /\.inventory-screen-tooltip--rare::after\s*\{[^}]*inventory-rarity-tooltip-shimmer/);
-  assert.match(css, /\.inventory-screen-tooltip--epic::after\s*\{[^}]*inventory-rarity-tooltip-shimmer/);
+  assert.match(
+    tooltipChrome,
+    /const AURA_ATLAS_URLS[\s\S]{0,760}?rare:[\s\S]{0,100}?inventory-rarity-aura-rare-v3\.png[\s\S]{0,520}?cosmic:[\s\S]{0,100}?inventory-rarity-aura-cosmic-v3\.png/,
+    "the variable tooltip frame must reuse every authored rare+ animation atlas",
+  );
+  assert.match(
+    tooltipChrome,
+    /function drawPanelChrome[\s\S]{0,2600}?drawTiledHorizontal\([\s\S]{0,1500}?drawTiledVertical\([\s\S]{0,1800}?fixedParts/,
+    "tooltip animation frames must be rebuilt from fixed ornaments and native-aspect rail tiles",
+  );
+  assert.doesNotMatch(
+    tooltipChrome,
+    /drawImage\([^;]{0,500}?layout\.cell[^;]{0,500}?target\.width[^;]{0,200}?target\.height/,
+    "a square rarity cell must never be stretched over the rectangular tooltip",
+  );
   assert.match(
     css,
     /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.inventory-screen-rarity-sparkles::before,[\s\S]*?\.inventory-screen-rarity-sparkles > i,[\s\S]*?animation:\s*none;/,
@@ -8315,6 +8329,11 @@ test("rare and higher inventory gear uses authored animated border assets plus s
     auraCss,
     /@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]{0,420}?\.inventory-screen-rarity-aura\s*\{[\s\S]{0,220}?background-position:\s*0%\s+0%;[\s\S]{0,160}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,100}?animation:\s*none;/,
     "reduced motion must preserve a visible authored first frame",
+  );
+  assert.match(
+    tooltipChrome,
+    /matchMedia\("\(prefers-reduced-motion: reduce\)"\)[\s\S]{0,1800}?reducedMotion\.matches[\s\S]{0,500}?auraFrame = 0/,
+    "the tooltip compositor must freeze on an authored frame for reduced motion",
   );
 });
 
@@ -8387,8 +8406,8 @@ test("all eight inventory rarities use authored spectacle atlases without changi
   );
   assert.equal(
     [...overlay.matchAll(/<RaritySpectacle rarity=\{item\.rarity\} \/>/g)].length,
-    3,
-    "tooltip, equipped, and backpack paths must share the all-rarity spectacle",
+    2,
+    "equipped and backpack paths must share the all-rarity spectacle without framing the tooltip icon",
   );
   assert.match(
     spectacleCss,
@@ -8403,10 +8422,11 @@ test("all eight inventory rarities use authored spectacle atlases without changi
 });
 
 test("inventory paperdoll keeps ten square side slots and normalizes frame and aura bounds", async () => {
-  const [equipment, overlay, css] = await Promise.all([
+  const [equipment, overlay, css, tooltipChrome] = await Promise.all([
     readFile(path.join(root, "app/equipment.ts"), "utf8"),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, "app/InventoryTooltipChrome.tsx"), "utf8"),
   ]);
   const contractStart = css.lastIndexOf("Inventory geometry contract V3");
   assert.ok(contractStart >= 0, "the final inventory cascade contract is missing");
@@ -8503,20 +8523,41 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     "the animated aura must remain above the base plate and below the item icon",
   );
   assert.match(finalCss, /Full names belong in the workbench[\s\S]{0,260}?\.inventory-screen-grid-name\s*\{\s*display:\s*none;/);
-  assert.match(finalCss, /Fixed structural frame contract V6[\s\S]{0,760}?\.inventory-screen-tooltip-crest::after[\s\S]{0,180}?z-index:\s*4;[\s\S]{0,80}?inset:\s*-2\.632%;[\s\S]{0,360}?rarity-frames-v6\.png[\s\S]{0,180}?background-size:\s*800%\s+100%;[\s\S]{0,180}?animation:\s*none;/);
-  assert.match(
-    css,
-    /\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-rarity-spectacle\s*\{[^}]*z-index:\s*1;/,
-    "the tooltip spectacle must remain above its dark plate",
+  const slotFrameContract = finalCss.slice(
+    finalCss.indexOf("Fixed structural slot-frame contract V6"),
+    finalCss.indexOf("Both equipped and backpack cards remain true squares"),
   );
+  assert.match(slotFrameContract, /\.inventory-screen-equipment-card:not\([\s\S]{0,160}?\.inventory-screen-grid-item::before[\s\S]{0,520}?rarity-frames-v6\.png[\s\S]{0,180}?background-size:\s*800%\s+100%;/);
+  assert.doesNotMatch(
+    slotFrameContract,
+    /inventory-screen-tooltip-crest/,
+    "the square slot frame must never be attached to the tooltip item icon",
+  );
+  assert.match(
+    overlay,
+    /<InventoryTooltipChrome rarity=\{item\.rarity\} \/>[\s\S]{0,160}?inventory-screen-tooltip-crest[\s\S]{0,120}?<GearIcon item=\{item\} size=\{88\} \/>/,
+    "the rarity frame belongs to the tooltip boundary while the crest contains only the item",
+  );
+  const tooltipCrestMarkup = overlay.slice(
+    overlay.indexOf('<div className="inventory-screen-tooltip-crest"'),
+    overlay.indexOf('<div className="inventory-screen-tooltip-scroll"'),
+  );
+  assert.doesNotMatch(tooltipCrestMarkup, /Rarity(?:Spectacle|Aura|Sparkles)/);
+  assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,180}?border:\s*0;[\s\S]{0,420}?transparent\s+68%[\s\S]{0,100}?box-shadow:\s*none;/);
+  assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
   assert.match(
     finalCss,
-    /\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-rarity-aura\s*\{[^}]*z-index:\s*2;[\s\S]{0,260}?\.inventory-screen-tooltip-crest\s*>\s*\.inventory-screen-gear-icon\s*\{[^}]*z-index:\s*3;/,
-    "the tooltip aura must remain below its item icon",
+    /Tooltip rarity panel compositor V1[\s\S]{0,900}?\.inventory-screen-tooltip > \.inventory-screen-tooltip-chrome\s*\{[\s\S]{0,180}?position:\s*absolute;[\s\S]{0,120}?z-index:\s*3;[\s\S]{0,120}?inset:\s*-26px;[\s\S]{0,180}?width:\s*calc\(100% \+ 52px\);[\s\S]{0,120}?height:\s*calc\(100% \+ 52px\);/,
+    "the rarity compositor canvas must follow all four outer tooltip edges",
   );
-  assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*0;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
-  assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
-  assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/gothic-nine-slice-frame-v2\.png"\)\s+16%\s*\/[^;]+\sround/);
+  assert.match(tooltipChrome, /data-frame-layout="fixed-corners-tiled-rails-cardinal-crests"/);
+  assert.match(tooltipChrome, /new ResizeObserver\(render\)[\s\S]{0,120}?resizeObserver\.observe\(canvas\)/);
+  assert.match(finalCss, /\.inventory-screen-tooltip::before,[\s\S]{0,100}?\.inventory-screen-tooltip::after,[\s\S]{0,100}?\.inventory-screen-tooltip-crest::after\s*\{[\s\S]{0,120}?display:\s*none;[\s\S]{0,100}?content:\s*none;/);
+  assert.doesNotMatch(
+    finalCss.slice(finalCss.indexOf("Tooltip rarity panel compositor V1")),
+    /gothic-nine-slice-frame-v2|background-size:\s*100%\s+100%/,
+    "the final tooltip contract must not fall back to generic or stretched square chrome",
+  );
   assert.match(finalCss, /@container game-viewport \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);
 });
 

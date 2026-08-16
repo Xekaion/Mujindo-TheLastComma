@@ -52,6 +52,7 @@ import {
 } from "./inventory-sort";
 import { BASE_INVENTORY_CAPACITY } from "./shop";
 import InventoryPaperdollFigure from "./InventoryPaperdollFigure";
+import InventoryTooltipChrome from "./InventoryTooltipChrome";
 import {
   MAX_DIVINE_FORGE_REROLLS,
   getDivineForgeRerollsRemaining,
@@ -583,9 +584,8 @@ function GearTooltip({
       className={`inventory-screen-tooltip ${rarityClass(item)} ${item.rarity === "rare" ? "inventory-screen-tooltip--rare" : ""} ${item.rarity === "epic" ? "inventory-screen-tooltip--epic" : ""} ${item.rarity === "legendary" ? "inventory-screen-tooltip--legendary" : ""} ${item.rarity === "mythic" ? "inventory-screen-tooltip--mythic" : ""} ${item.rarity === "cosmic" ? "inventory-screen-tooltip--cosmic" : ""}`}
       style={{ left: position.x, top: position.y }}
     >
+      <InventoryTooltipChrome rarity={item.rarity} />
       <div className="inventory-screen-tooltip-crest" aria-hidden="true">
-        <RaritySpectacle rarity={item.rarity} />
-        <RarityAura rarity={item.rarity} />
         <GearIcon item={item} size={88} />
       </div>
       <div className="inventory-screen-tooltip-scroll">
