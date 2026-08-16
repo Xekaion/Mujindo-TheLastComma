@@ -16,6 +16,12 @@ const PORTAL_IDS = ["expedition", "duel", "exchange", "caravan"];
 const PORTAL_ASSET_URLS = Object.fromEntries(
   PORTAL_IDS.map((id) => [id, `/assets/plaza/portal-${id}-v2.png`]),
 );
+const PORTAL_WORLD_ASSET_URLS = {
+  expedition: "/assets/plaza/portal-expedition-v2.png",
+  duel: "/assets/plaza/portal-duel-world-v2.png",
+  exchange: "/assets/plaza/portal-exchange-world-v2.png",
+  caravan: "/assets/plaza/portal-caravan-v2.png",
+};
 const SANCTUM_FRAME_URL = "/assets/ui/plaza-hub/sanctum-frame-v2.png";
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -183,7 +189,7 @@ async function inspectTransparentRgbaPng(contract) {
   };
 }
 
-test("PlazaHub preloads and paints one authored v2 image for every portal", async () => {
+test("PlazaHub preloads distinct UI and world-space portal art with a cold-load fallback", async () => {
   const source = await readSource("app/PlazaHub.tsx");
   const sourceFile = tsxSource(source);
   const expectedUrls = Object.values(PORTAL_ASSET_URLS);
@@ -196,6 +202,11 @@ test("PlazaHub preloads and paints one authored v2 image for every portal", asyn
   for (const [id, url] of Object.entries(PORTAL_ASSET_URLS)) {
     assert.match(assetCollection.text, new RegExp(`${id}[\\s\\S]*?${url.replaceAll("/", "\\/")}`));
   }
+  const worldAssetCollection = variableOwningEveryUrl(
+    sourceFile,
+    Object.values(PORTAL_WORLD_ASSET_URLS),
+  );
+  assert.ok(worldAssetCollection, "PlazaHub must declare direction-aware world portal art");
 
   const preloadScopes = [];
   visit(sourceFile, (node) => {
@@ -211,6 +222,7 @@ test("PlazaHub preloads and paints one authored v2 image for every portal", asyn
     preloadScopes.some(
       (scope) =>
         scope.includes(assetCollection.name) &&
+        scope.includes(worldAssetCollection.name) &&
         /new\s+Image\s*\(/.test(scope) &&
         /\.src\s*=/.test(scope),
     ),
@@ -239,6 +251,11 @@ test("PlazaHub preloads and paints one authored v2 image for every portal", asyn
     }
   });
   assert.ok(authoredDraw, "drawPortal must pass its authored portal image to canvas drawImage");
+  assert.match(
+    drawPortal.body.getText(sourceFile),
+    /drawPortalFallback\s*\(/,
+    "cold or failed portal textures must retain a visible authored fallback",
+  );
 
   const portalLoops = [];
   visit(sourceFile, (node) => {
@@ -252,12 +269,12 @@ test("PlazaHub preloads and paints one authored v2 image for every portal", asyn
   assert.ok(
     portalLoops.some(
       (loop) =>
-        loop.includes(assetCollection.name) &&
+        loop.includes(worldAssetCollection.name) &&
         /portal\.id/.test(loop) &&
         /sceneImagesRef\.current\.get\s*\(/.test(loop) &&
         /drawPortal\s*\(/.test(loop),
     ),
-    "the PLAZA_PORTALS render loop must resolve each id-specific image and pass it to drawPortal",
+    "the PLAZA_PORTALS render loop must resolve each direction-aware image and pass it to drawPortal",
   );
 });
 
@@ -276,10 +293,15 @@ test("portal navigation and the nearby prompt expose destination-aware semantics
     /aria-keyshortcuts\s*=\s*\{\s*portal\.hotkey\s*\}/,
     "each directory button must publish its numeric shortcut",
   );
-  assert.match(
+  assert.doesNotMatch(
     directory,
     /aria-pressed\s*=\s*\{[^}]+\}/,
-    "each directory button must expose its selected/nearby state",
+    "one-shot guide commands must not announce themselves as toggle buttons",
+  );
+  assert.match(
+    directory,
+    /aria-describedby\s*=\s*\{`plaza-gate-status-\$\{portal\.id\}`\}/,
+    "each guide command must associate its live destination status",
   );
   assert.match(
     directory,
@@ -343,6 +365,46 @@ test("portal navigation and the nearby prompt expose destination-aware semantics
   );
 });
 
+test("release plaza interactions replay notices and expose player inspection without a mouse", async () => {
+  const source = await readSource("app/PlazaHub.tsx");
+  assert.match(
+    source,
+    /setNoticeEvent\s*\(\s*\(current\)\s*=>\s*\(\{\s*id:\s*current\.id\s*\+\s*1/,
+    "repeated identical notices need a monotonically increasing event id",
+  );
+  assert.match(
+    source,
+    /key=\{noticeEvent\.id\}[\s\S]*?noticeEvent\.message/,
+    "each notice event must restart its visual lifecycle while the live region persists",
+  );
+  assert.match(source, /aria-keyshortcuts="F"/, "keyboard inspection must publish its shortcut");
+  assert.match(source, /className="is-inspect"/, "touch controls need a dedicated record action");
+  assert.match(
+    source,
+    /event\.pointerType\s*!==\s*"mouse"[\s\S]*?pickPlazaInspectablePlayer/,
+    "touching a rendered player must inspect instead of issuing movement",
+  );
+
+  const sourceFile = tsxSource(source);
+  const drawPortal = namedFunction(sourceFile, "drawPortal");
+  const portalFontSizes = [
+    ...drawPortal.body.getText(sourceFile).matchAll(/context\.font\s*=\s*["'][^"']*?(\d+(?:\.\d+)?)px/g),
+  ].map((match) => Number(match[1]));
+  assert.ok(portalFontSizes.length > 0, "portal renderer must declare its canvas typography");
+  assert.ok(
+    portalFontSizes.every((size) => size >= 12),
+    `portal canvas text cannot be smaller than 12px: ${portalFontSizes.join(", ")}`,
+  );
+
+  const layout = namedFunction(sourceFile, "plazaPortalArtLayout");
+  assert.ok(layout?.body, "portal artwork must have an explicit safe layout function");
+  assert.match(
+    layout.body.getText(sourceFile),
+    /portal\.approachX[\s\S]*portal\.approachY/,
+    "world portal structures must be centered on their reachable in-frame approach points",
+  );
+});
+
 test("release plaza CSS uses authored sanctum chrome and readable accessible states", async () => {
   const css = await readSource("app/plaza.css");
   const escapedFrameUrl = SANCTUM_FRAME_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -353,6 +415,11 @@ test("release plaza CSS uses authored sanctum chrome and readable accessible sta
       "i",
     ),
     "the plaza HUD must use the authored sanctum frame as real CSS chrome",
+  );
+  assert.match(
+    css,
+    /border-image-source:\s*url\("\/assets\/ui\/plaza-hub\/sanctum-frame-v2\.png"\)[\s\S]{0,220}?border-image-repeat:\s*round/,
+    "the sanctum rails must tile cleanly instead of stretching engraved pixels",
   );
 
   const fontDeclarations = [
@@ -418,6 +485,24 @@ test("release plaza bitmaps are substantial, distinct, padded RGBA PNGs", async 
     new Set(portalResults.map((result) => result.hash)).size,
     PORTAL_IDS.length,
     "the four destination portal files must contain distinct authored artwork",
+  );
+
+  const directionalWorldResults = await Promise.all(
+    ["duel", "exchange"].map((id) =>
+      inspectTransparentRgbaPng({
+        relativePath: `public${PORTAL_WORLD_ASSET_URLS[id]}`,
+        minWidth: 512,
+        minHeight: 512,
+        maxWidth: 2_048,
+        maxHeight: 2_048,
+        maxBytes: 8 * 1_024 * 1_024,
+      }),
+    ),
+  );
+  assert.equal(
+    new Set(directionalWorldResults.map((result) => result.hash)).size,
+    directionalWorldResults.length,
+    "west and east world portals must be independently authored",
   );
 
   await inspectTransparentRgbaPng({

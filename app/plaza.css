@@ -90,7 +90,7 @@
   border-image-slice: 148 fill;
   border-image-width: 24px;
   border-image-outset: 4px;
-  border-image-repeat: stretch;
+  border-image-repeat: round;
   background:
     radial-gradient(circle at 50% 0, rgba(214, 181, 109, .08), transparent 54%),
     linear-gradient(145deg, rgba(17, 20, 25, .96), rgba(5, 7, 10, .93));
@@ -379,7 +379,7 @@
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
-  width: 880px;
+  width: 960px;
   min-height: 132px;
   padding: 25px 7px 4px;
   transform: translateX(-50%);
@@ -507,7 +507,7 @@
 .plaza-gate-copy small {
   overflow: hidden;
   color: #aaa595;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   line-height: 1.2;
   letter-spacing: .08em;
@@ -552,11 +552,21 @@
   z-index: 8;
   bottom: 57px;
   left: 50%;
+  width: min(620px, calc(100% - 56px));
+  min-height: 42px;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.plaza-hub-notice__event {
   display: flex;
   gap: 10px;
   align-items: center;
+  width: fit-content;
+  min-width: min(420px, 100%);
   min-height: 42px;
-  max-width: 620px;
+  max-width: 100%;
+  margin: 0 auto;
   padding: 8px 20px;
   border-right: 1px solid rgba(204, 168, 96, .38);
   border-left: 1px solid rgba(204, 168, 96, .38);
@@ -564,8 +574,6 @@
   background:
     linear-gradient(90deg, transparent, rgba(6, 8, 11, .94) 14%, rgba(6, 8, 11, .94) 86%, transparent);
   filter: drop-shadow(0 10px 16px rgba(0, 0, 0, .55));
-  pointer-events: none;
-  transform: translateX(-50%);
   animation: plaza-notice-life 5.2s ease both;
 }
 
@@ -759,6 +767,16 @@
   font-weight: 800;
 }
 
+.plaza-touch-controls .is-inspect {
+  grid-area: 1 / 4;
+  border-color: rgba(220, 188, 111, .68);
+  color: #fff0c9;
+  background: radial-gradient(circle at 38% 30%, rgba(214, 164, 74, .28), rgba(8, 10, 14, .94));
+  box-shadow: 0 0 20px rgba(214, 164, 74, .2), 0 8px 20px rgba(0, 0, 0, .42);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 @keyframes plaza-location-reveal {
   from { opacity: 0; transform: translateY(-12px); filter: brightness(1.5); }
   to { opacity: 1; transform: translateY(0); filter: brightness(1); }
@@ -774,9 +792,9 @@
 }
 
 @keyframes plaza-notice-life {
-  0% { opacity: 0; transform: translate(-50%, 10px); }
-  8%, 78% { opacity: 1; transform: translate(-50%, 0); }
-  100% { opacity: 0; transform: translate(-50%, -5px); }
+  0% { opacity: 0; transform: translateY(10px); }
+  8%, 78% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
 }
 
 @media (hover: none), (pointer: coarse) {
@@ -903,10 +921,10 @@
     transition-duration: .001ms !important;
   }
 
-  .plaza-hub-notice {
+  .plaza-hub-notice__event {
     animation: none !important;
     opacity: 1;
-    transform: translateX(-50%);
+    transform: none;
   }
 }
 

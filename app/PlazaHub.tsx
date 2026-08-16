@@ -100,6 +100,12 @@ export const PLAZA_PORTAL_ART_PATHS: Readonly<Record<PlazaPortalId, string>> = {
   exchange: "/assets/plaza/portal-exchange-v2.png",
   caravan: "/assets/plaza/portal-caravan-v2.png",
 };
+export const PLAZA_PORTAL_WORLD_ART_PATHS: Readonly<Record<PlazaPortalId, string>> = {
+  expedition: "/assets/plaza/portal-expedition-v2.png",
+  duel: "/assets/plaza/portal-duel-world-v2.png",
+  exchange: "/assets/plaza/portal-exchange-world-v2.png",
+  caravan: "/assets/plaza/portal-caravan-v2.png",
+};
 export const PLAZA_PLAYER_GROUND_OFFSET_Y = 8;
 export const PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y = 18;
 export const PLAZA_PLAYER_SHADOW_RADIUS_Y = 12;
@@ -109,6 +115,7 @@ export const PLAZA_REMOTE_RENDER_MARGIN = 220;
 export const PLAZA_REMOTE_RENDER_LIMIT = 32;
 /** Only the nearest players keep ten high-resolution wearable atlases resident. */
 export const PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT = 2;
+export const PLAZA_KEYBOARD_INSPECT_RADIUS = 240;
 
 /**
  * Canonical painter's order for the local actor stack. Keeping this explicit
@@ -528,22 +535,77 @@ function drawStall(
 
 function plazaPortalArtLayout(portal: PlazaPortalDefinition) {
   if (portal.id === "expedition") {
-    return { x: portal.x, y: portal.y + 40, width: 330, height: 330 };
+    return { x: portal.approachX, y: portal.approachY, width: 300, height: 300 };
   }
   if (portal.id === "duel") {
-    return { x: portal.x + 42, y: portal.y, width: 310, height: 310 };
+    return { x: portal.approachX - 8, y: portal.approachY, width: 320, height: 320 };
   }
   if (portal.id === "exchange") {
-    return { x: portal.x - 42, y: portal.y, width: 310, height: 310 };
+    return { x: portal.approachX + 8, y: portal.approachY, width: 320, height: 320 };
   }
-  return { x: portal.x, y: portal.y - 34, width: 326, height: 326 };
+  return { x: portal.approachX, y: portal.approachY, width: 300, height: 300 };
 }
 
 function plazaPortalLabelPoint(portal: PlazaPortalDefinition): PlazaPoint {
-  if (portal.id === "expedition") return { x: portal.x, y: portal.y + 205 };
-  if (portal.id === "duel") return { x: portal.x + 158, y: portal.y - 118 };
-  if (portal.id === "exchange") return { x: portal.x - 158, y: portal.y - 118 };
-  return { x: portal.x, y: portal.y - 210 };
+  if (portal.id === "expedition") return { x: portal.approachX, y: portal.approachY + 170 };
+  if (portal.id === "duel") return { x: portal.approachX + 4, y: portal.approachY - 166 };
+  if (portal.id === "exchange") return { x: portal.approachX - 4, y: portal.approachY - 166 };
+  return { x: portal.approachX, y: portal.approachY - 174 };
+}
+
+function drawPortalFallback(
+  context: CanvasRenderingContext2D,
+  portal: PlazaPortalDefinition,
+  width: number,
+  height: number,
+  pulse: number,
+) {
+  const pillarX = width * 0.29;
+  const top = -height * 0.33;
+  const base = height * 0.36;
+  const stone = context.createLinearGradient(0, top, 0, base);
+  stone.addColorStop(0, "#5a504a");
+  stone.addColorStop(0.4, "#29292e");
+  stone.addColorStop(1, "#111318");
+
+  context.save();
+  context.lineJoin = "round";
+  context.shadowColor = portal.hue;
+  context.shadowBlur = 12 + pulse * 8;
+  context.fillStyle = stone;
+  context.strokeStyle = `${portal.accent}8f`;
+  context.lineWidth = 3;
+  for (const side of [-1, 1] as const) {
+    context.beginPath();
+    context.moveTo(side * pillarX, base);
+    context.lineTo(side * pillarX * 1.12, base - height * 0.08);
+    context.lineTo(side * pillarX * 0.96, top + height * 0.09);
+    context.lineTo(side * pillarX * 0.66, top);
+    context.lineTo(side * pillarX * 0.58, base - height * 0.08);
+    context.closePath();
+    context.fill();
+    context.stroke();
+  }
+
+  context.beginPath();
+  context.moveTo(-pillarX * 0.7, top + height * 0.04);
+  context.quadraticCurveTo(0, top - height * 0.2, pillarX * 0.7, top + height * 0.04);
+  context.lineTo(pillarX * 0.58, top + height * 0.16);
+  context.quadraticCurveTo(0, top - height * 0.04, -pillarX * 0.58, top + height * 0.16);
+  context.closePath();
+  context.fill();
+  context.stroke();
+
+  const rift = context.createRadialGradient(0, 8, 4, 0, 8, width * 0.24);
+  rift.addColorStop(0, portal.accent);
+  rift.addColorStop(0.22, `${portal.hue}d8`);
+  rift.addColorStop(0.68, `${portal.hue}58`);
+  rift.addColorStop(1, `${portal.hue}00`);
+  context.fillStyle = rift;
+  context.beginPath();
+  context.ellipse(0, 8, width * 0.2, height * 0.29, 0, 0, Math.PI * 2);
+  context.fill();
+  context.restore();
 }
 
 function drawPortalGuidance(
@@ -622,7 +684,12 @@ function drawPortal(
   context.ellipse(0, 6, layout.width * (0.34 + pulse * 0.018), layout.height * 0.42, 0, 0, Math.PI * 2);
   context.fill();
 
-  if (artwork?.complete && artwork.naturalWidth > 0 && artwork.naturalHeight > 0) {
+  const artworkReady = Boolean(
+    artwork?.complete && artwork.naturalWidth > 0 && artwork.naturalHeight > 0,
+  );
+  if (!artworkReady) {
+    drawPortalFallback(context, portal, layout.width, layout.height, pulse);
+  } else if (artwork) {
     context.shadowColor = portal.hue;
     context.shadowBlur = selected ? 16 + pulse * 14 : 5;
     context.globalAlpha = selected ? 0.98 : 0.9;
@@ -655,9 +722,13 @@ function drawPortal(
   context.lineTo(label.x + titleWidth, label.y - 7);
   context.stroke();
   context.fillStyle = portal.accent;
-  context.font = "700 10px Pretendard, sans-serif";
+  context.font = "700 14px Pretendard, sans-serif";
   context.letterSpacing = "1.6px";
-  context.fillText(selected ? (nearby ? "GATE READY" : "GUIDANCE ACTIVE") : portal.englishName, label.x, label.y + 20);
+  context.fillText(
+    selected ? (nearby ? "입장 준비 완료" : "경로 동기화 중") : portal.englishName,
+    label.x,
+    label.y + 22,
+  );
   context.restore();
 }
 
@@ -846,6 +917,23 @@ function portalActionLabel(id: PlazaPortalId) {
   return "기억상단 살펴보기";
 }
 
+function portalDirectoryEyebrow(id: PlazaPortalId) {
+  if (id === "expedition") return "ENDLESS GATE";
+  if (id === "duel") return "DUEL GATE";
+  if (id === "exchange") return "TRADE GATE";
+  return "CARAVAN GATE";
+}
+
+function portalGuideStatus(
+  id: PlazaPortalId,
+  guidedPortalId: PlazaPortalId | null,
+  nearPortalId: PlazaPortalId | null,
+) {
+  if (nearPortalId === id) return "공명 완료";
+  if (guidedPortalId === id) return "길 안내 중";
+  return "길 안내";
+}
+
 export default function PlazaHub({
   character,
   equipment = null,
@@ -916,7 +1004,13 @@ export default function PlazaHub({
   const pausedRef = useRef(paused);
   const [nearPortalId, setNearPortalId] = useState<PlazaPortalId | null>(null);
   const [guidedPortalId, setGuidedPortalId] = useState<PlazaPortalId | null>(null);
-  const [notice, setNotice] = useState("광장 중앙에서 네 갈래의 기억이 이어집니다.");
+  const [noticeEvent, setNoticeEvent] = useState({
+    id: 0,
+    message: "광장 중앙에서 네 갈래의 기억이 이어집니다.",
+  });
+  const announceNotice = useCallback((message: string) => {
+    setNoticeEvent((current) => ({ id: current.id + 1, message }));
+  }, []);
   const mobilityProfile = useMemo(
     () => resolvePlazaMobilityProfile(equipment),
     [equipment],
@@ -1092,18 +1186,18 @@ export default function PlazaHub({
   const activateNearbyPortal = useCallback(() => {
     const portal = nearestPlazaPortal(positionRef.current);
     if (!portal) {
-      setNotice("포탈의 빛 안으로 조금 더 가까이 이동하세요.");
+      announceNotice("포탈의 빛 안으로 조금 더 가까이 이동하세요.");
       return;
     }
     activatePortal(portal);
-  }, [activatePortal]);
+  }, [activatePortal, announceNotice]);
 
   const guideToPortal = useCallback((portal: PlazaPortalDefinition) => {
     pointerTargetRef.current = { x: portal.approachX, y: portal.approachY };
     setGuidedPortalId(portal.id);
-    setNotice(`${portal.name} 포탈까지 자동 이동합니다. 도착 후 입장을 눌러주세요.`);
+    announceNotice(`${portal.name} 포탈까지 자동 이동합니다. 도착 후 입장을 눌러주세요.`);
     canvasRef.current?.focus({ preventScroll: true });
-  }, []);
+  }, [announceNotice]);
 
   const queueDash = useCallback(() => {
     if (
@@ -1119,6 +1213,50 @@ export default function PlazaHub({
     setGuidedPortalId(null);
     canvasRef.current?.focus({ preventScroll: true });
   }, []);
+
+  const renderedInspectablePlayers = useCallback((): PlazaRemotePlayer[] => (
+    inspectableRemotePlayersRef.current.map((player) => {
+      const rendered = remoteRenderPointsRef.current.get(player.characterId);
+      return {
+        ...player,
+        x: rendered?.x ?? player.x,
+        y: rendered?.y ?? player.y,
+      };
+    })
+  ), []);
+
+  const inspectPlayer = useCallback(
+    (player: PlazaRemotePlayer | null, missingMessage: string) => {
+      if (!player) {
+        announceNotice(missingMessage);
+        return false;
+      }
+      pointerTargetRef.current = null;
+      setGuidedPortalId(null);
+      announceNotice(`${player.displayName}의 공개 기록을 펼쳤습니다.`);
+      canvasRef.current?.focus({ preventScroll: true });
+      onPlayerInspectRef.current?.(player);
+      return true;
+    },
+    [announceNotice],
+  );
+
+  const inspectNearestPlayer = useCallback(() => {
+    const local = positionRef.current;
+    let nearest: PlazaRemotePlayer | null = null;
+    let nearestDistance = PLAZA_KEYBOARD_INSPECT_RADIUS;
+    for (const player of renderedInspectablePlayers()) {
+      const distance = Math.hypot(player.x - local.x, player.y - local.y);
+      if (distance <= nearestDistance) {
+        nearest = player;
+        nearestDistance = distance;
+      }
+    }
+    inspectPlayer(
+      nearest,
+      "가까운 기록자가 없습니다. 대상 가까이에서 F 또는 기록 버튼을 눌러주세요.",
+    );
+  }, [inspectPlayer, renderedInspectablePlayers]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -1158,10 +1296,16 @@ export default function PlazaHub({
   useEffect(() => {
     const images = sceneImagesRef.current;
     const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
-    for (const path of [PLAZA_MAP_PATH, ...Object.values(PLAZA_PORTAL_ART_PATHS)]) {
+    const sceneAssetPaths = new Set([
+      PLAZA_MAP_PATH,
+      ...Object.values(PLAZA_PORTAL_ART_PATHS),
+      ...Object.values(PLAZA_PORTAL_WORLD_ART_PATHS),
+    ]);
+    for (const path of sceneAssetPaths) {
       if (images.has(path)) continue;
       const image = new Image();
       image.decoding = "async";
+      image.fetchPriority = path === PLAZA_MAP_PATH ? "high" : "auto";
       image.addEventListener("error", () => images.delete(path), {
         once: true,
       });
@@ -1255,11 +1399,15 @@ export default function PlazaHub({
         event.preventDefault();
         activateNearbyPortal();
       }
+      if (key === "f" && !event.repeat) {
+        event.preventDefault();
+        inspectNearestPlayer();
+      }
       if (key === "escape" && guidedPortalIdRef.current && !event.repeat) {
         event.preventDefault();
         pointerTargetRef.current = null;
         setGuidedPortalId(null);
-        setNotice("포탈 길 안내를 취소했습니다.");
+        announceNotice("포탈 길 안내를 취소했습니다.");
       }
       const portal = PLAZA_PORTALS.find((entry) => entry.hotkey === key);
       if (portal && !event.repeat) {
@@ -1282,7 +1430,7 @@ export default function PlazaHub({
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", clearKeys);
     };
-  }, [activateNearbyPortal, guideToPortal, queueDash]);
+  }, [activateNearbyPortal, announceNotice, guideToPortal, inspectNearestPlayer, queueDash]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1653,7 +1801,7 @@ export default function PlazaHub({
         setNearPortalId(nextPortalId);
         if (nextPortalId) {
           setGuidedPortalId(null);
-          setNotice(`${nearest?.name} 포탈에 도착했습니다.`);
+          announceNotice(`${nearest?.name} 포탈에 도착했습니다.`);
         }
       }
 
@@ -1704,7 +1852,7 @@ export default function PlazaHub({
           time,
           portal.id === focusedPortalId,
           portal.id === nearPortalIdRef.current,
-          sceneImagesRef.current.get(PLAZA_PORTAL_ART_PATHS[portal.id]),
+          sceneImagesRef.current.get(PLAZA_PORTAL_WORLD_ART_PATHS[portal.id]),
           reducedMotionRef.current,
         );
       }
@@ -1864,27 +2012,38 @@ export default function PlazaHub({
         });
       }
     };
-  }, []);
+  }, [announceNotice]);
 
   const handleCanvasPointer = useCallback((event: ReactPointerEvent<HTMLCanvasElement>) => {
     if (pausedRef.current) return;
     if (event.pointerType === "mouse" && event.button !== 0) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const { width, height } = viewportRef.current;
-    const target = {
-      x: cameraRef.current.x + ((event.clientX - rect.left) / rect.width) * width - width / 2,
-      y: cameraRef.current.y + ((event.clientY - rect.top) / rect.height) * height - height / 2,
-    };
+    const target = canvasClientPointToWorld(
+      event.clientX,
+      event.clientY,
+      canvas.getBoundingClientRect(),
+      viewportRef.current,
+      cameraRef.current,
+    );
+    if (event.pointerType !== "mouse") {
+      const touchedPlayer = pickPlazaInspectablePlayer(
+        renderedInspectablePlayers(),
+        target,
+      );
+      if (touchedPlayer) {
+        inspectPlayer(touchedPlayer, "");
+        return;
+      }
+    }
     if (!isPlazaWalkable(target)) {
-      setNotice("금빛 난간과 광장 시설물 바깥으로는 이동할 수 없습니다.");
+      announceNotice("금빛 난간과 광장 시설물 바깥으로는 이동할 수 없습니다.");
       return;
     }
     pointerTargetRef.current = target;
     setGuidedPortalId(null);
     canvas.focus({ preventScroll: true });
-  }, []);
+  }, [announceNotice, inspectPlayer, renderedInspectablePlayers]);
 
   const handleCanvasContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLCanvasElement>) => {
@@ -1899,26 +2058,13 @@ export default function PlazaHub({
         viewportRef.current,
         cameraRef.current,
       );
-      const inspectablePlayers = inspectableRemotePlayersRef.current.map((player) => {
-        const rendered = remoteRenderPointsRef.current.get(player.characterId);
-        return {
-          ...player,
-          x: rendered?.x ?? player.x,
-          y: rendered?.y ?? player.y,
-        };
-      });
-      const player = pickPlazaInspectablePlayer(inspectablePlayers, worldPoint);
-      if (!player) {
-        setNotice("다른 기록자를 우클릭하면 캐릭터 정보를 확인할 수 있습니다.");
-        return;
-      }
-      pointerTargetRef.current = null;
-      setGuidedPortalId(null);
-      setNotice(`${player.displayName}의 공개 기록을 펼쳤습니다.`);
-      canvas.focus({ preventScroll: true });
-      onPlayerInspectRef.current?.(player);
+      const player = pickPlazaInspectablePlayer(renderedInspectablePlayers(), worldPoint);
+      inspectPlayer(
+        player,
+        "다른 기록자를 우클릭하거나 가까이에서 F를 누르면 기록을 확인할 수 있습니다.",
+      );
     },
-    [],
+    [inspectPlayer, renderedInspectablePlayers],
   );
 
   const setTouchDirection = useCallback((x: number, y: number) => {
@@ -1949,7 +2095,7 @@ export default function PlazaHub({
         ref={canvasRef}
         className="plaza-hub-canvas"
         tabIndex={0}
-        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 포탈을 이용합니다. 바닥을 누르면 이동하고 다른 플레이어를 우클릭하면 캐릭터 정보를 확인합니다."
+        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 포탈을 이용합니다. F는 가까운 기록자를 확인합니다. 바닥을 누르면 이동하고, 터치로 다른 플레이어를 누르거나 마우스로 우클릭하면 캐릭터 정보를 확인합니다."
         onPointerDown={handleCanvasPointer}
         onContextMenu={handleCanvasContextMenu}
       />
@@ -1999,7 +2145,7 @@ export default function PlazaHub({
               type="button"
               onClick={onInventoryOpen}
               aria-keyshortcuts="I"
-              aria-label="장비 확인"
+              aria-label="장비 관리"
             >
               <span aria-hidden="true">◇</span>
               <small>장비</small>
@@ -2035,20 +2181,17 @@ export default function PlazaHub({
               } as React.CSSProperties
             }
             onClick={() => guideToPortal(portal)}
-            aria-label={`${portal.name} 포탈 길 안내`}
+            aria-label={`${portal.name} 포탈 길 안내. ${portalGuideStatus(portal.id, guidedPortalId, nearPortalId)}`}
             aria-keyshortcuts={portal.hotkey}
-            aria-pressed={guidedPortalId === portal.id || nearPortalId === portal.id}
+            aria-describedby={`plaza-gate-status-${portal.id}`}
+            title={portal.englishName}
           >
             <span className="plaza-gate-art" aria-hidden="true" />
             <span className="plaza-gate-copy">
-              <small lang="en">{portal.englishName}</small>
+              <small lang="en">{portalDirectoryEyebrow(portal.id)}</small>
               <strong>{portal.name}</strong>
-              <em>
-                {nearPortalId === portal.id
-                  ? "공명 완료"
-                  : guidedPortalId === portal.id
-                    ? "길 안내 중"
-                    : "길 안내"}
+              <em id={`plaza-gate-status-${portal.id}`}>
+                {portalGuideStatus(portal.id, guidedPortalId, nearPortalId)}
               </em>
             </span>
             <kbd>{portal.hotkey}</kbd>
@@ -2056,9 +2199,11 @@ export default function PlazaHub({
         ))}
       </nav>
 
-      <div key={notice} className="plaza-hub-notice" role="status" aria-live="polite">
-        <span aria-hidden="true">✦</span>
-        <p>{notice}</p>
+      <div className="plaza-hub-notice" role="status" aria-live="polite" aria-atomic="true">
+        <div key={noticeEvent.id} className="plaza-hub-notice__event">
+          <span aria-hidden="true">✦</span>
+          <p>{noticeEvent.message}</p>
+        </div>
       </div>
 
       {nearPortal ? (
@@ -2155,12 +2300,22 @@ export default function PlazaHub({
         >
           회피
         </button>
+        <button
+          type="button"
+          className="is-inspect"
+          aria-label="가까운 기록자 정보 보기"
+          aria-keyshortcuts="F"
+          onClick={inspectNearestPlayer}
+        >
+          기록
+        </button>
       </div>
 
       <p className="plaza-control-hint" aria-label="조작 안내">
         <span><kbd>WASD</kbd> 이동</span>
         <span><kbd>Space</kbd> 회피</span>
         <span><kbd>E</kbd> 포탈</span>
+        <span><kbd>F</kbd> 기록</span>
         <span><kbd>1—4</kbd> 길 안내</span>
       </p>
     </main>

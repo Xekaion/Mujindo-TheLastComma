@@ -7,11 +7,11 @@
   "workflow": {
     "generator": "OpenAI built-in image_gen",
     "tool": "image_gen.imagegen",
-    "mode": "generate",
-    "callCount": 5,
-    "execution": "one independent built-in generation call per asset, with the same two reference images supplied to every call",
-    "transparencyStrategy": "flat #00FF00 chroma-key generation followed by local green-screen removal",
-    "notes": "The built-in generator returned 1254x1254 RGB PNGs. Each selected chroma-key source was resized first, then converted to an alpha PNG with the installed ImageGen chroma-removal helper. No CLI image model or model-native transparency was used."
+    "mode": "generate and reference-guided re-authoring",
+    "callCount": 7,
+    "execution": "five independent launch-set generations using the gameplay capture and clean plaza references, followed by two direction-specific world-prop generations using each matching UI portal plus the clean plaza map",
+    "transparencyStrategy": "flat #00FF00 or #FF00FF chroma-key generation followed by local chroma removal",
+    "notes": "The built-in generator returned 1254x1254 RGB PNGs. Each selected chroma-key source was resized first, then converted to an alpha PNG with the installed ImageGen chroma-removal helper. The west/east wall variants are separately authored 55-degree three-quarter world props; they are not affine transforms of the UI icons. No CLI image model or model-native transparency was used."
   },
   "referenceImages": [
     {
@@ -67,6 +67,38 @@
       }
     ]
   },
+  "worldSpaceVariants": [
+    {
+      "id": "portal-duel-world-v2",
+      "role": "west-wall world prop",
+      "generator": "OpenAI built-in image_gen",
+      "tool": "image_gen.imagegen",
+      "mode": "reference-guided generation",
+      "referenceImages": [
+        "public/assets/plaza/portal-duel-v2.png",
+        "public/assets/maps/memory-plaza-v1.png"
+      ],
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b85-47d9-7bb3-9911-05b8b2b7863d/exec-ab454c08-0e76-41c0-b5b8-2065b8590ca1.png",
+      "chromaKey": "#00FF00",
+      "prompt": "Use case: stylized-concept\nAsset type: isolated production game-world sprite for the Memory Plaza canvas, square source for a 768x768 RGBA cutout\nPrimary request: Create a world-only MEMORY DUEL portal designed to be installed in the WEST wall of the plaza. It must be a genuinely oblique environment prop, not a front-facing UI icon.\nInput images:\n- Image 1 is the design reference: preserve its blackened gothic stone-and-metal construction, blade-like silver trim, violet crystals, luminous purple memory rift, and premium dark-fantasy identity.\n- Image 2 is the environment/perspective reference: match its hand-painted ARPG rendering, warm low-key ambient lighting, masonry scale, and approximately 55-degree top-down three-quarter camera.\nSubject and orientation: One complete freestanding portal/doorway structure. The portal opening faces east/right toward the plaza center as a west-wall gate. View it obliquely from above and from the southeast, so the top planes, depth of the arch, east-facing facade, and receding west-wall side thickness are visibly readable. Vertical pillars remain upright; the stone base is foreshortened consistently with the plaza map. Preserve a strong purple emissive core while keeping the full architectural silhouette readable.\nComposition: Center the full structure in a 1:1 canvas with generous 8-10% clear margin on every edge. Include every spire, both pillars, complete base stones, and full rift aperture. No cropping. No surrounding wall segment, floor tile, ground plane, cast shadow, or contact shadow.\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for background removal. The background must be one uniform color with no gradient, texture, haze, shadow, reflection, floor, or lighting variation.\nStyle/medium: polished hand-painted dark fantasy ARPG environment sprite, high material detail, sharp silhouette, production-ready at game scale; match the plaza map rather than a glossy UI render.\nLighting/mood: restrained warm bronze edge light from plaza lanterns plus deep violet portal emission; emission stays inside and immediately around the structure without smoke or transparent wisps extending far into the key background.\nConstraints: use no #00ff00 anywhere in the portal; crisp separable edges; opaque stone and metal; complete structure; western-wall 55-degree top-down three-quarter perspective; retain Image 1's visual identity but adapt its geometry to Image 2's world camera.\nAvoid: front-on symmetrical presentation, orthographic UI icon, text, letters, numbers, labels, logos, watermark, characters, weapons held by characters, UI frame, card border, pedestal crop, floating debris, distant particles, fog, smoke, soft cast shadow, reflection, extra props.",
+      "postProcessing": "Lanczos resize and transparent-canvas placement, then remove_chroma_key.py with soft matte, despill, and edge-contract 1"
+    },
+    {
+      "id": "portal-exchange-world-v2",
+      "role": "east-wall world prop",
+      "generator": "OpenAI built-in image_gen",
+      "tool": "image_gen.imagegen",
+      "mode": "reference-guided generation",
+      "referenceImages": [
+        "public/assets/plaza/portal-exchange-v2.png",
+        "public/assets/maps/memory-plaza-v1.png"
+      ],
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b85-a816-7440-bd30-72869b090f6b/exec-0dbd2ff2-eb40-4e6c-8640-a4a1f1f398ae.png",
+      "chromaKey": "#FF00FF",
+      "prompt": "Use case: stylized-concept\nAsset type: production 2D ARPG world prop sprite for the east wall of the shared plaza\nPrimary request: Create one new world-only three-quarter-perspective version of the teal Memory Exchange portal. Re-author the portal from Image 1 for the plaza camera in Image 2; do not merely rotate or skew the existing front-facing UI asset.\nInput images: Image 1 is the design-identity reference. Preserve its recognizable black carved masonry, aged-brass trim, balanced-scales crown, ledger desks, hanging seals and chains, dignified teal crystalline rift, and warm ivory core. Image 2 is the world-camera, material, scale, and lighting reference. Match its hand-painted dark gothic architecture and approximately 55-degree top-down three-quarter game view.\nWorld orientation: This portal is installed against the EAST / RIGHT wall of the plaza. Its doorway faces WEST / LEFT toward the plaza center. The camera looks down from the southwest toward the northeast, so show the portal's front face in oblique three-quarter view plus believable depth on its southern/right-side masonry, threshold, buttresses, desks, books, and vessels. The structure should recede toward the upper-right and its base should sit on one coherent ground plane. It must read correctly as an east-wall world prop when composited into Image 2.\nScene/backdrop: perfectly flat uniform solid #FF00FF chroma-key background for later removal. No floor plane, horizon, cast shadow, contact shadow, reflection, gradient, texture, fog, or lighting variation in the magenta. Do not use #FF00FF anywhere in the structure.\nSubject: exactly one complete monumental Memory Exchange portal, including its full crown, both side towers, full threshold and base, both ledger desks, books, chains, seals, and small brass vessels. Keep the teal rift contained inside the opening, with a restrained warm-white core. Maintain the same visual identity as Image 1 while redesigning every form to be spatially coherent at the requested angle.\nStyle/medium: polished hand-painted 2D dark-fantasy action-RPG world sprite, early-2000s gothic ARPG atmosphere, blackened stone, forged iron, aged brass, crisp readable silhouette, natural wear, production-ready detail.\nComposition/framing: square canvas; one centered isolated prop; entire silhouette visible; at least 9 percent clean magenta padding on every edge; no part touches or approaches a canvas edge. Target roughly 74 percent canvas height and 66 percent canvas width so the complete structure survives a 768 by 768 downscale.\nLighting/mood: match Image 2's warm low plaza lantern light on stone and brass, with the teal portal as the controlled magical accent. Preserve deep blacks and clear separation; no excessive bloom.\nConstraints: complete uncropped structure; correct 55-degree top-down three-quarter perspective; east-wall orientation; no front-on orthographic presentation; no characters, creatures, players, nameplates, text, letters, numbers, signage, logos, watermark, UI panels, surrounding wall, surrounding floor, detached coins, loose props, extra portals, or decorative background. Keep a continuous clean chroma moat around every edge of the prop.",
+      "postProcessing": "sharp Lanczos3 fit-fill resize, then remove_chroma_key.py with border auto-key, soft matte, thresholds 12/220, and despill"
+    }
+  ],
   "postProcessing": {
     "order": [
       "resize selected RGB chroma-key source",
@@ -81,7 +113,9 @@
         "sanctum-frame-v2": [1024, 1024],
         "portal-expedition-v2": [768, 768],
         "portal-duel-v2": [768, 768],
+        "portal-duel-world-v2": [768, 768],
         "portal-exchange-v2": [768, 768],
+        "portal-exchange-world-v2": [768, 768],
         "portal-caravan-v2": [768, 768]
       },
       "png": {
@@ -171,6 +205,40 @@
         "path": "public/assets/plaza/portal-exchange-v2.png",
         "sha256": "cff76ec78fafcdef7402313e6b37482aaaaaa49cabb60ea86f1a559c7a642d07",
         "bytes": 639161,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-duel-world-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-duel-world-v2-keyed.png",
+        "sha256": "533913cb2cef3be40c9331c78a5dca3291b6f020fe6452d2788799f73b75772b",
+        "bytes": 1895995,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-duel-world-v2.png",
+        "sha256": "f70b81880b727c7d0f9e952c22dd3d860f20a56de19b47996f95450de555d0c6",
+        "bytes": 510857,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-exchange-world-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-exchange-world-v2-keyed.png",
+        "sha256": "c02f54e2fd54c37aaa4bc71156e1a9769032896b8dc72c33085d7a258768ebd3",
+        "bytes": 1982578,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-exchange-world-v2.png",
+        "sha256": "08e0f9230c290a7e1775f090cb98362d403fd387981b42b61b397acb1cf38679",
+        "bytes": 636467,
         "size": [768, 768],
         "mode": "RGBA"
       }
