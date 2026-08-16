@@ -11657,7 +11657,7 @@ export default function GameCanvas({
             <a className="menu-pvp-action" href="/pvp">
               <span>
                 <strong>기억 결투</strong>
-                <small>온라인 1대1 · 빌드 연동 적응형 결투</small>
+                <small>온라인 1대1 · 장비 전투력 그대로</small>
               </span>
               <b>LIVE</b>
             </a>

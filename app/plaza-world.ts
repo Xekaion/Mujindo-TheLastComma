@@ -49,7 +49,7 @@ export const PLAZA_PORTALS: readonly PlazaPortalDefinition[] = [
     id: "duel",
     name: "기억결투",
     englishName: "MEMORY DUEL",
-    description: "다른 기록자와 빌드를 겨루는 적응형 결투장입니다.",
+    description: "다른 기록자와 장비 전투력 그대로 겨루는 결투장입니다.",
     href: "/pvp",
     x: 250,
     y: 675,

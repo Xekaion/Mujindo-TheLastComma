@@ -69,8 +69,6 @@ const worker = {
     // Economy identity never comes from caller-visible hosting headers. Remote
     // users must establish a server-verified Steam session; local A/B demo
     // identity is reconstructed above only for a same-origin localhost request.
-    let trustedName: string | null = null;
-
     const sanitizedRequest = new Request(request, { headers });
 
     if (url.pathname.startsWith("/api/economy/")) {
@@ -78,17 +76,21 @@ const worker = {
     }
 
     if (url.pathname.startsWith("/api/realtime/")) {
-      const isRealtimeHealth = url.pathname.replace(/\/+$/, "") === "/api/realtime/health";
-      const realtimeIdentity = isRealtimeHealth
+      const realtimeRoute = url.pathname.replace(/\/+$/, "");
+      const isRealtimeHealth = realtimeRoute === "/api/realtime/health";
+      const isRealtimeSession = realtimeRoute === "/api/realtime/session";
+      let realtimeIdentity = isRealtimeHealth
         ? null
         : await authorizeRealtimeEconomyRequest(sanitizedRequest, env);
+      // When strict PVP account auth is disabled, resolve an optional signed-in
+      // account only while issuing the bearer session. Repeating this D1-backed
+      // authentication on every 50 ms sync would add needless hot-path load.
+      if (isRealtimeSession && realtimeIdentity === null) {
+        realtimeIdentity = await authorizeHubEconomyRequest(sanitizedRequest, env);
+      }
       if (realtimeIdentity instanceof Response) return realtimeIdentity;
       if (realtimeIdentity) {
         headers.set("x-mujindo-account-id", realtimeIdentity.accountId);
-        trustedName = realtimeIdentity.displayName;
-      }
-      if (url.pathname === "/api/realtime/session") {
-        if (trustedName) headers.set("x-mujindo-player-name", trustedName);
       }
       const realtimeRequest = new Request(sanitizedRequest, { headers });
       return handleRealtimeRequest(realtimeRequest, env);

@@ -255,48 +255,42 @@
   font-weight: 500;
 }
 
-.pvp-name-form label {
-  display: block;
-  margin-bottom: 7px;
+.pvp-character-identity {
+  display: grid;
+  min-height: 63px;
+  align-content: center;
+  gap: 4px;
+  border: 1px solid rgba(203, 169, 102, 0.26);
+  padding: 10px 13px;
+  background: rgba(3, 5, 8, 0.72);
+}
+
+.pvp-character-identity small {
   color: rgba(222, 209, 183, 0.56);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
 }
 
-.pvp-name-form > div {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-}
-
-.pvp-name-form input {
-  min-width: 0;
-  height: 43px;
-  border: 1px solid rgba(203, 169, 102, 0.26);
-  border-right: 0;
-  border-radius: 0;
-  padding: 0 13px;
-  outline: none;
+.pvp-character-identity strong {
   color: #f1e6cf;
-  background: rgba(3, 5, 8, 0.72);
+  font-family: Georgia, "Nanum Myeongjo", serif;
+  font-size: 18px;
 }
 
-.pvp-name-form input:focus {
-  border-color: rgba(227, 184, 105, 0.68);
-  box-shadow: inset 0 0 14px rgba(205, 147, 68, 0.07);
+.pvp-character-identity p {
+  margin: 0;
+  color: rgba(231, 212, 186, 0.66);
+  font-size: 9px;
+  line-height: 1.55;
 }
 
-.pvp-name-form button {
-  min-width: 66px;
-  border: 1px solid rgba(203, 169, 102, 0.36);
+.pvp-character-identity a {
+  width: fit-content;
+  border-bottom: 1px solid rgba(231, 210, 177, 0.34);
   color: #ddc89a;
-  cursor: pointer;
-  background: rgba(77, 57, 31, 0.38);
-}
-
-.pvp-name-form button:disabled {
-  cursor: default;
-  opacity: 0.35;
+  font-size: 9px;
+  text-decoration: none;
 }
 
 .pvp-readiness {
@@ -902,7 +896,6 @@
 
 .pvp-network-state,
 .pvp-rule-strip span,
-.pvp-name-form label,
 .pvp-readiness span,
 .pvp-build-profile small,
 .pvp-build-profile > span,

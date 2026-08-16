@@ -2,26 +2,29 @@
 
 import {
   DEFAULT_PVP_APPEARANCE,
-  PVP_BASE_PROJECTILE_DAMAGE,
-  PVP_BASE_SHOT_COOLDOWN_MS,
-  PVP_BALANCE_VERSION,
-  PVP_BURST_MAX_HEALTH_FRACTION,
-  PVP_BURST_WINDOW_MS,
   PVP_ARENA_HEIGHT,
   PVP_ARENA_WIDTH,
+  PVP_BASE_MAX_HP,
+  PVP_BOSS_HIT_RADIUS,
+  PVP_COMBAT_MODEL,
+  PVP_COMBAT_VERSION,
   PVP_COUNTDOWN_MS,
-  PVP_MIN_HITS_TO_KO,
+  PVP_DASH_DURATION_MS,
+  PVP_PHANTOM_MARCH_ACTIVATION_MS,
+  PVP_PHANTOM_MARCH_MOVEMENT_EPSILON,
+  PVP_PHANTOM_MARCH_MOVE_MULTIPLIER,
+  PVP_PHANTOM_MARCH_TIMER_CAP_MS,
   PVP_ROUND_DURATION_MS,
   PVP_SCORE_TO_WIN,
-  PVP_TARGET_TTK_SECONDS,
-  capPvpHitDamage,
+  PVP_TARGET_CLASS,
   parseRealtimeClientMessage,
-  resolvePvpMatchBalance,
+  resolvePvpCombatProfile,
   sanitizePvpAppearance,
   sanitizePvpBuildProfile,
-  sanitizeDisplayName,
   type PvpAppearance,
   type PvpBuildProfile,
+  type PvpCombatEvent,
+  type PvpCombatEventKind,
   type PvpInput,
   type PvpPhase,
   type PvpPlayerSnapshot,
@@ -34,6 +37,11 @@ import {
   WALKABLE_FLOOR_POLYGON,
   constrainPointToConvexPolygon,
 } from "../app/room-collision";
+import {
+  isCharacterNicknameSlot,
+  validateCharacterNickname,
+  type CharacterNicknameSlot,
+} from "../app/character-nickname";
 
 export type RealtimeD1Env = {
   DB?: D1Database;
@@ -43,6 +51,7 @@ type StoredSession = {
   token: string;
   playerId: string;
   accountId?: string;
+  characterSlot?: CharacterNicknameSlot;
   displayName: string;
   createdAt: number;
   expiresAt: number;
@@ -73,23 +82,41 @@ type MatchPlayer = {
   shotCooldownMs: number;
   dashCooldownMs: number;
   dashRemainingMs: number;
+  dashX: number;
+  dashY: number;
+  dashCooldownDurationMs: number;
   invulnerableMs: number;
   respawnMs: number;
   disconnectedAt: number | null;
   input: PvpInput;
   lastInputSequence: number;
-  buildRating: number;
-  offenseScale: number;
+  equipmentPower: number;
+  moveSpeed: number;
+  dashSpeed: number;
+  attackRate: number;
+  projectileCount: number;
+  projectileSpeed: number;
+  projectileLifeMs: number;
+  projectileRadius: number;
+  critChance: number;
+  critMultiplier: number;
+  homingStrength: number;
+  pierce: number;
   projectileDamage: number;
-  damageWindowStartedAt: number;
-  damageWindowAmount: number;
+  continuousMoveMultiplier: number;
+  hasPhantomMarch: boolean;
+  phantomMarchMoveMs: number;
   appearance?: PvpAppearance;
 };
 
 type MatchProjectile = PvpProjectileSnapshot & {
-  lifeMs: number;
   damage: number;
+  homingStrength: number;
+  pierceRemaining: number;
+  hitPlayerIds: string[];
 };
+
+type MatchCombatEvent = PvpCombatEvent;
 
 type PvpMatch = {
   id: string;
@@ -105,11 +132,14 @@ type PvpMatch = {
   players: [MatchPlayer, MatchPlayer];
   projectiles: MatchProjectile[];
   nextProjectileId: number;
+  nextVolleyId?: number;
+  nextEventId?: number;
+  events?: MatchCombatEvent[];
   lastSteppedAt: number;
   accumulatorMs: number;
-  balanceVersion: number;
-  vitalityMultiplier: number;
-  targetTtkSeconds: number;
+  combatVersion?: number;
+  targetClass?: typeof PVP_TARGET_CLASS;
+  combatModel?: typeof PVP_COMBAT_MODEL;
 };
 
 type AcquisitionRecord = {
@@ -143,15 +173,6 @@ const WORLD_STATE_FORMAT = 1;
 const TICK_MS = 50;
 const MAX_SIMULATION_DEBT_MS = 2_000;
 const MAX_STEPS_PER_REQUEST = 20;
-const PLAYER_SPEED = 235;
-const DASH_SPEED_MULTIPLIER = 3.15;
-const DASH_DURATION_MS = 165;
-const DASH_COOLDOWN_MS = 1_550;
-const SHOT_COOLDOWN_MS = PVP_BASE_SHOT_COOLDOWN_MS;
-const PROJECTILE_SPEED = 650;
-const PROJECTILE_DAMAGE = PVP_BASE_PROJECTILE_DAMAGE;
-const PROJECTILE_RADIUS = 8;
-const PROJECTILE_LIFE_MS = 1_650;
 const RESPAWN_MS = 1_900;
 const DISCONNECT_FORFEIT_MS = 10_000;
 const ONLINE_WINDOW_MS = 6_000;
@@ -167,12 +188,13 @@ const MAX_SYNC_MESSAGES = 48;
 const MAX_SESSIONS = 512;
 const MAX_QUEUE_SIZE = 128;
 const MAX_MATCHES = 64;
-const MAX_PROJECTILES_PER_MATCH = 96;
+const MAX_PROJECTILES_PER_MATCH = 384;
 const MAX_ACQUISITION_IDS = 256;
 const MAX_RECENT_ANNOUNCEMENTS = 12;
-const MAX_STATE_BYTES = 900_000;
+const MAX_STATE_BYTES = 8_000_000;
 const CAS_RETRIES = 8;
 const PVP_ARENA_VERSION = 2;
+const COMBAT_EVENT_RETENTION_MS = 1_000;
 const LEGACY_ARENA_MARGIN_X = 88;
 const LEGACY_ARENA_MARGIN_TOP = 112;
 const LEGACY_ARENA_MARGIN_BOTTOM = 76;
@@ -233,6 +255,56 @@ const distanceSquared = (ax: number, ay: number, bx: number, by: number): number
   return dx * dx + dy * dy;
 };
 
+const distanceToSegmentSquared = (
+  px: number,
+  py: number,
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+): number => {
+  const abX = bx - ax;
+  const abY = by - ay;
+  const lengthSquared = abX * abX + abY * abY;
+  if (lengthSquared <= 0.000_001) return distanceSquared(px, py, ax, ay);
+  const projection = clamp(
+    ((px - ax) * abX + (py - ay) * abY) / lengthSquared,
+    0,
+    1,
+  );
+  return distanceSquared(px, py, ax + abX * projection, ay + abY * projection);
+};
+
+function appendCombatEvent(
+  match: PvpMatch,
+  kind: PvpCombatEventKind,
+  actorId: string,
+  x: number,
+  y: number,
+  now: number,
+  options: { targetId?: string; critical?: boolean; volleyId?: number } = {},
+): void {
+  const events = (match.events ??= []);
+  const nextEventId = Number.isSafeInteger(match.nextEventId)
+    ? Math.max(1, match.nextEventId as number)
+    : events.reduce((highest, event) => Math.max(highest, event.id + 1), 1);
+  events.push({
+    id: nextEventId,
+    kind,
+    actorId,
+    ...(options.targetId ? { targetId: options.targetId } : {}),
+    x,
+    y,
+    occurredAt: now,
+    ...(options.critical !== undefined ? { critical: options.critical } : {}),
+    ...(Number.isSafeInteger(options.volleyId) && (options.volleyId as number) > 0
+      ? { volleyId: options.volleyId }
+      : {}),
+  });
+  match.nextEventId = nextEventId + 1;
+  match.events = events.filter((event) => now - event.occurredAt <= COMBAT_EVENT_RETENTION_MS);
+}
+
 const encodedLength = (value: string): number => new TextEncoder().encode(value).byteLength;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -249,11 +321,6 @@ function sameOriginOrAbsent(request: Request): boolean {
   } catch {
     return false;
   }
-}
-
-function trustedDisplayName(request: Request, requestedName: unknown): string {
-  const trustedName = request.headers.get("x-mujindo-player-name");
-  return sanitizeDisplayName(trustedName ?? requestedName);
 }
 
 function trustedAccountId(request: Request): string | null {
@@ -401,7 +468,13 @@ function compactState(state: RealtimeWorldState, now: number): void {
   state.queue = state.queue.slice(0, MAX_QUEUE_SIZE);
   for (const match of Object.values(state.matches)) {
     if (match.projectiles.length > MAX_PROJECTILES_PER_MATCH) {
-      match.projectiles = match.projectiles.slice(-MAX_PROJECTILES_PER_MATCH);
+      match.projectiles = match.projectiles
+        .sort((left, right) => (left.ageMs ?? 0) - (right.ageMs ?? 0))
+        .slice(0, MAX_PROJECTILES_PER_MATCH);
+    }
+    if (match.events) {
+      match.events = match.events
+        .filter((event) => now - event.occurredAt <= COMBAT_EVENT_RETENTION_MS);
     }
   }
 }
@@ -413,7 +486,7 @@ function serializeWorldState(state: RealtimeWorldState, now: number): string {
 
   state.acquisitionIds = state.acquisitionIds.slice(-64);
   for (const match of Object.values(state.matches)) {
-    match.projectiles = match.projectiles.slice(-48);
+    match.projectiles = match.projectiles.slice(-MAX_PROJECTILES_PER_MATCH);
   }
   serialized = JSON.stringify(state);
   const removableSessions = Object.values(state.sessions)
@@ -531,6 +604,136 @@ function resolveArenaCollision(player: MatchPlayer, arenaVersion: number): void 
   );
 }
 
+function reconcilePhantomMarchRuntime(
+  player: MatchPlayer,
+  profile: ReturnType<typeof resolvePvpCombatProfile>,
+  preserveTimer: boolean,
+): void {
+  player.continuousMoveMultiplier = profile.continuousMoveMultiplier;
+  player.hasPhantomMarch = profile.continuousMoveMultiplier > 1;
+  player.phantomMarchMoveMs =
+    preserveTimer &&
+    player.hasPhantomMarch &&
+    Number.isFinite(player.phantomMarchMoveMs)
+      ? clamp(player.phantomMarchMoveMs, 0, PVP_PHANTOM_MARCH_TIMER_CAP_MS)
+      : 0;
+}
+
+function reconcileVolleyIdentity(match: PvpMatch): void {
+  let nextVolleyId =
+    Number.isSafeInteger(match.nextVolleyId) && (match.nextVolleyId as number) > 0
+      ? (match.nextVolleyId as number)
+      : 1;
+  for (const event of match.events ?? []) {
+    if (Number.isSafeInteger(event.volleyId) && (event.volleyId as number) > 0) {
+      nextVolleyId = Math.max(nextVolleyId, (event.volleyId as number) + 1);
+    }
+  }
+  for (const projectile of match.projectiles) {
+    if (Number.isSafeInteger(projectile.volleyId) && projectile.volleyId > 0) {
+      nextVolleyId = Math.max(nextVolleyId, projectile.volleyId + 1);
+    }
+  }
+
+  const legacyVolleyIds = new Map<string, number>();
+  for (const projectile of match.projectiles) {
+    if (Number.isSafeInteger(projectile.volleyId) && projectile.volleyId > 0) {
+      continue;
+    }
+    const hasStableTiming =
+      Number.isFinite(projectile.ageMs) && Number.isFinite(projectile.lifeMs);
+    const legacyGroup = hasStableTiming
+      ? `${projectile.ownerId}:${projectile.ageMs}:${projectile.lifeMs}:${projectile.critical ? 1 : 0}`
+      : `${projectile.ownerId}:projectile:${projectile.id}`;
+    let volleyId = legacyVolleyIds.get(legacyGroup);
+    if (!volleyId) {
+      volleyId = nextVolleyId;
+      nextVolleyId += 1;
+      legacyVolleyIds.set(legacyGroup, volleyId);
+    }
+    projectile.volleyId = volleyId;
+  }
+  match.nextVolleyId = nextVolleyId;
+}
+
+function migrateMatchToEquipmentPower(
+  state: RealtimeWorldState,
+  match: PvpMatch,
+  now: number,
+): void {
+  if (
+    match.combatVersion === PVP_COMBAT_VERSION &&
+    match.combatModel === PVP_COMBAT_MODEL &&
+    match.targetClass === PVP_TARGET_CLASS
+  ) {
+    for (const player of match.players) {
+      const session = state.sessions[player.sessionToken];
+      reconcilePhantomMarchRuntime(
+        player,
+        resolvePvpCombatProfile(session?.combatProfile),
+        true,
+      );
+    }
+    reconcileVolleyIdentity(match);
+    match.events = (match.events ?? []).filter(
+      (event) => now - event.occurredAt <= COMBAT_EVENT_RETENTION_MS,
+    );
+    const nextEventId = match.events.reduce(
+      (highest, event) =>
+        Number.isSafeInteger(event.id) ? Math.max(highest, event.id + 1) : highest,
+      1,
+    );
+    if (
+      !Number.isSafeInteger(match.nextEventId) ||
+      (match.nextEventId as number) < nextEventId
+    ) {
+      match.nextEventId = nextEventId;
+    }
+    return;
+  }
+
+  for (const player of match.players) {
+    const session = state.sessions[player.sessionToken];
+    const resolved = resolvePvpCombatProfile(session?.combatProfile);
+    const previousMaxHp = Number.isFinite(player.maxHp) && player.maxHp > 0
+      ? player.maxHp
+      : PVP_BASE_MAX_HP;
+    const healthRatio = clamp(
+      (Number.isFinite(player.hp) ? player.hp : previousMaxHp) / previousMaxHp,
+      0,
+      1,
+    );
+    player.hp = healthRatio * PVP_BASE_MAX_HP;
+    player.maxHp = PVP_BASE_MAX_HP;
+    player.dashX = Number.isFinite(player.dashX) ? player.dashX : player.aimX;
+    player.dashY = Number.isFinite(player.dashY) ? player.dashY : player.aimY;
+    player.dashCooldownDurationMs = resolved.dashCooldownMs;
+    player.equipmentPower = resolved.equipmentPower;
+    player.moveSpeed = resolved.moveSpeed;
+    player.dashSpeed = resolved.dashSpeed;
+    player.attackRate = resolved.attackRate;
+    player.projectileCount = resolved.projectileCount;
+    player.projectileSpeed = resolved.projectileSpeed;
+    player.projectileLifeMs = resolved.projectileLifeMs;
+    player.projectileRadius = resolved.projectileRadius;
+    player.critChance = resolved.critChance;
+    player.critMultiplier = resolved.critMultiplier;
+    player.homingStrength = resolved.homingStrength;
+    player.pierce = resolved.pierce;
+    player.projectileDamage = resolved.projectileDamage;
+    reconcilePhantomMarchRuntime(player, resolved, false);
+  }
+  // Legacy projectiles contain damage resolved by the removed adaptive model.
+  // Retaining them would apply that old value directly after the no-cap switch.
+  match.projectiles = [];
+  match.nextVolleyId = 1;
+  match.events = [];
+  match.nextEventId = 1;
+  match.combatVersion = PVP_COMBAT_VERSION;
+  match.combatModel = PVP_COMBAT_MODEL;
+  match.targetClass = PVP_TARGET_CLASS;
+}
+
 function legacyProjectileHitsObstacle(projectile: MatchProjectile): boolean {
   return LEGACY_ARENA_OBSTACLES.some(
     (obstacle) =>
@@ -559,8 +762,8 @@ function respawnPlayer(player: MatchPlayer): void {
   player.hp = player.maxHp;
   player.invulnerableMs = 900;
   player.shotCooldownMs = 450;
-  player.damageWindowStartedAt = 0;
-  player.damageWindowAmount = 0;
+  player.dashRemainingMs = 0;
+  player.phantomMarchMoveMs = 0;
 }
 
 function stepSimulation(match: PvpMatch, stepNow: number): void {
@@ -568,103 +771,265 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
   match.tick += 1;
   const deltaSeconds = TICK_MS / 1_000;
   const arenaVersion = match.arenaVersion ?? 1;
+  match.events = (match.events ?? []).filter(
+    (event) => stepNow - event.occurredAt <= COMBAT_EVENT_RETENTION_MS,
+  );
 
   for (const player of match.players) {
-    player.shotCooldownMs = Math.max(0, player.shotCooldownMs - TICK_MS);
+    const liveOpponent = match.players.find(
+      (candidate) =>
+        candidate.id !== player.id && candidate.respawnMs <= 0,
+    );
+    if (player.input.fire && player.respawnMs <= 0 && liveOpponent) {
+      // Preserve fractional cooldown debt while continuously firing so rates
+      // such as 12/s remain accurate on the fixed 20 Hz simulation tick.
+      player.shotCooldownMs -= TICK_MS;
+    } else {
+      // Idle or targetless time is not a bank of future attacks. Stop at ready
+      // (zero) so an opponent respawn cannot produce a catch-up burst.
+      player.shotCooldownMs = Math.max(0, player.shotCooldownMs - TICK_MS);
+    }
     player.dashCooldownMs = Math.max(0, player.dashCooldownMs - TICK_MS);
-    player.dashRemainingMs = Math.max(0, player.dashRemainingMs - TICK_MS);
     player.invulnerableMs = Math.max(0, player.invulnerableMs - TICK_MS);
     if (player.respawnMs > 0) {
+      player.phantomMarchMoveMs = 0;
       player.respawnMs = Math.max(0, player.respawnMs - TICK_MS);
       if (player.respawnMs === 0) respawnPlayer(player);
       continue;
     }
     if (player.input.dash && player.dashCooldownMs <= 0) {
-      player.dashRemainingMs = DASH_DURATION_MS;
-      player.dashCooldownMs = DASH_COOLDOWN_MS;
-      player.invulnerableMs = DASH_DURATION_MS + 70;
+      const moveLength = Math.hypot(player.input.moveX, player.input.moveY);
+      const aimLength = Math.hypot(player.aimX, player.aimY);
+      player.dashX = moveLength > 0.001
+        ? player.input.moveX / moveLength
+        : aimLength > 0.001
+          ? player.aimX / aimLength
+          : player.side === 0
+            ? 1
+            : -1;
+      player.dashY = moveLength > 0.001
+        ? player.input.moveY / moveLength
+        : aimLength > 0.001
+          ? player.aimY / aimLength
+          : 0;
+      player.dashRemainingMs = PVP_DASH_DURATION_MS;
+      player.dashCooldownMs = player.dashCooldownDurationMs;
+      player.invulnerableMs = PVP_DASH_DURATION_MS + 30;
+      appendCombatEvent(match, "dash", player.id, player.x, player.y, stepNow);
     }
     player.input = { ...player.input, dash: false };
-    const speed =
-      PLAYER_SPEED * (player.dashRemainingMs > 0 ? DASH_SPEED_MULTIPLIER : 1);
-    player.vx = player.input.moveX * speed;
-    player.vy = player.input.moveY * speed;
-    player.x += player.vx * deltaSeconds;
-    player.y += player.vy * deltaSeconds;
+    const dashStepMs = Math.min(TICK_MS, player.dashRemainingMs);
+    const normalStepMs = TICK_MS - dashStepMs;
+    const phantomMarchActive =
+      player.hasPhantomMarch &&
+      player.phantomMarchMoveMs >= PVP_PHANTOM_MARCH_ACTIVATION_MS;
+    const normalMoveSpeed =
+      player.moveSpeed *
+      (phantomMarchActive ? player.continuousMoveMultiplier : 1);
+    const previousPlayerX = player.x;
+    const previousPlayerY = player.y;
+    player.x +=
+      player.dashX * player.dashSpeed * (dashStepMs / 1_000) +
+      player.input.moveX * normalMoveSpeed * (normalStepMs / 1_000);
+    player.y +=
+      player.dashY * player.dashSpeed * (dashStepMs / 1_000) +
+      player.input.moveY * normalMoveSpeed * (normalStepMs / 1_000);
+    player.dashRemainingMs = Math.max(0, player.dashRemainingMs - TICK_MS);
+    if (player.dashRemainingMs > 0) {
+      player.vx = player.dashX * player.dashSpeed;
+      player.vy = player.dashY * player.dashSpeed;
+    } else {
+      player.vx = player.input.moveX * normalMoveSpeed;
+      player.vy = player.input.moveY * normalMoveSpeed;
+    }
     resolveArenaCollision(player, arenaVersion);
+    const actuallyMoved =
+      Math.hypot(
+        player.x - previousPlayerX,
+        player.y - previousPlayerY,
+      ) > PVP_PHANTOM_MARCH_MOVEMENT_EPSILON;
+    player.phantomMarchMoveMs =
+      player.hasPhantomMarch && actuallyMoved
+        ? Math.min(
+            PVP_PHANTOM_MARCH_TIMER_CAP_MS,
+            player.phantomMarchMoveMs + TICK_MS,
+          )
+        : 0;
 
     if (
       player.input.fire &&
-      player.shotCooldownMs <= 0 &&
-      player.dashRemainingMs <= 0 &&
-      match.projectiles.length < MAX_PROJECTILES_PER_MATCH
+      liveOpponent &&
+      player.shotCooldownMs <= 0
     ) {
-      player.shotCooldownMs = SHOT_COOLDOWN_MS;
-      match.projectiles.push({
-        id: match.nextProjectileId,
-        ownerId: player.id,
-        x: player.x + player.aimX * 32,
-        y: player.y + player.aimY * 32,
-        vx: player.aimX * PROJECTILE_SPEED,
-        vy: player.aimY * PROJECTILE_SPEED,
-        radius: PROJECTILE_RADIUS,
-        lifeMs: PROJECTILE_LIFE_MS,
-        damage: player.projectileDamage ?? PROJECTILE_DAMAGE,
-      });
-      match.nextProjectileId += 1;
+      const projectileCount = player.projectileCount;
+      while (
+        match.projectiles.length + projectileCount >
+        MAX_PROJECTILES_PER_MATCH
+      ) {
+        let oldestIndex = 0;
+        for (let index = 1; index < match.projectiles.length; index += 1) {
+          if (
+            match.projectiles[index].ageMs >
+            match.projectiles[oldestIndex].ageMs
+          ) {
+            oldestIndex = index;
+          }
+        }
+        // Capacity retirement is not a physical collision. Removing it
+        // silently preserves the new volley without fabricating up to hundreds
+        // of impact VFX/SFX events per second on long-lived projectile builds.
+        if (match.projectiles.splice(oldestIndex, 1).length === 0) break;
+      }
+      const critical = Math.random() < player.critChance;
+      const volleyDamage = Math.max(
+        0,
+        player.projectileDamage * (critical ? player.critMultiplier : 1),
+      );
+      const baseAngle = Math.atan2(
+        liveOpponent.y - player.y,
+        liveOpponent.x - player.x,
+      );
+      const spread = Math.min(0.62, projectileCount * 0.07);
+      const volleyId =
+        Number.isSafeInteger(match.nextVolleyId) &&
+        (match.nextVolleyId as number) > 0
+          ? (match.nextVolleyId as number)
+          : 1;
+      match.nextVolleyId = volleyId + 1;
+      appendCombatEvent(
+        match,
+        "shot",
+        player.id,
+        player.x,
+        player.y,
+        stepNow,
+        { critical, volleyId },
+      );
+      for (let index = 0; index < projectileCount; index += 1) {
+        const angle =
+          baseAngle +
+          (projectileCount === 1
+            ? 0
+            : -spread / 2 + (spread * index) / (projectileCount - 1));
+        const startX = player.x;
+        const startY = player.y - 8;
+        match.projectiles.push({
+          id: match.nextProjectileId,
+          volleyId,
+          ownerId: player.id,
+          x: startX,
+          y: startY,
+          previousX: startX,
+          previousY: startY,
+          vx: Math.cos(angle) * player.projectileSpeed,
+          vy: Math.sin(angle) * player.projectileSpeed,
+          radius: player.projectileRadius,
+          ageMs: 0,
+          lifeMs: player.projectileLifeMs,
+          critical,
+          affinity: "arcane",
+          damage: volleyDamage,
+          homingStrength: player.homingStrength,
+          pierceRemaining: player.pierce,
+          hitPlayerIds: [],
+        });
+        match.nextProjectileId += 1;
+      }
+      player.shotCooldownMs += 1_000 / player.attackRate;
     }
   }
 
   const liveProjectiles: MatchProjectile[] = [];
   for (const projectile of match.projectiles) {
+    const target = match.players.find(
+      (candidate) =>
+        candidate.id !== projectile.ownerId && candidate.respawnMs <= 0,
+    );
+    if (target && projectile.homingStrength > 0) {
+      const projectileSpeed = Math.hypot(projectile.vx, projectile.vy);
+      if (projectileSpeed > 0.001) {
+        const currentAngle = Math.atan2(projectile.vy, projectile.vx);
+        const targetAngle = Math.atan2(
+          target.y - projectile.y,
+          target.x - projectile.x,
+        );
+        const angleDelta = Math.atan2(
+          Math.sin(targetAngle - currentAngle),
+          Math.cos(targetAngle - currentAngle),
+        );
+        const steeredAngle =
+          currentAngle +
+          clamp(
+            angleDelta,
+            -projectile.homingStrength * deltaSeconds,
+            projectile.homingStrength * deltaSeconds,
+          );
+        projectile.vx = Math.cos(steeredAngle) * projectileSpeed;
+        projectile.vy = Math.sin(steeredAngle) * projectileSpeed;
+      }
+    }
+    projectile.previousX = projectile.x;
+    projectile.previousY = projectile.y;
+    projectile.ageMs += TICK_MS;
     projectile.lifeMs -= TICK_MS;
     projectile.x += projectile.vx * deltaSeconds;
     projectile.y += projectile.vy * deltaSeconds;
-    if (
+    const leftArena =
       projectile.lifeMs <= 0 ||
       projectile.x < 0 ||
       projectile.x > PVP_ARENA_WIDTH ||
       projectile.y < 0 ||
       projectile.y > PVP_ARENA_HEIGHT ||
       (arenaVersion < PVP_ARENA_VERSION &&
-        legacyProjectileHitsObstacle(projectile))
-    ) {
-      continue;
-    }
-    const target = match.players.find(
-      (candidate) => candidate.id !== projectile.ownerId && candidate.respawnMs <= 0,
-    );
+        legacyProjectileHitsObstacle(projectile));
+    const collisionRadius = projectile.radius + PVP_BOSS_HIT_RADIUS;
     if (
       target &&
       target.invulnerableMs <= 0 &&
-      distanceSquared(projectile.x, projectile.y, target.x, target.y) <=
-        (projectile.radius + 25) ** 2
+      !projectile.hitPlayerIds.includes(target.id) &&
+      distanceToSegmentSquared(
+        target.x,
+        target.y,
+        projectile.previousX,
+        projectile.previousY,
+        projectile.x,
+        projectile.y,
+      ) <= collisionRadius ** 2
     ) {
-      const damageWindowStartedAt = Number.isFinite(target.damageWindowStartedAt)
-        ? target.damageWindowStartedAt
+      const appliedDamage = Number.isFinite(projectile.damage)
+        ? Math.max(0, projectile.damage)
         : 0;
-      const damageWindowAmount = Number.isFinite(target.damageWindowAmount)
-        ? target.damageWindowAmount
-        : 0;
-      if (stepNow - damageWindowStartedAt >= PVP_BURST_WINDOW_MS) {
-        target.damageWindowStartedAt = stepNow;
-        target.damageWindowAmount = 0;
-      } else {
-        target.damageWindowStartedAt = damageWindowStartedAt;
-        target.damageWindowAmount = damageWindowAmount;
-      }
-      const hitDamage = capPvpHitDamage(projectile.damage, target.maxHp);
-      const burstBudget = Math.max(
-        0,
-        target.maxHp * PVP_BURST_MAX_HEALTH_FRACTION -
-          target.damageWindowAmount,
-      );
-      const appliedDamage = Math.min(hitDamage, burstBudget);
-      target.damageWindowAmount += appliedDamage;
       target.hp = Math.max(0, target.hp - appliedDamage);
+      projectile.hitPlayerIds.push(target.id);
+      appendCombatEvent(
+        match,
+        "hit",
+        projectile.ownerId,
+        projectile.x,
+        projectile.y,
+        stepNow,
+        {
+          targetId: target.id,
+          critical: projectile.critical,
+          volleyId: projectile.volleyId,
+        },
+      );
       if (target.hp <= 0) {
         const owner = match.players.find(
           (candidate) => candidate.id === projectile.ownerId,
+        );
+        appendCombatEvent(
+          match,
+          "defeat",
+          projectile.ownerId,
+          target.x,
+          target.y,
+          stepNow,
+          {
+            targetId: target.id,
+            critical: projectile.critical,
+            volleyId: projectile.volleyId,
+          },
         );
         if (owner) {
           owner.score += 1;
@@ -674,9 +1039,26 @@ function stepSimulation(match: PvpMatch, stepNow: number): void {
           }
         }
         target.respawnMs = RESPAWN_MS;
+        target.phantomMarchMoveMs = 0;
         target.vx = 0;
         target.vy = 0;
       }
+      if (projectile.pierceRemaining > 0 && !leftArena) {
+        projectile.pierceRemaining -= 1;
+        liveProjectiles.push(projectile);
+      }
+      continue;
+    }
+    if (leftArena) {
+      appendCombatEvent(
+        match,
+        "impact",
+        projectile.ownerId,
+        clamp(projectile.x, 0, PVP_ARENA_WIDTH),
+        clamp(projectile.y, 0, PVP_ARENA_HEIGHT),
+        stepNow,
+        { critical: projectile.critical, volleyId: projectile.volleyId },
+      );
       continue;
     }
     liveProjectiles.push(projectile);
@@ -689,6 +1071,7 @@ function advanceMatch(
   match: PvpMatch,
   now: number,
 ): void {
+  migrateMatchToEquipmentPower(state, match, now);
   if (match.phase === "finished") return;
   if (match.phase === "countdown") {
     if (now < match.startsAt) {
@@ -826,12 +1209,7 @@ function pruneWorld(state: RealtimeWorldState, now: number): void {
 function makeMatchPlayer(
   session: StoredSession,
   side: 0 | 1,
-  maxHp: number,
-  balance: {
-    buildRating: number;
-    offenseScale: number;
-    projectileDamage: number;
-  },
+  profile: ReturnType<typeof resolvePvpCombatProfile>,
 ): MatchPlayer {
   return {
     id: session.playerId,
@@ -844,22 +1222,36 @@ function makeMatchPlayer(
     vy: 0,
     aimX: side === 0 ? 1 : -1,
     aimY: 0,
-    hp: maxHp,
-    maxHp,
+    hp: PVP_BASE_MAX_HP,
+    maxHp: PVP_BASE_MAX_HP,
     score: 0,
-    shotCooldownMs: 500,
+    shotCooldownMs: 0,
     dashCooldownMs: 0,
     dashRemainingMs: 0,
+    dashX: side === 0 ? 1 : -1,
+    dashY: 0,
+    dashCooldownDurationMs: profile.dashCooldownMs,
     invulnerableMs: 850,
     respawnMs: 0,
     disconnectedAt: null,
     input: idleInput(),
     lastInputSequence: 0,
-    buildRating: balance.buildRating,
-    offenseScale: balance.offenseScale,
-    projectileDamage: balance.projectileDamage,
-    damageWindowStartedAt: 0,
-    damageWindowAmount: 0,
+    equipmentPower: profile.equipmentPower,
+    moveSpeed: profile.moveSpeed,
+    dashSpeed: profile.dashSpeed,
+    attackRate: profile.attackRate,
+    projectileCount: profile.projectileCount,
+    projectileSpeed: profile.projectileSpeed,
+    projectileLifeMs: profile.projectileLifeMs,
+    projectileRadius: profile.projectileRadius,
+    critChance: profile.critChance,
+    critMultiplier: profile.critMultiplier,
+    homingStrength: profile.homingStrength,
+    pierce: profile.pierce,
+    projectileDamage: profile.projectileDamage,
+    continuousMoveMultiplier: profile.continuousMoveMultiplier,
+    hasPhantomMarch: profile.continuousMoveMultiplier > 1,
+    phantomMarchMoveMs: 0,
     appearance: sanitizePvpAppearance(session.appearance),
   };
 }
@@ -877,9 +1269,8 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
 
     left.queued = false;
     right.queued = false;
-    const leftProfile = sanitizePvpBuildProfile(left.combatProfile);
-    const rightProfile = sanitizePvpBuildProfile(right.combatProfile);
-    const balance = resolvePvpMatchBalance(leftProfile, rightProfile);
+    const leftProfile = resolvePvpCombatProfile(left.combatProfile);
+    const rightProfile = resolvePvpCombatProfile(right.combatProfile);
     const matchId = crypto.randomUUID();
     const match: PvpMatch = {
       id: matchId,
@@ -892,16 +1283,19 @@ function makeMatches(state: RealtimeWorldState, now: number): void {
       winnerId: null,
       resultReason: null,
       players: [
-        makeMatchPlayer(left, 0, balance.maxHp, balance.left),
-        makeMatchPlayer(right, 1, balance.maxHp, balance.right),
+        makeMatchPlayer(left, 0, leftProfile),
+        makeMatchPlayer(right, 1, rightProfile),
       ],
       projectiles: [],
       nextProjectileId: 1,
+      nextVolleyId: 1,
+      nextEventId: 1,
+      events: [],
       lastSteppedAt: now,
       accumulatorMs: 0,
-      balanceVersion: balance.balanceVersion,
-      vitalityMultiplier: balance.vitalityMultiplier,
-      targetTtkSeconds: balance.targetTtkSeconds,
+      combatVersion: PVP_COMBAT_VERSION,
+      targetClass: PVP_TARGET_CLASS,
+      combatModel: PVP_COMBAT_MODEL,
     };
     state.matches[match.id] = match;
     left.matchId = match.id;
@@ -1022,9 +1416,9 @@ function snapshotFor(
         ? PVP_ROUND_DURATION_MS
         : Math.max(0, match.endsAt - now),
     winnerId: match.winnerId,
-    balanceVersion: match.balanceVersion ?? 1,
-    vitalityMultiplier: match.vitalityMultiplier ?? 1,
-    targetTtkSeconds: match.targetTtkSeconds ?? PVP_TARGET_TTK_SECONDS,
+    combatVersion: match.combatVersion ?? PVP_COMBAT_VERSION,
+    targetClass: PVP_TARGET_CLASS,
+    combatModel: PVP_COMBAT_MODEL,
     players: match.players.map<PvpPlayerSnapshot>((player) => {
       const participantSession = state.sessions[player.sessionToken];
       return {
@@ -1041,28 +1435,73 @@ function snapshotFor(
         maxHp: player.maxHp,
         score: player.score,
         dashCooldownMs: player.dashCooldownMs,
+        dashRemainingMs: player.dashRemainingMs,
+        invulnerableMs: player.invulnerableMs,
         respawnMs: player.respawnMs,
         connected: Boolean(
           participantSession && sessionIsOnline(participantSession, now),
         ),
         lastInputSequence: player.lastInputSequence,
-        buildRating: player.buildRating ?? 100,
-        offenseScale: player.offenseScale ?? 1,
-        projectileDamage: player.projectileDamage ?? PROJECTILE_DAMAGE,
+        equipmentPower: player.equipmentPower,
+        attackRate: player.attackRate,
+        projectileCount: player.projectileCount,
+        projectileSpeed: player.projectileSpeed,
+        projectileLifeMs: player.projectileLifeMs,
+        projectileRadius: player.projectileRadius,
+        homingStrength: player.homingStrength,
+        pierce: player.pierce,
+        projectileDamage: player.projectileDamage,
+        phantomMarchMoveMs: player.phantomMarchMoveMs,
+        continuousMoveMultiplier: player.continuousMoveMultiplier,
         appearance: sanitizePvpAppearance(player.appearance),
       };
     }),
     projectiles: match.projectiles.map(
-      ({ id, ownerId, x, y, vx, vy, radius }) => ({
+      ({
         id,
+        volleyId,
         ownerId,
         x,
         y,
         vx,
         vy,
         radius,
+        previousX,
+        previousY,
+        ageMs,
+        lifeMs,
+        critical,
+        affinity,
+      }) => ({
+        id,
+        volleyId,
+        ownerId,
+        x,
+        y,
+        vx,
+        vy,
+        radius,
+        previousX,
+        previousY,
+        ageMs,
+        lifeMs,
+        critical,
+        affinity,
       }),
     ),
+    events: (match.events ?? [])
+      .filter((event) => now - event.occurredAt <= COMBAT_EVENT_RETENTION_MS)
+      .map<PvpCombatEvent>((event) => ({
+        id: event.id,
+        kind: event.kind,
+        actorId: event.actorId,
+        ...(event.targetId ? { targetId: event.targetId } : {}),
+        x: event.x,
+        y: event.y,
+        occurredAt: event.occurredAt,
+        ...(event.critical !== undefined ? { critical: event.critical } : {}),
+        ...(event.volleyId !== undefined ? { volleyId: event.volleyId } : {}),
+      })),
   };
 }
 
@@ -1124,8 +1563,49 @@ async function createSession(request: Request, db: D1Database): Promise<Response
   if (!isRecord(rawBody)) {
     throw new RequestProblem(400, "invalid_session_body", "Session body must be an object.");
   }
-  const displayName = trustedDisplayName(request, rawBody.displayName);
+  if (!isCharacterNicknameSlot(rawBody.characterSlot)) {
+    throw new RequestProblem(
+      400,
+      "invalid_character_slot",
+      "Choose character slot 1, 2, or 3.",
+    );
+  }
+  const characterSlot = rawBody.characterSlot;
   const accountId = trustedAccountId(request);
+  let displayName: string;
+  if (accountId) {
+    const character = await db
+      .prepare(
+        `SELECT nickname,nickname_key
+          FROM hub_character_slots
+          WHERE account_id=? AND slot=? LIMIT 1`,
+      )
+      .bind(accountId, characterSlot)
+      .first<{ nickname: string | null; nickname_key: string | null }>();
+    const storedNickname = validateCharacterNickname(character?.nickname);
+    if (
+      !character ||
+      !storedNickname.ok ||
+      character.nickname_key !== storedNickname.nicknameKey
+    ) {
+      throw new RequestProblem(
+        409,
+        "nickname_required",
+        "Create this character's nickname before entering the memory duel.",
+      );
+    }
+    displayName = storedNickname.nickname;
+  } else {
+    const localNickname = validateCharacterNickname(rawBody.displayName);
+    if (!localNickname.ok) {
+      throw new RequestProblem(
+        409,
+        "nickname_required",
+        "Create this character's nickname before entering the memory duel.",
+      );
+    }
+    displayName = localNickname.nickname;
+  }
   const token = `${crypto.randomUUID().replaceAll("-", "")}${crypto
     .randomUUID()
     .replaceAll("-", "")}`;
@@ -1145,6 +1625,7 @@ async function createSession(request: Request, db: D1Database): Promise<Response
       token,
       playerId,
       ...(accountId ? { accountId } : {}),
+      characterSlot,
       displayName,
       createdAt: now,
       expiresAt: now + SESSION_TTL_MS,
@@ -1343,15 +1824,18 @@ export const PVP_D1_SERVER_RULES = {
   tickMs: TICK_MS,
   maxSimulationDebtMs: MAX_SIMULATION_DEBT_MS,
   maxStepsPerRequest: MAX_STEPS_PER_REQUEST,
-  playerSpeed: PLAYER_SPEED,
-  dashCooldownMs: DASH_COOLDOWN_MS,
-  shotCooldownMs: SHOT_COOLDOWN_MS,
-  projectileDamage: PROJECTILE_DAMAGE,
-  balanceVersion: PVP_BALANCE_VERSION,
-  targetTtkSeconds: PVP_TARGET_TTK_SECONDS,
-  minimumHitsToKo: PVP_MIN_HITS_TO_KO,
-  burstWindowMs: PVP_BURST_WINDOW_MS,
-  burstMaxHealthFraction: PVP_BURST_MAX_HEALTH_FRACTION,
+  combatVersion: PVP_COMBAT_VERSION,
+  targetClass: PVP_TARGET_CLASS,
+  combatModel: PVP_COMBAT_MODEL,
+  baseMaxHp: PVP_BASE_MAX_HP,
+  bossHitRadius: PVP_BOSS_HIT_RADIUS,
+  dashDurationMs: PVP_DASH_DURATION_MS,
+  phantomMarchActivationMs: PVP_PHANTOM_MARCH_ACTIVATION_MS,
+  phantomMarchMoveMultiplier: PVP_PHANTOM_MARCH_MOVE_MULTIPLIER,
+  phantomMarchTimerCapMs: PVP_PHANTOM_MARCH_TIMER_CAP_MS,
+  phantomMarchMovementEpsilon: PVP_PHANTOM_MARCH_MOVEMENT_EPSILON,
+  maxProjectilesPerMatch: MAX_PROJECTILES_PER_MATCH,
+  combatEventRetentionMs: COMBAT_EVENT_RETENTION_MS,
   disconnectForfeitMs: DISCONNECT_FORFEIT_MS,
   playerCollisionClearance: PVP_PLAYER_COLLISION_CLEARANCE,
   walkableFloorPolygon: WALKABLE_FLOOR_POLYGON,

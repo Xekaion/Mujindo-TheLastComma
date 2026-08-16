@@ -7289,7 +7289,7 @@ test("PVP preserves expedition gait and renders both sanitized duel appearances"
   );
   assert.match(
     source,
-    /advanceCharacterWalkCycle\(\s*rendered\.walkCycle,\s*motion\.distance,\s*undefined,\s*elapsedSeconds,?\s*\)/,
+    /advanceCharacterWalkCycle\(\s*rendered\.walkCycle,\s*motion\.distance,\s*target\.dashRemainingMs > 0 \? 220 : undefined,\s*elapsedSeconds,?\s*\)/,
     "PVP must apply the shared elapsed-time cadence cap to interpolated movement",
   );
   assert.match(source, /settleCharacterWalkCycle\(rendered\.walkCycle\)/);
@@ -7304,18 +7304,21 @@ test("PVP preserves expedition gait and renders both sanitized duel appearances"
     /y:\s*rendered\.y \+ PVP_PLAYER_GROUND_OFFSET_Y/,
     "PVP must share the expedition collision-foot baseline instead of sinking actors",
   );
-  const pvpBackPass = source.indexOf('drawPvpRarityVfxPass("pvp-back")');
-  const paperdollPass = source.indexOf("const appearanceDrawn = drawPaperdollCharacterDirect");
-  const pvpFrontPass = source.indexOf('drawPvpRarityVfxPass("pvp-front")');
-  assert.ok(
-    pvpBackPass >= 0 && pvpBackPass < paperdollPass && paperdollPass < pvpFrontPass,
-    "PVP must sandwich the complete paperdoll between restrained rear and front rarity passes",
+  const paperdollPass = source.indexOf(
+    "appearanceDrawn = drawPaperdollCharacterDirect",
   );
-  assert.match(source, /const drawPvpRarityVfxPass = \(pass: "pvp-back" \| "pvp-front"\)/);
-  assert.doesNotMatch(
-    source.slice(pvpBackPass, pvpFrontPass + 80),
-    /context:\s*"combat"/,
-    "duels must not reuse the full-opacity expedition equipment flash over armour",
+  const pvpRarityPass = source.indexOf(
+    "drawEquippedRarityVfx(context",
+    paperdollPass,
+  );
+  assert.ok(
+    paperdollPass >= 0 && pvpRarityPass > paperdollPass,
+    "PVP must render expedition equipment effects against the completed paperdoll",
+  );
+  assert.match(
+    source.slice(pvpRarityPass, pvpRarityPass + 800),
+    /context:\s*"combat",[\s\S]{0,80}?alpha,?/,
+    "duels must reuse the exact expedition combat aura context and actor alpha",
   );
 });
 

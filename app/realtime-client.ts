@@ -2,7 +2,6 @@
 
 import {
   parseRealtimeServerMessage,
-  sanitizeDisplayName,
   sanitizePvpAppearance,
   type PvpAppearance,
   type PvpBuildProfile,
@@ -12,6 +11,14 @@ import {
   type WorldLootAnnouncement,
   type WorldLootRarity,
 } from "./pvp-protocol";
+import {
+  readCharacterNickname,
+  removeCharacterNickname,
+  validateCharacterNickname,
+  writeCharacterNickname,
+  type CharacterNicknameSlot,
+} from "./character-nickname";
+import { readActiveSaveSlot } from "./save-slots";
 
 export type RealtimeConnectionState =
   | "idle"
@@ -43,9 +50,8 @@ type SyncResponse = {
   messages?: unknown;
 };
 
-const DISPLAY_NAME_KEY = "mujindo:online-display-name";
 const DEVICE_ID_KEY = "mujindo:online-device-id";
-const FAST_POLL_MS = 90;
+const FAST_POLL_MS = 50;
 const FAST_POLL_MIN_GAP_MS = 24;
 const FAST_POLL_JITTER_MS = 36;
 const PASSIVE_POLL_MIN_MS = 800;
@@ -82,19 +88,29 @@ class SessionExpiredError extends Error {
   }
 }
 
+export type RealtimeCharacterIdentity = {
+  characterSlot: CharacterNicknameSlot;
+  displayName: string;
+};
+
+export function getLocalRealtimeCharacterIdentity(): RealtimeCharacterIdentity | null {
+  if (typeof window === "undefined") return null;
+  const characterSlot = readActiveSaveSlot();
+  const cachedNickname = readCharacterNickname(characterSlot);
+  const nickname = validateCharacterNickname(cachedNickname);
+  return nickname.ok
+    ? { characterSlot, displayName: nickname.nickname }
+    : null;
+}
+
+/**
+ * Compatibility accessor for existing realtime consumers. The account label
+ * and the retired PVP-only name cache are intentionally ignored: the selected
+ * character nickname is the only display-name source.
+ */
 export function getLocalDisplayName(suggestedName?: string | null): string {
-  if (typeof window === "undefined") {
-    return sanitizeDisplayName(suggestedName ?? "이름 없는 방랑자");
-  }
-  const stored = window.localStorage.getItem(DISPLAY_NAME_KEY);
-  if (stored) return sanitizeDisplayName(stored);
-  const generated = sanitizeDisplayName(
-    suggestedName && suggestedName !== "손님"
-      ? suggestedName
-      : `방랑자 ${randomSuffix()}`,
-  );
-  window.localStorage.setItem(DISPLAY_NAME_KEY, generated);
-  return generated;
+  void suggestedName;
+  return getLocalRealtimeCharacterIdentity()?.displayName ?? "닉네임 미설정";
 }
 
 export function getRealtimeDeviceId(): string {
@@ -112,12 +128,26 @@ export function getRealtimeDeviceId(): string {
 class RealtimeClient {
   private listeners = new Set<RealtimeListener>();
   private sessionToken: string | null = null;
+  private sessionCharacterSlot: CharacterNicknameSlot | null = null;
+  private openingCharacterSlot: CharacterNicknameSlot | null = null;
   private sessionPromise: Promise<void> | null = null;
   private syncPromise: Promise<void> | null = null;
   private sessionController: AbortController | null = null;
   private syncController: AbortController | null = null;
   private pendingMessages: PendingMessage[] = [];
   private latestPvpInput: ({ type: "pvp_input" } & PvpInput) | null = null;
+  /**
+   * A dash is an edge, not a held input. Keep the sequence that raised it
+   * separately so 30 Hz input sampling cannot overwrite the pulse before the
+   * next HTTP sync. It is cleared only after a request carrying that sequence
+   * succeeds; a newer press that happened while the request was in flight is
+   * therefore never acknowledged by the older response.
+   */
+  private pendingPvpDashSequence: number | null = null;
+  private pendingPvpDashVector: Pick<
+    PvpInput,
+    "moveX" | "moveY" | "aimX" | "aimY"
+  > | null = null;
   private nextPendingId = 1;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private pollDueAt = 0;
@@ -125,6 +155,7 @@ class RealtimeClient {
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectAttempts = 0;
   private closedByClient = false;
+  private desiredCharacterSlot: CharacterNicknameSlot | null = null;
   private desiredDisplayName: string | null = null;
   private state: RealtimeConnectionState = "idle";
   private playerId: string | null = null;
@@ -138,9 +169,20 @@ class RealtimeClient {
 
   subscribe(listener: RealtimeListener, suggestedName?: string | null): () => void {
     this.listeners.add(listener);
-    this.desiredDisplayName ??= getLocalDisplayName(suggestedName);
+    const identity = getLocalRealtimeCharacterIdentity();
+    if (identity) {
+      this.desiredCharacterSlot = identity.characterSlot;
+      this.desiredDisplayName = identity.displayName;
+    } else {
+      this.desiredDisplayName ??= getLocalDisplayName(suggestedName);
+    }
     listener({ type: "connection_state", state: this.state });
-    if (this.sessionToken && this.playerId) {
+    if (
+      identity &&
+      this.sessionToken &&
+      this.playerId &&
+      this.sessionCharacterSlot === identity.characterSlot
+    ) {
       listener({
         type: "connected",
         playerId: this.playerId,
@@ -162,30 +204,6 @@ class RealtimeClient {
   getDisplayName(): string {
     this.desiredDisplayName ??= getLocalDisplayName();
     return this.desiredDisplayName;
-  }
-
-  setDisplayName(value: string): string {
-    const displayName = sanitizeDisplayName(value);
-    this.desiredDisplayName = displayName;
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(DISPLAY_NAME_KEY, displayName);
-    }
-
-    this.lifecycle += 1;
-    this.abortRequests();
-    this.clearPollTimer();
-    this.clearReconnectTimer();
-    this.sessionPromise = null;
-    this.syncPromise = null;
-    this.sessionToken = null;
-    this.playerId = null;
-    this.pendingMessages = [];
-    this.latestPvpInput = null;
-    this.queueActive = false;
-    this.knownMatchId = null;
-    this.closedByClient = false;
-    void this.connect(true);
-    return displayName;
   }
 
   joinQueue(profile: PvpBuildProfile, appearance?: PvpAppearance): void {
@@ -227,6 +245,8 @@ class RealtimeClient {
     this.sessionPromise = null;
     this.syncPromise = null;
     this.latestPvpInput = null;
+    this.pendingPvpDashSequence = null;
+    this.pendingPvpDashVector = null;
     this.queueActive = false;
     this.knownMatchId = null;
     this.setState("offline");
@@ -235,6 +255,25 @@ class RealtimeClient {
   private async connect(force = false): Promise<void> {
     if (typeof window === "undefined") return;
     if (force) this.clearReconnectTimer();
+
+    const identity = getLocalRealtimeCharacterIdentity();
+    if (!identity) {
+      if (this.sessionToken || this.sessionPromise) {
+        this.resetSessionForCharacterChange();
+      }
+      this.desiredCharacterSlot = null;
+      this.desiredDisplayName = null;
+      this.setState("offline");
+      return;
+    }
+    if (
+      (this.sessionToken && this.sessionCharacterSlot !== identity.characterSlot) ||
+      (this.sessionPromise && this.openingCharacterSlot !== identity.characterSlot)
+    ) {
+      this.resetSessionForCharacterChange();
+    }
+    this.desiredCharacterSlot = identity.characterSlot;
+    this.desiredDisplayName = identity.displayName;
     if (this.sessionPromise) return;
 
     this.closedByClient = false;
@@ -248,6 +287,7 @@ class RealtimeClient {
 
     const lifecycle = this.lifecycle;
     this.setState(this.reconnectAttempts > 0 ? "reconnecting" : "connecting");
+    this.openingCharacterSlot = identity.characterSlot;
     const promise = this.openSession(lifecycle);
     this.sessionPromise = promise;
     try {
@@ -260,11 +300,18 @@ class RealtimeClient {
         this.scheduleReconnect();
       }
     } finally {
-      if (this.sessionPromise === promise) this.sessionPromise = null;
+      if (this.sessionPromise === promise) {
+        this.sessionPromise = null;
+        this.openingCharacterSlot = null;
+      }
     }
   }
 
   private async openSession(lifecycle: number): Promise<void> {
+    const identity = getLocalRealtimeCharacterIdentity();
+    if (!identity) throw new Error("character_nickname_required");
+    this.desiredCharacterSlot = identity.characterSlot;
+    this.desiredDisplayName = identity.displayName;
     const controller = new AbortController();
     this.sessionController = controller;
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -273,11 +320,20 @@ class RealtimeClient {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          displayName: this.getDisplayName(),
+          characterSlot: identity.characterSlot,
+          displayName: identity.displayName,
           deviceId: getRealtimeDeviceId(),
         }),
         signal: controller.signal,
       });
+      if (response.status === 409) {
+        const problem = (await response.clone().json().catch(() => null)) as {
+          error?: unknown;
+        } | null;
+        if (problem?.error === "nickname_required") {
+          removeCharacterNickname(identity.characterSlot);
+        }
+      }
       if (!response.ok) throw new Error(`session_${response.status}`);
       const session = (await response.json()) as SessionResponse;
       if (typeof session.token !== "string" || typeof session.playerId !== "string") {
@@ -285,10 +341,9 @@ class RealtimeClient {
       }
       if (lifecycle !== this.lifecycle || this.closedByClient) return;
 
-      const displayName =
-        typeof session.displayName === "string"
-          ? sanitizeDisplayName(session.displayName)
-          : this.getDisplayName();
+      const serverNickname = validateCharacterNickname(session.displayName);
+      if (!serverNickname.ok) throw new Error("invalid_character_nickname_response");
+      const displayName = serverNickname.nickname;
       const recentAnnouncements = Array.isArray(session.recentAnnouncements)
         ? session.recentAnnouncements.filter(isWorldLootAnnouncement)
         : [];
@@ -300,8 +355,15 @@ class RealtimeClient {
       }
 
       this.sessionToken = session.token;
+      this.sessionCharacterSlot = identity.characterSlot;
       this.playerId = session.playerId;
       this.desiredDisplayName = displayName;
+      if (
+        this.desiredCharacterSlot !== null &&
+        validateCharacterNickname(displayName).ok
+      ) {
+        writeCharacterNickname(this.desiredCharacterSlot, displayName);
+      }
       this.onlineCount =
         typeof session.online === "number" && Number.isFinite(session.online)
           ? Math.max(0, Math.floor(session.online))
@@ -329,7 +391,14 @@ class RealtimeClient {
 
     const token = this.sessionToken;
     const sentPending = this.pendingMessages.slice(0, MAX_SYNC_MESSAGES);
-    const sentInput = this.latestPvpInput;
+    const sentInput =
+      this.latestPvpInput && this.pendingPvpDashVector
+        ? {
+            ...this.latestPvpInput,
+            ...this.pendingPvpDashVector,
+            dash: true,
+          }
+        : this.latestPvpInput;
     const messages: RealtimeClientMessage[] = sentPending.map(
       (pending) => pending.message,
     );
@@ -404,6 +473,14 @@ class RealtimeClient {
       ) {
         this.latestPvpInput = null;
       }
+      if (
+        sentInput?.dash &&
+        this.pendingPvpDashSequence !== null &&
+        this.pendingPvpDashSequence <= sentInput.sequence
+      ) {
+        this.pendingPvpDashSequence = null;
+        this.pendingPvpDashVector = null;
+      }
 
       for (const rawMessage of payload.messages) {
         const message = parseRealtimeServerMessage(rawMessage);
@@ -416,6 +493,7 @@ class RealtimeClient {
       if (lifecycle !== this.lifecycle || this.closedByClient) return;
       if (error instanceof SessionExpiredError) {
         this.sessionToken = null;
+        this.sessionCharacterSlot = null;
         this.playerId = null;
         this.scheduleReconnect(true);
       } else if (!isAbortError(error) || controller.signal.aborted) {
@@ -438,7 +516,10 @@ class RealtimeClient {
   private handleServerMessage(message: RealtimeServerMessage): void {
     if (message.type === "connected") {
       this.playerId = message.playerId;
-      this.desiredDisplayName = sanitizeDisplayName(message.displayName);
+      const serverNickname = validateCharacterNickname(message.displayName);
+      this.desiredDisplayName = serverNickname.ok
+        ? serverNickname.nickname
+        : this.getDisplayName();
       this.onlineCount = message.online;
       this.recentAnnouncements = message.recentAnnouncements;
       for (const announcement of message.recentAnnouncements) {
@@ -463,6 +544,8 @@ class RealtimeClient {
       }
       this.queueActive = false;
       this.latestPvpInput = null;
+      this.pendingPvpDashSequence = null;
+      this.pendingPvpDashVector = null;
     } else if (message.type === "world_announcement") {
       this.lastAnnouncementSequence = Math.max(
         this.lastAnnouncementSequence,
@@ -480,6 +563,18 @@ class RealtimeClient {
 
   private send(message: RealtimeClientMessage): void {
     if (message.type === "pvp_input") {
+      if (message.dash) {
+        this.pendingPvpDashSequence = message.sequence;
+        this.pendingPvpDashVector = {
+          moveX: message.moveX,
+          moveY: message.moveY,
+          aimX: message.aimX,
+          aimY: message.aimY,
+        };
+      }
+      // Keep the newest raw held state. The sync payload overlays the pending
+      // edge vector, so later coalesced samples cannot redirect a stationary
+      // dash toward the boss before the request is sent.
       this.latestPvpInput = message;
     } else {
       this.enqueueReliable(message);
@@ -497,6 +592,27 @@ class RealtimeClient {
     } else {
       this.schedulePoll(0, true);
     }
+  }
+
+  private resetSessionForCharacterChange(): void {
+    this.lifecycle += 1;
+    this.abortRequests();
+    this.clearPollTimer();
+    this.clearReconnectTimer();
+    if (this.pingTimer) clearInterval(this.pingTimer);
+    this.pingTimer = null;
+    this.sessionPromise = null;
+    this.openingCharacterSlot = null;
+    this.syncPromise = null;
+    this.sessionToken = null;
+    this.sessionCharacterSlot = null;
+    this.playerId = null;
+    this.pendingMessages = [];
+    this.latestPvpInput = null;
+    this.pendingPvpDashSequence = null;
+    this.pendingPvpDashVector = null;
+    this.queueActive = false;
+    this.knownMatchId = null;
   }
 
   private enqueueReliable(
