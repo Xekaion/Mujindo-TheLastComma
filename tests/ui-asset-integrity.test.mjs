@@ -245,6 +245,17 @@ test("gothic panel V2 keeps fixed modal geometry and a fill-free modular frame",
       Math.floor(frameImage.info.width / 2)) *
     4;
   assert.equal(frameImage.data[centerOffset + 3], 0, "the modular frame center must stay transparent");
+  let opaqueCenterPixels = 0;
+  const centerStart = Math.floor(frameImage.info.width * 0.32);
+  const centerEnd = Math.ceil(frameImage.info.width * 0.68);
+  for (let y = centerStart; y < centerEnd; y += 1) {
+    for (let x = centerStart; x < centerEnd; x += 1) {
+      if (frameImage.data[(y * frameImage.info.width + x) * 4 + 3] !== 0) {
+        opaqueCenterPixels += 1;
+      }
+    }
+  }
+  assert.equal(opaqueCenterPixels, 0, "the full nine-slice center field must stay transparent");
 
   assert.match(
     gameCss,
@@ -252,6 +263,23 @@ test("gothic panel V2 keeps fixed modal geometry and a fill-free modular frame",
   );
   assert.match(gameCss, /\.death-retry-button\s*\{[^}]*background:\s*transparent;/);
   assert.match(runtimeSource, /gothic-nine-slice-frame-v2\.png["']?\)\s+16%\s*\/[^;]+\sround;/);
+  const dynamicContractStart = gameCss.indexOf("/* Distortion-proof dynamic panel chrome.");
+  const dynamicContractEnd = gameCss.indexOf(".choice-state,", dynamicContractStart);
+  assert.ok(
+    dynamicContractStart >= 0 && dynamicContractEnd > dynamicContractStart,
+    "dynamic story and build panels need one final stretch-proof frame contract",
+  );
+  const dynamicContract = gameCss.slice(dynamicContractStart, dynamicContractEnd);
+  assert.match(dynamicContract, /\.build-content,\s*\.story-modal,\s*\.ending-modal\s*\{/);
+  assert.match(dynamicContract, /border-image-source:\s*url\("\/assets\/ui\/gothic-nine-slice-frame-v2\.png"\);/);
+  assert.match(dynamicContract, /border-image-slice:\s*16%;/);
+  assert.match(dynamicContract, /border-image-repeat:\s*round;/);
+  assert.doesNotMatch(dynamicContract, /\bfill\b|gothic-modal-panel-v2|background-size:\s*100%\s+100%/);
+  assert.equal(
+    [...runtimeSource.matchAll(/gothic-modal-panel-v2\.png/g)].length,
+    1,
+    "the authored 3:2 filled plate must remain exclusive to the death modal",
+  );
   assert.doesNotMatch(
     runtimeSource,
     /inventory-chrome\/tooltip-panel\.png/,

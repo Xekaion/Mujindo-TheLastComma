@@ -18,6 +18,64 @@ async function importTypeScriptModule(relativePath) {
   return import(`data:text/javascript;base64,${Buffer.from(compiled).toString("base64")}`);
 }
 
+test("continuous frame work keeps a stable high-refresh display divisor", async () => {
+  const {
+    CONTINUOUS_FRAME_MIN_INTERVAL_MS,
+    shouldProcessContinuousFrame,
+  } = await importTypeScriptModule("app/runtime-performance.ts");
+
+  assert.equal(CONTINUOUS_FRAME_MIN_INTERVAL_MS, 10);
+  assert.equal(shouldProcessContinuousFrame(100, 109.998), false);
+  assert.equal(
+    shouldProcessContinuousFrame(100, 109.9995),
+    true,
+    "sub-microsecond timestamp drift must not lose an otherwise due frame",
+  );
+  assert.equal(shouldProcessContinuousFrame(100, 110), true);
+  assert.equal(shouldProcessContinuousFrame(100, 100), false);
+  assert.equal(shouldProcessContinuousFrame(Number.NEGATIVE_INFINITY, 0), true);
+  assert.equal(shouldProcessContinuousFrame(100, 99), true, "clock rollback resets the gate");
+  assert.equal(shouldProcessContinuousFrame(100, Number.NaN), false);
+
+  const durationMs = 10_000;
+  const expectations = new Map([
+    [60, 600],
+    [75, 750],
+    [90, 900],
+    [120, 600],
+    [144, 720],
+    [165, 825],
+    [240, 800],
+  ]);
+  for (const [refreshRate, expectedProcessed] of expectations) {
+    const callbackInterval = 1_000 / refreshRate;
+    const callbackCount = Math.floor(durationMs / callbackInterval + 1e-9);
+    let lastProcessedAt = Number.NEGATIVE_INFINITY;
+    let processed = 0;
+    for (let callback = 0; callback < callbackCount; callback += 1) {
+      const now = callback * callbackInterval;
+      if (!shouldProcessContinuousFrame(lastProcessedAt, now)) continue;
+      lastProcessedAt = now;
+      processed += 1;
+    }
+    assert.ok(
+      Math.abs(processed - expectedProcessed) <= 1,
+      `${refreshRate} Hz processed ${processed} callbacks instead of about ${expectedProcessed}`,
+    );
+    assert.ok(
+      processed <= durationMs / CONTINUOUS_FRAME_MIN_INTERVAL_MS + 1,
+      `${refreshRate} Hz exceeded the continuous-work ceiling`,
+    );
+    if (refreshRate <= 90) {
+      assert.equal(
+        processed,
+        callbackCount,
+        `${refreshRate} Hz must process every display callback`,
+      );
+    }
+  }
+});
+
 test("hot-path array compaction preserves identity and ordering", async () => {
   const { compactArrayInPlace, compactPositiveFieldInPlace } = await importTypeScriptModule(
     "app/runtime-performance.ts",
@@ -41,10 +99,17 @@ test("hot-path array compaction preserves identity and ordering", async () => {
 });
 
 test("canvas backing resolution follows rendered pixels with a bounded memory ceiling", async () => {
-  const { canvasBackingDimensions, MAX_CANVAS_BACKING_SCALE } =
+  const {
+    canvasBackingDimensions,
+    MAX_CANVAS_BACKING_SCALE,
+    MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE,
+    MAX_PLAZA_BACKING_SCALE,
+  } =
     await importTypeScriptModule("app/canvas-performance.ts");
 
   assert.equal(MAX_CANVAS_BACKING_SCALE, 2);
+  assert.equal(MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE, 1.5);
+  assert.equal(MAX_PLAZA_BACKING_SCALE, 1.25);
   assert.deepEqual(
     canvasBackingDimensions(1280, 720, 1920, 1080, 1),
     { width: 1920, height: 1080, scale: 1.5 },
@@ -64,6 +129,11 @@ test("canvas backing resolution follows rendered pixels with a bounded memory ce
     canvasBackingDimensions(1280, 720, 640, 360, 1),
     { width: 1280, height: 720, scale: 1 },
     "small windows keep the authored canvas rather than throwing away source detail",
+  );
+  assert.deepEqual(
+    canvasBackingDimensions(1920, 1080, 3840, 2160, 1, MAX_PLAZA_BACKING_SCALE),
+    { width: 2400, height: 1350, scale: 1.25 },
+    "the plaza must never recreate its former 4K backing surface",
   );
 });
 
@@ -141,13 +211,13 @@ test("dense friendly projectile trails are budgeted while hostile warnings remai
 });
 
 test("projectile motion interpolation bridges fast movement with a bounded dense-scene budget", async () => {
-  const { projectileMotionInterpolationSamples } = await importTypeScriptModule(
-    "app/runtime-performance.ts",
-  );
+  const {
+    projectileMotionInterpolationCount,
+    projectileMotionInterpolationSamples,
+  } = await importTypeScriptModule("app/runtime-performance.ts");
 
   const sparse = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 40, false);
-  assert.ok(sparse.length > 0, "a fast projectile needs at least one in-between pose");
-  assert.ok(sparse.length <= 3, "one projectile must not create an unbounded draw cost");
+  assert.equal(sparse.length, 1, "a friendly projectile gets at most one in-between pose");
   let priorX = 0;
   for (const sample of sparse) {
     assert.ok(Number.isFinite(sample.x) && Number.isFinite(sample.y));
@@ -157,15 +227,92 @@ test("projectile motion interpolation bridges fast movement with a bounded dense
     priorX = sample.x;
   }
 
-  const denseFriendly = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 300, false);
-  const denseHostile = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 300, true);
-  assert.ok(denseFriendly.length < sparse.length, "friendly interpolation must shed work when crowded");
-  assert.ok(denseHostile.length > 0, "hostile projectile readability remains protected");
-  assert.ok(denseHostile.length <= 3);
+  const sparseHostile = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 40, true);
+  const crowdedFriendly = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 97, false);
+  const protectedHostile = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 160, true);
+  const crowdedHostile = projectileMotionInterpolationSamples(0, 0, 48, 24, 6, 161, true);
+  assert.equal(sparseHostile.length, 2, "a hostile projectile gets at most two warning poses");
+  assert.deepEqual(crowdedFriendly, [], "friendly interpolation stops above 96 projectiles");
+  assert.equal(protectedHostile.length, 2, "hostile readability remains protected through 160 projectiles");
+  assert.deepEqual(crowdedHostile, [], "hostile interpolation stops above 160 projectiles");
   assert.deepEqual(
     projectileMotionInterpolationSamples(12, 8, 12, 8, 6, 40, false),
     [],
     "stationary projectiles do not emit duplicate samples",
+  );
+
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 40, false), 1);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 40, true), 2);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 96, false), 1);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 97, false), 0);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 160, true), 2);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, 161, true), 0);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 16, 0, 6, 40, true), 0);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 16.01, 0, 6, 40, true), 1);
+  assert.equal(projectileMotionInterpolationCount(Number.NaN, 0, 48, 0, 6, 40, true), 0);
+  assert.equal(projectileMotionInterpolationCount(0, 0, 48, 0, 6, Number.POSITIVE_INFINITY, true), 0);
+
+  for (const args of [
+    [0, 0, 48, 24, 6, 40, false],
+    [0, 0, 48, 24, 6, 40, true],
+    [0, 0, 48, 24, 6, 96, false],
+    [0, 0, 48, 24, 6, 97, false],
+    [0, 0, 48, 24, 6, 160, true],
+    [0, 0, 48, 24, 6, 161, true],
+    [12, 8, 12, 8, 6, 40, false],
+  ]) {
+    assert.equal(
+      projectileMotionInterpolationSamples(...args).length,
+      projectileMotionInterpolationCount(...args),
+      `sample API diverged from allocation-free count for ${args.join(",")}`,
+    );
+  }
+});
+
+test("projectile interpolation count has no array or sample-object allocation", async () => {
+  const source = await readFile(path.join(root, "app/runtime-performance.ts"), "utf8");
+  const sourceFile = ts.createSourceFile(
+    "app/runtime-performance.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const declaration = sourceFile.statements.find(
+    (statement) =>
+      ts.isFunctionDeclaration(statement) &&
+      statement.name?.text === "projectileMotionInterpolationCount",
+  );
+  assert.ok(declaration && ts.isFunctionDeclaration(declaration) && declaration.body);
+
+  const allocations = [];
+  const visit = (node) => {
+    if (
+      ts.isArrayLiteralExpression(node) ||
+      ts.isObjectLiteralExpression(node) ||
+      ts.isNewExpression(node)
+    ) {
+      allocations.push(node.getText(sourceFile));
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(declaration.body);
+  assert.deepEqual(
+    allocations,
+    [],
+    "the hot-path count helper must return a primitive without temporary containers",
+  );
+
+  const sampleDeclaration = sourceFile.statements.find(
+    (statement) =>
+      ts.isFunctionDeclaration(statement) &&
+      statement.name?.text === "projectileMotionInterpolationSamples",
+  );
+  assert.ok(sampleDeclaration && ts.isFunctionDeclaration(sampleDeclaration));
+  assert.match(
+    sampleDeclaration.getText(sourceFile),
+    /projectileMotionInterpolationCount\(/,
+    "the compatibility sample API must reuse the allocation-free budget",
   );
 });
 
@@ -242,7 +389,9 @@ test("expedition hot path wires caches and visual budgets without skipping cores
   );
   assert.match(source, /sweptCircleMayOverlap\([\s\S]*?distanceToSegment\(/);
   assert.match(source, /shouldDrawProjectileTrail\([\s\S]*?"trail"/);
-  assert.match(source, /projectileMotionInterpolationSamples\(/);
+  assert.match(source, /projectileMotionInterpolationCount\(/);
+  assert.doesNotMatch(source, /projectileMotionInterpolationSamples\(/);
+  assert.match(source, /projectileCount <= 48/);
   assert.match(
     source,
     /for \(const projectile of world\.projectiles\) \{\s*drawProjectileVfx\(projectile, ambientTime, projectileCount, "core"\)/,
@@ -251,6 +400,49 @@ test("expedition hot path wires caches and visual budgets without skipping cores
     (source.match(/roomVignette = context\.createRadialGradient/g) ?? []).length,
     1,
   );
+});
+
+test("continuous canvases gate high-refresh work and freeze behind modal blur", async () => {
+  const [game, plaza, pvp] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
+    readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
+  ]);
+
+  for (const [label, source] of [
+    ["expedition", game],
+    ["plaza", plaza],
+    ["PVP", pvp],
+  ]) {
+    assert.match(
+      source,
+      /shouldProcessContinuousFrame\(lastProcessedFrameAt, (?:now|renderTime)\)/,
+      `${label} must not multiply full work on high-refresh displays`,
+    );
+  }
+  assert.match(
+    game,
+    /if \(simulationRunning\) \{[\s\S]{0,300}?update\(dt\);[\s\S]{0,100}?draw\(\);[\s\S]{0,500}?else if \(/,
+    "the expedition should render one static frame, not a moving canvas, behind menus",
+  );
+  assert.match(
+    plaza,
+    /if \(pausedRef\.current \|\| document\.hidden\) \{[\s\S]{0,180}?requestAnimationFrame\(frame\);[\s\S]{0,40}?return;/,
+    "the plaza should stop full rendering while a modal covers it",
+  );
+  assert.match(game, /MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE/);
+  assert.match(pvp, /MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE/);
+  assert.match(plaza, /MAX_PLAZA_BACKING_SCALE/);
+});
+
+test("authored VFX drawing avoids interpolation result and frame-closure allocation", async () => {
+  const source = await readFile(path.join(root, "app/augment-vfx.ts"), "utf8");
+  const start = source.indexOf("export function drawGameplayVfxFrame(");
+  assert.ok(start >= 0);
+  const body = source.slice(start);
+  assert.doesNotMatch(body, /gameplayVfxFrameInterpolation\(/);
+  assert.doesNotMatch(body, /const drawFrame\s*=/);
+  assert.match(body, /const currentFrame =/);
 });
 
 test("expedition and PVP resize backing stores outside animation frames", async () => {

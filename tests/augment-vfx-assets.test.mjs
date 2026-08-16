@@ -242,12 +242,12 @@ test("chain arcs preserve authored frame proportions with three-slice or tiled r
 test("every moving projectile uses its 16-frame affinity core while keeping its unique impact VFX", () => {
   assert.match(
     gameSource,
-    /if \(layer === "core"[\s\S]{0,900}projectileVfxId\(projectile\.affinity\)[\s\S]{0,1800}interpolateFrames:\s*interpolateArtwork/,
+    /if \(layer === "core"[\s\S]*?projectileVfxId\(projectile\.affinity\)[\s\S]*?interpolateFrames:\s*interpolateArtwork/,
   );
   assert.match(
     gameSource,
-    /const interpolateArtwork =\s*projectile\.hostile \|\|[\s\S]{0,300}projectileCount <= 120/,
-    "hostile and ordinary-density shots must always retain temporal blending",
+    /const interpolateArtwork =[\s\S]{0,400}projectileCount <= 48[\s\S]{0,400}projectileCount <= 96[\s\S]{0,400}projectileCount <= 160/,
+    "ordinary-density shots retain temporal blending while dense scenes use a bounded crossfade budget",
   );
   assert.match(
     gameSource,

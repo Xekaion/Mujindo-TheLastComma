@@ -40,7 +40,7 @@ export const PLAZA_PORTALS: readonly PlazaPortalDefinition[] = [
     x: 1200,
     y: 160,
     approachX: 1200,
-    approachY: 304,
+    approachY: 260,
     hue: "#de5662",
     accent: "#ffd7a2",
     hotkey: "1",
@@ -53,7 +53,7 @@ export const PLAZA_PORTALS: readonly PlazaPortalDefinition[] = [
     href: "/pvp",
     x: 250,
     y: 675,
-    approachX: 408,
+    approachX: 270,
     approachY: 675,
     hue: "#8d5cff",
     accent: "#d6c2ff",
@@ -67,7 +67,7 @@ export const PLAZA_PORTALS: readonly PlazaPortalDefinition[] = [
     href: "/market",
     x: 2150,
     y: 675,
-    approachX: 1992,
+    approachX: 2130,
     approachY: 675,
     hue: "#42d8c5",
     accent: "#d1fff4",
@@ -82,7 +82,7 @@ export const PLAZA_PORTALS: readonly PlazaPortalDefinition[] = [
     x: 1200,
     y: 1190,
     approachX: 1200,
-    approachY: 1046,
+    approachY: 1080,
     hue: "#e8ad48",
     accent: "#fff0bb",
     hotkey: "4",
@@ -241,7 +241,7 @@ export function nearestPlazaPortal(
   let nearest: PlazaPortalDefinition | null = null;
   let nearestDistance = maxDistance;
   for (const portal of PLAZA_PORTALS) {
-    const distance = Math.hypot(point.x - portal.approachX, point.y - portal.approachY);
+    const distance = Math.hypot(point.x - portal.x, point.y - portal.y);
     if (distance <= nearestDistance) {
       nearest = portal;
       nearestDistance = distance;

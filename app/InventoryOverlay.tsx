@@ -121,13 +121,13 @@ function formatPowerDelta(delta: number) {
   return "0";
 }
 
-function clampTooltipPosition(
+function clampTooltipPositionInFrame(
   clientX: number,
   clientY: number,
-  tooltipWidth = TOOLTIP_WIDTH,
-  tooltipHeight = TOOLTIP_MAX_HEIGHT,
+  tooltipWidth: number,
+  tooltipHeight: number,
+  frame: ReturnType<typeof readGamePlaneMetrics>,
 ): TooltipPosition {
-  const frame = readGamePlaneMetrics();
   const localPoint = clientPointToGamePlane(clientX, clientY, frame);
   const frameWidth = frame.width;
   const frameHeight = frame.height;
@@ -144,6 +144,22 @@ function clampTooltipPosition(
     x: Math.max(12, Math.min(preferredX, frameWidth - safeWidth - 12)),
     y: Math.max(12, Math.min(localY - 48, frameHeight - safeHeight - 12)),
   };
+}
+
+function clampTooltipPosition(
+  clientX: number,
+  clientY: number,
+  tooltipWidth = TOOLTIP_WIDTH,
+  tooltipHeight = TOOLTIP_MAX_HEIGHT,
+): TooltipPosition {
+  const frame = readGamePlaneMetrics();
+  return clampTooltipPositionInFrame(
+    clientX,
+    clientY,
+    tooltipWidth,
+    tooltipHeight,
+    frame,
+  );
 }
 
 function focusTooltipAnchor(rect: DOMRect) {
@@ -525,6 +541,8 @@ function GearTooltip({
   readOnly,
   playerLevel,
   position,
+  powerDelta,
+  tooltipRef,
   onMeasure,
 }: {
   item: GearItem;
@@ -534,12 +552,12 @@ function GearTooltip({
   readOnly: boolean;
   playerLevel: number;
   position: TooltipPosition;
+  powerDelta: number;
+  tooltipRef: { current: HTMLDivElement | null };
   onMeasure: (width: number, height: number) => void;
 }) {
-  const powerDelta = calculateEquipmentPowerDelta(equipment, item);
   const requiredLevel = getGearRequiredLevel(item);
   const levelLocked = !equipped && !canEquipGearAtLevel(playerLevel, item);
-  const tooltipRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
     const tooltip = tooltipRef.current;
@@ -555,7 +573,7 @@ function GearTooltip({
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reportSize);
     observer?.observe(tooltip);
     return () => observer?.disconnect();
-  }, [item.id, onMeasure]);
+  }, [item.id, onMeasure, tooltipRef]);
 
   return (
     <div
@@ -1036,11 +1054,27 @@ export default function InventoryOverlay({
   const salvageModeActive = !readOnly && salvageMode;
   const inventoryViewportRef = useRef<HTMLDivElement>(null);
   const divineForgeTriggerRef = useRef<HTMLButtonElement>(null);
+  const tooltipElementRef = useRef<HTMLDivElement>(null);
   const tooltipAnchorRef = useRef({ x: 12, y: 12 });
-  const handleTooltipMeasure = useCallback((width: number, height: number) => {
-    const anchor = tooltipAnchorRef.current;
-    setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y, width, height));
-  }, []);
+  const tooltipFrameRef = useRef<ReturnType<typeof readGamePlaneMetrics> | null>(
+    null,
+  );
+  const tooltipSizeRef = useRef({
+    width: TOOLTIP_WIDTH,
+    height: TOOLTIP_MAX_HEIGHT,
+  });
+  const handleTooltipMeasure = useCallback(
+    (width: number, height: number) => {
+      const frame = tooltipFrameRef.current ?? readGamePlaneMetrics();
+      tooltipFrameRef.current = frame;
+      tooltipSizeRef.current = { width, height };
+      const anchor = tooltipAnchorRef.current;
+      setTooltipPosition(
+        clampTooltipPosition(anchor.x, anchor.y, width, height),
+      );
+    },
+    [],
+  );
   const closeDivineForge = useCallback(() => {
     setDivineForgeOpen(false);
     setDivineForgeStep("prepare");
@@ -1061,6 +1095,15 @@ export default function InventoryOverlay({
   const inventorySourceIndexById = useMemo(
     () => new Map(inventory.map((item, index) => [item.id, index] as const)),
     [inventory],
+  );
+  const inventoryPowerDeltaById = useMemo(
+    () => new Map(
+      inventory.map((item) => [
+        item.id,
+        calculateEquipmentPowerDelta(equipment, item),
+      ] as const),
+    ),
+    [equipment, inventory],
   );
 
   useEffect(() => {
@@ -1139,7 +1182,7 @@ export default function InventoryOverlay({
     ? equipment[selectedInventoryItem.slot]
     : null;
   const powerDelta = selectedInventoryItem
-    ? calculateEquipmentPowerDelta(equipment, selectedInventoryItem)
+    ? inventoryPowerDeltaById.get(selectedInventoryItem.id) ?? 0
     : 0;
   const enhancementRule = selectedItem
     ? getGearEnhancementRule(selectedItem)
@@ -1246,11 +1289,38 @@ export default function InventoryOverlay({
     event: MouseEvent<HTMLElement>,
   ) => {
     if (salvageModeActive) return;
+    const frame = readGamePlaneMetrics();
+    tooltipFrameRef.current = frame;
     setResonanceDetail(null);
     tooltipAnchorRef.current = { x: event.clientX, y: event.clientY };
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
-    setTooltipPosition(clampTooltipPosition(event.clientX, event.clientY));
+    setTooltipPosition(
+      clampTooltipPositionInFrame(
+        event.clientX,
+        event.clientY,
+        tooltipSizeRef.current.width,
+        tooltipSizeRef.current.height,
+        frame,
+      ),
+    );
+  };
+
+  const movePointerTooltip = (event: MouseEvent<HTMLElement>) => {
+    if (salvageModeActive) return;
+    const frame = tooltipFrameRef.current;
+    const tooltip = tooltipElementRef.current;
+    if (!frame || !tooltip) return;
+    tooltipAnchorRef.current = { x: event.clientX, y: event.clientY };
+    const position = clampTooltipPositionInFrame(
+      event.clientX,
+      event.clientY,
+      tooltipSizeRef.current.width,
+      tooltipSizeRef.current.height,
+      frame,
+    );
+    tooltip.style.left = `${position.x}px`;
+    tooltip.style.top = `${position.y}px`;
   };
 
   const showFocusTooltip = (
@@ -1259,21 +1329,39 @@ export default function InventoryOverlay({
     event: FocusEvent<HTMLElement>,
   ) => {
     if (salvageModeActive) return;
+    const frame = readGamePlaneMetrics();
+    tooltipFrameRef.current = frame;
     setResonanceDetail(null);
     const rect = event.currentTarget.getBoundingClientRect();
     const anchor = focusTooltipAnchor(rect);
     tooltipAnchorRef.current = anchor;
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
-    setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y));
+    setTooltipPosition(
+      clampTooltipPosition(
+        anchor.x,
+        anchor.y,
+        tooltipSizeRef.current.width,
+        tooltipSizeRef.current.height,
+      ),
+    );
   };
 
   const hidePointerTooltip = (event: MouseEvent<HTMLElement>) => {
     if (document.activeElement === event.currentTarget) {
+      const frame = readGamePlaneMetrics();
+      tooltipFrameRef.current = frame;
       const rect = event.currentTarget.getBoundingClientRect();
       const anchor = focusTooltipAnchor(rect);
       tooltipAnchorRef.current = anchor;
-      setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y));
+      setTooltipPosition(
+        clampTooltipPosition(
+          anchor.x,
+          anchor.y,
+          tooltipSizeRef.current.width,
+          tooltipSizeRef.current.height,
+        ),
+      );
       return;
     }
     setHoveredItem(null);
@@ -1544,7 +1632,7 @@ export default function InventoryOverlay({
                         if (item && !salvageModeActive && !readOnly) unequipItem(slot);
                       }}
                       onMouseEnter={(event) => item && showPointerTooltip(item, true, event)}
-                      onMouseMove={(event) => item && showPointerTooltip(item, true, event)}
+                      onMouseMove={(event) => item && movePointerTooltip(event)}
                       onMouseLeave={(event) => item && hidePointerTooltip(event)}
                       onFocus={(event) => item && showFocusTooltip(item, true, event)}
                       onBlur={hideFocusTooltip}
@@ -1994,7 +2082,7 @@ export default function InventoryOverlay({
                 const selected = item.id === selectedGearId;
                 const requiredLevel = getGearRequiredLevel(item);
                 const levelLocked = !canEquipGearAtLevel(playerLevel, item);
-                const itemPowerDelta = calculateEquipmentPowerDelta(equipment, item);
+                const itemPowerDelta = inventoryPowerDeltaById.get(item.id) ?? 0;
                 const checkedForSalvage =
                   salvageModeActive && selectedForSalvage.has(item.id);
                 const sourceIndex = inventorySourceIndexById.get(item.id) ?? itemIndex;
@@ -2015,7 +2103,7 @@ export default function InventoryOverlay({
                         if (!salvageModeActive && !readOnly) equipItem(item.id);
                       }}
                       onMouseEnter={(event) => showPointerTooltip(item, false, event)}
-                      onMouseMove={(event) => showPointerTooltip(item, false, event)}
+                      onMouseMove={movePointerTooltip}
                       onMouseLeave={hidePointerTooltip}
                       onFocus={(event) => showFocusTooltip(item, false, event)}
                       onBlur={hideFocusTooltip}
@@ -2179,6 +2267,12 @@ export default function InventoryOverlay({
             readOnly={readOnly}
             playerLevel={playerLevel}
             position={tooltipPosition}
+            powerDelta={
+              hoveredItemIsEquipped
+                ? 0
+                : inventoryPowerDeltaById.get(hoveredItem.id) ?? 0
+            }
+            tooltipRef={tooltipElementRef}
             onMeasure={handleTooltipMeasure}
           />,
           document.body,

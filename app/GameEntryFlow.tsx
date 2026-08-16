@@ -190,6 +190,7 @@ export default function GameEntryFlow({
     useState<LocalEnemyVfxShowcaseMode | null>(null);
   const [localLootVfxShowcase, setLocalLootVfxShowcase] =
     useState<LocalLootVfxShowcaseMode | null>(null);
+  const [localEndingUiShowcase, setLocalEndingUiShowcase] = useState(false);
   const [localPlazaMotionShowcase, setLocalPlazaMotionShowcase] = useState(false);
   const [localVfxShowcaseChecked, setLocalVfxShowcaseChecked] = useState(
     !localVfxShowcaseRequested,
@@ -223,6 +224,7 @@ export default function GameEntryFlow({
         const search = new URLSearchParams(window.location.search);
         const requestedEnemyMode = search.get("enemyVfxShowcase");
         const requestedLootMode = search.get("lootVfxShowcase");
+        const requestedEndingUiShowcase = search.get("endingUiShowcase");
         const requestedPlazaMotionShowcase = search.get("plazaMotionShowcase");
         if (
           requestedEnemyMode === "margin-severer" ||
@@ -233,6 +235,9 @@ export default function GameEntryFlow({
         }
         if (isLocalLootVfxShowcaseMode(requestedLootMode)) {
           setLocalLootVfxShowcase(requestedLootMode);
+        }
+        if (requestedEndingUiShowcase === "1") {
+          setLocalEndingUiShowcase(true);
         }
         if (requestedPlazaMotionShowcase === "1") {
           setLocalPlazaMotionShowcase(true);
@@ -248,6 +253,7 @@ export default function GameEntryFlow({
       !localVfxShowcaseChecked ||
       localEnemyVfxShowcase ||
       localLootVfxShowcase ||
+      localEndingUiShowcase ||
       localPlazaMotionShowcase ||
       !returnToTown ||
       selection !== null
@@ -272,6 +278,7 @@ export default function GameEntryFlow({
   }, [
     localEnemyVfxShowcase,
     localLootVfxShowcase,
+    localEndingUiShowcase,
     localPlazaMotionShowcase,
     localVfxShowcaseChecked,
     returnToTown,
@@ -970,19 +977,22 @@ export default function GameEntryFlow({
     );
   }
 
-  if (localEnemyVfxShowcase || localLootVfxShowcase) {
+  if (localEnemyVfxShowcase || localLootVfxShowcase || localEndingUiShowcase) {
     return (
       <div
         className="game-entry-flow"
         data-entry-view={
           localEnemyVfxShowcase
             ? "local-enemy-vfx-showcase"
-            : "local-loot-vfx-showcase"
+            : localLootVfxShowcase
+              ? "local-loot-vfx-showcase"
+              : "local-ending-ui-showcase"
         }
       >
         <GameCanvas
           localEnemyVfxShowcase={localEnemyVfxShowcase ?? undefined}
           localLootVfxShowcase={localLootVfxShowcase ?? undefined}
+          localEndingUiShowcase={localEndingUiShowcase}
         />
       </div>
     );

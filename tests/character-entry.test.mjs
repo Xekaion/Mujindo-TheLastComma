@@ -179,7 +179,7 @@ test("localhost loot VFX QA bypasses slot hydration and remains memory-only", as
   assert.match(flow, /data-entry-view="local-vfx-showcase-checking"/);
 
   const directEntry = flow.indexOf(
-    "if (localEnemyVfxShowcase || localLootVfxShowcase)",
+    "if (localEnemyVfxShowcase || localLootVfxShowcase || localEndingUiShowcase)",
   );
   const characterEntry = flow.indexOf("if (selection === null)", directEntry);
   assert.ok(
@@ -196,7 +196,7 @@ test("localhost loot VFX QA bypasses slot hydration and remains memory-only", as
 
   assert.match(
     canvas,
-    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase,?\s*\);/,
+    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase \|\| localEndingUiShowcase,?\s*\);/,
   );
   const transientStart = canvas.indexOf(
     "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",
@@ -218,6 +218,50 @@ test("localhost loot VFX QA bypasses slot hydration and remains memory-only", as
     /const saveCheck = isLocalVfxShowcase\s*\? null\s*:\s*window\.setTimeout/,
   );
   assert.match(canvas, /readShopEntitlements\(null\)/);
+});
+
+test("localhost ending UI QA is save-free and renders the production revelation panel", async () => {
+  const [page, flow, canvas] = await Promise.all([
+    readFile(path.join(root, "app/page.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+
+  assert.match(page, /query\.endingUiShowcase !== undefined/);
+  assert.match(flow, /const requestedEndingUiShowcase = search\.get\("endingUiShowcase"\);/);
+  assert.match(flow, /requestedEndingUiShowcase === "1"[\s\S]{0,100}?setLocalEndingUiShowcase\(true\)/);
+  assert.match(flow, /localEndingUiShowcase=\{localEndingUiShowcase\}/);
+  assert.match(
+    flow,
+    /localLootVfxShowcase\s*\?\s*"local-loot-vfx-showcase"\s*:\s*"local-ending-ui-showcase"/,
+  );
+  assert.match(canvas, /localEndingUiShowcase\?: boolean;/);
+
+  const directEntry = flow.indexOf(
+    "if (localEnemyVfxShowcase || localLootVfxShowcase || localEndingUiShowcase)",
+  );
+  const characterEntry = flow.indexOf("if (selection === null)", directEntry);
+  assert.ok(directEntry >= 0 && characterEntry > directEntry);
+  const directBlock = flow.slice(directEntry, characterEntry);
+  assert.doesNotMatch(
+    directBlock,
+    /readSaveSlot|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+
+  const transientStart = canvas.indexOf(
+    "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",
+  );
+  const transientEnd = canvas.indexOf("if (isLocalVfxShowcase) return;", transientStart);
+  assert.ok(transientStart >= 0 && transientEnd > transientStart);
+  const transientBoot = canvas.slice(transientStart, transientEnd);
+  assert.match(
+    transientBoot,
+    /localEndingUiShowcase[\s\S]{0,160}?setEndingChapterIndex\(1\);[\s\S]{0,80}?setGameMode\("ending"\);/,
+  );
+  assert.doesNotMatch(
+    transientBoot,
+    /loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
 });
 
 test("localhost plaza motion QA renders directly without touching a save or hub session", async () => {

@@ -2769,6 +2769,32 @@ button.map-cell {
   }
 }
 
+/* Keep the full backpack from running hundreds of decorative sprite/filter
+   animations at once. Every card retains its authored first frame; only the
+   item being inspected or selected advances the effect atlases. */
+.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  > .inventory-screen-rarity-spectacle,
+.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  > .inventory-screen-rarity-aura,
+.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  > .inventory-screen-rarity-spectacle,
+.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  > .inventory-screen-rarity-aura,
+.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles::before,
+.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles::after,
+.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles > i,
+.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles::before,
+.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles::after,
+.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
+  .inventory-screen-rarity-sparkles > i {
+  animation-play-state: paused;
+}
+
 /* Divine forge inventory chamber V1 -----------------------------------
    The forge owns a centered, fixed-action chamber so the existing paper
    doll, enhancement workbench, and backpack never lose usable height. */
@@ -4928,6 +4954,39 @@ button.equipment-slot-card:hover {
   --modal-accent: #829aa2;
   --modal-glow: rgba(91, 126, 136, 0.1);
   border-color: rgba(130, 154, 162, 0.38);
+}
+
+/* Distortion-proof dynamic panel chrome.
+   Build, story, and ending panels change aspect ratio with the canonical
+   viewport, so they may only use the transparent corner-and-rail frame. The
+   authored 3:2 filled plate remains exclusive to the fixed death modal. */
+.build-content,
+.story-modal,
+.ending-modal {
+  border-image-source: url("/assets/ui/gothic-nine-slice-frame-v2.png");
+  border-image-slice: 16%;
+  border-image-outset: 0;
+  border-image-repeat: round;
+  background-position: 0 0;
+  background-size: auto;
+  background-repeat: no-repeat;
+}
+
+.build-content {
+  border-width: 10px;
+  border-image-width: 10px;
+  background-image:
+    radial-gradient(circle at 100% 0%, rgba(198, 161, 91, 0.08), transparent 37%),
+    linear-gradient(155deg, rgba(10, 12, 14, 0.985), rgba(5, 7, 9, 0.98));
+}
+
+.story-modal,
+.ending-modal {
+  border-width: 12px;
+  border-image-width: 12px;
+  background-image:
+    radial-gradient(circle at 50% 0%, var(--modal-glow, rgba(198, 161, 91, 0.07)), transparent 48%),
+    linear-gradient(138deg, rgba(15, 16, 18, 0.985), rgba(6, 8, 10, 0.99));
 }
 
 .choice-state,

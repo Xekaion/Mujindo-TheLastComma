@@ -1,5 +1,20 @@
 export const MAX_CANVAS_BACKING_SCALE = 2;
 
+/**
+ * Continuous combat canvases repaint several full-screen layers every frame.
+ * Full HD is the useful ceiling for their authored 1280x720 plane; asking a
+ * high-DPI/4K display for a larger backing store spends substantially more
+ * fill-rate without improving gameplay readability.
+ */
+export const MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE = 1.5;
+
+/**
+ * The plaza is authored directly at 1920x1080, so scale 1 is already Full HD.
+ * A small supersampling allowance keeps diagonals clean while bounding the
+ * surface below the former 3840x2160 worst case.
+ */
+export const MAX_PLAZA_BACKING_SCALE = 1.25;
+
 export type CanvasBackingDimensions = Readonly<{
   width: number;
   height: number;

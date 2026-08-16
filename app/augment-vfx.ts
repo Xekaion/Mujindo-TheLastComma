@@ -408,11 +408,20 @@ export function drawGameplayVfxFrame(
     return false;
   }
 
-  const { currentFrame, nextFrame, frameBlend } = gameplayVfxFrameInterpolation(
-    options.progress,
-    definition,
-    options.frameOffset,
-  );
+  // This renderer sits on the projectile hot path. Resolve the frame as
+  // scalars here instead of allocating the public interpolation result object
+  // once (and sometimes several times) per projectile per frame.
+  const frames = Math.max(1, Math.trunc(definition.frames));
+  const normalizedProgress = Number.isFinite(options.progress)
+    ? Math.max(0, Math.min(0.999_999, options.progress))
+    : 0;
+  const framePosition = normalizedProgress * frames;
+  const baseFrame = Math.floor(framePosition);
+  const normalizedOffset =
+    ((Math.trunc(options.frameOffset ?? 0) % frames) + frames) % frames;
+  const currentFrame = (baseFrame + normalizedOffset) % frames;
+  const nextFrame = (currentFrame + 1) % frames;
+  const frameBlend = framePosition - baseFrame;
   const sourceWidth = image.naturalWidth / definition.columns;
   const sourceHeight = image.naturalHeight / definition.rows;
   const hasBeamTarget =
@@ -434,14 +443,50 @@ export function drawGameplayVfxFrame(
   const baseAlpha = Math.max(0, Math.min(1, options.alpha ?? 1));
   context.globalCompositeOperation = definition.blendMode;
   context.imageSmoothingEnabled = true;
-  const drawFrame = (frame: number, alpha: number) => {
-    const column = frame % definition.columns;
-    const row = Math.floor(frame / definition.columns);
-    context.globalAlpha = baseAlpha * alpha;
+  const currentColumn = currentFrame % definition.columns;
+  const currentRow = Math.floor(currentFrame / definition.columns);
+  const blendsNextFrame =
+    options.interpolateFrames &&
+    nextFrame !== currentFrame &&
+    frameBlend > 0.001;
+  context.globalAlpha = baseAlpha * (blendsNextFrame ? 1 - frameBlend : 1);
+  if (hasBeamTarget) {
+    const beamOptions = {
+      sourceX: currentColumn * sourceWidth,
+      sourceY: currentRow * sourceHeight,
+      sourceWidth,
+      sourceHeight,
+      destinationX: -drawWidth / 2,
+      destinationY: -drawHeight * definition.anchorY,
+      destinationLength: drawWidth,
+      destinationHeight: drawHeight,
+    };
+    if (definition.beamMode === "three-slice") {
+      drawHorizontalThreeSliceAtlasCell(context, image, beamOptions);
+    } else {
+      drawHorizontalTiledAtlasCell(context, image, beamOptions);
+    }
+  } else {
+    context.drawImage(
+      image,
+      currentColumn * sourceWidth,
+      currentRow * sourceHeight,
+      sourceWidth,
+      sourceHeight,
+      -drawWidth / 2,
+      -drawHeight * definition.anchorY,
+      drawWidth,
+      drawHeight,
+    );
+  }
+  if (blendsNextFrame) {
+    const nextColumn = nextFrame % definition.columns;
+    const nextRow = Math.floor(nextFrame / definition.columns);
+    context.globalAlpha = baseAlpha * frameBlend;
     if (hasBeamTarget) {
       const beamOptions = {
-        sourceX: column * sourceWidth,
-        sourceY: row * sourceHeight,
+        sourceX: nextColumn * sourceWidth,
+        sourceY: nextRow * sourceHeight,
         sourceWidth,
         sourceHeight,
         destinationX: -drawWidth / 2,
@@ -452,15 +497,13 @@ export function drawGameplayVfxFrame(
       if (definition.beamMode === "three-slice") {
         drawHorizontalThreeSliceAtlasCell(context, image, beamOptions);
       } else {
-        // A beam target is never permission to flatten a square sprite. Effects
-        // without authored end caps repeat complete uniformly scaled cells.
         drawHorizontalTiledAtlasCell(context, image, beamOptions);
       }
     } else {
       context.drawImage(
         image,
-        column * sourceWidth,
-        row * sourceHeight,
+        nextColumn * sourceWidth,
+        nextRow * sourceHeight,
         sourceWidth,
         sourceHeight,
         -drawWidth / 2,
@@ -469,16 +512,6 @@ export function drawGameplayVfxFrame(
         drawHeight,
       );
     }
-  };
-  if (
-    options.interpolateFrames &&
-    nextFrame !== currentFrame &&
-    frameBlend > 0.001
-  ) {
-    drawFrame(currentFrame, 1 - frameBlend);
-    drawFrame(nextFrame, frameBlend);
-  } else {
-    drawFrame(currentFrame, 1);
   }
   context.restore();
   return true;

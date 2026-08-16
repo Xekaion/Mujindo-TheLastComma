@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: HomeProps = {}) {
   const user = await getChatGPTUser();
   const localVfxShowcaseRequested =
     query.enemyVfxShowcase !== undefined || query.lootVfxShowcase !== undefined ||
-    query.plazaMotionShowcase !== undefined;
+    query.plazaMotionShowcase !== undefined || query.endingUiShowcase !== undefined;
   return (
     <>
       <WorldAnnouncementBanner suggestedName={user?.displayName ?? null} />

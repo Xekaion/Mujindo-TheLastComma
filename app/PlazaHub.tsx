@@ -73,7 +73,14 @@ import {
 } from "./augment-vfx";
 import { playGameSfx } from "./game-audio";
 import { advanceContinuousMovement } from "./legendary-runtime";
-import { compactPositiveFieldInPlace } from "./runtime-performance";
+import {
+  compactPositiveFieldInPlace,
+  shouldProcessContinuousFrame,
+} from "./runtime-performance";
+import {
+  MAX_PLAZA_BACKING_SCALE,
+  canvasBackingDimensions,
+} from "./canvas-performance";
 import type { EquipmentLoadout } from "./equipment";
 import {
   PLAZA_DASH_DURATION_SECONDS,
@@ -100,11 +107,11 @@ export const PLAZA_PORTAL_ART_PATHS: Readonly<Record<PlazaPortalId, string>> = {
   exchange: "/assets/plaza/portal-exchange-v2.png",
   caravan: "/assets/plaza/portal-caravan-v2.png",
 };
-export const PLAZA_PORTAL_WORLD_ART_PATHS: Readonly<Record<PlazaPortalId, string>> = {
-  expedition: "/assets/plaza/portal-expedition-v2.png",
-  duel: "/assets/plaza/portal-duel-world-v2.png",
-  exchange: "/assets/plaza/portal-exchange-world-v2.png",
-  caravan: "/assets/plaza/portal-caravan-v2.png",
+export const PLAZA_PORTAL_DOORWAY_EFFECT_PATHS: Readonly<Record<PlazaPortalId, string>> = {
+  expedition: "/assets/plaza/portal-expedition-effect-v3.png",
+  duel: "/assets/plaza/portal-duel-effect-v3.png",
+  exchange: "/assets/plaza/portal-exchange-effect-v3.png",
+  caravan: "/assets/plaza/portal-caravan-effect-v3.png",
 };
 export const PLAZA_PLAYER_GROUND_OFFSET_Y = 8;
 export const PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y = 18;
@@ -533,78 +540,67 @@ function drawStall(
   context.restore();
 }
 
-function plazaPortalArtLayout(portal: PlazaPortalDefinition) {
+function plazaDoorwayEffectLayout(portal: PlazaPortalDefinition) {
   if (portal.id === "expedition") {
-    return { x: portal.approachX, y: portal.approachY, width: 300, height: 300 };
+    return { x: portal.x, y: portal.y - 20, width: 220, height: 220 };
   }
   if (portal.id === "duel") {
-    return { x: portal.approachX - 8, y: portal.approachY, width: 320, height: 320 };
+    return { x: portal.x - 80, y: portal.y - 60, width: 250, height: 250 };
   }
   if (portal.id === "exchange") {
-    return { x: portal.approachX + 8, y: portal.approachY, width: 320, height: 320 };
+    return { x: portal.x + 95, y: portal.y - 60, width: 250, height: 250 };
   }
-  return { x: portal.approachX, y: portal.approachY, width: 300, height: 300 };
+  return { x: portal.x, y: portal.y - 15, width: 220, height: 220 };
 }
 
 function plazaPortalLabelPoint(portal: PlazaPortalDefinition): PlazaPoint {
-  if (portal.id === "expedition") return { x: portal.approachX, y: portal.approachY + 170 };
-  if (portal.id === "duel") return { x: portal.approachX + 4, y: portal.approachY - 166 };
-  if (portal.id === "exchange") return { x: portal.approachX - 4, y: portal.approachY - 166 };
-  return { x: portal.approachX, y: portal.approachY - 174 };
+  if (portal.id === "expedition") return { x: portal.x, y: portal.y + 180 };
+  if (portal.id === "duel") return { x: portal.x + 140, y: portal.y - 160 };
+  if (portal.id === "exchange") return { x: portal.x - 140, y: portal.y - 160 };
+  return { x: portal.x, y: portal.y - 190 };
 }
 
-function drawPortalFallback(
+function plazaPortalAtDoorwayPoint(point: PlazaPoint): PlazaPortalDefinition | null {
+  for (const portal of PLAZA_PORTALS) {
+    const layout = plazaDoorwayEffectLayout(portal);
+    if (
+      Math.abs(point.x - layout.x) <= layout.width / 2 &&
+      Math.abs(point.y - layout.y) <= layout.height / 2
+    ) {
+      return portal;
+    }
+  }
+  return null;
+}
+
+function drawDoorwayEffectFallback(
   context: CanvasRenderingContext2D,
   portal: PlazaPortalDefinition,
   width: number,
   height: number,
   pulse: number,
 ) {
-  const pillarX = width * 0.29;
-  const top = -height * 0.33;
-  const base = height * 0.36;
-  const stone = context.createLinearGradient(0, top, 0, base);
-  stone.addColorStop(0, "#5a504a");
-  stone.addColorStop(0.4, "#29292e");
-  stone.addColorStop(1, "#111318");
-
   context.save();
-  context.lineJoin = "round";
+  context.globalCompositeOperation = "lighter";
   context.shadowColor = portal.hue;
-  context.shadowBlur = 12 + pulse * 8;
-  context.fillStyle = stone;
-  context.strokeStyle = `${portal.accent}8f`;
-  context.lineWidth = 3;
-  for (const side of [-1, 1] as const) {
-    context.beginPath();
-    context.moveTo(side * pillarX, base);
-    context.lineTo(side * pillarX * 1.12, base - height * 0.08);
-    context.lineTo(side * pillarX * 0.96, top + height * 0.09);
-    context.lineTo(side * pillarX * 0.66, top);
-    context.lineTo(side * pillarX * 0.58, base - height * 0.08);
-    context.closePath();
-    context.fill();
-    context.stroke();
-  }
-
-  context.beginPath();
-  context.moveTo(-pillarX * 0.7, top + height * 0.04);
-  context.quadraticCurveTo(0, top - height * 0.2, pillarX * 0.7, top + height * 0.04);
-  context.lineTo(pillarX * 0.58, top + height * 0.16);
-  context.quadraticCurveTo(0, top - height * 0.04, -pillarX * 0.58, top + height * 0.16);
-  context.closePath();
-  context.fill();
-  context.stroke();
-
-  const rift = context.createRadialGradient(0, 8, 4, 0, 8, width * 0.24);
+  context.shadowBlur = 14 + pulse * 10;
+  const rift = context.createRadialGradient(0, 0, 2, 0, 0, width * 0.24);
   rift.addColorStop(0, portal.accent);
-  rift.addColorStop(0.22, `${portal.hue}d8`);
-  rift.addColorStop(0.68, `${portal.hue}58`);
+  rift.addColorStop(0.2, `${portal.hue}c8`);
+  rift.addColorStop(0.7, `${portal.hue}38`);
   rift.addColorStop(1, `${portal.hue}00`);
   context.fillStyle = rift;
   context.beginPath();
-  context.ellipse(0, 8, width * 0.2, height * 0.29, 0, 0, Math.PI * 2);
+  context.ellipse(0, 0, width * 0.18, height * 0.38, 0, 0, Math.PI * 2);
   context.fill();
+
+  context.strokeStyle = `${portal.accent}a8`;
+  context.lineWidth = 1.5;
+  context.setLineDash([3, 9]);
+  context.lineDashOffset = -pulse * 12;
+  context.beginPath();
+  context.ellipse(0, 0, width * 0.15, height * 0.31, 0, 0, Math.PI * 2);
+  context.stroke();
   context.restore();
 }
 
@@ -616,7 +612,7 @@ function drawPortalGuidance(
   nearby: boolean,
   reducedMotion: boolean,
 ) {
-  const approach = { x: portal.approachX, y: portal.approachY };
+  const approach = { x: portal.x, y: portal.y };
   const pulse = reducedMotion ? 0.72 : 0.58 + Math.sin(time * 3.4) * 0.14;
   context.save();
   context.globalCompositeOperation = "lighter";
@@ -666,33 +662,20 @@ function drawPortal(
   const animatedTime = reducedMotion ? 0 : time;
   const phase = (animatedTime % PORTAL_PULSE_SECONDS) / PORTAL_PULSE_SECONDS;
   const pulse = 0.5 + Math.sin(phase * Math.PI * 2) * 0.5;
-  const layout = plazaPortalArtLayout(portal);
+  const layout = plazaDoorwayEffectLayout(portal);
   context.save();
   context.translate(layout.x, layout.y);
-
-  context.fillStyle = "rgba(0, 0, 0, .52)";
-  context.beginPath();
-  context.ellipse(0, layout.height * 0.37, layout.width * 0.32, layout.height * 0.085, 0, 0, Math.PI * 2);
-  context.fill();
-
-  const rift = context.createRadialGradient(0, 6, 4, 0, 6, layout.width * 0.42);
-  rift.addColorStop(0, `${portal.accent}${nearby ? "b8" : "80"}`);
-  rift.addColorStop(0.28, `${portal.hue}${selected ? "70" : "34"}`);
-  rift.addColorStop(1, "rgba(4, 4, 8, 0)");
-  context.fillStyle = rift;
-  context.beginPath();
-  context.ellipse(0, 6, layout.width * (0.34 + pulse * 0.018), layout.height * 0.42, 0, 0, Math.PI * 2);
-  context.fill();
 
   const artworkReady = Boolean(
     artwork?.complete && artwork.naturalWidth > 0 && artwork.naturalHeight > 0,
   );
   if (!artworkReady) {
-    drawPortalFallback(context, portal, layout.width, layout.height, pulse);
+    drawDoorwayEffectFallback(context, portal, layout.width, layout.height, pulse);
   } else if (artwork) {
+    context.globalCompositeOperation = "screen";
     context.shadowColor = portal.hue;
-    context.shadowBlur = selected ? 16 + pulse * 14 : 5;
-    context.globalAlpha = selected ? 0.98 : 0.9;
+    context.shadowBlur = selected ? 12 + pulse * 10 : 4;
+    context.globalAlpha = (selected ? 0.96 : 0.76) * (0.94 + pulse * 0.06);
     context.drawImage(
       artwork,
       -layout.width / 2,
@@ -1186,16 +1169,16 @@ export default function PlazaHub({
   const activateNearbyPortal = useCallback(() => {
     const portal = nearestPlazaPortal(positionRef.current);
     if (!portal) {
-      announceNotice("포탈의 빛 안으로 조금 더 가까이 이동하세요.");
+      announceNotice("빛나는 벽면 출입구 안쪽으로 조금 더 가까이 이동하세요.");
       return;
     }
     activatePortal(portal);
   }, [activatePortal, announceNotice]);
 
   const guideToPortal = useCallback((portal: PlazaPortalDefinition) => {
-    pointerTargetRef.current = { x: portal.approachX, y: portal.approachY };
+    pointerTargetRef.current = { x: portal.x, y: portal.y };
     setGuidedPortalId(portal.id);
-    announceNotice(`${portal.name} 포탈까지 자동 이동합니다. 도착 후 입장을 눌러주세요.`);
+    announceNotice(`${portal.name} 출입구까지 자동 이동합니다. 문 앞에서 입장을 눌러주세요.`);
     canvasRef.current?.focus({ preventScroll: true });
   }, [announceNotice]);
 
@@ -1271,13 +1254,17 @@ export default function PlazaHub({
         0.01,
         Math.min(rect.width / width, rect.height / height),
       );
-      const dpr = Math.min(
-        2,
-        Math.max(1, (window.devicePixelRatio || 1) * renderedScale),
+      const backing = canvasBackingDimensions(
+        width,
+        height,
+        width * renderedScale,
+        height * renderedScale,
+        window.devicePixelRatio || 1,
+        MAX_PLAZA_BACKING_SCALE,
       );
-      viewportRef.current = { width, height, dpr };
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
+      viewportRef.current = { width, height, dpr: backing.scale };
+      if (canvas.width !== backing.width) canvas.width = backing.width;
+      if (canvas.height !== backing.height) canvas.height = backing.height;
       canvas.style.width = "100%";
       canvas.style.height = "100%";
     };
@@ -1301,7 +1288,7 @@ export default function PlazaHub({
     const sceneAssetPaths = new Set([
       PLAZA_MAP_PATH,
       ...Object.values(PLAZA_PORTAL_ART_PATHS),
-      ...Object.values(PLAZA_PORTAL_WORLD_ART_PATHS),
+      ...Object.values(PLAZA_PORTAL_DOORWAY_EFFECT_PATHS),
     ]);
     for (const path of sceneAssetPaths) {
       if (images.has(path)) continue;
@@ -1450,6 +1437,7 @@ export default function PlazaHub({
     let renderableRemotePlayers: readonly PlazaRemotePlayer[] = [];
     let detailedRemotePlayerIds = new Set<string>();
     let nextRemoteVisibilityCheckAt = 0;
+    let lastProcessedFrameAt = Number.NEGATIVE_INFINITY;
     let viewportVignette: CanvasGradient | null = null;
     let viewportVignetteKey = "";
 
@@ -1516,6 +1504,16 @@ export default function PlazaHub({
     };
 
     const frame = (now: number) => {
+      if (!shouldProcessContinuousFrame(lastProcessedFrameAt, now)) {
+        animationFrame = window.requestAnimationFrame(frame);
+        return;
+      }
+      lastProcessedFrameAt = now;
+      if (pausedRef.current || document.hidden) {
+        previousTimeRef.current = now;
+        animationFrame = window.requestAnimationFrame(frame);
+        return;
+      }
       const previous = previousTimeRef.current || now;
       const dt = Math.min(0.05, Math.max(0, (now - previous) / 1000));
       previousTimeRef.current = now;
@@ -1805,7 +1803,7 @@ export default function PlazaHub({
         setNearPortalId(nextPortalId);
         if (nextPortalId) {
           setGuidedPortalId(null);
-          announceNotice(`${nearest?.name} 포탈에 도착했습니다.`);
+          announceNotice(`${nearest?.name} 출입구 앞에 도착했습니다.`);
         }
       }
 
@@ -1856,7 +1854,7 @@ export default function PlazaHub({
           time,
           portal.id === focusedPortalId,
           portal.id === nearPortalIdRef.current,
-          sceneImagesRef.current.get(PLAZA_PORTAL_WORLD_ART_PATHS[portal.id]),
+          sceneImagesRef.current.get(PLAZA_PORTAL_DOORWAY_EFFECT_PATHS[portal.id]),
           reducedMotionRef.current,
         );
       }
@@ -2040,6 +2038,11 @@ export default function PlazaHub({
         return;
       }
     }
+    const doorwayPortal = plazaPortalAtDoorwayPoint(target);
+    if (doorwayPortal) {
+      guideToPortal(doorwayPortal);
+      return;
+    }
     if (!isPlazaWalkable(target)) {
       announceNotice("금빛 난간과 광장 시설물 바깥으로는 이동할 수 없습니다.");
       return;
@@ -2047,7 +2050,7 @@ export default function PlazaHub({
     pointerTargetRef.current = target;
     setGuidedPortalId(null);
     canvas.focus({ preventScroll: true });
-  }, [announceNotice, inspectPlayer, renderedInspectablePlayers]);
+  }, [announceNotice, guideToPortal, inspectPlayer, renderedInspectablePlayers]);
 
   const handleCanvasContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLCanvasElement>) => {
@@ -2099,7 +2102,7 @@ export default function PlazaHub({
         ref={canvasRef}
         className="plaza-hub-canvas"
         tabIndex={0}
-        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 포탈을 이용합니다. F는 가까운 기록자를 확인합니다. 바닥을 누르면 이동하고, 터치로 다른 플레이어를 누르거나 마우스로 우클릭하면 캐릭터 정보를 확인합니다."
+        aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 빛나는 벽면 문을 이용합니다. F는 가까운 기록자를 확인합니다. 바닥이나 문을 누르면 이동하고, 터치로 다른 플레이어를 누르거나 마우스로 우클릭하면 캐릭터 정보를 확인합니다."
         onPointerDown={handleCanvasPointer}
         onContextMenu={handleCanvasContextMenu}
       />
@@ -2165,7 +2168,7 @@ export default function PlazaHub({
         </div>
       </section>
 
-      <nav className="plaza-portal-directory" aria-label="광장 포탈 안내">
+      <nav className="plaza-portal-directory" aria-label="광장 출입구 안내">
         <div className="plaza-portal-directory__heading">
           <span aria-hidden="true" />
           <small lang="en">MEMORY COMPASS</small>
@@ -2288,9 +2291,9 @@ export default function PlazaHub({
           type="button"
           className="is-action"
           onClick={activateNearbyPortal}
-          aria-label="가까운 포탈 이용"
+          aria-label="가까운 빛나는 문 이용"
         >
-          포탈
+          문
         </button>
         <button
           type="button"
@@ -2318,7 +2321,7 @@ export default function PlazaHub({
       <p className="plaza-control-hint" aria-label="조작 안내">
         <span><kbd>WASD</kbd> 이동</span>
         <span><kbd>Space</kbd> 회피</span>
-        <span><kbd>E</kbd> 포탈</span>
+        <span><kbd>E</kbd> 문 이용</span>
         <span><kbd>F</kbd> 기록</span>
         <span><kbd>1—4</kbd> 길 안내</span>
       </p>

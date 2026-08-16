@@ -77,7 +77,11 @@ import {
   type GameplayVfxId,
 } from "../augment-vfx";
 import { isLocalPvpShowcaseRequest } from "../pvp-showcase";
-import { canvasBackingDimensions } from "../canvas-performance";
+import { shouldProcessContinuousFrame } from "../runtime-performance";
+import {
+  MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE,
+  canvasBackingDimensions,
+} from "../canvas-performance";
 import "./pvp.css";
 
 type PvpArenaProps = {
@@ -363,6 +367,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
         rect.width,
         rect.height,
         window.devicePixelRatio || 1,
+        MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE,
       );
       canvasBackingScaleRef.current = backing.scale;
       if (canvas.width !== backing.width) canvas.width = backing.width;
@@ -964,7 +969,18 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     };
 
     let previousRenderTime: number | null = null;
+    let lastProcessedFrameAt = Number.NEGATIVE_INFINITY;
     const render = (renderTime: number) => {
+      if (!shouldProcessContinuousFrame(lastProcessedFrameAt, renderTime)) {
+        animationFrame = window.requestAnimationFrame(render);
+        return;
+      }
+      lastProcessedFrameAt = renderTime;
+      if (document.hidden) {
+        previousRenderTime = renderTime;
+        animationFrame = window.requestAnimationFrame(render);
+        return;
+      }
       const backingScale = canvasBackingScaleRef.current;
       context.setTransform(backingScale, 0, 0, backingScale, 0, 0);
       const elapsedSeconds =

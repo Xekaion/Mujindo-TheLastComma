@@ -2133,7 +2133,7 @@ export function getGearAffixDisplay(
         : "강화 0회",
     nextStageGainLabel:
       item.enhancement < MAX_GEAR_ENHANCEMENT
-        ? `당첨 시 ${formatGearAffixContribution(affix.stat, nextStageGainValue, percentPoint)}`
+        ? formatGearAffixContribution(affix.stat, nextStageGainValue, percentPoint)
         : "최대 강화",
   };
 }
@@ -2384,7 +2384,7 @@ export function getGearImplicitDisplay(
         : "강화 0회",
     nextStageGainLabel:
       normalizedEnhancement < MAX_GEAR_ENHANCEMENT
-        ? `당첨 시 ${formatContribution(nextStageGainValue, percentPoint)}`
+        ? formatContribution(nextStageGainValue, percentPoint)
         : "최대 강화",
   };
 }
@@ -2791,13 +2791,13 @@ export function applySuccessfulGearEnhancement(
     const display = getGearImplicitDisplay(item);
     optionLabel = display.label;
     gainValue = display.nextStageGainValue;
-    gainLabel = display.nextStageGainLabel.replace(/^당첨 시\s*/, "");
+    gainLabel = display.nextStageGainLabel;
   } else {
     const affix = item.affixes[optionIndex - 1];
     const display = getGearAffixDisplay(affix, item);
     optionLabel = GEAR_AFFIX_DEFINITIONS[affix.stat].name;
     gainValue = display.nextStageGainValue;
-    gainLabel = display.nextStageGainLabel.replace(/^당첨 시\s*/, "");
+    gainLabel = display.nextStageGainLabel;
   }
 
   const candidate: GearItem = {

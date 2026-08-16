@@ -16,11 +16,11 @@ const PORTAL_IDS = ["expedition", "duel", "exchange", "caravan"];
 const PORTAL_ASSET_URLS = Object.fromEntries(
   PORTAL_IDS.map((id) => [id, `/assets/plaza/portal-${id}-v2.png`]),
 );
-const PORTAL_WORLD_ASSET_URLS = {
-  expedition: "/assets/plaza/portal-expedition-v2.png",
-  duel: "/assets/plaza/portal-duel-world-v2.png",
-  exchange: "/assets/plaza/portal-exchange-world-v2.png",
-  caravan: "/assets/plaza/portal-caravan-v2.png",
+const PORTAL_DOORWAY_EFFECT_URLS = {
+  expedition: "/assets/plaza/portal-expedition-effect-v3.png",
+  duel: "/assets/plaza/portal-duel-effect-v3.png",
+  exchange: "/assets/plaza/portal-exchange-effect-v3.png",
+  caravan: "/assets/plaza/portal-caravan-effect-v3.png",
 };
 const SANCTUM_FRAME_URL = "/assets/ui/plaza-hub/sanctum-frame-v2.png";
 const PNG_SIGNATURE = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -159,16 +159,30 @@ async function inspectTransparentRgbaPng(contract) {
   let visiblePixels = 0;
   let strongestAlpha = 0;
   let visibleEdgePixels = 0;
+  let visibleOuterGutterPixels = 0;
+  let partialAlphaPixels = 0;
+  let hiddenRgbPixels = 0;
   for (let y = 0; y < info.height; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
-      const alpha = data[(y * info.width + x) * 4 + 3];
+      const offset = (y * info.width + x) * 4;
+      const alpha = data[offset + 3];
       if (alpha > 0) visiblePixels += 1;
+      if (alpha > 0 && alpha < 255) partialAlphaPixels += 1;
+      if (alpha === 0 && (data[offset] > 0 || data[offset + 1] > 0 || data[offset + 2] > 0)) {
+        hiddenRgbPixels += 1;
+      }
       strongestAlpha = Math.max(strongestAlpha, alpha);
       if (
         alpha > 0 &&
         (x === 0 || y === 0 || x === info.width - 1 || y === info.height - 1)
       ) {
         visibleEdgePixels += 1;
+      }
+      if (
+        alpha > 0 &&
+        (x < 8 || y < 8 || x >= info.width - 8 || y >= info.height - 8)
+      ) {
+        visibleOuterGutterPixels += 1;
       }
     }
   }
@@ -186,10 +200,14 @@ async function inspectTransparentRgbaPng(contract) {
     hash: createHash("sha256").update(bytes).digest("hex"),
     width: info.width,
     height: info.height,
+    visiblePixels,
+    partialAlphaPixels,
+    visibleOuterGutterPixels,
+    hiddenRgbPixels,
   };
 }
 
-test("PlazaHub preloads distinct UI and world-space portal art with a cold-load fallback", async () => {
+test("PlazaHub preloads distinct UI art and real-door portal effects with a cold-load fallback", async () => {
   const source = await readSource("app/PlazaHub.tsx");
   const sourceFile = tsxSource(source);
   const expectedUrls = Object.values(PORTAL_ASSET_URLS);
@@ -202,11 +220,11 @@ test("PlazaHub preloads distinct UI and world-space portal art with a cold-load 
   for (const [id, url] of Object.entries(PORTAL_ASSET_URLS)) {
     assert.match(assetCollection.text, new RegExp(`${id}[\\s\\S]*?${url.replaceAll("/", "\\/")}`));
   }
-  const worldAssetCollection = variableOwningEveryUrl(
+  const doorwayEffectCollection = variableOwningEveryUrl(
     sourceFile,
-    Object.values(PORTAL_WORLD_ASSET_URLS),
+    Object.values(PORTAL_DOORWAY_EFFECT_URLS),
   );
-  assert.ok(worldAssetCollection, "PlazaHub must declare direction-aware world portal art");
+  assert.ok(doorwayEffectCollection, "PlazaHub must declare four direction-aware doorway effects");
 
   const preloadScopes = [];
   visit(sourceFile, (node) => {
@@ -222,14 +240,14 @@ test("PlazaHub preloads distinct UI and world-space portal art with a cold-load 
     preloadScopes.some(
       (scope) =>
         scope.includes(assetCollection.name) &&
-        scope.includes(worldAssetCollection.name) &&
+        scope.includes(doorwayEffectCollection.name) &&
         /new\s+Image\s*\(/.test(scope) &&
         /\.src\s*=/.test(scope),
     ),
     `${assetCollection.name} must be traversed by an Image-based preload effect`,
   );
   const portalPreloadScope = preloadScopes.find(
-    (scope) => scope.includes(assetCollection.name) && scope.includes(worldAssetCollection.name),
+    (scope) => scope.includes(assetCollection.name) && scope.includes(doorwayEffectCollection.name),
   );
   assert.match(
     portalPreloadScope,
@@ -266,8 +284,8 @@ test("PlazaHub preloads distinct UI and world-space portal art with a cold-load 
   assert.ok(authoredDraw, "drawPortal must pass its authored portal image to canvas drawImage");
   assert.match(
     drawPortal.body.getText(sourceFile),
-    /drawPortalFallback\s*\(/,
-    "cold or failed portal textures must retain a visible authored fallback",
+    /drawDoorwayEffectFallback\s*\(/,
+    "cold or failed portal textures must retain an effect-only fallback",
   );
 
   const portalLoops = [];
@@ -282,12 +300,12 @@ test("PlazaHub preloads distinct UI and world-space portal art with a cold-load 
   assert.ok(
     portalLoops.some(
       (loop) =>
-        loop.includes(worldAssetCollection.name) &&
+        loop.includes(doorwayEffectCollection.name) &&
         /portal\.id/.test(loop) &&
         /sceneImagesRef\.current\.get\s*\(/.test(loop) &&
         /drawPortal\s*\(/.test(loop),
     ),
-    "the PLAZA_PORTALS render loop must resolve each direction-aware image and pass it to drawPortal",
+    "the PLAZA_PORTALS render loop must resolve each doorway effect and pass it to drawPortal",
   );
 });
 
@@ -409,12 +427,35 @@ test("release plaza interactions replay notices and expose player inspection wit
     `portal canvas text cannot be smaller than 12px: ${portalFontSizes.join(", ")}`,
   );
 
-  const layout = namedFunction(sourceFile, "plazaPortalArtLayout");
-  assert.ok(layout?.body, "portal artwork must have an explicit safe layout function");
+  const layout = namedFunction(sourceFile, "plazaDoorwayEffectLayout");
+  assert.ok(layout?.body, "doorway effects must have an explicit map-aligned layout function");
   assert.match(
     layout.body.getText(sourceFile),
-    /portal\.approachX[\s\S]*portal\.approachY/,
-    "world portal structures must be centered on their reachable in-frame approach points",
+    /portal\.x[\s\S]*portal\.y/,
+    "world portal effects must be anchored to the authored wall doorway coordinates",
+  );
+  assert.doesNotMatch(
+    layout.body.getText(sourceFile),
+    /portal\.approachX|portal\.approachY/,
+    "doorway effects must never be placed beside the real door at the waiting point",
+  );
+
+  const fallback = namedFunction(sourceFile, "drawDoorwayEffectFallback");
+  assert.ok(fallback?.body, "doorway effects need a visible cold-load fallback");
+  assert.doesNotMatch(
+    fallback.body.getText(sourceFile),
+    /pillar|stone|quadraticCurveTo|ground|shadow ellipse/i,
+    "the fallback may draw light and runes, never a second architectural doorway",
+  );
+  assert.match(
+    source,
+    /pointerTargetRef\.current\s*=\s*\{\s*x:\s*portal\.x,\s*y:\s*portal\.y\s*\}/,
+    "portal guidance must walk into the real wall doorway",
+  );
+  assert.match(
+    source,
+    /plazaPortalAtDoorwayPoint\(target\)[\s\S]*?guideToPortal\(doorwayPortal\)[\s\S]*?isPlazaWalkable\(target\)/,
+    "clicking a glowing wall doorway must guide there before wall pixels reject movement",
   );
 });
 
@@ -500,23 +541,36 @@ test("release plaza bitmaps are substantial, distinct, padded RGBA PNGs", async 
     "the four destination portal files must contain distinct authored artwork",
   );
 
-  const directionalWorldResults = await Promise.all(
-    ["duel", "exchange"].map((id) =>
+  const doorwayEffectResults = await Promise.all(
+    PORTAL_IDS.map((id) =>
       inspectTransparentRgbaPng({
-        relativePath: `public${PORTAL_WORLD_ASSET_URLS[id]}`,
-        minWidth: 512,
-        minHeight: 512,
-        maxWidth: 2_048,
-        maxHeight: 2_048,
-        maxBytes: 8 * 1_024 * 1_024,
+        relativePath: `public${PORTAL_DOORWAY_EFFECT_URLS[id]}`,
+        minWidth: 768,
+        minHeight: 768,
+        maxWidth: 768,
+        maxHeight: 768,
+        maxBytes: 2 * 1_024 * 1_024,
       }),
     ),
   );
   assert.equal(
-    new Set(directionalWorldResults.map((result) => result.hash)).size,
-    directionalWorldResults.length,
-    "west and east world portals must be independently authored",
+    new Set(doorwayEffectResults.map((result) => result.hash)).size,
+    PORTAL_IDS.length,
+    "all four real doorway effects must be independently authored",
   );
+  for (const result of doorwayEffectResults) {
+    const pixelCount = result.width * result.height;
+    assert.ok(
+      result.visiblePixels / pixelCount >= 0.015 && result.visiblePixels / pixelCount <= 0.45,
+      "a doorway effect must stay sparse enough to reveal the map-authored door frame",
+    );
+    assert.ok(
+      result.partialAlphaPixels / pixelCount >= 0.02,
+      "a doorway effect needs a soft translucent VFX edge",
+    );
+    assert.equal(result.visibleOuterGutterPixels, 0, "doorway VFX needs an eight-pixel safety gutter");
+    assert.equal(result.hiddenRgbPixels, 0, "fully transparent VFX pixels must have clean RGB");
+  }
 
   await inspectTransparentRgbaPng({
     relativePath: `public${SANCTUM_FRAME_URL}`,

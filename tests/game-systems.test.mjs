@@ -780,7 +780,11 @@ test("profession confirmation stays paused for one guarded cinematic before resu
   assert.equal((ceremonyEffect.match(/\bresume\(\);/g) ?? []).length, 1);
   assert.match(source, /professionCeremonyActiveRef\.current \|\|[\s\S]{0,120}?isProfessionEligible/);
   assert.match(source, /if \(professionCeremonyActiveRef\.current\) \{[\s\S]{0,100}?event\.preventDefault\(\);[\s\S]{0,100}?event\.stopPropagation\(\);/);
-  assert.match(source, /if \(!professionCeremonyActiveRef\.current\) \{[\s\S]{0,160}?draw\(\);/);
+  assert.match(
+    source,
+    /if \(!professionCeremonyActiveRef\.current\) \{\s*const simulationRunning = isSimulationRunning\(\);/,
+    "the guarded cinematic must bypass the continuous simulation and render branch",
+  );
   assert.match(source, /mode === "profession" && professionCandidate && !professionCeremony/);
   assert.match(source, /className="profession-ceremony"[\s\S]{0,180}?role="dialog"[\s\S]{0,120}?aria-modal="true"/);
   assert.match(source, /ref=\{professionCeremonyDialogRef\}[\s\S]{0,220}?aria-describedby="profession-ceremony-result"[\s\S]{0,80}?tabIndex=\{-1\}/);
@@ -6368,8 +6372,8 @@ test("opening the inventory freezes combat simulation and rejects queued gamepla
   );
   assert.match(
     source,
-    /const loop = \(now: number\) => \{[\s\S]{0,240}?if \(isSimulationRunning\(\)\) update\(dt\);\s*draw\(\);/,
-    "the animation frame must keep drawing UI/canvas while skipping combat updates",
+    /const simulationRunning = isSimulationRunning\(\);\s*if \(simulationRunning\) \{[\s\S]{0,240}?update\(dt\);\s*draw\(\);[\s\S]{0,520}?else if \(\s*wasSimulationRunning \|\|\s*canvasNeedsStaticRedrawRef\.current\s*\) \{[\s\S]{0,260}?draw\(\);/,
+    "the animation frame must stop combat and leave one stable canvas frame behind the inventory",
   );
   assert.match(
     source,
@@ -8007,8 +8011,13 @@ test("every backpack item shows its equipped-slot power delta before hover", asy
 
   assert.match(
     overlay,
-    /sortedInventory\.map\(\(item,\s*itemIndex\) => \{[\s\S]{0,300}?const itemPowerDelta = calculateEquipmentPowerDelta\(equipment,\s*item\)/,
-    "each backpack card must use the whole-loadout contextual comparison",
+    /const inventoryPowerDeltaById = useMemo\([\s\S]{0,300}?calculateEquipmentPowerDelta\(equipment, item\)[\s\S]{0,180}?\[equipment, inventory\]/,
+    "the whole-loadout contextual comparison must be cached until equipment or inventory changes",
+  );
+  assert.match(
+    overlay,
+    /sortedInventory\.map\(\(item,\s*itemIndex\) => \{[\s\S]{0,300}?const itemPowerDelta = inventoryPowerDeltaById\.get\(item\.id\) \?\? 0/,
+    "each backpack card must read its cached contextual comparison",
   );
   assert.match(
     overlay,
@@ -9695,7 +9704,7 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   );
   assert.match(
     source,
-    /if \(localDeathUiShowcase\) setGameMode\("dead"\);\s*else setGameMode\("playing"\);/,
+    /if \(localDeathUiShowcase\) setGameMode\("dead"\);\s*else if \(localEndingUiShowcase\) \{\s*setEndingChapterIndex\(1\);\s*setGameMode\("ending"\);\s*\} else setGameMode\("playing"\);/,
     "the local showcase must render the production death modal without mutating a save",
   );
 
@@ -9711,7 +9720,7 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
     "unknown or remotely supplied loot-showcase modes must never reach GameCanvas",
   );
   const directEntry = entrySource.indexOf(
-    "if (localEnemyVfxShowcase || localLootVfxShowcase)",
+    "if (localEnemyVfxShowcase || localLootVfxShowcase || localEndingUiShowcase)",
   );
   const characterGate = entrySource.indexOf("if (selection === null)", directEntry);
   assert.ok(
@@ -9776,7 +9785,10 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
     showcase[0],
     /localStorage|sessionStorage|loadSave|startNewRun|writeSaveSlot|removeSaveSlot|migrateLegacySave/,
   );
-  assert.match(source, /const loop = \(now: number\) => \{[\s\S]{0,140}?spawnLocalLootVfxShowcase\(\)/);
+  assert.match(
+    source,
+    /const loop = \(now: number\) => \{[\s\S]*?if \(simulationRunning\) \{\s*spawnLocalLootVfxShowcase\(\)/,
+  );
 
   const awakening = source.match(
     /const spawnLootAwakening = \([\s\S]*?(?=\n\s*const spawnLocalLootVfxShowcase)/,
@@ -9800,7 +9812,7 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
 
   assert.match(
     source,
-    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase,?\s*\);/,
+    /const isLocalVfxShowcase = Boolean\(\s*localEnemyVfxShowcase \|\| localLootVfxShowcase \|\| localEndingUiShowcase,?\s*\);/,
   );
   const transientStart = source.indexOf(
     "if (!isLocalVfxShowcase || initialSaveSlotHandledRef.current) return;",

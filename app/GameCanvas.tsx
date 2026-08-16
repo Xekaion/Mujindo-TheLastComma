@@ -70,11 +70,15 @@ import {
   compactPositiveFieldInPlace,
   findNearestAliveEntity,
   findNearestUnhitAliveEntity,
-  projectileMotionInterpolationSamples,
+  projectileMotionInterpolationCount,
+  shouldProcessContinuousFrame,
   shouldDrawProjectileTrail,
   sweptCircleMayOverlap,
 } from "./runtime-performance";
-import { canvasBackingDimensions } from "./canvas-performance";
+import {
+  MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE,
+  canvasBackingDimensions,
+} from "./canvas-performance";
 import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
@@ -2393,6 +2397,7 @@ type GameCanvasProps = {
   onReturnToPlaza?: () => void;
   localEnemyVfxShowcase?: LocalEnemyVfxShowcaseMode;
   localLootVfxShowcase?: LocalLootVfxShowcaseMode;
+  localEndingUiShowcase?: boolean;
 };
 
 export type LocalEnemyVfxShowcaseMode =
@@ -2415,9 +2420,10 @@ export default function GameCanvas({
   onReturnToPlaza,
   localEnemyVfxShowcase,
   localLootVfxShowcase,
+  localEndingUiShowcase = false,
 }: GameCanvasProps = {}) {
   const isLocalVfxShowcase = Boolean(
-    localEnemyVfxShowcase || localLootVfxShowcase,
+    localEnemyVfxShowcase || localLootVfxShowcase || localEndingUiShowcase,
   );
   const localDeathUiShowcase =
     isLocalVfxShowcase &&
@@ -2425,6 +2431,7 @@ export default function GameCanvas({
     new URLSearchParams(window.location.search).get("deathUiShowcase") === "1";
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasBackingScaleRef = useRef(1);
+  const canvasNeedsStaticRedrawRef = useRef(true);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<Player>(makePlayer());
   const worldRef = useRef<World>(makeWorld(1));
@@ -4138,13 +4145,17 @@ export default function GameCanvas({
     enterRoom(DUNGEON_CENTER_COORDINATE, DUNGEON_CENTER_COORDINATE, "center");
     const gameModeTimer = window.setTimeout(() => {
       if (localDeathUiShowcase) setGameMode("dead");
-      else setGameMode("playing");
+      else if (localEndingUiShowcase) {
+        setEndingChapterIndex(1);
+        setGameMode("ending");
+      } else setGameMode("playing");
     }, 0);
     return () => window.clearTimeout(gameModeTimer);
   }, [
     enterRoom,
     isLocalVfxShowcase,
     localDeathUiShowcase,
+    localEndingUiShowcase,
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
@@ -4677,10 +4688,12 @@ export default function GameCanvas({
         rect.width,
         rect.height,
         window.devicePixelRatio || 1,
+        MAX_CONTINUOUS_GAMEPLAY_BACKING_SCALE,
       );
       canvasBackingScaleRef.current = backing.scale;
       if (canvas.width !== backing.width) canvas.width = backing.width;
       if (canvas.height !== backing.height) canvas.height = backing.height;
+      canvasNeedsStaticRedrawRef.current = true;
     };
 
     const observer =
@@ -5001,6 +5014,8 @@ export default function GameCanvas({
     };
     let frame = 0;
     let last = performance.now();
+    let lastProcessedFrameAt = Number.NEGATIVE_INFINITY;
+    let wasSimulationRunning = false;
     const lootVfxShowcaseMode =
       localLootVfxShowcase ??
       (isLocalRarityShowcaseHost()
@@ -10090,13 +10105,14 @@ export default function GameCanvas({
         const coreVfxId = projectileVfxId(projectile.affinity);
         const definition = GAMEPLAY_VFX_MANIFEST[coreVfxId];
         const interpolateArtwork =
-          projectile.hostile ||
-          projectileCount <= 120 ||
-          (projectileCount <= 220
-            ? Math.abs(projectile.id) % 2 === 0
-            : Math.abs(projectile.id) % 6 === 0);
+          projectileCount <= 48 ||
+          (projectileCount <= 96
+            ? projectile.hostile || Math.abs(projectile.id) % 2 === 0
+            : projectile.hostile &&
+              projectileCount <= 160 &&
+              Math.abs(projectile.id) % 2 === 0);
         const progress = loopingGameplayVfxProgress(projectile.age, definition);
-        const motionSamples = projectileMotionInterpolationSamples(
+        const motionSampleCount = projectileMotionInterpolationCount(
           projectile.previousX,
           projectile.previousY,
           projectile.x,
@@ -10105,18 +10121,21 @@ export default function GameCanvas({
           projectileCount,
           projectile.hostile,
         );
-        for (const sample of motionSamples) {
+        const motionDeltaX = projectile.x - projectile.previousX;
+        const motionDeltaY = projectile.y - projectile.previousY;
+        for (let sampleIndex = 1; sampleIndex <= motionSampleCount; sampleIndex += 1) {
+          const sampleProgress = sampleIndex / (motionSampleCount + 1);
           drawGameplayVfxFrame(
             context,
             imagesRef.current[gameplayVfxImageKey(coreVfxId)],
             definition,
             {
-              x: sample.x,
-              y: sample.y,
+              x: projectile.previousX + motionDeltaX * sampleProgress,
+              y: projectile.previousY + motionDeltaY * sampleProgress,
               size: projectile.radius,
               progress,
               angle,
-              alpha: alpha * sample.alpha,
+              alpha: alpha * (0.1 + sampleProgress * 0.12),
               frameOffset: projectile.id,
             },
           );
@@ -11388,17 +11407,37 @@ export default function GameCanvas({
     };
 
     const loop = (now: number) => {
+      if (!shouldProcessContinuousFrame(lastProcessedFrameAt, now)) {
+        frame = requestAnimationFrame(loop);
+        return;
+      }
+      lastProcessedFrameAt = now;
       const dt = Math.min(0.034, (now - last) / 1000);
       last = now;
       if (!professionCeremonyActiveRef.current) {
-        spawnLocalLootVfxShowcase();
-        spawnLocalEnemyVfxShowcase();
-        if (isSimulationRunning()) update(dt);
-        draw();
-        if (now - lastHudUpdateRef.current > 110) {
-          lastHudUpdateRef.current = now;
+        const simulationRunning = isSimulationRunning();
+        if (simulationRunning) {
+          spawnLocalLootVfxShowcase();
+          spawnLocalEnemyVfxShowcase();
+          update(dt);
+          draw();
+          canvasNeedsStaticRedrawRef.current = false;
+          if (now - lastHudUpdateRef.current > 160) {
+            lastHudUpdateRef.current = now;
+            syncHud();
+          }
+        } else if (
+          wasSimulationRunning ||
+          canvasNeedsStaticRedrawRef.current
+        ) {
+          // Full-screen menus blur this canvas. Keep the last scene stable so
+          // the browser can reuse the blurred surface instead of recompositing
+          // a high-resolution moving canvas behind every overlay frame.
+          draw();
           syncHud();
+          canvasNeedsStaticRedrawRef.current = false;
         }
+        wasSimulationRunning = simulationRunning;
       }
       frame = requestAnimationFrame(loop);
     };

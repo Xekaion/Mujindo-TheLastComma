@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "asset": "plaza-portal-effects-v3",
+  "assetVersion": 3,
+  "date": "2026-08-17",
+  "useCase": "stylized-concept",
+  "workflow": {
+    "generator": "OpenAI built-in image_gen",
+    "tool": "image_gen.imagegen",
+    "mode": "four independent reference-guided generations",
+    "callCount": 4,
+    "transparencyStrategy": "flat chroma-key generation followed by the installed ImageGen removal helper",
+    "normalization": "trim transparent bounds, proportionally contain inside a 720x720 transparent area, then add 24px transparent padding on every side for an exact 768x768 RGBA texture",
+    "notes": "No CLI image model or model-native transparency was used. The world renderer draws these effect-only sprites over the four doors authored into memory-plaza-v1.png; the v2 freestanding architectural portal assets remain available for menu thumbnails but are no longer used in the world."
+  },
+  "referenceImages": [
+    {
+      "id": "rejected-freestanding-portal-capture",
+      "kind": "conversation-attachment",
+      "locator": "C:/Users/49ka1/AppData/Local/Temp/codex-clipboard-239a2d1d-d672-45b2-a351-4006b31e5598.png",
+      "role": "rejected freestanding portal overlay and adjacent real doorway placement reference; not an edit target",
+      "suppliedToGenerator": true,
+      "sha256": "425eefcd246381b09f8011f60a82afc7b688e861a8d1e21ad084aa47b132421f",
+      "bytes": 1332808,
+      "size": [1007, 882],
+      "mode": "RGB"
+    },
+    {
+      "id": "clean-plaza-map",
+      "kind": "project-reference",
+      "path": "public/assets/maps/memory-plaza-v1.png",
+      "role": "real doorway geometry, isometric camera, scale, material, and lighting reference; not an edit target",
+      "suppliedToGenerator": true,
+      "sha256": "74b992c2b110672ffc8480f360d1b105bf30cc210e830b8dc3d15396ff1084ea",
+      "bytes": 3124613,
+      "size": [1672, 941],
+      "mode": "RGB"
+    }
+  ],
+  "requests": [
+    {
+      "id": "portal-expedition-effect-v3",
+      "portalId": "expedition",
+      "doorFacing": "north wall, facing south into plaza",
+      "chromaKey": "#00FF00",
+      "prompt": "Use case: stylized-concept\nAsset type: isolated game VFX sprite for the NORTH expedition doorway\nPrimary request: create only a crimson-red and warm ivory magical portal effect that fits inside the existing tall gothic doorway in the reference plaza\nInput images: Image 1 is a visual problem reference showing the unwanted freestanding portal structure; Image 2 is the full plaza map geometry reference. Use them only for scale, camera angle, and doorway silhouette. Do not edit or reproduce either scene.\nSubject: a thin vertical energy veil, concentric broken runes, sparks, and a bright but controlled core; absolutely no physical door, arch, masonry, pillars, frame, stairs, pedestal, floor, sign, or architecture\nStyle/medium: premium dark fantasy ARPG spell VFX, painterly-realistic, crisp game sprite\nComposition/framing: centered effect, near-frontal screen-space silhouette for the north wall doorway, tall arched oval occupying about 58% width and 78% height, generous empty padding\nLighting/mood: crimson glow with pale-gold highlights, ominous and legible without overexposure\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for background removal\nConstraints: the background is one uniform #00ff00 with no shadow, gradient, texture, reflection, floor plane, or lighting variation; do not use #00ff00 in the effect; isolated VFX only; no text; no watermark\nAvoid: any freestanding portal object, doorway frame, stone, metal, building, platform, base, ground shadow, logo",
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-599c5880-22e4-44a5-be54-7bd56a96c59f.png",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-portal-effects-v3/portal-expedition-effect-v3-keyed.png",
+        "sha256": "800f11e3f5b1f933f1ff57dde59c2b4471d2824cdaf041cb67cb6de744a40bf1",
+        "bytes": 1676067,
+        "size": [1151, 1367],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-expedition-effect-v3.png",
+        "sha256": "be5704ec780c71b0e23587bb474c86848da5a1bc6821d76093daccb44ea38a0c",
+        "bytes": 489673,
+        "size": [768, 768],
+        "mode": "RGBA",
+        "alphaBounds": [201, 24, 365, 720],
+        "visibleRatio": 0.335795,
+        "partialAlphaPixels": 32091,
+        "edge8Pixels": 0,
+        "hiddenRgbPixels": 0,
+        "keyResidualPixels": 87
+      },
+      "doorway": { "anchor": [1200, 160], "effectCenter": [1200, 140], "drawSize": [220, 220] }
+    },
+    {
+      "id": "portal-duel-effect-v3",
+      "portalId": "duel",
+      "doorFacing": "west wall, facing east into plaza",
+      "chromaKey": "#00FF00",
+      "prompt": "Use case: stylized-concept\nAsset type: isolated game VFX sprite for the WEST memory-duel doorway\nPrimary request: create only a violet and cold-lavender magical portal effect that fits inside the existing left-side gothic doorway in the reference plaza\nInput images: Image 1 is a visual problem reference showing the unwanted freestanding portal structure; Image 2 is the full plaza map geometry reference. Use them only for scale, isometric camera angle, and doorway silhouette. Do not edit or reproduce either scene.\nSubject: a narrow translucent energy veil, fractured circular sigils, dueling crescent trails, and restrained particles; absolutely no physical door, arch, masonry, pillars, frame, stairs, pedestal, floor, sign, or architecture\nStyle/medium: premium dark fantasy ARPG spell VFX, painterly-realistic, crisp game sprite\nComposition/framing: centered effect shaped for the west wall side doorway, isometric plane facing inward toward the plaza, slightly narrower at the upper-left and broader toward the lower-right, tall silhouette occupying about 58% width and 78% height, generous empty padding\nLighting/mood: saturated violet with silver-lavender highlights, tense and spectral\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for background removal\nConstraints: the background is one uniform #00ff00 with no shadow, gradient, texture, reflection, floor plane, or lighting variation; do not use #00ff00 in the effect; isolated VFX only; no text; no watermark\nAvoid: any freestanding portal object, doorway frame, stone, metal, building, platform, base, ground shadow, logo",
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-1bffeed1-b250-4c22-b706-dd4e09e5a76e.png",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-portal-effects-v3/portal-duel-effect-v3-keyed.png",
+        "sha256": "55fb87921fcaebb2fb45518962088fb8bab6a4c8ee9301a092fa04d0cf34d208",
+        "bytes": 1626213,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-duel-effect-v3.png",
+        "sha256": "2750fcd3b306f8048839a414e9365d668550104acc5dee106c5050b5ed8c9656",
+        "bytes": 505737,
+        "size": [768, 768],
+        "mode": "RGBA",
+        "alphaBounds": [158, 24, 451, 720],
+        "visibleRatio": 0.345011,
+        "partialAlphaPixels": 42682,
+        "edge8Pixels": 0,
+        "hiddenRgbPixels": 0,
+        "keyResidualPixels": 63
+      },
+      "doorway": { "anchor": [250, 675], "effectCenter": [170, 615], "drawSize": [250, 250] }
+    },
+    {
+      "id": "portal-exchange-effect-v3",
+      "portalId": "exchange",
+      "doorFacing": "east wall, facing west into plaza",
+      "chromaKey": "#FF00FF",
+      "prompt": "Use case: stylized-concept\nAsset type: isolated game VFX sprite for the EAST memory-exchange doorway\nPrimary request: create only a teal-cyan and pearl-white magical portal effect that fits inside the existing right-side gothic doorway in the reference plaza\nInput images: Image 1 is a visual problem reference showing the unwanted freestanding portal structure next to the real doorway; Image 2 is the full plaza map geometry reference. Use them only for scale, isometric camera angle, and doorway silhouette. Do not edit or reproduce either scene.\nSubject: a narrow translucent energy veil, subtle lattice ripples, orbiting ledger-like rune marks without readable text, and fine motes; absolutely no physical door, arch, masonry, pillars, frame, stairs, pedestal, floor, sign, or architecture\nStyle/medium: premium dark fantasy ARPG spell VFX, painterly-realistic, crisp game sprite\nComposition/framing: centered effect shaped for the east wall side doorway, isometric plane facing inward toward the plaza, slightly narrower at the upper-right and broader toward the lower-left, tall silhouette occupying about 58% width and 78% height, generous empty padding\nLighting/mood: deep teal and cyan with pearly highlights, mysterious and refined\nScene/backdrop: perfectly flat solid #ff00ff chroma-key background for background removal\nConstraints: the background is one uniform #ff00ff with no shadow, gradient, texture, reflection, floor plane, or lighting variation; do not use #ff00ff in the effect; isolated VFX only; no text; no watermark\nAvoid: any freestanding portal object, doorway frame, stone, metal, building, platform, base, ground shadow, logo",
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-39e2985a-c350-4190-9bfa-55ceb2182344.png",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-portal-effects-v3/portal-exchange-effect-v3-keyed.png",
+        "sha256": "d9d61d6d803a612d58acada49f322b93b8418b9c1597d06d047d19d3d5f5285d",
+        "bytes": 1797864,
+        "size": [1086, 1448],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-exchange-effect-v3.png",
+        "sha256": "63404a3996296b149c682833041d9387573099e29ce03b2c1f3f130cff3cf003",
+        "bytes": 455150,
+        "size": [768, 768],
+        "mode": "RGBA",
+        "alphaBounds": [195, 24, 378, 720],
+        "visibleRatio": 0.268661,
+        "partialAlphaPixels": 44356,
+        "edge8Pixels": 0,
+        "hiddenRgbPixels": 0,
+        "keyResidualPixels": 22
+      },
+      "doorway": { "anchor": [2150, 675], "effectCenter": [2245, 615], "drawSize": [250, 250] }
+    },
+    {
+      "id": "portal-caravan-effect-v3",
+      "portalId": "caravan",
+      "doorFacing": "south wall, facing north into plaza",
+      "chromaKey": "#00FF00",
+      "prompt": "Use case: stylized-concept\nAsset type: isolated game VFX sprite for the SOUTH memory-caravan doorway\nPrimary request: create only an amber-gold and warm-white magical portal effect that fits inside the existing foreground gothic doorway in the reference plaza\nInput images: Image 1 is a visual problem reference showing the unwanted freestanding portal structure; Image 2 is the full plaza map geometry reference. Use them only for scale, camera angle, and doorway silhouette. Do not edit or reproduce either scene.\nSubject: a warm vertical energy curtain, rotating compass-like broken runes, drifting ember motes, and a soft white-gold center; absolutely no physical door, arch, masonry, pillars, frame, stairs, pedestal, floor, sign, or architecture\nStyle/medium: premium dark fantasy ARPG spell VFX, painterly-realistic, crisp game sprite\nComposition/framing: centered effect, near-frontal screen-space silhouette for the south foreground doorway, tall arched oval occupying about 58% width and 78% height, generous empty padding\nLighting/mood: amber and antique gold, inviting but arcane, controlled bloom\nScene/backdrop: perfectly flat solid #00ff00 chroma-key background for background removal\nConstraints: the background is one uniform #00ff00 with no shadow, gradient, texture, reflection, floor plane, or lighting variation; do not use #00ff00 in the effect; isolated VFX only; no text; no watermark\nAvoid: any freestanding portal object, doorway frame, stone, metal, building, platform, base, ground shadow, logo",
+      "originalGeneratedPath": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-021440eb-27c6-447e-a95a-42f30232a2a4.png",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-portal-effects-v3/portal-caravan-effect-v3-keyed.png",
+        "sha256": "7d11fd195d19c442f4aedaa9d6e44093b96e05cf1ffbf838ee737f74e2818277",
+        "bytes": 1773298,
+        "size": [1082, 1453],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-caravan-effect-v3.png",
+        "sha256": "641623ccfa51bbd674ca899e2a8c9d8e3a3db4d5cf826e3ba1af441748141dd9",
+        "bytes": 442381,
+        "size": [768, 768],
+        "mode": "RGBA",
+        "alphaBounds": [180, 24, 407, 720],
+        "visibleRatio": 0.305812,
+        "partialAlphaPixels": 32300,
+        "edge8Pixels": 0,
+        "hiddenRgbPixels": 0,
+        "keyResidualPixels": 24
+      },
+      "doorway": { "anchor": [1200, 1190], "effectCenter": [1200, 1175], "drawSize": [220, 220] }
+    }
+  ],
+  "postProcessing": {
+    "chromaRemoval": {
+      "tool": "C:/Users/49ka1/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py",
+      "commonArguments": ["--auto-key", "border", "--soft-matte", "--transparent-threshold", "12", "--opaque-threshold", "220", "--despill"],
+      "edgeContract1": ["expedition", "duel", "caravan"]
+    },
+    "normalization": {
+      "library": "sharp",
+      "operations": ["trim transparent bounds", "resize with fit=contain to 720x720 transparent canvas", "extend 24px transparent on every side", "encode 8-bit non-interlaced RGBA PNG"],
+      "finalSize": [768, 768],
+      "aspectRatioPreserved": true
+    }
+  },
+  "manualQa": {
+    "status": "passed static map composite and automated interaction contracts",
+    "composite": {
+      "path": "artifacts/plaza-doorway-effects-v3-composite.png",
+      "sha256": "256688bc7a508d4e249bd4ff8e25de95dd404de5bd63e20d3dc05749fd4c377e",
+      "bytes": 3890970,
+      "size": [1672, 941]
+    },
+    "results": [
+      "no generated doorway architecture is visible",
+      "each effect sits inside its matching map-authored doorway",
+      "side-door perspective remains direction-specific",
+      "clicking the glow guides the player into the real doorway before wall collision rejection",
+      "labels remain outside the effect and doorway opening"
+    ]
+  }
+}

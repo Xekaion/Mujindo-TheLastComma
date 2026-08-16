@@ -10,6 +10,31 @@ export type PositionedAliveEntity = Readonly<{
   hp: number;
 }>;
 
+/**
+ * Continuous canvas work above 100 Hz costs more than it improves motion.
+ * A 10 ms gate naturally keeps a stable display divisor: 120/144/165 Hz
+ * process every second callback while 240 Hz processes every third callback.
+ */
+export const CONTINUOUS_FRAME_MIN_INTERVAL_MS = 10;
+const CONTINUOUS_FRAME_INTERVAL_EPSILON_MS = 0.001;
+
+/**
+ * Returns whether one requestAnimationFrame callback should perform continuous
+ * simulation/render work. Callers must update `lastProcessedAtMs` only when
+ * this returns true; skipped callbacks therefore preserve a display divisor.
+ */
+export function shouldProcessContinuousFrame(
+  lastProcessedAtMs: number,
+  nowMs: number,
+): boolean {
+  if (!Number.isFinite(nowMs)) return false;
+  if (!Number.isFinite(lastProcessedAtMs) || nowMs < lastProcessedAtMs) return true;
+  return (
+    nowMs - lastProcessedAtMs + CONTINUOUS_FRAME_INTERVAL_EPSILON_MS >=
+    CONTINUOUS_FRAME_MIN_INTERVAL_MS
+  );
+}
+
 /** Removes rejected entries without allocating a replacement array. */
 export function compactArrayInPlace<T>(
   values: T[],
@@ -110,6 +135,46 @@ export type ProjectileMotionInterpolationSample = Readonly<{
 }>;
 
 /**
+ * Allocation-free interpolation budget for the projectile render hot path.
+ * Callers that only need to draw samples can calculate their positions inline
+ * without creating a temporary sample array or per-sample objects.
+ */
+export function projectileMotionInterpolationCount(
+  previousX: number,
+  previousY: number,
+  currentX: number,
+  currentY: number,
+  radius: number,
+  projectileCount: number,
+  hostile: boolean,
+): number {
+  if (
+    !Number.isFinite(previousX) ||
+    !Number.isFinite(previousY) ||
+    !Number.isFinite(currentX) ||
+    !Number.isFinite(currentY)
+  ) {
+    return 0;
+  }
+  const deltaX = currentX - previousX;
+  const deltaY = currentY - previousY;
+  const travelDistance = Math.hypot(deltaX, deltaY);
+  if (travelDistance < 1) return 0;
+
+  const safeProjectileCount = Number.isFinite(projectileCount)
+    ? Math.max(0, projectileCount)
+    : Number.POSITIVE_INFINITY;
+  if (hostile ? safeProjectileCount > 160 : safeProjectileCount > 96) return 0;
+
+  const sampleBudget = hostile ? 2 : 1;
+  const sampleSpacing = Math.max(16, Math.min(24, Math.max(1, radius) * 1.35));
+  return Math.min(
+    sampleBudget,
+    Math.max(0, Math.ceil(travelDistance / sampleSpacing) - 1),
+  );
+}
+
+/**
  * Produces a tiny, bounded set of sub-frame positions between the last physics
  * location and the current one. These bridge the visual gap left by a delayed
  * animation frame without changing collision or projectile travel distance.
@@ -133,28 +198,14 @@ export function projectileMotionInterpolationSamples(
   }
   const deltaX = currentX - previousX;
   const deltaY = currentY - previousY;
-  const travelDistance = Math.hypot(deltaX, deltaY);
-  if (travelDistance < 1) return [];
-
-  const dense = projectileCount > 120;
-  const overloaded = projectileCount > 220;
-  const sampleBudget = hostile
-    ? overloaded
-      ? 1
-      : dense
-        ? 2
-        : 3
-    : overloaded
-      ? 0
-      : dense
-        ? 1
-        : 2;
-  if (sampleBudget <= 0) return [];
-
-  const sampleSpacing = Math.max(8, Math.min(18, Math.max(1, radius) * 1.35));
-  const sampleCount = Math.min(
-    sampleBudget,
-    Math.max(0, Math.ceil(travelDistance / sampleSpacing) - 1),
+  const sampleCount = projectileMotionInterpolationCount(
+    previousX,
+    previousY,
+    currentX,
+    currentY,
+    radius,
+    projectileCount,
+    hostile,
   );
   if (sampleCount === 0) return [];
 

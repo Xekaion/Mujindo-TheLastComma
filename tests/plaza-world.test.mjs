@@ -40,12 +40,26 @@ test("the shared plaza keeps one 16:9 world and four cardinal portals", async ()
   );
 });
 
-test("every portal has a reachable approach point with unambiguous proximity", async () => {
+test("every real doorway and its safe arrival point are reachable and unambiguous", async () => {
   const plaza = await importTypeScriptModule("app/plaza-world.ts");
   for (const portal of plaza.PLAZA_PORTALS) {
     const approach = { x: portal.approachX, y: portal.approachY };
+    const doorway = { x: portal.x, y: portal.y };
     assert.equal(plaza.isPlazaWalkable(approach), true, `${portal.id} approach must be walkable`);
     assert.equal(plaza.nearestPlazaPortal(approach)?.id, portal.id);
+    assert.equal(plaza.isPlazaWalkable(doorway), true, `${portal.id} doorway must be walkable`);
+    assert.equal(plaza.nearestPlazaPortal(doorway)?.id, portal.id);
+    const reached = plaza.resolvePlazaSweptMovement(
+      plaza.PLAZA_SPAWN_POINT,
+      {
+        x: doorway.x - plaza.PLAZA_SPAWN_POINT.x,
+        y: doorway.y - plaza.PLAZA_SPAWN_POINT.y,
+      },
+    );
+    assert.ok(
+      Math.hypot(reached.x - doorway.x, reached.y - doorway.y) <= 1,
+      `${portal.id} doorway must be reachable from the plaza centre`,
+    );
   }
   assert.equal(plaza.nearestPlazaPortal({ x: 1_200, y: 675 }), null);
 });
@@ -119,7 +133,7 @@ test("PlazaHub uses the generated map, authoritative intent, and accessible cont
   assert.match(source, /memory-plaza-v1\.png/);
   assert.match(source, /onMoveIntent/);
   assert.match(source, /localAuthoritativePosition/);
-  assert.match(source, /aria-label="광장 포탈 안내"/);
+  assert.match(source, /aria-label="광장 출입구 안내"/);
   assert.match(source, /aria-label="터치 이동 조작"/);
   assert.match(source, /onPointerDown=\{handleCanvasPointer\}/);
   assert.match(source, /remotePlayers/);
