@@ -676,7 +676,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     imageKey: "lootAwakeningCommon",
     imagePath: "/assets/effects/loot-awakening-common-v5.png",
     pillarImageKey: "lootPillarCommon",
-    pillarImagePath: "/assets/effects/loot-pillar-common-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-common-v5.png",
     arrivalPattern: "dustSeal",
     beamHeight: 68,
     beamWidth: 7,
@@ -693,14 +693,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 96,
     pillarFps: 4,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.9297,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 4,
   },
   magic: {
     imageKey: "lootAwakeningMagic",
     imagePath: "/assets/effects/loot-awakening-magic-v5.png",
     pillarImageKey: "lootPillarMagic",
-    pillarImagePath: "/assets/effects/loot-pillar-magic-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-magic-v5.png",
     arrivalPattern: "arcaneTriangle",
     beamHeight: 78,
     beamWidth: 8,
@@ -717,14 +717,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 108,
     pillarFps: 4,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.9082,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 3,
   },
   superior: {
     imageKey: "lootAwakeningSuperior",
     imagePath: "/assets/effects/loot-awakening-superior-v5.png",
     pillarImageKey: "lootPillarSuperior",
-    pillarImagePath: "/assets/effects/loot-pillar-superior-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-superior-v5.png",
     arrivalPattern: "thornBloom",
     beamHeight: 90,
     beamWidth: 10,
@@ -741,14 +741,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 124,
     pillarFps: 5,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.8965,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 2,
   },
   rare: {
     imageKey: "lootAwakeningRare",
     imagePath: "/assets/effects/loot-awakening-rare-v5.png",
     pillarImageKey: "lootPillarRare",
-    pillarImagePath: "/assets/effects/loot-pillar-rare-v4.png?v=1b0d7f07",
+    pillarImagePath: "/assets/effects/loot-pillar-rare-v5.png",
     arrivalPattern: "compassBloom",
     beamHeight: 108,
     beamWidth: 12,
@@ -765,7 +765,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 146,
     pillarFps: 5,
     pillarCompositeOperation: "screen",
-    pillarGroundAnchor: 0.9219,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 1,
   },
   epic: {
@@ -796,7 +796,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     imageKey: "lootAwakeningLegendary",
     imagePath: "/assets/effects/loot-awakening-legendary-v5.png",
     pillarImageKey: "lootPillarLegendary",
-    pillarImagePath: "/assets/effects/loot-pillar-legendary-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-legendary-v5.png",
     arrivalPattern: "solarCoronation",
     beamHeight: 174,
     beamWidth: 22,
@@ -813,14 +813,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 216,
     pillarFps: 6,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.8281,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 0,
   },
   mythic: {
     imageKey: "lootAwakeningMythic",
     imagePath: "/assets/effects/loot-awakening-mythic-v5.png",
     pillarImageKey: "lootPillarMythic",
-    pillarImagePath: "/assets/effects/loot-pillar-mythic-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-mythic-v5.png",
     arrivalPattern: "mythicCoronation",
     beamHeight: 228,
     beamWidth: 30,
@@ -837,14 +837,14 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 274,
     pillarFps: 7,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.8066,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 0,
   },
   cosmic: {
     imageKey: "lootAwakeningCosmic",
     imagePath: "/assets/effects/loot-awakening-cosmic-v5.png",
     pillarImageKey: "lootPillarCosmic",
-    pillarImagePath: "/assets/effects/loot-pillar-cosmic-v3.png",
+    pillarImagePath: "/assets/effects/loot-pillar-cosmic-v5.png",
     arrivalPattern: "nebulaCollapse",
     beamHeight: 296,
     beamWidth: 42,
@@ -861,7 +861,7 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     pillarHeight: 344,
     pillarFps: 8,
     pillarCompositeOperation: "lighter",
-    pillarGroundAnchor: 0.8828,
+    pillarGroundAnchor: 0.9277,
     pillarGroundOffsetPx: 0,
   },
 };
@@ -10116,7 +10116,8 @@ export default function GameCanvas({
           const sourceHeight = pillarVfxImage.naturalHeight;
           context.globalAlpha = pillarReveal;
           context.globalCompositeOperation = rarityVfx.pillarCompositeOperation;
-          context.imageSmoothingEnabled = false;
+          context.imageSmoothingEnabled = true;
+          context.imageSmoothingQuality = "high";
           context.drawImage(
             pillarVfxImage,
             pillarFrame * sourceWidth,
@@ -10124,8 +10125,8 @@ export default function GameCanvas({
             sourceWidth,
             sourceHeight,
             drop.x - rarityVfx.pillarWidth / 2,
-            // Keep the authored flare anchor intact, then lower only the short
-            // low-tier tails until their item overlap matches the epic baseline.
+            // Keep every authored flare anchor intact, then preserve the small
+            // low-tier visual offsets that match the epic item-overlap baseline.
             drop.y +
               rarityVfx.pillarGroundOffsetPx -
               rarityVfx.pillarHeight * rarityVfx.pillarGroundAnchor,

@@ -69,7 +69,7 @@
     }
   },
   "output": {
-    "path": "public/assets/effects/loot-pillar-rare-v4.png",
+    "path": "asset-sources/imagegen/loot-pillar-rare-v4-production.png",
     "sha256": "1b0d7f07ed166887341dda602a3f7938d6317a82bcb6dd3b181179d673f75e20",
     "bytes": 322743,
     "groundAnchor": 0.9219,

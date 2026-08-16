@@ -8212,13 +8212,13 @@ const PERSISTENT_PILLAR_GROUND_OFFSETS = {
 
 test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent four-frame loops", async () => {
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
-  const manifestPath = "public/assets/effects/loot-pillar-v3.build.json";
+  const manifestPath = "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-v3.build.json";
   const builderPath = "scripts/build_loot_pillar_v3_assets.py";
   const [manifestText, builder, ...assetBuffers] = await Promise.all([
     readFile(path.join(root, manifestPath), "utf8"),
     readFile(path.join(root, builderPath), "utf8"),
     ...rarities.map((rarity) =>
-      readFile(path.join(root, `public/assets/effects/loot-pillar-${rarity}-v3.png`)),
+      readFile(path.join(root, `asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-${rarity}-v3.png`)),
     ),
   ]);
   const manifest = JSON.parse(manifestText);
@@ -8287,7 +8287,7 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
   const adjustedTailByRarity = {};
   const adjustedFrameTailsByRarity = {};
   for (const [index, rarity] of rarities.entries()) {
-    const assetPath = `public/assets/effects/loot-pillar-${rarity}-v3.png`;
+    const assetPath = `asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-${rarity}-v3.png`;
     const [sourcePath, sourceRow, colourFamily] = expectedSources[rarity];
     const png = assetBuffers[index];
     assert.ok(png.byteLength <= 750_000, `${assetPath} exceeds the 750 KB decode budget`);
@@ -8435,12 +8435,6 @@ test("persistent loot-pillar V3 atlases are bright, rarity-correct, transparent 
         (tail) => Math.abs(tail - epicTail) <= 1.5,
       ),
       `${rarity} must stay close to the epic baseline in every animation frame`,
-    );
-  }
-  for (const rarity of ["legendary", "mythic", "cosmic"]) {
-    assert.ok(
-      adjustedTailByRarity[rarity] > epicTail + 10,
-      `${rarity} already has a longer lower glow tail and must not be shifted farther down`,
     );
   }
 });
@@ -8620,8 +8614,8 @@ test("epic persistent pillar V4 preserves ImageGen provenance, safe headroom, an
 });
 
 test("rare persistent pillar V4 keeps authored gold, white, and cyan detail without flattening", async () => {
-  const assetPath = "public/assets/effects/loot-pillar-rare-v4.png";
-  const manifestPath = "public/assets/effects/loot-pillar-rare-v4.build.json";
+  const assetPath = "asset-sources/imagegen/loot-pillar-rare-v4-production.png";
+  const manifestPath = "asset-sources/imagegen/loot-pillar-rare-v4.build.json";
   const builderPath = "scripts/build_loot_pillar_rare_v4.py";
   const [png, manifestText, builder] = await Promise.all([
     readFile(path.join(root, assetPath)),
@@ -8647,7 +8641,7 @@ test("rare persistent pillar V4 keeps authored gold, white, and cyan detail with
     "the checked-in V4 PNG must be the exact output recorded by the build",
   );
   assert.equal(manifest.output.groundAnchor, 0.9219);
-  assert.match(builder, /loot-pillar-rare-v4\.png/);
+  assert.match(builder, /loot-pillar-rare-v4-production\.png/);
   assert.match(builder, /loot-pillar-rare-v4\.build\.json/);
   assert.match(builder, /visibleAlphaThreshold|VISIBLE_ALPHA_THRESHOLD/);
   assert.match(builder, /targetFlareY|TARGET_FLARE_Y/);
@@ -8781,6 +8775,141 @@ test("rare persistent pillar V4 keeps authored gold, white, and cyan detail with
   }
 });
 
+test("persistent loot-pillar V5 atlases have complete tapered tips, clean floors, and fixed anchors", async () => {
+  const rarities = ["common", "magic", "superior", "rare", "legendary", "mythic", "cosmic"];
+  const manifestPath = "public/assets/effects/loot-pillar-v5.build.json";
+  const builderPath = "scripts/build_loot_pillar_v5_assets.py";
+  const [manifestText, builder] = await Promise.all([
+    readFile(path.join(root, manifestPath), "utf8"),
+    readFile(path.join(root, builderPath), "utf8"),
+  ]);
+  const manifest = JSON.parse(manifestText);
+
+  assert.equal(manifest.version, 5);
+  assert.equal(manifest.builder, builderPath);
+  assert.deepEqual(manifest.atlas, {
+    columns: 4,
+    rows: 1,
+    cell: [256, 512],
+    size: [1024, 512],
+  });
+  assert.equal(manifest.contract.targetFlareY, 475);
+  assert.equal(manifest.contract.minimumTopPadding, 24);
+  assert.equal(manifest.contract.minimumSidePadding, 8);
+  assert.equal(manifest.contract.minimumBottomPadding, 8);
+  assert.equal(manifest.contract.maximumFirstVisibleRun, 4);
+  assert.equal(manifest.contract.detachedBottomComponents, 0);
+  assert.match(manifest.contract.resize, /one uniform scale per four-frame sequence/i);
+  assert.match(builder, /def premultiplied_resize/);
+  assert.match(builder, /def restore_tapered_tip/);
+  assert.match(builder, /def remove_detached_below_floor/);
+  assert.match(builder, /TARGET_FLARE_Y\s*=\s*475/);
+  assert.match(builder, /first_visible_run\s*>\s*MAX_FIRST_VISIBLE_RUN/);
+
+  const promptBytes = await readFile(path.join(root, manifest.promptMetadata.path));
+  assert.equal(
+    createHash("sha256").update(promptBytes).digest("hex"),
+    manifest.promptMetadata.sha256,
+    "the checked-in ImageGen prompt/provenance record must match the V5 build",
+  );
+  assert.equal(manifest.promptMetadata.tool, "image_gen.imagegen built-in");
+
+  const rareFrames = [];
+  for (const rarity of rarities) {
+    const record = manifest.rarities[rarity];
+    assert.ok(record, `${rarity} V5 build record is missing`);
+    for (const source of Object.values(record.sources)) {
+      const sourceBytes = await readFile(path.join(root, source.path));
+      assert.equal(createHash("sha256").update(sourceBytes).digest("hex"), source.sha256);
+    }
+
+    const outputBytes = await readFile(path.join(root, record.output.path));
+    assert.equal(record.output.path, `public/assets/effects/loot-pillar-${rarity}-v5.png`);
+    assert.equal(record.output.bytes, outputBytes.byteLength);
+    assert.equal(createHash("sha256").update(outputBytes).digest("hex"), record.output.sha256);
+    assert.ok(outputBytes.byteLength <= 1_000_000, `${rarity} V5 exceeds its decode budget`);
+    assert.equal(record.output.groundAnchor, 0.927734);
+
+    const image = decodeRgbaPng(outputBytes, record.output.path);
+    assert.deepEqual([image.width, image.height], [1024, 512]);
+    const frameHashes = [];
+    for (let column = 0; column < 4; column += 1) {
+      const label = `${rarity} V5 frame ${column}`;
+      const frame = rgbaCellBuffer(image, column, 0, 4, 1, label);
+      frameHashes.push(createHash("sha256").update(frame).digest("hex"));
+      if (rarity === "rare") rareFrames.push(frame);
+
+      const support = new Uint8Array(256 * 512);
+      let left = 256;
+      let top = 512;
+      let right = -1;
+      let bottom = -1;
+      let visiblePixels = 0;
+      let brightPixels = 0;
+      const rowEnergy = new Float64Array(512);
+      for (let y = 0; y < 512; y += 1) {
+        for (let x = 0; x < 256; x += 1) {
+          const offset = (y * 256 + x) * 4;
+          const alpha = frame[offset + 3];
+          const luminance =
+            frame[offset] * 0.299 + frame[offset + 1] * 0.587 + frame[offset + 2] * 0.114;
+          rowEnergy[y] += luminance * (alpha / 255);
+          if (alpha < 64) continue;
+          support[y * 256 + x] = 1;
+          visiblePixels += 1;
+          left = Math.min(left, x);
+          top = Math.min(top, y);
+          right = Math.max(right, x);
+          bottom = Math.max(bottom, y);
+          if (luminance >= 205) brightPixels += 1;
+        }
+      }
+      assert.ok(visiblePixels > 0, `${label} is empty`);
+      let flareY = 281;
+      for (let y = 282; y < 512; y += 1) {
+        if (rowEnergy[y] > rowEnergy[flareY]) flareY = y;
+      }
+      let firstVisibleRun = 0;
+      let currentRun = 0;
+      for (let x = 0; x < 256; x += 1) {
+        if (support[top * 256 + x]) {
+          currentRun += 1;
+          firstVisibleRun = Math.max(firstVisibleRun, currentRun);
+        } else {
+          currentRun = 0;
+        }
+      }
+
+      const frameRecord = record.frames[column];
+      assert.deepEqual(frameRecord.bbox, [left, top, right + 1, bottom + 1]);
+      assert.deepEqual(frameRecord.padding, [left, top, 255 - right, 511 - bottom]);
+      assert.equal(frameRecord.firstVisibleRowMaxRun, firstVisibleRun);
+      assert.equal(frameRecord.flareY, flareY);
+      assert.equal(frameRecord.detachedBottomComponents, 0);
+      assert.equal(frameRecord.detachedBottomPixels, 0);
+      assert.ok(top >= 24, `${label} needs visible headroom above its complete tip`);
+      assert.ok(255 - right >= 8 && left >= 8, `${label} needs safe side gutters`);
+      assert.ok(511 - bottom >= 8, `${label} must not contain a leaked lower-row tip`);
+      assert.ok(firstVisibleRun <= 4, `${label} starts with a visibly cropped flat cap`);
+      assert.equal(flareY, 475, `${label} floor flare must remain registered`);
+      assert.ok(brightPixels / visiblePixels >= 0.05, `${label} needs a bright light core`);
+      assert.ok(frameRecord.flatPlateauRows.length === 0, `${label} has a flat top plateau`);
+    }
+    assert.equal(new Set(frameHashes).size, 4, `${rarity} V5 must animate four unique frames`);
+  }
+
+  const rareRecord = manifest.rarities.rare;
+  assert.ok(rareRecord.frames.every((frame) => frame.coverage >= 0.2));
+  assert.ok(rareRecord.frames.every((frame) => frame.goldPixelRatio >= 0.12));
+  for (let index = 0; index < rareFrames.length; index += 1) {
+    const metrics = rgbaTemporalMetrics(rareFrames[index], rareFrames[(index + 1) % 4]);
+    assert.ok(
+      metrics.alphaSupportIou >= 0.55,
+      `rare V5 frames ${index}->${(index + 1) % 4} must animate one coherent painted pillar`,
+    );
+  }
+});
+
 test("persistent gear drops draw only authored four-frame portrait pillar sprites", async () => {
   const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   const rarities = ["common", "magic", "superior", "rare", "epic", "legendary", "mythic", "cosmic"];
@@ -8797,12 +8926,7 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     }),
   );
   for (const rarity of rarities) {
-    const assetSuffix =
-      rarity === "rare"
-        ? "v4\\.png\\?v=1b0d7f07"
-        : rarity === "epic"
-          ? "v4\\.png(?:\\?v=[a-f0-9]+)?"
-          : "v3\\.png";
+    const assetSuffix = rarity === "epic" ? "v4\\.png(?:\\?v=[a-f0-9]+)?" : "v5\\.png";
     assert.match(
       rarityBlocks[rarity],
       new RegExp(`pillarImagePath:\\s*["']/assets/effects/loot-pillar-${rarity}-${assetSuffix}["']`),
@@ -8838,7 +8962,8 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     /context\.globalCompositeOperation = rarityVfx\.pillarCompositeOperation;/,
     "the renderer must consume the rarity-specific blend mode instead of flattening rare art additively",
   );
-  assert.match(pillarRenderer, /context\.imageSmoothingEnabled = false;/);
+  assert.match(pillarRenderer, /context\.imageSmoothingEnabled = true;/);
+  assert.match(pillarRenderer, /context\.imageSmoothingQuality = "high";/);
   assert.match(
     pillarRenderer,
     /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*[\s\S]{0,220}?drop\.y \+\s*rarityVfx\.pillarGroundOffsetPx\s*-\s*rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
@@ -8859,14 +8984,14 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     "persistent pillars need a constrained authored blend-mode contract",
   );
   const expectedGroundAnchors = {
-    common: 0.9297,
-    magic: 0.9082,
-    superior: 0.8965,
-    rare: 0.9219,
+    common: 0.9277,
+    magic: 0.9277,
+    superior: 0.9277,
+    rare: 0.9277,
     epic: 0.9277,
-    legendary: 0.8281,
-    mythic: 0.8066,
-    cosmic: 0.8828,
+    legendary: 0.9277,
+    mythic: 0.9277,
+    cosmic: 0.9277,
   };
   const expectedGroundOffsets = PERSISTENT_PILLAR_GROUND_OFFSETS;
   const actualGroundOffsets = {};
@@ -8897,8 +9022,9 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
     "short low-tier flare tails must step down to the unchanged epic baseline",
   );
   const legendaryHeight = 216;
+  const legacyClippedLegendaryAnchor = 0.8281;
   const oldLegendaryHotspotY =
-    12 - legendaryHeight + expectedGroundAnchors.legendary * legendaryHeight;
+    12 - legendaryHeight + legacyClippedLegendaryAnchor * legendaryHeight;
   const correctedLegendaryHotspotY =
     expectedGroundOffsets.legendary -
     legendaryHeight * expectedGroundAnchors.legendary +

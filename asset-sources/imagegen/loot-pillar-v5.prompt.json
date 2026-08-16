@@ -1,0 +1,106 @@
+{
+  "assetFamily": "loot-pillar-v5",
+  "generatedAt": "2026-08-16",
+  "tool": "image_gen.imagegen built-in",
+  "assetType": "production 2D ARPG persistent loot-pillar four-frame sprite sheets",
+  "productionContract": {
+    "atlas": {
+      "columns": 4,
+      "rows": 1,
+      "cell": [256, 512]
+    },
+    "targetFlareY": 475,
+    "minimumTopPaddingAtAlpha64": 24,
+    "minimumBottomPaddingAtAlpha64": 8,
+    "maximumFirstVisibleRowRun": 4,
+    "floorPolicy": "One broad shallow floor flare per frame; no downward spike and no pixels leaked from an adjacent rarity row.",
+    "alphaPolicy": "Built-in chroma-key generation, local soft-matte removal, premultiplied-alpha fixed sequence scaling, and hidden-RGB cleanup."
+  },
+  "assets": {
+    "rare": {
+      "useCase": "style-transfer",
+      "referenceInputs": [
+        "asset-sources/imagegen/loot-pillar-rare-v4-production.png",
+        "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+        "public/assets/effects/loot-pillar-epic-v4.png"
+      ],
+      "generationPrompt": "Use case: style-transfer\nAsset type: production 2D ARPG persistent rare-tier dropped-loot pillar, exact four-frame horizontal sprite sheet\nInput images: Image 1 is the rare-tier redesign target and color identity reference; Image 2 is the gothic painted loot-pillar family style and density reference; Image 3 is the production four-frame layout, tapered-tip, headroom, and clean floor-anchor reference.\nPrimary request: Redesign the rare-tier effect so it belongs unmistakably to the same substantial gothic painted flame-and-crystal pillar family as Images 2 and 3. Replace the current sparse thin-line, compass-ring, and vector-like look with a broad textured triangular beacon: slim ivory-white central shaft; layered luminous yellow-gold and antique-gold flame veils; amber/bronze crystal shards and filaments; tiny pale-cyan rune sparks only as restrained secondary detail. It must remain clearly yellow/gold, not orange legendary and not violet epic.\nAnimation: exactly four distinct equal portrait cells in one left-to-right horizontal strip: gathering flame, rising gold veil, brilliant star flash, settled flicker. Each frame must be a complete independent effect.\nComposition: consistent scale and a single shared floor-contact flare position in all four cells, around the lower 90-92% of each cell. Every upper flame must taper naturally to a sharp luminous point with generous empty headroom. The floor burst is broad and shallow with no downward-pointing spike, no fragments below it, and no neighboring-frame or neighboring-row contamination. Keep the effect fully contained inside every cell with clear gutters.\nStyle/medium: gothic early-2000s Diablo-like hand-painted 2D VFX for a three-quarter top-down dark ARPG; rich translucent texture, dark internal gaps, crystalline sparks, bright flashing core; visually dense and premium at small gameplay scale.\nScene/backdrop: one perfectly uniform flat solid RGB #FF00FF magenta chroma-key background over the entire image, with no gradient, bloom tint, shadow, texture, checkerboard, seam, border, or lighting variation. Do not use #FF00FF anywhere inside the effect.\nConstraints: no text, item, character, UI, ring-dominant compass seal, thin vector drawing, flat single-color silhouette, broad white slab, orange fire dominance, purple dominance, mobile-game neon, clipped top, flat-topped beam, bottom spike, cropped floor flare, frame overlap, grid lines, watermark.",
+      "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-ad74975b-2aee-4faf-b75e-4d6838fe0b07.png",
+      "generatedSource": "asset-sources/imagegen/loot-pillar-rare-v5-source.png",
+      "keyedSource": "asset-sources/imagegen/loot-pillar-rare-v5-keyed.png",
+      "chromaRemoval": {
+        "tool": "remove_chroma_key.py",
+        "autoKey": "border",
+        "detectedKey": "#fc06fa",
+        "softMatte": true,
+        "transparentThreshold": 12,
+        "opaqueThreshold": 220,
+        "edgeContract": 1,
+        "despill": true
+      }
+    },
+    "legendary": {
+      "useCase": "precise-object-edit",
+      "referenceInputs": [
+        "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-legendary-v3.png",
+        "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+      ],
+      "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent legendary-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four legendary orange frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct each visibly chopped upper orange flame and white-gold beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove every foreign pink, purple, white, or prismatic pointed fragment hanging below the orange floor flare; those are pieces leaked from the next sprite-sheet row. Each frame must end in one clean broad shallow orange-gold floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same orange legendary identity, same distinct frame silhouettes, crystalline debris, spiral filaments, central core, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell, with at least 5% empty headroom and clean side/bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, saturated ember orange and molten gold, white-hot ivory core, textured flame and crystal fragments, dark translucent gaps.\nScene/backdrop: one perfectly uniform flat solid RGB #FF00FF magenta chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use #FF00FF inside the effect.\nConstraints: change only missing upper terminations, required headroom, and leaked bottom fragments; no redesign, no text, item, character, UI, purple or pink contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+      "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-beff857a-cc9b-4eb3-b52d-46b865210e8a.png",
+      "generatedSource": "asset-sources/imagegen/loot-pillar-legendary-v5-source.png",
+      "keyedSource": "asset-sources/imagegen/loot-pillar-legendary-v5-keyed.png",
+      "chromaRemoval": {
+        "tool": "remove_chroma_key.py",
+        "autoKey": "border",
+        "detectedKey": "#f804f8",
+        "softMatte": true,
+        "transparentThreshold": 12,
+        "opaqueThreshold": 220,
+        "edgeContract": 1,
+        "despill": true
+      }
+    },
+    "mythic": {
+      "useCase": "precise-object-edit",
+      "referenceInputs": [
+        "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-mythic-v3.png",
+        "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+      ],
+      "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent mythic-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four mythic magenta frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct every visibly chopped upper magenta-violet flame and white-pink beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove every foreign pale-blue, prismatic, white, or cyan pointed fragment hanging below the magenta floor flare; those are pieces leaked from the next sprite-sheet row. Each frame must end in one clean broad shallow magenta crystal floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same mythic saturated magenta/pink identity, same distinct frame silhouettes, crystal shards, star flash, spiral filaments, central core, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell with clear top, side, and bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, saturated magenta, deep violet-pink shadows, white-hot pink core, crystalline fragments, textured translucent gaps.\nScene/backdrop: one perfectly uniform flat solid RGB #00FF00 green chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use #00FF00 inside the effect.\nConstraints: change only missing upper terminations, required headroom, and leaked bottom fragments; no redesign, no text, item, character, UI, cyan/blue contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+      "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-ee20774e-3eea-43df-9b23-e6e64c559e77.png",
+      "generatedSource": "asset-sources/imagegen/loot-pillar-mythic-v5-source.png",
+      "keyedSource": "asset-sources/imagegen/loot-pillar-mythic-v5-keyed.png",
+      "chromaRemoval": {
+        "tool": "remove_chroma_key.py",
+        "autoKey": "border",
+        "detectedKey": "#0cf909",
+        "softMatte": true,
+        "transparentThreshold": 12,
+        "opaqueThreshold": 220,
+        "edgeContract": 1,
+        "despill": true
+      }
+    },
+    "cosmic": {
+      "useCase": "precise-object-edit",
+      "referenceInputs": [
+        "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-cosmic-v3.png",
+        "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+      ],
+      "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent cosmic-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four cosmic prismatic frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct every visibly chopped upper cyan-white/prismatic flame and star beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove any clipped or foreign fragment beneath the cosmic floor flare. Each frame must end in one clean broad shallow iridescent crystal floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same cosmic pale-blue, cyan, lavender, opal-white and tiny warm-gold identity, same distinct silhouettes, orbiting ribbons, crystal shards, star flash, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell with clear top, side, and bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, dense prismatic crystalline flame, cyan-white core, lavender/opal veils, restrained golden sparks, textured translucent gaps. It must feel like the highest rarity without becoming a featureless white rectangle.\nScene/backdrop: one perfectly uniform flat solid RGB #00FF00 green chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use green inside the effect.\nConstraints: change only missing upper terminations, required headroom, and any bottom crop contamination; no redesign, no text, item, character, UI, green contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+      "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-0708c24b-2b2a-481b-9312-d75596a40d5a.png",
+      "generatedSource": "asset-sources/imagegen/loot-pillar-cosmic-v5-source.png",
+      "keyedSource": "asset-sources/imagegen/loot-pillar-cosmic-v5-keyed.png",
+      "chromaRemoval": {
+        "tool": "remove_chroma_key.py",
+        "autoKey": "border",
+        "detectedKey": "#07f80c",
+        "softMatte": true,
+        "transparentThreshold": 12,
+        "opaqueThreshold": 220,
+        "edgeContract": 1,
+        "despill": true
+      }
+    }
+  }
+}

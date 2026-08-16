@@ -5,7 +5,7 @@
   "assetType": "production 2D ARPG persistent loot-pillar animation sprite sheet",
   "generatedAt": "2026-08-14",
   "referenceImages": [
-    "public/assets/effects/loot-pillar-rare-v2.png",
+    "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-rare-v2.png",
     "public/assets/effects/loot-awakening-rare-v5.png",
     "user reference: codex-clipboard-9c8e5aca-47a0-44f4-abcb-24172ef54232.png",
     "user reference: codex-clipboard-0b61ae74-5138-40a1-addd-b7e5e334b8d2.png"

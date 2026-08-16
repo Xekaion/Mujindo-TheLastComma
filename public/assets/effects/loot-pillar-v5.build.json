@@ -1,0 +1,2339 @@
+{
+  "version": 5,
+  "builder": "scripts/build_loot_pillar_v5_assets.py",
+  "format": "rgba-png",
+  "atlas": {
+    "columns": 4,
+    "rows": 1,
+    "cell": [
+      256,
+      512
+    ],
+    "size": [
+      1024,
+      512
+    ]
+  },
+  "contract": {
+    "targetFlareY": 475,
+    "minimumTopPadding": 24,
+    "minimumSidePadding": 8,
+    "minimumBottomPadding": 8,
+    "visibleAlphaThreshold": 64,
+    "maximumFirstVisibleRun": 4,
+    "detachedBottomComponents": 0,
+    "resize": "one uniform scale per four-frame sequence in premultiplied-alpha LANCZOS space",
+    "legacyTailCleanup": {
+      "fullAlphaRowsAfterFlare": 12,
+      "fadeRows": 8
+    },
+    "imagegenTailCleanup": {
+      "fullAlphaRowsAfterFlare": 20,
+      "fadeRows": 18
+    }
+  },
+  "promptMetadata": {
+    "path": "asset-sources/imagegen/loot-pillar-v5.prompt.json",
+    "sha256": "73c7d93825606e594fa9fe9127156c70735574cd43067c0edae3fde82354f844",
+    "tool": "image_gen.imagegen built-in",
+    "assets": {
+      "rare": {
+        "useCase": "style-transfer",
+        "referenceInputs": [
+          "asset-sources/imagegen/loot-pillar-rare-v4-production.png",
+          "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
+          "public/assets/effects/loot-pillar-epic-v4.png"
+        ],
+        "generationPrompt": "Use case: style-transfer\nAsset type: production 2D ARPG persistent rare-tier dropped-loot pillar, exact four-frame horizontal sprite sheet\nInput images: Image 1 is the rare-tier redesign target and color identity reference; Image 2 is the gothic painted loot-pillar family style and density reference; Image 3 is the production four-frame layout, tapered-tip, headroom, and clean floor-anchor reference.\nPrimary request: Redesign the rare-tier effect so it belongs unmistakably to the same substantial gothic painted flame-and-crystal pillar family as Images 2 and 3. Replace the current sparse thin-line, compass-ring, and vector-like look with a broad textured triangular beacon: slim ivory-white central shaft; layered luminous yellow-gold and antique-gold flame veils; amber/bronze crystal shards and filaments; tiny pale-cyan rune sparks only as restrained secondary detail. It must remain clearly yellow/gold, not orange legendary and not violet epic.\nAnimation: exactly four distinct equal portrait cells in one left-to-right horizontal strip: gathering flame, rising gold veil, brilliant star flash, settled flicker. Each frame must be a complete independent effect.\nComposition: consistent scale and a single shared floor-contact flare position in all four cells, around the lower 90-92% of each cell. Every upper flame must taper naturally to a sharp luminous point with generous empty headroom. The floor burst is broad and shallow with no downward-pointing spike, no fragments below it, and no neighboring-frame or neighboring-row contamination. Keep the effect fully contained inside every cell with clear gutters.\nStyle/medium: gothic early-2000s Diablo-like hand-painted 2D VFX for a three-quarter top-down dark ARPG; rich translucent texture, dark internal gaps, crystalline sparks, bright flashing core; visually dense and premium at small gameplay scale.\nScene/backdrop: one perfectly uniform flat solid RGB #FF00FF magenta chroma-key background over the entire image, with no gradient, bloom tint, shadow, texture, checkerboard, seam, border, or lighting variation. Do not use #FF00FF anywhere inside the effect.\nConstraints: no text, item, character, UI, ring-dominant compass seal, thin vector drawing, flat single-color silhouette, broad white slab, orange fire dominance, purple dominance, mobile-game neon, clipped top, flat-topped beam, bottom spike, cropped floor flare, frame overlap, grid lines, watermark.",
+        "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-ad74975b-2aee-4faf-b75e-4d6838fe0b07.png",
+        "generatedSource": "asset-sources/imagegen/loot-pillar-rare-v5-source.png",
+        "keyedSource": "asset-sources/imagegen/loot-pillar-rare-v5-keyed.png",
+        "chromaRemoval": {
+          "tool": "remove_chroma_key.py",
+          "autoKey": "border",
+          "detectedKey": "#fc06fa",
+          "softMatte": true,
+          "transparentThreshold": 12,
+          "opaqueThreshold": 220,
+          "edgeContract": 1,
+          "despill": true
+        }
+      },
+      "legendary": {
+        "useCase": "precise-object-edit",
+        "referenceInputs": [
+          "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-legendary-v3.png",
+          "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+        ],
+        "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent legendary-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four legendary orange frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct each visibly chopped upper orange flame and white-gold beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove every foreign pink, purple, white, or prismatic pointed fragment hanging below the orange floor flare; those are pieces leaked from the next sprite-sheet row. Each frame must end in one clean broad shallow orange-gold floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same orange legendary identity, same distinct frame silhouettes, crystalline debris, spiral filaments, central core, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell, with at least 5% empty headroom and clean side/bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, saturated ember orange and molten gold, white-hot ivory core, textured flame and crystal fragments, dark translucent gaps.\nScene/backdrop: one perfectly uniform flat solid RGB #FF00FF magenta chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use #FF00FF inside the effect.\nConstraints: change only missing upper terminations, required headroom, and leaked bottom fragments; no redesign, no text, item, character, UI, purple or pink contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+        "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-beff857a-cc9b-4eb3-b52d-46b865210e8a.png",
+        "generatedSource": "asset-sources/imagegen/loot-pillar-legendary-v5-source.png",
+        "keyedSource": "asset-sources/imagegen/loot-pillar-legendary-v5-keyed.png",
+        "chromaRemoval": {
+          "tool": "remove_chroma_key.py",
+          "autoKey": "border",
+          "detectedKey": "#f804f8",
+          "softMatte": true,
+          "transparentThreshold": 12,
+          "opaqueThreshold": 220,
+          "edgeContract": 1,
+          "despill": true
+        }
+      },
+      "mythic": {
+        "useCase": "precise-object-edit",
+        "referenceInputs": [
+          "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-mythic-v3.png",
+          "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+        ],
+        "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent mythic-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four mythic magenta frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct every visibly chopped upper magenta-violet flame and white-pink beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove every foreign pale-blue, prismatic, white, or cyan pointed fragment hanging below the magenta floor flare; those are pieces leaked from the next sprite-sheet row. Each frame must end in one clean broad shallow magenta crystal floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same mythic saturated magenta/pink identity, same distinct frame silhouettes, crystal shards, star flash, spiral filaments, central core, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell with clear top, side, and bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, saturated magenta, deep violet-pink shadows, white-hot pink core, crystalline fragments, textured translucent gaps.\nScene/backdrop: one perfectly uniform flat solid RGB #00FF00 green chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use #00FF00 inside the effect.\nConstraints: change only missing upper terminations, required headroom, and leaked bottom fragments; no redesign, no text, item, character, UI, cyan/blue contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+        "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-ee20774e-3eea-43df-9b23-e6e64c559e77.png",
+        "generatedSource": "asset-sources/imagegen/loot-pillar-mythic-v5-source.png",
+        "keyedSource": "asset-sources/imagegen/loot-pillar-mythic-v5-keyed.png",
+        "chromaRemoval": {
+          "tool": "remove_chroma_key.py",
+          "autoKey": "border",
+          "detectedKey": "#0cf909",
+          "softMatte": true,
+          "transparentThreshold": 12,
+          "opaqueThreshold": 220,
+          "edgeContract": 1,
+          "despill": true
+        }
+      },
+      "cosmic": {
+        "useCase": "precise-object-edit",
+        "referenceInputs": [
+          "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-cosmic-v3.png",
+          "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png"
+        ],
+        "generationPrompt": "Use case: precise-object-edit\nAsset type: production 2D ARPG persistent cosmic-tier loot-pillar four-frame sprite sheet\nInput images: Image 1 is the exact edit target and source of truth for the four cosmic prismatic frames. Image 2 is the original painted family reference.\nPrimary request: Repair the production crop defects only. Reconstruct every visibly chopped upper cyan-white/prismatic flame and star beam into a complete naturally tapering sharp luminous tip with generous clear headroom. Remove any clipped or foreign fragment beneath the cosmic floor flare. Each frame must end in one clean broad shallow iridescent crystal floor burst with no downward spike.\nComposition: preserve exactly four equal portrait animation cells in one horizontal strip, same left-to-right temporal order, same cosmic pale-blue, cyan, lavender, opal-white and tiny warm-gold identity, same distinct silhouettes, orbiting ribbons, crystal shards, star flash, brightness hierarchy, approximate width, and consistent shared floor-contact position. Keep every effect fully contained inside its cell with clear top, side, and bottom gutters.\nStyle: gothic early-2000s Diablo-like hand-painted 2D VFX, dense prismatic crystalline flame, cyan-white core, lavender/opal veils, restrained golden sparks, textured translucent gaps. It must feel like the highest rarity without becoming a featureless white rectangle.\nScene/backdrop: one perfectly uniform flat solid RGB #00FF00 green chroma-key background across the whole image, no gradient, bloom tint, texture, checkerboard, seam, border, shadow, or floor plane. Do not use green inside the effect.\nConstraints: change only missing upper terminations, required headroom, and any bottom crop contamination; no redesign, no text, item, character, UI, green contamination, bottom spikes, cropped tips, flat-topped beams, frame overlap, grid lines, watermark.",
+        "generatedOriginalPath": "C:/Users/49ka1/.codex/generated_images/019ffdb4-7a66-7fc0-85a2-358bab0560fc/exec-0708c24b-2b2a-481b-9312-d75596a40d5a.png",
+        "generatedSource": "asset-sources/imagegen/loot-pillar-cosmic-v5-source.png",
+        "keyedSource": "asset-sources/imagegen/loot-pillar-cosmic-v5-keyed.png",
+        "chromaRemoval": {
+          "tool": "remove_chroma_key.py",
+          "autoKey": "border",
+          "detectedKey": "#07f80c",
+          "softMatte": true,
+          "transparentThreshold": 12,
+          "opaqueThreshold": 220,
+          "edgeContract": 1,
+          "despill": true
+        }
+      }
+    }
+  },
+  "rarities": {
+    "common": {
+      "kind": "legacy-tail-cleanup",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-common-v3.png",
+          "sha256": "192af44b8ead27995385bcd4eb44043b663b52dfb4c2b3ad2fbdc107756dba33",
+          "bytes": 136888,
+          "size": [
+            1024,
+            512
+          ],
+          "mode": "RGBA"
+        }
+      },
+      "fixedSequenceScale": 0.951271,
+      "cleanup": [
+        {
+          "sourceFlareY": 480,
+          "fadeStartY": 492,
+          "clearAfterY": 500
+        },
+        {
+          "sourceFlareY": 468,
+          "fadeStartY": 480,
+          "clearAfterY": 488
+        },
+        {
+          "sourceFlareY": 474,
+          "fadeStartY": 486,
+          "clearAfterY": 494
+        },
+        {
+          "sourceFlareY": 478,
+          "fadeStartY": 490,
+          "clearAfterY": 498
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            499
+          ],
+          "sourceFlareY": 480,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            500
+          ],
+          "paste": [
+            29,
+            26
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            487
+          ],
+          "sourceFlareY": 468,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            488
+          ],
+          "paste": [
+            29,
+            37
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            493
+          ],
+          "sourceFlareY": 474,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            494
+          ],
+          "paste": [
+            29,
+            32
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            497
+          ],
+          "sourceFlareY": 478,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            498
+          ],
+          "paste": [
+            29,
+            28
+          ],
+          "correctionY": 0
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-common-v5.png",
+        "sha256": "b8118be18d7079c6f4780d28ba02058ee14c3cd20fbab4ab677a0ae79e036ecd",
+        "bytes": 333004,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            31,
+            26,
+            229,
+            493
+          ],
+          "padding": [
+            31,
+            26,
+            27,
+            19
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 3,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 32954,
+          "coverage": 0.251419,
+          "alphaMass": 0.210635,
+          "brightPixelRatio": 0.190113,
+          "meanRgb": [
+            161.168932,
+            159.489501,
+            160.738545
+          ],
+          "pixelHash": "7f53b29238a2a65f4de788e845a2c88c75fe1089a29d90008c29f16edde2b77f",
+          "goldPixelRatio": 0.00443,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.181253
+        },
+        {
+          "index": 1,
+          "bbox": [
+            29,
+            37,
+            229,
+            493
+          ],
+          "padding": [
+            29,
+            37,
+            27,
+            19
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 5,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 38631,
+          "coverage": 0.294731,
+          "alphaMass": 0.253678,
+          "brightPixelRatio": 0.298827,
+          "meanRgb": [
+            180.685693,
+            178.613471,
+            176.829179
+          ],
+          "pixelHash": "a89d21b8a5d1930392d5b01f365fd7bedaa4e6612977a9f316abf793e64ea250",
+          "goldPixelRatio": 0.000104,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.289534
+        },
+        {
+          "index": 2,
+          "bbox": [
+            29,
+            32,
+            229,
+            493
+          ],
+          "padding": [
+            29,
+            32,
+            27,
+            19
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 36985,
+          "coverage": 0.282173,
+          "alphaMass": 0.238013,
+          "brightPixelRatio": 0.346519,
+          "meanRgb": [
+            190.983912,
+            189.187184,
+            188.295201
+          ],
+          "pixelHash": "de57ea93fd89819e65e0ac02e9761a604a10875dbbe77abb3a15cb1cacd45cf4",
+          "goldPixelRatio": 0.003677,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.346221
+        },
+        {
+          "index": 3,
+          "bbox": [
+            29,
+            28,
+            229,
+            493
+          ],
+          "padding": [
+            29,
+            28,
+            27,
+            19
+          ],
+          "firstVisibleRowMaxRun": 3,
+          "top24MaxHorizontalRun": 3,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 36353,
+          "coverage": 0.277351,
+          "alphaMass": 0.233455,
+          "brightPixelRatio": 0.249443,
+          "meanRgb": [
+            173.681209,
+            170.979286,
+            169.109124
+          ],
+          "pixelHash": "e5d38df9ace6c125c6dc89c8f56e2b88857bf6e2b585d2956f4973e41a995982",
+          "goldPixelRatio": 0.006107,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.237202
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.714323,
+          "changedPixelRatio": 0.9391,
+          "meanAbsoluteRgbDelta": 63.204796,
+          "meanAbsoluteAlphaDelta": 68.326293
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.771074,
+          "changedPixelRatio": 0.891744,
+          "meanAbsoluteRgbDelta": 49.40452,
+          "meanAbsoluteAlphaDelta": 52.327907
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.771535,
+          "changedPixelRatio": 0.895067,
+          "meanAbsoluteRgbDelta": 50.331103,
+          "meanAbsoluteAlphaDelta": 48.982366
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.688315,
+          "changedPixelRatio": 0.923705,
+          "meanAbsoluteRgbDelta": 61.578029,
+          "meanAbsoluteAlphaDelta": 67.763368
+        }
+      ]
+    },
+    "magic": {
+      "kind": "legacy-tail-cleanup",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-magic-v3.png",
+          "sha256": "340735aa51764aad2feac990ee18126c68a96d6fd328ed59c620ea29a0d93964",
+          "bytes": 120016,
+          "size": [
+            1024,
+            512
+          ],
+          "mode": "RGBA"
+        }
+      },
+      "fixedSequenceScale": 0.980349,
+      "cleanup": [
+        {
+          "sourceFlareY": 468,
+          "fadeStartY": 480,
+          "clearAfterY": 488
+        },
+        {
+          "sourceFlareY": 456,
+          "fadeStartY": 468,
+          "clearAfterY": 476
+        },
+        {
+          "sourceFlareY": 466,
+          "fadeStartY": 478,
+          "clearAfterY": 486
+        },
+        {
+          "sourceFlareY": 464,
+          "fadeStartY": 476,
+          "clearAfterY": 484
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            22,
+            10,
+            232,
+            486
+          ],
+          "sourceFlareY": 468,
+          "sourceSoftBbox": [
+            22,
+            10,
+            232,
+            488
+          ],
+          "paste": [
+            26,
+            25
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            475
+          ],
+          "sourceFlareY": 456,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            476
+          ],
+          "paste": [
+            26,
+            35
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            485
+          ],
+          "sourceFlareY": 466,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            486
+          ],
+          "paste": [
+            26,
+            25
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            483
+          ],
+          "sourceFlareY": 464,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            484
+          ],
+          "paste": [
+            26,
+            27
+          ],
+          "correctionY": -1
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-magic-v5.png",
+        "sha256": "20cc6eecb3c0645c00b386d770c809cf98c97ff5f2654698205db0426786eb4a",
+        "bytes": 314577,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            26,
+            25,
+            232,
+            492
+          ],
+          "padding": [
+            26,
+            25,
+            24,
+            20
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 16,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 36752,
+          "coverage": 0.280396,
+          "alphaMass": 0.231932,
+          "brightPixelRatio": 0.173025,
+          "meanRgb": [
+            46.919052,
+            168.765264,
+            241.239062
+          ],
+          "pixelHash": "49f09923598e568e3801789e2b981486fc435d04a07a8af683d91f6cc864c41c",
+          "goldPixelRatio": 0.0,
+          "cyanPixelRatio": 0.444738,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.097301
+        },
+        {
+          "index": 1,
+          "bbox": [
+            26,
+            35,
+            232,
+            493
+          ],
+          "padding": [
+            26,
+            35,
+            24,
+            19
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 6,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 39699,
+          "coverage": 0.302879,
+          "alphaMass": 0.260313,
+          "brightPixelRatio": 0.229099,
+          "meanRgb": [
+            58.438852,
+            184.202045,
+            252.016172
+          ],
+          "pixelHash": "d611b568e6ba230d6c9a68c9115f43b729c142d77d549fe1cf122c68029ddbb2",
+          "goldPixelRatio": 0.0,
+          "cyanPixelRatio": 0.448601,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.132522
+        },
+        {
+          "index": 2,
+          "bbox": [
+            26,
+            25,
+            232,
+            493
+          ],
+          "padding": [
+            26,
+            25,
+            24,
+            19
+          ],
+          "firstVisibleRowMaxRun": 2,
+          "top24MaxHorizontalRun": 3,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 40346,
+          "coverage": 0.307816,
+          "alphaMass": 0.26181,
+          "brightPixelRatio": 0.215387,
+          "meanRgb": [
+            56.11969,
+            191.670128,
+            254.613815
+          ],
+          "pixelHash": "f28a98ac6f6410bc78a18cbe2ba665f56887bf6a8d530413dd0064cbf7dcace2",
+          "goldPixelRatio": 0.0,
+          "cyanPixelRatio": 0.606305,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.123978
+        },
+        {
+          "index": 3,
+          "bbox": [
+            26,
+            27,
+            232,
+            493
+          ],
+          "padding": [
+            26,
+            27,
+            24,
+            19
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 2,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 38132,
+          "coverage": 0.290924,
+          "alphaMass": 0.249092,
+          "brightPixelRatio": 0.200094,
+          "meanRgb": [
+            50.673371,
+            179.242972,
+            248.250603
+          ],
+          "pixelHash": "abad609ab987a42433426958abe4c39d720ec30eaba7f29046ba356f050654fe",
+          "goldPixelRatio": 0.0,
+          "cyanPixelRatio": 0.471415,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.100388
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.718309,
+          "changedPixelRatio": 0.929875,
+          "meanAbsoluteRgbDelta": 50.77369,
+          "meanAbsoluteAlphaDelta": 54.396476
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.759115,
+          "changedPixelRatio": 0.887722,
+          "meanAbsoluteRgbDelta": 44.75973,
+          "meanAbsoluteAlphaDelta": 50.424434
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.732368,
+          "changedPixelRatio": 0.937595,
+          "meanAbsoluteRgbDelta": 53.183322,
+          "meanAbsoluteAlphaDelta": 59.795545
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.67672,
+          "changedPixelRatio": 0.956741,
+          "meanAbsoluteRgbDelta": 58.895629,
+          "meanAbsoluteAlphaDelta": 67.609122
+        }
+      ]
+    },
+    "superior": {
+      "kind": "legacy-tail-cleanup",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/legacy-arpg/loot-pillar-v3/output/loot-pillar-superior-v3.png",
+          "sha256": "cc254f2e67c07310f1985aa685a1eb9a1207827ab00d6e912857b8d004e5635e",
+          "bytes": 146893,
+          "size": [
+            1024,
+            512
+          ],
+          "mode": "RGBA"
+        }
+      },
+      "fixedSequenceScale": 0.988987,
+      "cleanup": [
+        {
+          "sourceFlareY": 460,
+          "fadeStartY": 472,
+          "clearAfterY": 480
+        },
+        {
+          "sourceFlareY": 456,
+          "fadeStartY": 468,
+          "clearAfterY": 476
+        },
+        {
+          "sourceFlareY": 462,
+          "fadeStartY": 474,
+          "clearAfterY": 482
+        },
+        {
+          "sourceFlareY": 458,
+          "fadeStartY": 470,
+          "clearAfterY": 478
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            479
+          ],
+          "sourceFlareY": 460,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            480
+          ],
+          "paste": [
+            25,
+            27
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            475
+          ],
+          "sourceFlareY": 456,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            476
+          ],
+          "paste": [
+            25,
+            31
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            481
+          ],
+          "sourceFlareY": 462,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            482
+          ],
+          "paste": [
+            25,
+            25
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            22,
+            8,
+            232,
+            477
+          ],
+          "sourceFlareY": 458,
+          "sourceSoftBbox": [
+            22,
+            8,
+            232,
+            478
+          ],
+          "paste": [
+            25,
+            29
+          ],
+          "correctionY": -1
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-superior-v5.png",
+        "sha256": "f99c63a3eb5fe525dbb07de702cfd55c3159f592367041e4e3e33fed1f9569d0",
+        "bytes": 399997,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            25,
+            27,
+            233,
+            493
+          ],
+          "padding": [
+            25,
+            27,
+            23,
+            19
+          ],
+          "firstVisibleRowMaxRun": 3,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 39524,
+          "coverage": 0.301544,
+          "alphaMass": 0.249624,
+          "brightPixelRatio": 0.176096,
+          "meanRgb": [
+            59.174324,
+            187.379896,
+            113.614766
+          ],
+          "pixelHash": "4286c3f554d17b8a24a182077f31d825961ba55095f82d2469d511f59d7b5dc3",
+          "goldPixelRatio": 0.000228,
+          "cyanPixelRatio": 0.049843,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.092956
+        },
+        {
+          "index": 1,
+          "bbox": [
+            25,
+            26,
+            233,
+            493
+          ],
+          "padding": [
+            25,
+            26,
+            23,
+            19
+          ],
+          "firstVisibleRowMaxRun": 3,
+          "top24MaxHorizontalRun": 14,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 49540,
+          "coverage": 0.37796,
+          "alphaMass": 0.321924,
+          "brightPixelRatio": 0.215099,
+          "meanRgb": [
+            69.520186,
+            204.588151,
+            128.778421
+          ],
+          "pixelHash": "865a0b45601b8766b5f6fb502e705f6bef5bdf83dc07c380748220370be85a98",
+          "goldPixelRatio": 0.007792,
+          "cyanPixelRatio": 0.107045,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.120892
+        },
+        {
+          "index": 2,
+          "bbox": [
+            25,
+            25,
+            233,
+            493
+          ],
+          "padding": [
+            25,
+            25,
+            23,
+            19
+          ],
+          "firstVisibleRowMaxRun": 3,
+          "top24MaxHorizontalRun": 11,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 47326,
+          "coverage": 0.361069,
+          "alphaMass": 0.293634,
+          "brightPixelRatio": 0.187825,
+          "meanRgb": [
+            63.630562,
+            207.642374,
+            128.257195
+          ],
+          "pixelHash": "9cd2f4590923b7891b479a75aecfb4275f5858c8164334352e918cd9f35ec8da",
+          "goldPixelRatio": 0.004395,
+          "cyanPixelRatio": 0.098741,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.105291
+        },
+        {
+          "index": 3,
+          "bbox": [
+            25,
+            29,
+            233,
+            493
+          ],
+          "padding": [
+            25,
+            29,
+            23,
+            19
+          ],
+          "firstVisibleRowMaxRun": 3,
+          "top24MaxHorizontalRun": 6,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 17,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 37490,
+          "coverage": 0.286026,
+          "alphaMass": 0.241773,
+          "brightPixelRatio": 0.187917,
+          "meanRgb": [
+            59.656228,
+            197.831022,
+            124.946359
+          ],
+          "pixelHash": "99d8feb3ac2db237e4d0c1d34e20f9fd108fb5458bb48c83e4dc087462e86d83",
+          "goldPixelRatio": 0.000907,
+          "cyanPixelRatio": 0.099333,
+          "orangePixelRatio": 0.0,
+          "magentaPixelRatio": 0.0,
+          "whitePixelRatio": 0.104401
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.71554,
+          "changedPixelRatio": 0.935338,
+          "meanAbsoluteRgbDelta": 51.1082,
+          "meanAbsoluteAlphaDelta": 60.390785
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.7348,
+          "changedPixelRatio": 0.957573,
+          "meanAbsoluteRgbDelta": 55.783865,
+          "meanAbsoluteAlphaDelta": 54.95066
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.693948,
+          "changedPixelRatio": 0.962952,
+          "meanAbsoluteRgbDelta": 58.953425,
+          "meanAbsoluteAlphaDelta": 57.966507
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.7803,
+          "changedPixelRatio": 0.893063,
+          "meanAbsoluteRgbDelta": 36.690708,
+          "meanAbsoluteAlphaDelta": 43.571534
+        }
+      ]
+    },
+    "rare": {
+      "kind": "imagegen-four-frame",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/imagegen/loot-pillar-rare-v5-keyed.png",
+          "sha256": "e475332abec650f2962c857ba1cedb28bc50c6fda3989be2a370e4ce3b4493c2",
+          "bytes": 1175594,
+          "size": [
+            1774,
+            887
+          ],
+          "mode": "RGBA"
+        },
+        "generatedSource": {
+          "path": "asset-sources/imagegen/loot-pillar-rare-v5-source.png",
+          "sha256": "a256bb26fffaf0a19a038201b92ad5d210fdef18f488a99c305d6277ae8027bf",
+          "bytes": 1700158,
+          "size": [
+            1774,
+            887
+          ],
+          "mode": "RGB"
+        }
+      },
+      "fixedSequenceScale": 0.636119,
+      "cleanup": [
+        {
+          "sourceFlareY": 752,
+          "fadeStartY": 772,
+          "clearAfterY": 790
+        },
+        {
+          "sourceFlareY": 753,
+          "fadeStartY": 773,
+          "clearAfterY": 791
+        },
+        {
+          "sourceFlareY": 748,
+          "fadeStartY": 768,
+          "clearAfterY": 786
+        },
+        {
+          "sourceFlareY": 752,
+          "fadeStartY": 772,
+          "clearAfterY": 790
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            65,
+            77,
+            376,
+            786
+          ],
+          "sourceFlareY": 752,
+          "sourceSoftBbox": [
+            64,
+            66,
+            378,
+            790
+          ],
+          "paste": [
+            29,
+            38
+          ],
+          "correctionY": -1
+        },
+        {
+          "sourceStrongBbox": [
+            64,
+            69,
+            379,
+            787
+          ],
+          "sourceFlareY": 753,
+          "sourceSoftBbox": [
+            60,
+            51,
+            382,
+            791
+          ],
+          "paste": [
+            26,
+            28
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            38,
+            76,
+            409,
+            782
+          ],
+          "sourceFlareY": 748,
+          "sourceSoftBbox": [
+            34,
+            57,
+            409,
+            786
+          ],
+          "paste": [
+            8,
+            24
+          ],
+          "correctionY": -11
+        },
+        {
+          "sourceStrongBbox": [
+            67,
+            76,
+            377,
+            786
+          ],
+          "sourceFlareY": 752,
+          "sourceSoftBbox": [
+            62,
+            65,
+            378,
+            790
+          ],
+          "paste": [
+            27,
+            38
+          ],
+          "correctionY": 0
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-rare-v5.png",
+        "sha256": "041120bd75bbaeea9650fa01f6a437899eaed60028ccbde540d916c8d05b6680",
+        "bytes": 472973,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            32,
+            45,
+            227,
+            497
+          ],
+          "padding": [
+            32,
+            45,
+            29,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 2,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 30730,
+          "coverage": 0.234451,
+          "alphaMass": 0.21471,
+          "brightPixelRatio": 0.2945,
+          "meanRgb": [
+            218.597332,
+            158.149203,
+            72.876896
+          ],
+          "pixelHash": "e535eb0a562361f44d6cd7c3e4ac3e1b6b83b62eb6fe666bc85fcfd7f8fd4ea5",
+          "goldPixelRatio": 0.365897,
+          "cyanPixelRatio": 0.000325,
+          "orangePixelRatio": 0.382525,
+          "magentaPixelRatio": 0.06248,
+          "whitePixelRatio": 0.06108
+        },
+        {
+          "index": 1,
+          "bbox": [
+            30,
+            41,
+            229,
+            497
+          ],
+          "padding": [
+            30,
+            41,
+            27,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 41182,
+          "coverage": 0.314194,
+          "alphaMass": 0.294596,
+          "brightPixelRatio": 0.305376,
+          "meanRgb": [
+            224.667767,
+            161.711282,
+            67.681244
+          ],
+          "pixelHash": "039406f4172070545e16cbcc0ac2a0d0b9a1a7564e4747a721212785ca9e7ac3",
+          "goldPixelRatio": 0.398645,
+          "cyanPixelRatio": 0.000316,
+          "orangePixelRatio": 0.390753,
+          "magentaPixelRatio": 0.054951,
+          "whitePixelRatio": 0.05296
+        },
+        {
+          "index": 2,
+          "bbox": [
+            12,
+            41,
+            245,
+            486
+          ],
+          "padding": [
+            12,
+            41,
+            11,
+            26
+          ],
+          "firstVisibleRowMaxRun": 2,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 10,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 49079,
+          "coverage": 0.374443,
+          "alphaMass": 0.329018,
+          "brightPixelRatio": 0.345321,
+          "meanRgb": [
+            215.430816,
+            164.99619,
+            79.923307
+          ],
+          "pixelHash": "ebe99efd1dde06e476c1df5ff4f2c7c449e1c5bcf04d98aab526844e95e674c0",
+          "goldPixelRatio": 0.404144,
+          "cyanPixelRatio": 0.000346,
+          "orangePixelRatio": 0.262271,
+          "magentaPixelRatio": 0.060107,
+          "whitePixelRatio": 0.070784
+        },
+        {
+          "index": 3,
+          "bbox": [
+            31,
+            45,
+            227,
+            497
+          ],
+          "padding": [
+            31,
+            45,
+            29,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 3,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 31587,
+          "coverage": 0.24099,
+          "alphaMass": 0.221042,
+          "brightPixelRatio": 0.296229,
+          "meanRgb": [
+            220.866812,
+            159.762212,
+            71.845126
+          ],
+          "pixelHash": "ade02c2ec18fb13a36190ca105f847f4809b80e0e91e8d38e3a61d2f19e0ee23",
+          "goldPixelRatio": 0.376104,
+          "cyanPixelRatio": 9.5e-05,
+          "orangePixelRatio": 0.374996,
+          "magentaPixelRatio": 0.057112,
+          "whitePixelRatio": 0.062304
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.740663,
+          "changedPixelRatio": 0.92932,
+          "meanAbsoluteRgbDelta": 59.608404,
+          "meanAbsoluteAlphaDelta": 64.947232
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.7463,
+          "changedPixelRatio": 0.92503,
+          "meanAbsoluteRgbDelta": 59.341898,
+          "meanAbsoluteAlphaDelta": 58.758721
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.580911,
+          "changedPixelRatio": 0.951298,
+          "meanAbsoluteRgbDelta": 74.648832,
+          "meanAbsoluteAlphaDelta": 88.315414
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.900372,
+          "changedPixelRatio": 0.864967,
+          "meanAbsoluteRgbDelta": 37.746707,
+          "meanAbsoluteAlphaDelta": 25.638052
+        }
+      ]
+    },
+    "legendary": {
+      "kind": "imagegen-four-frame",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/imagegen/loot-pillar-legendary-v5-keyed.png",
+          "sha256": "39f90de56aeb8c2da02ada353f705cbf5829988fb5fcd0a51a268e16f6f213b0",
+          "bytes": 1132730,
+          "size": [
+            1783,
+            882
+          ],
+          "mode": "RGBA"
+        },
+        "generatedSource": {
+          "path": "asset-sources/imagegen/loot-pillar-legendary-v5-source.png",
+          "sha256": "b7d504aa6bfb3640b22d6809723c7ad5a474eb0b3a1a6cfd315ef39bf550b524",
+          "bytes": 1650738,
+          "size": [
+            1783,
+            882
+          ],
+          "mode": "RGB"
+        }
+      },
+      "fixedSequenceScale": 0.644189,
+      "cleanup": [
+        {
+          "sourceFlareY": 720,
+          "fadeStartY": 740,
+          "clearAfterY": 758
+        },
+        {
+          "sourceFlareY": 733,
+          "fadeStartY": 753,
+          "clearAfterY": 771
+        },
+        {
+          "sourceFlareY": 728,
+          "fadeStartY": 748,
+          "clearAfterY": 766
+        },
+        {
+          "sourceFlareY": 734,
+          "fadeStartY": 754,
+          "clearAfterY": 772
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            57,
+            51,
+            405,
+            754
+          ],
+          "sourceFlareY": 720,
+          "sourceSoftBbox": [
+            56,
+            50,
+            411,
+            758
+          ],
+          "paste": [
+            16,
+            43
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            45,
+            47,
+            396,
+            767
+          ],
+          "sourceFlareY": 733,
+          "sourceSoftBbox": [
+            44,
+            26,
+            400,
+            771
+          ],
+          "paste": [
+            15,
+            20
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            40,
+            31,
+            386,
+            762
+          ],
+          "sourceFlareY": 728,
+          "sourceSoftBbox": [
+            33,
+            19,
+            388,
+            766
+          ],
+          "paste": [
+            12,
+            19
+          ],
+          "correctionY": 1
+        },
+        {
+          "sourceStrongBbox": [
+            34,
+            52,
+            381,
+            768
+          ],
+          "sourceFlareY": 734,
+          "sourceSoftBbox": [
+            34,
+            46,
+            386,
+            772
+          ],
+          "paste": [
+            17,
+            32
+          ],
+          "correctionY": 0
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-legendary-v5.png",
+        "sha256": "d1e59d03a97aa2131fe1c542ff68b1679d2ba35b188824b7f572cad872a0ea0a",
+        "bytes": 459167,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            17,
+            44,
+            240,
+            497
+          ],
+          "padding": [
+            17,
+            44,
+            16,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 2,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 38725,
+          "coverage": 0.295448,
+          "alphaMass": 0.276143,
+          "brightPixelRatio": 0.335055,
+          "meanRgb": [
+            227.905487,
+            145.044158,
+            70.750239
+          ],
+          "pixelHash": "e59fd87219f6dc61a91658cc36c18751b5f6e33faab184b9e5b714f1ccbf2617",
+          "goldPixelRatio": 0.283331,
+          "cyanPixelRatio": 0.000155,
+          "orangePixelRatio": 0.32785,
+          "magentaPixelRatio": 0.131156,
+          "whitePixelRatio": 0.136372
+        },
+        {
+          "index": 1,
+          "bbox": [
+            16,
+            35,
+            240,
+            497
+          ],
+          "padding": [
+            16,
+            35,
+            16,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 2,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 39627,
+          "coverage": 0.30233,
+          "alphaMass": 0.283694,
+          "brightPixelRatio": 0.33028,
+          "meanRgb": [
+            233.259697,
+            148.735382,
+            72.256239
+          ],
+          "pixelHash": "884f63df5c794887c2d9b9c8497f7a3955a24e9d18325eee11b5c47230981862",
+          "goldPixelRatio": 0.278648,
+          "cyanPixelRatio": 0.000278,
+          "orangePixelRatio": 0.362884,
+          "magentaPixelRatio": 0.114619,
+          "whitePixelRatio": 0.141116
+        },
+        {
+          "index": 2,
+          "bbox": [
+            17,
+            28,
+            239,
+            498
+          ],
+          "padding": [
+            17,
+            28,
+            17,
+            14
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 3,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 42107,
+          "coverage": 0.321251,
+          "alphaMass": 0.301854,
+          "brightPixelRatio": 0.504405,
+          "meanRgb": [
+            235.163607,
+            174.030731,
+            99.749899
+          ],
+          "pixelHash": "b45b2e55f5b5c107f742a9e22aef7312d088e8cd1e8a0e7c536147fe93bb4e38",
+          "goldPixelRatio": 0.324103,
+          "cyanPixelRatio": 7.1e-05,
+          "orangePixelRatio": 0.233002,
+          "magentaPixelRatio": 0.085781,
+          "whitePixelRatio": 0.238654
+        },
+        {
+          "index": 3,
+          "bbox": [
+            18,
+            40,
+            240,
+            498
+          ],
+          "padding": [
+            18,
+            40,
+            16,
+            14
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 2,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 37749,
+          "coverage": 0.288002,
+          "alphaMass": 0.270525,
+          "brightPixelRatio": 0.333651,
+          "meanRgb": [
+            231.426263,
+            145.937667,
+            70.827254
+          ],
+          "pixelHash": "cc0d9f829715862a32b6e826471dc6354c49367d60fa21b395b314c9cacf7102",
+          "goldPixelRatio": 0.280511,
+          "cyanPixelRatio": 2.6e-05,
+          "orangePixelRatio": 0.338234,
+          "magentaPixelRatio": 0.135977,
+          "whitePixelRatio": 0.136057
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.845139,
+          "changedPixelRatio": 0.886257,
+          "meanAbsoluteRgbDelta": 48.806675,
+          "meanAbsoluteAlphaDelta": 36.18166
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.833135,
+          "changedPixelRatio": 0.881086,
+          "meanAbsoluteRgbDelta": 57.734078,
+          "meanAbsoluteAlphaDelta": 39.236975
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.808088,
+          "changedPixelRatio": 0.896934,
+          "meanAbsoluteRgbDelta": 61.911863,
+          "meanAbsoluteAlphaDelta": 45.774125
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.870146,
+          "changedPixelRatio": 0.850631,
+          "meanAbsoluteRgbDelta": 44.026541,
+          "meanAbsoluteAlphaDelta": 31.549839
+        }
+      ]
+    },
+    "mythic": {
+      "kind": "imagegen-four-frame",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/imagegen/loot-pillar-mythic-v5-keyed.png",
+          "sha256": "aaaf2fbd577fb8ef6237d4e6285ae29e3a6eb5e2f399cd95c4b050a479ed184d",
+          "bytes": 1110259,
+          "size": [
+            1786,
+            881
+          ],
+          "mode": "RGBA"
+        },
+        "generatedSource": {
+          "path": "asset-sources/imagegen/loot-pillar-mythic-v5-source.png",
+          "sha256": "5f6623b3ac728bed32a302f45d3f17a75a5aa4ecce32eb515d42a64a2c1de0d7",
+          "bytes": 1678805,
+          "size": [
+            1786,
+            881
+          ],
+          "mode": "RGB"
+        }
+      },
+      "fixedSequenceScale": 0.618457,
+      "cleanup": [
+        {
+          "sourceFlareY": 769,
+          "fadeStartY": 789,
+          "clearAfterY": 807
+        },
+        {
+          "sourceFlareY": 778,
+          "fadeStartY": 798,
+          "clearAfterY": 816
+        },
+        {
+          "sourceFlareY": 769,
+          "fadeStartY": 789,
+          "clearAfterY": 807
+        },
+        {
+          "sourceFlareY": 772,
+          "fadeStartY": 792,
+          "clearAfterY": 810
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            66,
+            57,
+            365,
+            803
+          ],
+          "sourceFlareY": 769,
+          "sourceSoftBbox": [
+            64,
+            41,
+            367,
+            807
+          ],
+          "paste": [
+            35,
+            25
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            51,
+            52,
+            352,
+            812
+          ],
+          "sourceFlareY": 778,
+          "sourceSoftBbox": [
+            48,
+            45,
+            354,
+            816
+          ],
+          "paste": [
+            33,
+            22
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            59,
+            49,
+            358,
+            803
+          ],
+          "sourceFlareY": 769,
+          "sourceSoftBbox": [
+            57,
+            42,
+            360,
+            807
+          ],
+          "paste": [
+            35,
+            26
+          ],
+          "correctionY": 1
+        },
+        {
+          "sourceStrongBbox": [
+            55,
+            54,
+            351,
+            806
+          ],
+          "sourceFlareY": 772,
+          "sourceSoftBbox": [
+            46,
+            43,
+            355,
+            810
+          ],
+          "paste": [
+            31,
+            25
+          ],
+          "correctionY": 1
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-mythic-v5.png",
+        "sha256": "1cc5356be56944063469da1364f28172654066beed391dd06af3245065524671",
+        "bytes": 400759,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            37,
+            35,
+            218,
+            497
+          ],
+          "padding": [
+            37,
+            35,
+            38,
+            15
+          ],
+          "firstVisibleRowMaxRun": 2,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 34672,
+          "coverage": 0.264526,
+          "alphaMass": 0.253916,
+          "brightPixelRatio": 0.337996,
+          "meanRgb": [
+            241.239473,
+            132.270708,
+            185.904188
+          ],
+          "pixelHash": "683a86bae6f53ae51d57fe6152b022faee676a9f5a86cff27c2ddc385acbb1a3",
+          "goldPixelRatio": 0.019555,
+          "cyanPixelRatio": 0.000115,
+          "orangePixelRatio": 0.026592,
+          "magentaPixelRatio": 0.609916,
+          "whitePixelRatio": 0.254384
+        },
+        {
+          "index": 1,
+          "bbox": [
+            35,
+            27,
+            221,
+            497
+          ],
+          "padding": [
+            35,
+            27,
+            35,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 35792,
+          "coverage": 0.273071,
+          "alphaMass": 0.262164,
+          "brightPixelRatio": 0.351699,
+          "meanRgb": [
+            241.623268,
+            140.263886,
+            190.196245
+          ],
+          "pixelHash": "8739d502fbb574a740eb49b6c92bd886b3729b0ea7050065abec76b5343dd9d6",
+          "goldPixelRatio": 0.024922,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.02101,
+          "magentaPixelRatio": 0.58161,
+          "whitePixelRatio": 0.270032
+        },
+        {
+          "index": 2,
+          "bbox": [
+            37,
+            31,
+            220,
+            497
+          ],
+          "padding": [
+            37,
+            31,
+            36,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 40915,
+          "coverage": 0.312157,
+          "alphaMass": 0.300312,
+          "brightPixelRatio": 0.42994,
+          "meanRgb": [
+            242.719076,
+            154.756837,
+            211.94579
+          ],
+          "pixelHash": "8027e568c63abd167bd3f94c777b20a04bf17b5684adb30b17d30a9eb760b0d2",
+          "goldPixelRatio": 0.015422,
+          "cyanPixelRatio": 2.4e-05,
+          "orangePixelRatio": 0.004448,
+          "magentaPixelRatio": 0.527679,
+          "whitePixelRatio": 0.360064
+        },
+        {
+          "index": 3,
+          "bbox": [
+            37,
+            32,
+            219,
+            497
+          ],
+          "padding": [
+            37,
+            32,
+            37,
+            15
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 4,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 21,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 34075,
+          "coverage": 0.259972,
+          "alphaMass": 0.247651,
+          "brightPixelRatio": 0.341805,
+          "meanRgb": [
+            238.875715,
+            135.410624,
+            187.805312
+          ],
+          "pixelHash": "afd6e21cca57b90fc6e2aba8045ac62bfd15d0b3f23d5ea57296804d1ec09624",
+          "goldPixelRatio": 0.033955,
+          "cyanPixelRatio": 0.0,
+          "orangePixelRatio": 0.02964,
+          "magentaPixelRatio": 0.577403,
+          "whitePixelRatio": 0.268584
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.850712,
+          "changedPixelRatio": 0.832931,
+          "meanAbsoluteRgbDelta": 50.513789,
+          "meanAbsoluteAlphaDelta": 35.810527
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.795912,
+          "changedPixelRatio": 0.855661,
+          "meanAbsoluteRgbDelta": 63.347311,
+          "meanAbsoluteAlphaDelta": 49.69587
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.780263,
+          "changedPixelRatio": 0.859863,
+          "meanAbsoluteRgbDelta": 65.946585,
+          "meanAbsoluteAlphaDelta": 53.946086
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.834183,
+          "changedPixelRatio": 0.861103,
+          "meanAbsoluteRgbDelta": 52.300099,
+          "meanAbsoluteAlphaDelta": 40.417972
+        }
+      ]
+    },
+    "cosmic": {
+      "kind": "imagegen-four-frame",
+      "sources": {
+        "productionSource": {
+          "path": "asset-sources/imagegen/loot-pillar-cosmic-v5-keyed.png",
+          "sha256": "8244baf3d8d849ac02a740587b58ab9b088890aae60201e0809b49fff179f534",
+          "bytes": 1099367,
+          "size": [
+            1774,
+            887
+          ],
+          "mode": "RGBA"
+        },
+        "generatedSource": {
+          "path": "asset-sources/imagegen/loot-pillar-cosmic-v5-source.png",
+          "sha256": "f2c9fdf660ae78b19625dff57ad92857474e0e2788fd881ecbfaa66a15666006",
+          "bytes": 1670965,
+          "size": [
+            1774,
+            887
+          ],
+          "mode": "RGB"
+        }
+      },
+      "fixedSequenceScale": 0.643266,
+      "cleanup": [
+        {
+          "sourceFlareY": 758,
+          "fadeStartY": 778,
+          "clearAfterY": 796
+        },
+        {
+          "sourceFlareY": 757,
+          "fadeStartY": 777,
+          "clearAfterY": 795
+        },
+        {
+          "sourceFlareY": 740,
+          "fadeStartY": 760,
+          "clearAfterY": 778
+        },
+        {
+          "sourceFlareY": 757,
+          "fadeStartY": 777,
+          "clearAfterY": 795
+        }
+      ],
+      "registrations": [
+        {
+          "sourceStrongBbox": [
+            85,
+            60,
+            383,
+            792
+          ],
+          "sourceFlareY": 758,
+          "sourceSoftBbox": [
+            84,
+            60,
+            384,
+            796
+          ],
+          "paste": [
+            32,
+            27
+          ],
+          "correctionY": 1
+        },
+        {
+          "sourceStrongBbox": [
+            89,
+            60,
+            354,
+            791
+          ],
+          "sourceFlareY": 757,
+          "sourceSoftBbox": [
+            87,
+            60,
+            355,
+            795
+          ],
+          "paste": [
+            42,
+            27
+          ],
+          "correctionY": 0
+        },
+        {
+          "sourceStrongBbox": [
+            60,
+            44,
+            346,
+            774
+          ],
+          "sourceFlareY": 740,
+          "sourceSoftBbox": [
+            59,
+            44,
+            348,
+            778
+          ],
+          "paste": [
+            36,
+            28
+          ],
+          "correctionY": 1
+        },
+        {
+          "sourceStrongBbox": [
+            80,
+            62,
+            358,
+            791
+          ],
+          "sourceFlareY": 757,
+          "sourceSoftBbox": [
+            78,
+            62,
+            359,
+            795
+          ],
+          "paste": [
+            38,
+            28
+          ],
+          "correctionY": 0
+        }
+      ],
+      "output": {
+        "path": "public/assets/effects/loot-pillar-cosmic-v5.png",
+        "sha256": "32612d55c3aa608260fcc4a270b9665d7cfb2325f32a66a262c04781646d53b6",
+        "bytes": 434061,
+        "groundAnchor": 0.927734
+      },
+      "frames": [
+        {
+          "index": 0,
+          "bbox": [
+            33,
+            27,
+            224,
+            498
+          ],
+          "padding": [
+            33,
+            27,
+            32,
+            14
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 5,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 38086,
+          "coverage": 0.290573,
+          "alphaMass": 0.27628,
+          "brightPixelRatio": 0.504569,
+          "meanRgb": [
+            189.516883,
+            199.717902,
+            229.313317
+          ],
+          "pixelHash": "36160f9ef423d94a79eb1bcc6fc52a6ec40399363d2a139ad5483e25d91918d8",
+          "goldPixelRatio": 0.006459,
+          "cyanPixelRatio": 0.16426,
+          "orangePixelRatio": 0.002284,
+          "magentaPixelRatio": 0.025259,
+          "whitePixelRatio": 0.367222
+        },
+        {
+          "index": 1,
+          "bbox": [
+            43,
+            27,
+            213,
+            498
+          ],
+          "padding": [
+            43,
+            27,
+            43,
+            14
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 7,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 35924,
+          "coverage": 0.274078,
+          "alphaMass": 0.26047,
+          "brightPixelRatio": 0.532791,
+          "meanRgb": [
+            196.098848,
+            204.04156,
+            231.503118
+          ],
+          "pixelHash": "0e0a4fe81e2bcea7ff55030de37f26eae811f9fd7c96c9b24ec66d33cdb3f8bb",
+          "goldPixelRatio": 0.013779,
+          "cyanPixelRatio": 0.141604,
+          "orangePixelRatio": 0.004649,
+          "magentaPixelRatio": 0.025888,
+          "whitePixelRatio": 0.403073
+        },
+        {
+          "index": 2,
+          "bbox": [
+            37,
+            28,
+            221,
+            498
+          ],
+          "padding": [
+            37,
+            28,
+            35,
+            14
+          ],
+          "firstVisibleRowMaxRun": 1,
+          "top24MaxHorizontalRun": 5,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 44232,
+          "coverage": 0.337463,
+          "alphaMass": 0.325606,
+          "brightPixelRatio": 0.650841,
+          "meanRgb": [
+            214.499593,
+            213.555842,
+            238.41054
+          ],
+          "pixelHash": "a093b669a13879393362a9ea5d61cf3e12ab133b60358c4fe7f150383a19965e",
+          "goldPixelRatio": 0.007393,
+          "cyanPixelRatio": 0.097463,
+          "orangePixelRatio": 0.002261,
+          "magentaPixelRatio": 0.033076,
+          "whitePixelRatio": 0.504205
+        },
+        {
+          "index": 3,
+          "bbox": [
+            40,
+            28,
+            218,
+            498
+          ],
+          "padding": [
+            40,
+            28,
+            38,
+            14
+          ],
+          "firstVisibleRowMaxRun": 2,
+          "top24MaxHorizontalRun": 7,
+          "flatPlateauRows": [],
+          "flareY": 475,
+          "tailDepth": 22,
+          "detachedBottomComponents": 0,
+          "detachedBottomPixels": 0,
+          "visiblePixels": 34115,
+          "coverage": 0.260277,
+          "alphaMass": 0.248846,
+          "brightPixelRatio": 0.51939,
+          "meanRgb": [
+            187.527275,
+            202.820402,
+            233.505672
+          ],
+          "pixelHash": "beb6bd2de3e1035a85771860fa53c27787133927c6fd297ba21a1130de678517",
+          "goldPixelRatio": 0.007709,
+          "cyanPixelRatio": 0.170922,
+          "orangePixelRatio": 0.002667,
+          "magentaPixelRatio": 0.017998,
+          "whitePixelRatio": 0.382383
+        }
+      ],
+      "temporalDifferences": [
+        {
+          "from": 0,
+          "to": 1,
+          "alphaSupportIou": 0.759713,
+          "changedPixelRatio": 0.828855,
+          "meanAbsoluteRgbDelta": 62.740343,
+          "meanAbsoluteAlphaDelta": 58.576109
+        },
+        {
+          "from": 1,
+          "to": 2,
+          "alphaSupportIou": 0.733552,
+          "changedPixelRatio": 0.852654,
+          "meanAbsoluteRgbDelta": 73.875773,
+          "meanAbsoluteAlphaDelta": 67.049959
+        },
+        {
+          "from": 2,
+          "to": 3,
+          "alphaSupportIou": 0.691575,
+          "changedPixelRatio": 0.867778,
+          "meanAbsoluteRgbDelta": 81.361495,
+          "meanAbsoluteAlphaDelta": 75.716362
+        },
+        {
+          "from": 3,
+          "to": 0,
+          "alphaSupportIou": 0.772456,
+          "changedPixelRatio": 0.839917,
+          "meanAbsoluteRgbDelta": 58.847248,
+          "meanAbsoluteAlphaDelta": 53.60599
+        }
+      ]
+    }
+  }
+}

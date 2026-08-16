@@ -12,7 +12,7 @@ from PIL import Image, ImageEnhance
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ROOT = ROOT / "asset-sources" / "legacy-arpg" / "loot-pillar-v2"
-OUTPUT_ROOT = ROOT / "public" / "assets" / "effects"
+OUTPUT_ROOT = SOURCE_ROOT / "output"
 REPORT = OUTPUT_ROOT / "loot-pillar-v2.build.json"
 
 GROUPS = (
@@ -136,7 +136,7 @@ def build_rarity(source: Image.Image, source_name: str, rarity: str, row: int) -
     atlas.save(output, optimize=True)
     return {
         "source": f"asset-sources/legacy-arpg/loot-pillar-v2/{source_name}",
-        "output": f"public/assets/effects/{output.name}",
+        "output": f"asset-sources/legacy-arpg/loot-pillar-v2/output/{output.name}",
         "outputSha256": digest(output),
         "bytes": output.stat().st_size,
         "frames": metrics,

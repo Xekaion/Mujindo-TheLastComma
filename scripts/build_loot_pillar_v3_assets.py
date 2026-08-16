@@ -19,7 +19,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY_SOURCE_ROOT = ROOT / "asset-sources" / "legacy-arpg" / "loot-pillar-v2"
 SOURCE_ROOT = ROOT / "asset-sources" / "legacy-arpg" / "loot-pillar-v3"
-OUTPUT_ROOT = ROOT / "public" / "assets" / "effects"
+OUTPUT_ROOT = SOURCE_ROOT / "output"
 REPORT = OUTPUT_ROOT / "loot-pillar-v3.build.json"
 GENERATION_RECORD = SOURCE_ROOT / "rare-gold-imagegen.json"
 

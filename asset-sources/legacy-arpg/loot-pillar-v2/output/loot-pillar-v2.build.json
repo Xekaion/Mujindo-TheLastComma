@@ -45,7 +45,7 @@
   "rarities": {
     "common": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-common-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-common-v2.png",
       "outputSha256": "164ef34798b61fb970309805472e9d4a20023bbd2af61b2a802bcf23ae25fc5e",
       "bytes": 131854,
       "frames": [
@@ -101,7 +101,7 @@
     },
     "magic": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-magic-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-magic-v2.png",
       "outputSha256": "d301f6f70e0f0de2d9490990f9db3e37e0fa15fced913579099d6254dc546d5e",
       "bytes": 125771,
       "frames": [
@@ -157,7 +157,7 @@
     },
     "superior": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-superior-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-superior-v2.png",
       "outputSha256": "ae96414b624eafedc5cbeb2020a9f19cb1f982d22953a138616b76e4c791ffc9",
       "bytes": 138608,
       "frames": [
@@ -213,7 +213,7 @@
     },
     "rare": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/low-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-rare-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-rare-v2.png",
       "outputSha256": "a5b794dc4d3e1599b10cffb04c068758af7acd31ffbfad398677780ffc994c08",
       "bytes": 150194,
       "frames": [
@@ -269,7 +269,7 @@
     },
     "epic": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-epic-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-epic-v2.png",
       "outputSha256": "6f55730cad133af5b9557356ae6e737c8aebb2f9308039cf53245abb6af5ee4d",
       "bytes": 126556,
       "frames": [
@@ -325,7 +325,7 @@
     },
     "legendary": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-legendary-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-legendary-v2.png",
       "outputSha256": "833612530d90fc8efff8b9fec0207eb6250b70c327a2e0dca2c556f092ae82b1",
       "bytes": 130673,
       "frames": [
@@ -381,7 +381,7 @@
     },
     "mythic": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-mythic-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-mythic-v2.png",
       "outputSha256": "239819b763308d41ec005a4f4acb7d69b399cb45da670d9174660bf61fcfcf2a",
       "bytes": 148705,
       "frames": [
@@ -437,7 +437,7 @@
     },
     "cosmic": {
       "source": "asset-sources/legacy-arpg/loot-pillar-v2/high-rarities-source.png",
-      "output": "public/assets/effects/loot-pillar-cosmic-v2.png",
+      "output": "asset-sources/legacy-arpg/loot-pillar-v2/output/loot-pillar-cosmic-v2.png",
       "outputSha256": "1df6fca58dcdb8d534253a9fd2691b6292c1c04c5ef77c47daf9b0319d9c619b",
       "bytes": 171792,
       "frames": [

@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "asset-sources/imagegen/loot-pillar-rare-v4-source.png"
 KEYED_SOURCE = ROOT / "asset-sources/imagegen/loot-pillar-rare-v4-keyed.png"
 PROMPT_METADATA = ROOT / "asset-sources/imagegen/loot-pillar-rare-v4.prompt.json"
-OUTPUT = ROOT / "public/assets/effects/loot-pillar-rare-v4.png"
-REPORT = ROOT / "public/assets/effects/loot-pillar-rare-v4.build.json"
+OUTPUT = ROOT / "asset-sources/imagegen/loot-pillar-rare-v4-production.png"
+REPORT = ROOT / "asset-sources/imagegen/loot-pillar-rare-v4.build.json"
 
 FRAME_COUNT = 4
 CELL_WIDTH = 256
