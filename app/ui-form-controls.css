@@ -108,16 +108,16 @@ body.game-viewport input[type="search"]::-webkit-search-cancel-button {
 }
 
 /* Native select behavior is retained. The arrow is pure CSS and the edge
-   treatment reuses the inventory tooltip chrome as a compact nine-slice. */
+   treatment reuses the modular gothic frame as a compact nine-slice. */
 body.game-viewport select {
   -webkit-appearance: none !important;
   appearance: none !important;
   border: 1px solid rgba(204, 165, 88, 0.34);
-  border-image-source: url("/assets/ui/inventory-chrome/tooltip-panel.png");
-  border-image-slice: 18%;
+  border-image-source: url("/assets/ui/gothic-nine-slice-frame-v2.png");
+  border-image-slice: 16%;
   border-image-width: 5px;
   border-image-outset: 0;
-  border-image-repeat: stretch;
+  border-image-repeat: round;
   border-radius: 0;
   padding-inline-end: 32px !important;
   overflow: hidden;

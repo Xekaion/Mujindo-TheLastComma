@@ -31,6 +31,7 @@ import {
   augmentIconAssetPath,
   augmentVfxId,
   drawGameplayVfxFrame,
+  drawHorizontalThreeSliceAtlasCell,
   gameplayVfxImageEntries,
   gameplayVfxImageKey,
   loopingGameplayVfxProgress,
@@ -347,10 +348,10 @@ import {
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   aggregateEquipmentStats,
+  applySuccessfulGearEnhancement,
   canEquipGearAtLevel,
   calculateEquipmentCombatPower,
   calculateEquipmentPowerDelta,
-  calculateGearPowerScore,
   createEmptyEquipment,
   formatCompactGearLabel,
   formatGearDisplayName,
@@ -680,7 +681,6 @@ type EquipmentRarityVfxConfig = {
   moteCount: number;
   accentSides: number;
   spinDirection: 1 | -1;
-  pillarWidth: number;
   pillarHeight: number;
   pillarFps: number;
   pillarCompositeOperation: "lighter" | "screen";
@@ -715,7 +715,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 4,
     accentSides: 4,
     spinDirection: 1,
-    pillarWidth: 74,
     pillarHeight: 96,
     pillarFps: 4,
     pillarCompositeOperation: "lighter",
@@ -739,7 +738,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 6,
     accentSides: 3,
     spinDirection: 1,
-    pillarWidth: 82,
     pillarHeight: 108,
     pillarFps: 4,
     pillarCompositeOperation: "lighter",
@@ -763,7 +761,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 7,
     accentSides: 6,
     spinDirection: -1,
-    pillarWidth: 92,
     pillarHeight: 124,
     pillarFps: 5,
     pillarCompositeOperation: "lighter",
@@ -787,7 +784,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 9,
     accentSides: 8,
     spinDirection: 1,
-    pillarWidth: 104,
     pillarHeight: 146,
     pillarFps: 5,
     pillarCompositeOperation: "screen",
@@ -811,7 +807,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 11,
     accentSides: 5,
     spinDirection: -1,
-    pillarWidth: 120,
     pillarHeight: 174,
     pillarFps: 6,
     pillarCompositeOperation: "lighter",
@@ -835,7 +830,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 14,
     accentSides: 12,
     spinDirection: 1,
-    pillarWidth: 144,
     pillarHeight: 216,
     pillarFps: 6,
     pillarCompositeOperation: "lighter",
@@ -859,7 +853,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 17,
     accentSides: 7,
     spinDirection: -1,
-    pillarWidth: 174,
     pillarHeight: 274,
     pillarFps: 7,
     pillarCompositeOperation: "lighter",
@@ -883,7 +876,6 @@ const EQUIPMENT_RARITY_VFX: Readonly<
     moteCount: 20,
     accentSides: 16,
     spinDirection: -1,
-    pillarWidth: 210,
     pillarHeight: 344,
     pillarFps: 8,
     pillarCompositeOperation: "lighter",
@@ -1849,6 +1841,7 @@ const formatSavedAt = (timestamp: number) => {
 const cloneGearItem = (item: GearItem): GearItem => ({
   ...item,
   affixes: item.affixes.map((affix) => ({ ...affix })),
+  enhancementRanks: [...item.enhancementRanks],
 });
 
 const cloneEquipment = (equipment: EquipmentLoadout): EquipmentLoadout =>
@@ -2426,6 +2419,10 @@ export default function GameCanvas({
   const isLocalVfxShowcase = Boolean(
     localEnemyVfxShowcase || localLootVfxShowcase,
   );
+  const localDeathUiShowcase =
+    isLocalVfxShowcase &&
+    isLocalRarityShowcaseHost() &&
+    new URLSearchParams(window.location.search).get("deathUiShowcase") === "1";
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasBackingScaleRef = useRef(1);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
@@ -4136,10 +4133,15 @@ export default function GameCanvas({
     setStatsScreenOpen(false);
     setStarted(true);
     enterRoom(DUNGEON_CENTER_COORDINATE, DUNGEON_CENTER_COORDINATE, "center");
-    setGameMode("playing");
+    const gameModeTimer = window.setTimeout(() => {
+      if (localDeathUiShowcase) setGameMode("dead");
+      else setGameMode("playing");
+    }, 0);
+    return () => window.clearTimeout(gameModeTimer);
   }, [
     enterRoom,
     isLocalVfxShowcase,
+    localDeathUiShowcase,
     setBuildPanelOpen,
     setGameMode,
     setInventoryScreenOpen,
@@ -4459,17 +4461,21 @@ export default function GameCanvas({
 
       const previousMaxHp = aggregateEquipmentStats(player.equipment).maxHpFlat;
       const previousEquipmentPower = calculateEquipmentCombatPower(player.equipment);
-      const implicitDisplay = getGearImplicitDisplay(item);
-      const optionGainSummary = `${implicitDisplay.label} ${formatCompactGearLabel(implicitDisplay.nextStageGainLabel)}`;
       player.memoryAsh -= rule.ashCost;
       const roll = Math.random() * 100;
       if (roll < rule.successPercent) {
+        const enhancementResult = applySuccessfulGearEnhancement(
+          item,
+          Math.random(),
+        );
+        if (!enhancementResult) {
+          player.memoryAsh += rule.ashCost;
+          setToast("강화 배분 정보를 확인할 수 없어 시도를 취소했습니다.");
+          syncHud();
+          return;
+        }
         playGameSfx("enhanceSuccess");
-        const enhancedItem: GearItem = {
-          ...item,
-          enhancement: rule.target,
-          powerScore: calculateGearPowerScore({ ...item, enhancement: rule.target }),
-        };
+        const enhancedItem = enhancementResult.item;
         if (inventoryIndex >= 0) player.inventory[inventoryIndex] = enhancedItem;
         else if (equippedSlot) player.equipment[equippedSlot] = enhancedItem;
         setSelectedGearId(enhancedItem.id);
@@ -4477,6 +4483,7 @@ export default function GameCanvas({
           ? calculateEquipmentCombatPower(player.equipment) - previousEquipmentPower
           : enhancedItem.powerScore - item.powerScore;
         const powerGainLabel = equippedSlot ? "장착 보스 전투력" : "아이템 보스 화력";
+        const optionGainSummary = `${enhancementResult.optionLabel} ${formatCompactGearLabel(enhancementResult.gainLabel)}`;
         setToast(
           `강화 성공 · ${formatGearDisplayName(enhancedItem)} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain} · ${optionGainSummary}`,
         );
@@ -4526,20 +4533,30 @@ export default function GameCanvas({
         setToast(`기억의 재가 ${rule.ashCost - player.memoryAsh}개 부족합니다.`);
         return;
       }
-      const previewItem: GearItem = {
-        ...item,
-        enhancement: rule.target,
-        powerScore: calculateGearPowerScore({ ...item, enhancement: rule.target }),
-      };
       const equippedSlot = EQUIPMENT_SLOTS.find(
         (slot) => player.equipment[slot]?.id === item.id,
       );
-      const powerGain = equippedSlot
-        ? calculateEquipmentPowerDelta(player.equipment, previewItem)
-        : previewItem.powerScore - item.powerScore;
+      const optionCount = item.affixes.length + 1;
+      const previewResults = Array.from({ length: optionCount }, (_, index) =>
+        applySuccessfulGearEnhancement(item, (index + 0.5) / optionCount),
+      ).filter((result): result is NonNullable<typeof result> => result !== null);
+      if (previewResults.length !== optionCount) {
+        setToast("강화 배분 정보를 확인할 수 없습니다.");
+        return;
+      }
+      const powerGains = previewResults.map(({ item: previewItem }) =>
+        equippedSlot
+          ? calculateEquipmentPowerDelta(player.equipment, previewItem)
+          : previewItem.powerScore - item.powerScore,
+      );
+      const minimumPowerGain = Math.min(...powerGains);
+      const maximumPowerGain = Math.max(...powerGains);
       const powerGainLabel = equippedSlot ? "장착 보스 전투력" : "아이템 보스 화력";
-      const implicitDisplay = getGearImplicitDisplay(item);
-      const optionGainSummary = `${implicitDisplay.label} ${formatCompactGearLabel(implicitDisplay.nextStageGainLabel)}`;
+      const powerGainSummary =
+        minimumPowerGain === maximumPowerGain
+          ? `${minimumPowerGain >= 0 ? "+" : ""}${minimumPowerGain}`
+          : `${minimumPowerGain >= 0 ? "+" : ""}${minimumPowerGain}~${maximumPowerGain >= 0 ? "+" : ""}${maximumPowerGain}`;
+      const optionGainSummary = `기본 옵션 포함 ${optionCount}개 중 1개 무작위 상승 · 같은 옵션 중복 가능`;
       if (rule.destroyPercent <= 0) {
         performGearEnhancement(itemId);
         return;
@@ -4549,7 +4566,7 @@ export default function GameCanvas({
         {
           eyebrow: "FORGE WARNING",
           title: `${formatGearDisplayName(item)} → +${rule.target}`,
-          body: `이번 강화 증가분: ${optionGainSummary} · ${powerGainLabel} ${powerGain >= 0 ? "+" : ""}${powerGain}. 실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
+          body: `${optionGainSummary}. 결과에 따른 ${powerGainLabel} 변화는 ${powerGainSummary}입니다. 실패 시 파괴될 확률이 ${rule.destroyPercent}%입니다. 강화를 진행할까요?`,
           confirmLabel: "강화 시도",
           tone: "danger",
         },
@@ -8385,6 +8402,12 @@ export default function GameCanvas({
     ) => {
       if (!image?.complete || !image.naturalWidth) return false;
       const crop = spriteCrops[cropIndex];
+      const fittedFrame = fitSpriteFrameWithin(
+        crop[2],
+        crop[3],
+        width,
+        height,
+      );
       context.save();
       context.globalAlpha = alpha;
       context.drawImage(
@@ -8393,10 +8416,10 @@ export default function GameCanvas({
         crop[1],
         crop[2],
         crop[3],
-        x - width / 2,
-        y - height * 0.78,
-        width,
-        height,
+        x - fittedFrame.width / 2,
+        y - fittedFrame.height * 0.78,
+        fittedFrame.width,
+        fittedFrame.height,
       );
       context.restore();
       return true;
@@ -8637,17 +8660,21 @@ export default function GameCanvas({
       context.shadowColor = "#e62633";
       context.shadowBlur = 7 + charge * 12;
       context.imageSmoothingEnabled = true;
-      context.drawImage(
-        image,
-        column * sourceWidth,
-        row * sourceHeight,
+      // The authored square cell contains a horizontal charge lane. Preserve
+      // its book-and-ink end ornaments at the height-derived uniform scale and
+      // repeat only the energy-bearing centre instead of crushing 512×512 into
+      // a 920×144 rectangle.
+      drawHorizontalThreeSliceAtlasCell(context, image, {
+        sourceX: column * sourceWidth,
+        sourceY: row * sourceHeight,
         sourceWidth,
         sourceHeight,
-        -112 * telegraphScale,
-        -72 * telegraphScale,
-        920 * telegraphScale,
-        144 * telegraphScale,
-      );
+        destinationX: -112 * telegraphScale,
+        destinationY: -72 * telegraphScale,
+        destinationLength: 920 * telegraphScale,
+        destinationHeight: 144 * telegraphScale,
+        sourceCapWidth: sourceWidth / 4,
+      });
       context.restore();
       return true;
     };
@@ -8800,17 +8827,21 @@ export default function GameCanvas({
         context.shadowBlur = active ? 20 : 9;
         context.imageSmoothingEnabled = true;
         if (canDrawImage && image) {
-          context.drawImage(
-            image,
-            active ? sourceWidth : 0,
-            0,
+          // Each binder cell is authored as a square canvas around a horizontal
+          // binding thread. Keep both sigil caps uniformly scaled and repeat the
+          // central thread; drawing the complete 627×627 cell into 80–94px-high
+          // strips visibly flattened the knots, pages, and runes.
+          drawHorizontalThreeSliceAtlasCell(context, image, {
+            sourceX: active ? sourceWidth : 0,
+            sourceY: 0,
             sourceWidth,
             sourceHeight,
-            -(lineLength / 0.9) / 2,
-            active ? -47 : -40,
-            lineLength / 0.9,
-            active ? 94 : 80,
-          );
+            destinationX: -(lineLength / 0.9) / 2,
+            destinationY: active ? -47 : -40,
+            destinationLength: lineLength / 0.9,
+            destinationHeight: active ? 94 : 80,
+            sourceCapWidth: sourceWidth / 4,
+          });
         } else {
           context.strokeStyle = active ? "#fff0b0" : "#b98a45";
           context.lineWidth = active ? 6 : 3;
@@ -9178,6 +9209,36 @@ export default function GameCanvas({
         );
         context.restore();
       };
+      const drawChainCell = (
+        column: number,
+        x: number,
+        y: number,
+        length: number,
+        height: number,
+        alpha: number,
+        rotation: number,
+      ) => {
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-over";
+        context.shadowColor = "transparent";
+        context.shadowBlur = 0;
+        context.imageSmoothingEnabled = true;
+        drawHorizontalThreeSliceAtlasCell(context, image, {
+          sourceX: column * sourceWidth,
+          sourceY: 0,
+          sourceWidth,
+          sourceHeight,
+          destinationX: -length / 2,
+          destinationY: -height / 2,
+          destinationLength: length,
+          destinationHeight: height,
+          sourceCapWidth: sourceWidth / 4,
+        });
+        context.restore();
+      };
 
       context.save();
       context.beginPath();
@@ -9202,9 +9263,8 @@ export default function GameCanvas({
             96,
             distance(state.origin.x, state.origin.y, state.anchor.x, state.anchor.y),
           );
-          drawCell(
+          drawChainCell(
             state.phase === "telegraph" ? 0 : 1,
-            0,
             centerX,
             centerY,
             chainLength / 0.72,
@@ -10650,6 +10710,10 @@ export default function GameCanvas({
           );
           const sourceWidth = pillarVfxImage.naturalWidth / 4;
           const sourceHeight = pillarVfxImage.naturalHeight;
+          // Preserve the authored portrait-frame aspect ratio. Independent
+          // rarity widths made these pillars look horizontally stretched.
+          const pillarRenderWidth =
+            rarityVfx.pillarHeight * (sourceWidth / sourceHeight);
           context.globalAlpha = pillarReveal;
           context.globalCompositeOperation = rarityVfx.pillarCompositeOperation;
           context.imageSmoothingEnabled = true;
@@ -10660,13 +10724,13 @@ export default function GameCanvas({
             0,
             sourceWidth,
             sourceHeight,
-            drop.x - rarityVfx.pillarWidth / 2,
+            drop.x - pillarRenderWidth / 2,
             // Keep every authored flare anchor intact, then preserve the small
             // low-tier visual offsets that match the epic item-overlap baseline.
             drop.y +
               rarityVfx.pillarGroundOffsetPx -
               rarityVfx.pillarHeight * rarityVfx.pillarGroundAnchor,
-            rarityVfx.pillarWidth,
+            pillarRenderWidth,
             rarityVfx.pillarHeight,
           );
         }
@@ -12692,7 +12756,10 @@ export default function GameCanvas({
               </span>
             </div>
             <div className="modal-actions">
-              <button className="primary-button compact" onClick={retryFromShelter}>
+              <button
+                className="primary-button compact death-retry-button"
+                onClick={retryFromShelter}
+              >
                 마지막 쉼표에서 재도전
               </button>
             </div>

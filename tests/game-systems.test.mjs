@@ -1222,7 +1222,9 @@ test("three save slots isolate data and preserve the legacy backup on migration"
     slot: "weapon",
     rarity: "legendary",
   });
-  const weapon = equipment.normalizeGearItem({ ...rolledWeapon, enhancement: 7 });
+  const legacyEnhancedWeapon = { ...rolledWeapon, enhancement: 7 };
+  delete legacyEnhancedWeapon.enhancementRanks;
+  const weapon = equipment.normalizeGearItem(legacyEnhancedWeapon);
   assert.ok(weapon);
   gearSave.player.memoryAsh = 345;
   gearSave.player.equipment = { weapon, helm: null, armor: null, boots: null, relic: null };
@@ -1907,6 +1909,145 @@ test("the Final Binder is a post-ending boss with three telegraphed arena patter
   );
   assert.match(source, /FINAL_BINDER_PATTERN_LABELS\[hud\.world\.binderPattern\]/);
   assert.match(source, /FINAL_BINDER_PHASE_LABELS\[hud\.world\.binderPhase\]/);
+});
+
+test("long Proofreader and Final Binder lanes use uniform horizontal three-slices", async () => {
+  const [vfx, source] = await Promise.all([
+    importTypeScriptModule("app/augment-vfx.ts"),
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+  ]);
+  const renderThreeSlice = (options) => {
+    const drawCalls = [];
+    const context = {
+      drawImage(...args) {
+        drawCalls.push(args);
+      },
+    };
+    const rendered = vfx.drawHorizontalThreeSliceAtlasCell(context, {}, options);
+    return { drawCalls, rendered };
+  };
+  const assertUniformDraws = (
+    drawCalls,
+    expectedStart,
+    expectedWidth,
+    label,
+    minimumCalls = 3,
+  ) => {
+    assert.ok(
+      drawCalls.length >= minimumCalls,
+      `${label} must retain its uniformly scaled slices`,
+    );
+    assert.ok(Math.abs(drawCalls[0][5] - expectedStart) < 1e-9, `${label} start drifted`);
+    const last = drawCalls.at(-1);
+    assert.ok(
+      Math.abs(last[5] + last[7] - (expectedStart + expectedWidth)) < 1e-7,
+      `${label} must cover the complete destination width`,
+    );
+    for (const [index, args] of drawCalls.entries()) {
+      const scaleX = args[7] / args[3];
+      const scaleY = args[8] / args[4];
+      assert.ok(
+        Math.abs(scaleX - scaleY) < 1e-9,
+        `${label} segment ${index} distorts an authored source axis`,
+      );
+      assert.ok(args[3] > 0 && args[7] > 0);
+    }
+  };
+
+  const proofreader = renderThreeSlice({
+    sourceX: 512,
+    sourceY: 512,
+    sourceWidth: 512,
+    sourceHeight: 512,
+    destinationX: -112,
+    destinationY: -72,
+    destinationLength: 920,
+    destinationHeight: 144,
+    sourceCapWidth: 128,
+  });
+  assert.equal(proofreader.rendered, true);
+  assertUniformDraws(proofreader.drawCalls, -112, 920, "Proofreader telegraph");
+  assert.equal(proofreader.drawCalls[0][3], 128);
+  assert.equal(proofreader.drawCalls[0][7], 36);
+  assert.equal(proofreader.drawCalls.at(-1)[1], 896);
+
+  const binder = renderThreeSlice({
+    sourceX: 627,
+    sourceY: 0,
+    sourceWidth: 627,
+    sourceHeight: 627,
+    destinationX: -500,
+    destinationY: -47,
+    destinationLength: 1000,
+    destinationHeight: 94,
+    sourceCapWidth: 627 / 4,
+  });
+  assert.equal(binder.rendered, true);
+  assertUniformDraws(binder.drawCalls, -500, 1000, "Final Binder thread");
+  assert.ok(
+    binder.drawCalls.length > 10,
+    "the long binding thread must repeat its authored centre",
+  );
+
+  const contained = renderThreeSlice({
+    sourceX: 0,
+    sourceY: 0,
+    sourceWidth: 512,
+    sourceHeight: 512,
+    destinationX: 10,
+    destinationY: 20,
+    destinationLength: 50,
+    destinationHeight: 144,
+    sourceCapWidth: 128,
+  });
+  assert.equal(contained.rendered, true);
+  assert.equal(contained.drawCalls.length, 2, "short lanes retain two uniformly scaled caps");
+  assert.equal(contained.drawCalls[0][7] + contained.drawCalls[1][7], 50);
+  assert.equal(contained.drawCalls[0][8], 100);
+  assert.equal(contained.drawCalls[0][6], 42);
+  assertUniformDraws(contained.drawCalls, 10, 50, "short three-slice fallback", 2);
+  assert.equal(
+    renderThreeSlice({
+      sourceX: 0,
+      sourceY: 0,
+      sourceWidth: 0,
+      sourceHeight: 512,
+      destinationX: 0,
+      destinationY: 0,
+      destinationLength: 920,
+      destinationHeight: 144,
+    }).rendered,
+    false,
+  );
+
+  const proofreaderStart = source.indexOf("const drawProofreaderTelegraph = (");
+  const proofreaderEnd = source.indexOf("const drawMarginSeverLine = (", proofreaderStart);
+  const proofreaderRenderer = source.slice(proofreaderStart, proofreaderEnd);
+  assert.ok(proofreaderStart >= 0 && proofreaderEnd > proofreaderStart);
+  assert.match(
+    proofreaderRenderer,
+    /drawHorizontalThreeSliceAtlasCell\(context, image, \{[\s\S]{0,500}?sourceCapWidth:\s*sourceWidth \/ 4/,
+  );
+  assert.doesNotMatch(
+    proofreaderRenderer,
+    /context\.drawImage\(/,
+    "the 512×512 Proofreader cell must never return to one 920×144 draw",
+  );
+
+  const binderStart = source.indexOf("const drawFinalBinderPattern = (");
+  const binderEnd = source.indexOf("const drawPalimpsestPattern = (", binderStart);
+  const binderRenderer = source.slice(binderStart, binderEnd);
+  const bindingLine = binderRenderer.match(/const drawBindingLine = \([\s\S]*?\n      \};/);
+  assert.ok(bindingLine, "the Final Binder needs an isolated line renderer");
+  assert.match(
+    bindingLine[0],
+    /drawHorizontalThreeSliceAtlasCell\(context, image, \{[\s\S]{0,500}?sourceCapWidth:\s*sourceWidth \/ 4/,
+  );
+  assert.doesNotMatch(
+    bindingLine[0],
+    /context\.drawImage\(/,
+    "the 627×627 binder cell must never return to one independently scaled strip",
+  );
 });
 
 test("each shelter heals and saves only on its first coordinate visit", async () => {
@@ -2800,9 +2941,17 @@ test("walk sprites preserve each authored atlas-cell aspect ratio", async () => 
     height: 0,
   });
 
+  const legacyRendererStart = source.indexOf("const drawSprite = (");
   const rendererStart = source.indexOf("const drawWalkSprite = (");
   const rendererEnd = source.indexOf("const drawEffectSprite = (", rendererStart);
+  const legacyRenderer = source.slice(legacyRendererStart, rendererStart);
   const renderer = source.slice(rendererStart, rendererEnd);
+  assert.match(
+    legacyRenderer,
+    /fitSpriteFrameWithin\(\s*crop\[2\],\s*crop\[3\],\s*width,\s*height/,
+    "legacy fallback crops must fit their bounds without independent-axis stretching",
+  );
+  assert.match(legacyRenderer, /fittedFrame\.width,\s*fittedFrame\.height/);
   assert.match(renderer, /fitSpriteFrameWithin\(\s*sourceWidth,\s*sourceHeight,\s*width,\s*height/);
   assert.match(renderer, /fittedFrame\.width,\s*fittedFrame\.height/);
   assert.match(renderer, /context\.imageSmoothingEnabled = false/);
@@ -3760,7 +3909,7 @@ test("rarity tier rating preserves the level-100 equivalence ladder without faki
   }
 });
 
-test("all ten slots derive one rarity-equivalent basic option and enhance only that option", async () => {
+test("all ten slots expose their rarity-equivalent basic option as one enhancement candidate", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   assert.deepEqual(
     Object.fromEntries(
@@ -3784,31 +3933,54 @@ test("all ten slots derive one rarity-equivalent basic option and enhance only t
   );
 
   for (const slot of equipment.EQUIPMENT_SLOTS) {
-    const commonAnchor = equipment.getGearImplicitBaseValue({
+    const commonAnchorItem = {
       slot,
       level: 100,
       rarity: "common",
       enhancement: 0,
-    });
+      enhancementRanks: [0],
+    };
+    const commonAnchor = equipment.getGearImplicitBaseValue(commonAnchorItem);
     assert.ok(commonAnchor > 0, `${slot} needs a meaningful base option`);
     for (const rarity of equipment.GEAR_RARITIES) {
       const level = 100 - equipment.GEAR_RARITY_LEVEL_EQUIVALENT[rarity];
-      const item = { slot, level, rarity, enhancement: 0 };
+      const item = { slot, level, rarity, enhancement: 0, enhancementRanks: [0] };
       assert.equal(
         equipment.getGearImplicitBaseValue(item),
         commonAnchor,
         `${slot} ${rarity} must preserve the established equivalent-level ladder`,
       );
+      const perRankGain = equipment.getGearOptionEnhancementGain(
+        item,
+        equipment.GEAR_IMPLICIT_OPTION_BY_SLOT[slot].stat,
+      );
+      const allImplicitRanks = {
+        ...item,
+        enhancement: 10,
+        enhancementRanks: [10],
+      };
       assert.ok(
-        equipment.getEnhancedGearImplicitValue({ ...item, enhancement: 10 })
-          > commonAnchor,
-        `${slot} ${rarity} +10 must have a visible reason to upgrade`,
+        equipment.getEnhancedGearImplicitValue(allImplicitRanks) > commonAnchor,
+        `${slot} ${rarity} must gain when its basic option wins the draw`,
+      );
+      assert.equal(
+        equipment.getEnhancedGearImplicitValue(allImplicitRanks),
+        Math.round((commonAnchor + perRankGain * 10) * 100) / 100,
+        `${slot} ${rarity} must accumulate repeated draws on the same option`,
+      );
+      assert.equal(
+        equipment.getEnhancedGearImplicitValue({
+          ...allImplicitRanks,
+          enhancementRanks: [0],
+        }),
+        commonAnchor,
+        "the stage number alone must not enhance an option that received no ranks",
       );
     }
   }
 });
 
-test("gear text separates enhanced implicit options from fate-locked additional rolls", async () => {
+test("gear text and resolved stats expose ranks on both implicit and additional options", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
 
   assert.equal(equipment.formatGearNumericValue(12.345), "12.35");
@@ -3858,7 +4030,16 @@ test("gear text separates enhanced implicit options from fate-locked additional 
     rollPercent: 50,
     label: "stale",
   };
-  const item = { rarity: "rare", enhancement: 3 };
+  const item = {
+    slot: "weapon",
+    rarity: "rare",
+    level: 100,
+    enhancement: 3,
+    enhancementRanks: [0, 3],
+    affixes: [affix],
+    legendaryPowerId: null,
+  };
+  const perRankGain = equipment.getGearOptionEnhancementGain(item, affix.stat);
   const display = equipment.getGearAffixDisplay(affix, item);
   assert.deepEqual(
     {
@@ -3866,31 +4047,38 @@ test("gear text separates enhanced implicit options from fate-locked additional 
       baseValue: display.baseValue,
       enhancementValue: display.enhancementValue,
       nextStageGainValue: display.nextStageGainValue,
+      enhancementCount: display.enhancementCount,
     },
     {
-      totalValue: 10,
+      totalValue: Math.round((10 + perRankGain * 3) * 100) / 100,
       baseValue: 10,
-      enhancementValue: 0,
-      nextStageGainValue: 0,
+      enhancementValue: Math.round(perRankGain * 3 * 100) / 100,
+      nextStageGainValue: perRankGain,
+      enhancementCount: 3,
     },
   );
-  assert.equal(display.totalLabel, equipment.formatEnhancedGearAffix(item, affix));
-  assert.match(display.totalLabel, /\+10\.00%$/);
+  assert.ok(display.totalLabel.startsWith(equipment.formatEnhancedGearAffix(item, affix)));
+  assert.match(display.totalLabel, /3회/);
   assert.match(display.baseLabel, /\+10\.00%$/);
-  assert.equal(display.enhancementLabel, "강화 영향 없음");
-  assert.equal(display.nextStageGainLabel, "고정");
+  assert.match(display.enhancementLabel, /3회/);
+  assert.match(display.nextStageGainLabel, new RegExp(perRankGain.toFixed(2)));
   assert.equal(
     equipment.getEnhancedGearAffixValue(item, affix),
-    affix.value,
-    "random additional options must stay exactly as rolled at every enhancement",
+    display.totalValue,
+    "additional options must consume the ranks allocated to their own line",
   );
 
-  const implicit = equipment.getGearImplicitDisplay({
-    slot: "weapon",
+  const implicitItem = {
+    ...item,
     level: 70,
     rarity: "legendary",
-    enhancement: 3,
-  });
+    enhancementRanks: [3, 0],
+  };
+  const implicit = equipment.getGearImplicitDisplay(implicitItem);
+  const implicitPerRankGain = equipment.getGearOptionEnhancementGain(
+    implicitItem,
+    equipment.GEAR_IMPLICIT_OPTION_BY_SLOT.weapon.stat,
+  );
   assert.deepEqual(
     {
       stat: implicit.stat,
@@ -3898,26 +4086,44 @@ test("gear text separates enhanced implicit options from fate-locked additional 
       totalValue: implicit.totalValue,
       enhancementValue: implicit.enhancementValue,
       nextStageGainValue: implicit.nextStageGainValue,
+      enhancementCount: implicit.enhancementCount,
     },
     {
       stat: "attackPowerFlat",
       baseValue: 4,
-      totalValue: 5.68,
-      enhancementValue: 1.68,
-      nextStageGainValue: 0.56,
+      totalValue: Math.round((4 + implicitPerRankGain * 3) * 100) / 100,
+      enhancementValue: Math.round(implicitPerRankGain * 3 * 100) / 100,
+      nextStageGainValue: implicitPerRankGain,
+      enhancementCount: 3,
     },
   );
-  assert.equal(implicit.totalLabel, "기본 공격력 +5.68");
-  assert.match(implicit.enhancementLabel, /\+1\.68$/);
-  assert.match(implicit.nextStageGainLabel, /\+0\.56$/);
+  assert.match(implicit.totalLabel, /강화 3회/);
+  assert.match(implicit.enhancementLabel, /3회/);
 
-  const reductionDisplay = equipment.getGearAffixDisplay(
-    { ...affix, stat: "damageReductionPercent" },
-    item,
+  const affixRankStats = equipment.resolveGearItemStats(item);
+  const implicitRankStats = equipment.resolveGearItemStats(implicitItem);
+  assert.equal(affixRankStats.damagePercent, display.totalValue);
+  assert.equal(
+    affixRankStats.attackPowerFlat,
+    equipment.getGearImplicitBaseValue(item),
+    "affix ranks must leave the basic option unchanged",
   );
-  assert.match(reductionDisplay.totalLabel, /-10\.00%$/);
+  assert.equal(implicitRankStats.damagePercent, affix.value);
+  assert.equal(implicitRankStats.attackPowerFlat, implicit.totalValue);
+
+  const reductionAffix = { ...affix, stat: "damageReductionPercent" };
+  const reductionItem = {
+    ...item,
+    affixes: [reductionAffix],
+    enhancementRanks: [0, 3],
+  };
+  const reductionDisplay = equipment.getGearAffixDisplay(
+    reductionAffix,
+    reductionItem,
+  );
+  assert.match(reductionDisplay.totalLabel, /-\d+\.\d{2}%/);
   assert.match(reductionDisplay.baseLabel, /-10\.00%$/);
-  assert.equal(reductionDisplay.enhancementLabel, "강화 영향 없음");
+  assert.match(reductionDisplay.enhancementLabel, /3회/);
   assert.doesNotMatch(
     [
       display.totalLabel,
@@ -3925,8 +4131,13 @@ test("gear text separates enhanced implicit options from fate-locked additional 
       display.enhancementLabel,
       display.nextStageGainLabel,
       equipment.getGearAffixDisplay(
-        { ...affix, stat: "damageReductionPercent" },
-        { rarity: "common", enhancement: 0 },
+        reductionAffix,
+        {
+          ...reductionItem,
+          rarity: "common",
+          enhancement: 0,
+          enhancementRanks: [0, 0],
+        },
       ).enhancementLabel,
       equipment.formatGearNumericValue(-0),
     ].join(" "),
@@ -3957,6 +4168,7 @@ test("equipment power is only all-hit sustained standard-boss DPS", async () => 
       : [],
     legendaryPowerId,
     enhancement,
+    enhancementRanks: stat ? [enhancement, 0] : [enhancement],
     qualityScore: 100,
     powerScore: 1,
   });
@@ -4147,6 +4359,7 @@ test("combat power values only implemented legendary effects and computes contex
       : [],
     legendaryPowerId,
     enhancement,
+    enhancementRanks: stat ? [enhancement, 0] : [enhancement],
     qualityScore: 100,
     powerScore: 1,
   });
@@ -4216,62 +4429,54 @@ test("combat power values only implemented legendary effects and computes contex
   assert.equal(currentLoadout.weapon, equippedWeapon, "comparison must not mutate the loadout");
 });
 
-test("enhancement power comes only from slot implicits and stale saves recompute derived values", async () => {
+test("enhancement power follows the selected option line and stale saves rebuild deterministic ranks", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
-  const emptyItem = {
-    slot: "weapon",
-    rarity: "cosmic",
-    level: 999,
-    affixes: [],
-    legendaryPowerId: null,
-    enhancement: 0,
-  };
-  const implicitBasePower = equipment.calculateGearPowerScore(emptyItem);
-  assert.ok(implicitBasePower > 0, "an offensive slot implicit must carry DPS power");
-  assert.ok(
-    equipment.calculateGearPowerScore({ ...emptyItem, enhancement: 10 })
-      > implicitBasePower,
-    "enhancement must create meaningful power through the implicit option alone",
-  );
-
   const affix = {
     stat: "damagePercent",
     value: 100,
     rollPercent: 100,
     label: equipment.formatGearAffix("damagePercent", 100),
   };
-  const commonItem = {
-    ...emptyItem,
-    rarity: "common",
+  const baseItem = {
+    slot: "weapon",
+    rarity: "rare",
     level: 100,
     affixes: [affix],
+    legendaryPowerId: null,
+    enhancement: 0,
+    enhancementRanks: [0, 0],
   };
-  const legendaryItem = { ...commonItem, rarity: "legendary", level: 70 };
-  const commonBasePower = equipment.calculateGearPowerScore(commonItem);
-  const legendaryBasePower = equipment.calculateGearPowerScore(legendaryItem);
-  assert.equal(
-    commonBasePower,
-    legendaryBasePower,
-    "equivalent rarity levels must share one +0 implicit anchor",
-  );
-  const commonGain =
-    equipment.calculateGearPowerScore({ ...commonItem, enhancement: 1 })
-    - commonBasePower;
-  const legendaryGain =
-    equipment.calculateGearPowerScore({ ...legendaryItem, enhancement: 1 })
-    - legendaryBasePower;
-  assert.ok(commonGain > 0);
+  const baseStats = equipment.resolveGearItemStats(baseItem);
+  const basePower = equipment.calculateGearPowerScore(baseItem);
+  const implicitHit = {
+    ...baseItem,
+    enhancement: 1,
+    enhancementRanks: [1, 0],
+  };
+  const affixHit = {
+    ...baseItem,
+    enhancement: 1,
+    enhancementRanks: [0, 1],
+  };
+  const implicitStats = equipment.resolveGearItemStats(implicitHit);
+  const affixStats = equipment.resolveGearItemStats(affixHit);
   assert.ok(
-    legendaryGain >= commonGain * 2,
-    "legendary +1 must convert its twice-as-large implicit multiplier into real power",
+    implicitStats.attackPowerFlat > baseStats.attackPowerFlat,
+    "an implicit-option win must raise only the slot's basic stat",
   );
-  assert.equal(
-    equipment.getEnhancedGearAffixValue(
-      { rarity: "cosmic", enhancement: 10 },
-      affix,
-    ),
-    affix.value,
-    "additional options must not move even at cosmic +10",
+  assert.equal(implicitStats.damagePercent, baseStats.damagePercent);
+  assert.equal(affixStats.attackPowerFlat, baseStats.attackPowerFlat);
+  assert.ok(
+    affixStats.damagePercent > baseStats.damagePercent,
+    "an affix win must raise the selected random option",
+  );
+  assert.ok(
+    equipment.calculateGearPowerScore(implicitHit) > basePower,
+    "an offensive basic-option rank must increase power",
+  );
+  assert.ok(
+    equipment.calculateGearPowerScore(affixHit) > basePower,
+    "an offensive additional-option rank must increase power",
   );
 
   const rolled = equipment.rollGear("stale-derived-power-save", {
@@ -4281,10 +4486,22 @@ test("enhancement power comes only from slot implicits and stale saves recompute
   });
   const stale = JSON.parse(JSON.stringify(rolled));
   stale.enhancement = 5;
+  delete stale.enhancementRanks;
   stale.powerScore = -999_999;
   for (const savedAffix of stale.affixes) savedAffix.label = "stale label";
   const normalized = equipment.normalizeGearItem(stale);
+  const normalizedAgain = equipment.normalizeGearItem(stale);
   assert.ok(normalized);
+  assert.deepEqual(
+    normalized.enhancementRanks,
+    normalizedAgain.enhancementRanks,
+    "the same pre-rank save must always receive the same random allocation migration",
+  );
+  assert.equal(normalized.enhancementRanks.length, normalized.affixes.length + 1);
+  assert.equal(
+    normalized.enhancementRanks.reduce((total, rank) => total + rank, 0),
+    normalized.enhancement,
+  );
   assert.equal(
     normalized.powerScore,
     equipment.calculateGearPowerScore(normalized),
@@ -4863,7 +5080,7 @@ test("saved equipment repairs derived quality and normalizes legacy affixes", as
   assert.deepEqual(equipment.normalizeEquipment(null), equipment.createEmptyEquipment());
 });
 
-test("gear enhancement normalizes legacy saves and defines complete +0 through +10 rules", async () => {
+test("gear enhancement migrates random option ranks and defines complete +0 through +10 rules", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
   assert.equal(equipment.MAX_GEAR_ENHANCEMENT, 10);
   assert.deepEqual(equipment.GEAR_ENHANCEMENT_EFFECT_PER_STAGE, {
@@ -4896,44 +5113,65 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     Math.round(equipment.GEAR_ENHANCEMENT_EFFECT_PER_STAGE.common * 100) * 3,
     "cosmic must gain exactly three times the per-stage percentage of common gear",
   );
-  for (const rarity of equipment.GEAR_RARITIES) {
-    const rate = equipment.GEAR_ENHANCEMENT_EFFECT_PER_STAGE[rarity];
-    assert.equal(
-      equipment.getEnhancedGearAffixValue(
-        { rarity, enhancement: 1 },
-        { value: 100 },
+
+  const anchorGains = Object.fromEntries(
+    equipment.GEAR_STAT_KEYS.map((stat) => [
+      stat,
+      equipment.getGearOptionEnhancementGain(
+        { rarity: "rare", level: 100 },
+        stat,
       ),
-      100,
-      `${rarity} +1 must leave every additional option fixed`,
-    );
-    const equivalentLevel = 100 - equipment.GEAR_RARITY_LEVEL_EQUIVALENT[rarity];
-    const implicitItem = {
-      slot: "weapon",
-      level: equivalentLevel,
-      rarity,
-      enhancement: 0,
-    };
-    const baseImplicitValue = equipment.getGearImplicitBaseValue(implicitItem);
-    const enhancedImplicitValue = equipment.getEnhancedGearImplicitValue({
-      ...implicitItem,
-      enhancement: 1,
-    });
-    assert.equal(
-      enhancedImplicitValue,
-      Math.round(baseImplicitValue * (1 + rate) * 100) / 100,
-      `${rarity} +1 must apply its declared efficiency only to the implicit option`,
-    );
-    assert.ok(
-      enhancedImplicitValue > baseImplicitValue,
-      `${rarity} +1 needs a visible basic-option gain`,
-    );
-  }
+    ]),
+  );
+  assert.ok(
+    Object.values(anchorGains).every((gain) => gain > 0),
+    "every selectable option needs a positive enhancement payoff",
+  );
+  assert.ok(
+    new Set(Object.values(anchorGains)).size >= 10,
+    "option families must use meaningfully differentiated balance increments",
+  );
+  assert.equal(
+    anchorGains.projectileCountFlat,
+    0.2,
+    "one projectile-count draw must be fractional progress instead of doubling DPS",
+  );
+  assert.equal(anchorGains.pierceFlat, 0.25);
+  assert.notEqual(anchorGains.critChancePercent, anchorGains.critDamagePercent);
+
+  const commonEquivalentGain = equipment.getGearOptionEnhancementGain(
+    { rarity: "common", level: 100 },
+    "damagePercent",
+  );
+  const legendaryEquivalentGain = equipment.getGearOptionEnhancementGain(
+    { rarity: "legendary", level: 70 },
+    "damagePercent",
+  );
+  const cosmicEquivalentGain = equipment.getGearOptionEnhancementGain(
+    { rarity: "cosmic", level: 40 },
+    "damagePercent",
+  );
+  assert.ok(
+    Math.abs(legendaryEquivalentGain / commonEquivalentGain - 2) < 0.03,
+    "equivalent-level legendary gear must keep its twice-common rank reward within display rounding",
+  );
+  assert.ok(
+    Math.abs(cosmicEquivalentGain / commonEquivalentGain - 3) < 0.03,
+    "equivalent-level cosmic gear must keep its three-times-common rank reward within display rounding",
+  );
+
   const baseItem = equipment.rollGear("enhancement-contract", {
     level: 42,
     slot: "armor",
     rarity: "rare",
   });
   assert.equal(baseItem.enhancement, 0, "fresh drops must start at +0");
+  assert.equal(baseItem.enhancementRanks.length, baseItem.affixes.length + 1);
+  assert.deepEqual(
+    baseItem.enhancementRanks,
+    Array.from({ length: baseItem.affixes.length + 1 }, () => 0),
+    "fresh drops must expose one zero rank for the implicit and every affix line",
+  );
 
   const mythicItem = equipment.rollGear("mythic-enhancement-cost", {
     level: 42,
@@ -4953,58 +5191,137 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     "cosmic enhancement must carry its own cost tier above mythic",
   );
 
-  const commonAnchor = {
-    slot: "armor",
-    rarity: "common",
-    level: 100,
-    affixes: [{
-      stat: "damagePercent",
-      value: 100,
-      rollPercent: 100,
-      label: equipment.formatGearAffix("damagePercent", 100),
-    }],
-    legendaryPowerId: null,
-    enhancement: 0,
-  };
-  const legendaryAnchor = {
-    ...commonAnchor,
-    rarity: "legendary",
-    level: 70,
-  };
-  const commonAnchorPower = equipment.calculateGearPowerScore(commonAnchor);
-  const legendaryAnchorPower = equipment.calculateGearPowerScore(legendaryAnchor);
-  assert.equal(commonAnchorPower, legendaryAnchorPower);
-  const commonPlusOneGain = equipment.calculateGearPowerScore({
-    ...commonAnchor,
-    enhancement: 1,
-  }) - commonAnchorPower;
-  const legendaryPlusOneGain = equipment.calculateGearPowerScore({
-    ...legendaryAnchor,
-    enhancement: 1,
-  }) - legendaryAnchorPower;
-  assert.equal(
-    commonPlusOneGain,
-    0,
-    "common armor enhancement changes mitigation only and must add zero DPS power",
-  );
-  assert.equal(
-    legendaryPlusOneGain,
-    0,
-    "legendary armor enhancement changes mitigation only and must add zero DPS power",
-  );
-
   const legacy = JSON.parse(JSON.stringify(baseItem));
   delete legacy.enhancement;
+  delete legacy.enhancementRanks;
   const normalizedLegacy = equipment.normalizeGearItem(legacy);
   assert.ok(normalizedLegacy);
   assert.equal(normalizedLegacy.enhancement, 0, "pre-enhancement saves must migrate to +0");
+  assert.deepEqual(
+    normalizedLegacy.enhancementRanks,
+    Array.from({ length: baseItem.affixes.length + 1 }, () => 0),
+  );
+
+  const legacyPlusFive = JSON.parse(JSON.stringify(baseItem));
+  legacyPlusFive.enhancement = 5;
+  delete legacyPlusFive.enhancementRanks;
+  const migratedPlusFive = equipment.normalizeGearItem(legacyPlusFive);
+  const migratedPlusFiveAgain = equipment.normalizeGearItem(legacyPlusFive);
+  assert.ok(migratedPlusFive && migratedPlusFiveAgain);
+  assert.deepEqual(
+    migratedPlusFive.enhancementRanks,
+    migratedPlusFiveAgain.enhancementRanks,
+    "legacy +N allocation must be stable across every load of the same item",
+  );
+  assert.equal(migratedPlusFive.enhancementRanks.length, baseItem.affixes.length + 1);
+  assert.equal(
+    migratedPlusFive.enhancementRanks.reduce((total, rank) => total + rank, 0),
+    5,
+    "legacy +5 gear must receive exactly five random option ranks",
+  );
+
   assert.equal(equipment.normalizeGearItem({ ...baseItem, enhancement: -1 }), null);
   assert.equal(equipment.normalizeGearItem({ ...baseItem, enhancement: 11 }), null);
   assert.equal(equipment.normalizeGearItem({ ...baseItem, enhancement: 1.5 }), null);
+  const correctRankLength = baseItem.affixes.length + 1;
+  assert.equal(
+    equipment.normalizeGearItem({
+      ...baseItem,
+      enhancement: 1,
+      enhancementRanks: [1],
+    }),
+    null,
+    "rank arrays must include the implicit plus every affix",
+  );
+  assert.equal(
+    equipment.normalizeGearItem({
+      ...baseItem,
+      enhancement: 1,
+      enhancementRanks: Array.from({ length: correctRankLength }, () => 0),
+    }),
+    null,
+    "rank sum must exactly equal the enhancement stage",
+  );
+  assert.equal(
+    equipment.normalizeGearItem({
+      ...baseItem,
+      enhancement: 1,
+      enhancementRanks: Array.from(
+        { length: correctRankLength },
+        (_, index) => (index === 0 ? -1 : index === 1 ? 2 : 0),
+      ),
+    }),
+    null,
+    "negative ranks must be rejected even when the sum matches",
+  );
+  assert.equal(
+    equipment.normalizeGearItem({
+      ...baseItem,
+      enhancement: 1,
+      enhancementRanks: Array.from(
+        { length: correctRankLength },
+        (_, index) => (index === 0 || index === 1 ? 0.5 : 0),
+      ),
+    }),
+    null,
+    "fractional ranks must be rejected",
+  );
+
+  const optionCount = baseItem.affixes.length + 1;
+  for (let optionIndex = 0; optionIndex < optionCount; optionIndex += 1) {
+    const result = equipment.applySuccessfulGearEnhancement(
+      baseItem,
+      (optionIndex + 0.5) / optionCount,
+    );
+    assert.ok(result, `option ${optionIndex} must be selectable`);
+    assert.equal(result.optionIndex, optionIndex);
+    assert.equal(result.item.enhancement, 1);
+    assert.equal(result.item.enhancementRanks.length, optionCount);
+    assert.equal(
+      result.item.enhancementRanks.reduce((total, rank) => total + rank, 0),
+      1,
+    );
+    assert.equal(result.item.enhancementRanks[optionIndex], 1);
+    assert.equal(
+      result.item.powerScore,
+      equipment.calculateGearPowerScore(result.item),
+      "the shared success helper must immediately refresh derived power",
+    );
+  }
+  assert.equal(equipment.applySuccessfulGearEnhancement(baseItem, -1).optionIndex, 0);
+  assert.equal(
+    equipment.applySuccessfulGearEnhancement(baseItem, 1).optionIndex,
+    optionCount - 1,
+    "the upper random boundary must safely select the final option",
+  );
+
+  const repeatedOptionIndex = optionCount - 1;
+  let repeatedItem = baseItem;
+  for (let stage = 0; stage < 5; stage += 1) {
+    const result = equipment.applySuccessfulGearEnhancement(
+      repeatedItem,
+      (repeatedOptionIndex + 0.5) / optionCount,
+    );
+    assert.ok(result);
+    repeatedItem = result.item;
+  }
+  assert.equal(repeatedItem.enhancement, 5);
+  assert.equal(repeatedItem.enhancementRanks[repeatedOptionIndex], 5);
+  assert.equal(
+    repeatedItem.enhancementRanks.reduce((total, rank) => total + rank, 0),
+    5,
+    "all five successful stages may land on the same option",
+  );
+  assert.deepEqual(
+    baseItem.enhancementRanks,
+    Array.from({ length: optionCount }, () => 0),
+    "enhancement must not mutate the original item or its rank array",
+  );
 
   let previousCost = 0;
+  const enhancementStates = [baseItem];
   for (let enhancement = 0; enhancement < 10; enhancement += 1) {
-    const item = { ...baseItem, enhancement };
+    const item = enhancementStates[enhancement];
     const rule = equipment.getGearEnhancementRule(item);
     assert.ok(rule, `+${enhancement} needs a next-stage rule`);
     assert.equal(rule.target, enhancement + 1);
@@ -5019,11 +5336,14 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     );
     assert.ok(rule.ashCost > previousCost, `+${enhancement} ash cost must increase by stage`);
     previousCost = rule.ashCost;
+    const next = equipment.applySuccessfulGearEnhancement(item, 0);
+    assert.ok(next);
+    enhancementStates.push(next.item);
   }
-  assert.equal(equipment.getGearEnhancementRule({ ...baseItem, enhancement: 10 }), null);
+  assert.equal(equipment.getGearEnhancementRule(enhancementStates[10]), null);
 
-  const plusFive = { ...baseItem, enhancement: 5 };
-  const plusTen = { ...baseItem, enhancement: 10 };
+  const plusFive = enhancementStates[5];
+  const plusTen = enhancementStates[10];
   assert.equal(
     equipment.getGearEnhancementAshRefund(plusFive),
     3_414,
@@ -5079,18 +5399,15 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     );
   }
   for (let enhancement = 1; enhancement <= 10; enhancement += 1) {
-    const currentRefund = equipment.getGearEnhancementAshRefund({
-      ...baseItem,
-      enhancement,
-    });
-    const previousRefund = equipment.getGearEnhancementAshRefund({
-      ...baseItem,
-      enhancement: enhancement - 1,
-    });
-    const previousRule = equipment.getGearEnhancementRule({
-      ...baseItem,
-      enhancement: enhancement - 1,
-    });
+    const currentRefund = equipment.getGearEnhancementAshRefund(
+      enhancementStates[enhancement],
+    );
+    const previousRefund = equipment.getGearEnhancementAshRefund(
+      enhancementStates[enhancement - 1],
+    );
+    const previousRule = equipment.getGearEnhancementRule(
+      enhancementStates[enhancement - 1],
+    );
     assert.equal(
       currentRefund - previousRefund,
       previousRule.ashCost,
@@ -5098,13 +5415,7 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
     );
   }
 
-  const maxEnhanced = equipment.normalizeGearItem({ ...baseItem, enhancement: 10 });
-  assert.ok(maxEnhanced);
-  assert.equal(
-    maxEnhanced.powerScore,
-    baseItem.powerScore,
-    "armor enhancement changes mitigation only and must add zero DPS power",
-  );
+  const maxEnhanced = plusTen;
   const baseLoadout = equipment.createEmptyEquipment();
   baseLoadout.armor = baseItem;
   const enhancedLoadout = equipment.createEmptyEquipment();
@@ -5112,23 +5423,24 @@ test("gear enhancement normalizes legacy saves and defines complete +0 through +
   const baseTotals = equipment.aggregateEquipmentStats(baseLoadout);
   const enhancedTotals = equipment.aggregateEquipmentStats(enhancedLoadout);
   const implicitStat = equipment.GEAR_IMPLICIT_OPTION_BY_SLOT[baseItem.slot].stat;
-  const implicitGain =
-    equipment.getEnhancedGearImplicitValue(plusTen)
-    - equipment.getEnhancedGearImplicitValue(baseItem);
+  const implicitGain = Math.round(
+    (equipment.getEnhancedGearImplicitValue(plusTen)
+      - equipment.getEnhancedGearImplicitValue(baseItem)) * 100,
+  ) / 100;
   for (const stat of equipment.GEAR_STAT_KEYS) {
     const actualGain = Math.round((enhancedTotals[stat] - baseTotals[stat]) * 100) / 100;
     const expectedGain = stat === implicitStat ? implicitGain : 0;
     assert.equal(
       actualGain,
       expectedGain,
-      `${stat} must ${stat === implicitStat ? "receive only the implicit enhancement" : "remain fixed"}`,
+      `${stat} must ${stat === implicitStat ? "receive the ten selected implicit ranks" : "remain unchanged"}`,
     );
   }
   for (const affix of baseItem.affixes) {
     assert.equal(
       equipment.getEnhancedGearAffixValue(plusTen, affix),
       affix.value,
-      `${affix.stat} additional roll must remain its original value at +10`,
+      `${affix.stat} must remain unchanged when every rank lands on the implicit line`,
     );
   }
 });
@@ -6161,8 +6473,8 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   assert.match(source, /player\.memoryAsh -= rule\.ashCost/);
   assert.match(
     source,
-    /roll < rule\.successPercent[\s\S]{0,300}?enhancement:\s*rule\.target[\s\S]{0,160}?powerScore:\s*calculateGearPowerScore\(\{ \.\.\.item, enhancement:\s*rule\.target \}\)/,
-    "successful enhancement must advance the stage and recompute power",
+    /roll < rule\.successPercent[\s\S]{0,300}?applySuccessfulGearEnhancement\(\s*item,\s*Math\.random\(\),?\s*\)/,
+    "runtime success must delegate option selection, stage advancement, and power refresh to the shared helper",
   );
   assert.match(
     source,
@@ -6177,19 +6489,24 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   assert.match(source, /<InventoryOverlay[\s\S]{0,500}?memoryAsh=\{hud\.player\.memoryAsh\}/);
   assert.match(source, /<InventoryOverlay[\s\S]{0,650}?onEnhance=\{enhanceGearItem\}/);
   assert.match(
-    overlay,
-    /const enhancementEfficiencyPercent[\s\S]{0,220}?GEAR_ENHANCEMENT_EFFECT_PER_STAGE\[selectedItem\.rarity\]/,
-    "the workbench must preview the selected rarity's per-stage efficiency",
+    source,
+    /const optionCount = item\.affixes\.length \+ 1;[\s\S]{0,260}?Array\.from\(\{ length: optionCount \}, \(_, index\) =>[\s\S]{0,180}?applySuccessfulGearEnhancement\(item, \(index \+ 0\.5\) \/ optionCount\)/,
+    "the expedition confirmation must preview every uniformly selectable option through the shared helper",
+  );
+  assert.match(
+    source,
+    /const minimumPowerGain = Math\.min\(\.\.\.powerGains\);[\s\S]{0,120}?const maximumPowerGain = Math\.max\(\.\.\.powerGains\)/,
+    "the expedition confirmation must disclose the random candidate power range",
   );
   assert.match(
     overlay,
-    /const equipmentWithSelectedItem[\s\S]{0,320}?const enhancementPowerGain[\s\S]{0,240}?calculateEquipmentPowerDelta\(equipmentWithSelectedItem,\s*\{[\s\S]{0,120}?enhancement:\s*enhancementRule\.target/,
-    "the workbench must preview the exact contextual power gained by its next stage",
+    /const enhancementOptionPreviews = selectedItem && enhancementRule[\s\S]{0,360}?Array\.from\(\{ length: selectedItem\.affixes\.length \+ 1 \}, \(_, index\) =>[\s\S]{0,220}?applySuccessfulGearEnhancement/,
+    "the workbench must use the same helper to preview the implicit and every affix boundary",
   );
   assert.match(
     overlay,
-    /enhancementPowerGain\.toLocaleString\(["']ko-KR["']\)/,
-    "the enhancement action must show its exact power gain before spending ash",
+    /const minimumEnhancementPowerGain[\s\S]{0,260}?const maximumEnhancementPowerGain[\s\S]{0,300}?enhancementPowerGainLabel/,
+    "the workbench must show the possible contextual power range rather than one false deterministic value",
   );
   assert.match(
     overlay,
@@ -6203,8 +6520,18 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     overlay,
-    /이번 단계 증가[\s\S]{0,400}?formatCompactGearLabel\(selectedImplicitDisplay\.totalLabel\)[\s\S]{0,180}?formatCompactGearLabel\(selectedImplicitDisplay\.nextStageGainLabel\)/,
-    "the enhancement action may retain a compact next-stage preview without restoring tooltip breakdown copy",
+    /성공 시 \{selectedItem\.affixes\.length \+ 1\}개 옵션 중 1개 균등 선택 · 중복 가능/,
+    "the workbench must list every equal-probability gain and state that repeated option hits are allowed",
+  );
+  assert.match(
+    overlay,
+    /formatCompactGearLabel\(selectedImplicitDisplay\.nextStageGainLabel\)/,
+    "the implicit option must appear in the random candidate preview",
+  );
+  assert.match(
+    overlay,
+    /selectedItem\.affixes\.map[\s\S]{0,500}?formatCompactGearLabel\(display\.nextStageGainLabel\)/,
+    "every rolled affix must expose its own per-hit gain in the candidate preview",
   );
   for (const removedCopy of [
     "추가 옵션",
@@ -6225,8 +6552,8 @@ test("memory ash salvage and every enhancement outcome remain connected to runti
   );
   assert.match(
     source,
-    /const optionGainSummary = `\$\{implicitDisplay\.label\} \$\{formatCompactGearLabel\(implicitDisplay\.nextStageGainLabel\)\}`/,
-    "enhancement messaging must use the same compact option label without category copy",
+    /const optionGainSummary = `\$\{enhancementResult\.optionLabel\} \$\{formatCompactGearLabel\(enhancementResult\.gainLabel\)\}`/,
+    "enhancement messaging must identify the option actually selected by the shared result",
   );
   assert.match(
     source,
@@ -7482,7 +7809,7 @@ test("the enhancement workbench keeps readable scroll regions and reachable equi
   );
   assert.match(
     overlay,
-    /className="inventory-screen-enhancement-scroll"[\s\S]{0,5000}?<\/div>\s*\{enhancementRule && \(\s*<button[\s\S]{0,160}?className="inventory-screen-enhancement-button"/,
+    /className="inventory-screen-enhancement-scroll"[\s\S]{0,6000}?<\/div>\s*\{enhancementRule && \(\s*<button[\s\S]{0,160}?className="inventory-screen-enhancement-button"/,
     "the enhance button must be rendered after and outside the information scroller",
   );
   assert.match(
@@ -8135,7 +8462,7 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
   );
   assert.match(finalCss, /\.inventory-screen-tooltip-crest::before\s*\{[\s\S]{0,100}?z-index:\s*0;[\s\S]{0,620}?rgb\(3,\s*5,\s*6\);/);
   assert.match(finalCss, /Animated aura atlases:[\s\S]{0,650}?inset:\s*-10%;[\s\S]{0,180}?background-size:\s*400%\s+200%;/);
-  assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/inventory-chrome\/tooltip-panel\.png"\)/);
+  assert.match(finalCss, /Tooltips use scalable panel chrome[\s\S]{0,450}?border-image:\s*url\("\/assets\/ui\/gothic-nine-slice-frame-v2\.png"\)\s+16%\s*\/[^;]+\sround/);
   assert.match(finalCss, /@container game-viewport \(max-width:\s*900px\)[\s\S]{0,1200}?\.inventory-screen-details\s*\{\s*display:\s*none;/);
 });
 
@@ -9042,6 +9369,11 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   assert.match(pillarRenderer, /const sourceHeight = pillarVfxImage\.naturalHeight;/);
   assert.match(
     pillarRenderer,
+    /const pillarRenderWidth\s*=\s*rarityVfx\.pillarHeight \* \(sourceWidth \/ sourceHeight\);/,
+    "persistent pillars must preserve the authored frame aspect ratio",
+  );
+  assert.match(
+    pillarRenderer,
     /context\.globalCompositeOperation = rarityVfx\.pillarCompositeOperation;/,
     "the renderer must consume the rarity-specific blend mode instead of flattening rare art additively",
   );
@@ -9049,7 +9381,12 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
   assert.match(pillarRenderer, /context\.imageSmoothingQuality = "high";/);
   assert.match(
     pillarRenderer,
-    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - rarityVfx\.pillarWidth \/ 2,\s*[\s\S]{0,220}?drop\.y \+\s*rarityVfx\.pillarGroundOffsetPx\s*-\s*rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*rarityVfx\.pillarWidth,\s*rarityVfx\.pillarHeight,/,
+    /context\.drawImage\(\s*pillarVfxImage,\s*pillarFrame \* sourceWidth,\s*0,\s*sourceWidth,\s*sourceHeight,\s*drop\.x - pillarRenderWidth \/ 2,\s*[\s\S]{0,220}?drop\.y \+\s*rarityVfx\.pillarGroundOffsetPx\s*-\s*rarityVfx\.pillarHeight \* rarityVfx\.pillarGroundAnchor,\s*pillarRenderWidth,\s*rarityVfx\.pillarHeight,/,
+  );
+  assert.doesNotMatch(
+    configSource,
+    /pillarWidth\s*:/,
+    "rarity configs must not reintroduce an independent stretched pillar width",
   );
   assert.match(
     source,
@@ -9306,6 +9643,16 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
     "an explicit memory-only prop must win, and the query fallback must stay local",
   );
   assert.match(source, /lootVfxShowcaseMode === "all"\s*\? EQUIPMENT_RARITIES/);
+  assert.match(
+    source,
+    /const localDeathUiShowcase\s*=\s*isLocalVfxShowcase\s*&&\s*isLocalRarityShowcaseHost\(\)\s*&&[\s\S]{0,120}?get\("deathUiShowcase"\) === "1"/,
+    "death-screen visual QA must remain localhost-only and reuse the save-free showcase path",
+  );
+  assert.match(
+    source,
+    /if \(localDeathUiShowcase\) setGameMode\("dead"\);\s*else setGameMode\("playing"\);/,
+    "the local showcase must render the production death modal without mutating a save",
+  );
 
   assert.match(entrySource, /const LOCAL_VFX_SHOWCASE_HOSTS = \[[\s\S]{0,120}?"localhost"[\s\S]{0,120}?"\[::1\]"/);
   assert.match(
@@ -9848,7 +10195,6 @@ test("tight inventory chrome and control assets keep safe alpha margins and indi
     ["inventory-chrome/neutral-badge.png", ".inventory-screen-grid-delta--neutral::before"],
     ["inventory-chrome/primary-button.png", ".inventory-screen-equip-button::before"],
     ["inventory-chrome/destructive-button.png", ".inventory-screen-salvage-button::before"],
-    ["inventory-chrome/tooltip-panel.png", ".inventory-screen-tooltip::before"],
     ["inventory-controls/multi-select.png", ".inventory-screen-batch-mode-button::after"],
     ["inventory-controls/close.png", ".inventory-screen-close"],
     ["inventory-controls/selected-corners.png", ".inventory-screen-item--selected"],

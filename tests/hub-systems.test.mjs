@@ -314,22 +314,28 @@ test("hub protocol strips coordinate authority and allowlists every visual field
 
 test("public plaza equipment is canonical, ten-slot, and strips private gear fields", async () => {
   const { equipment, protocol } = await importPlazaModules();
-  const weapon = equipment.rollGear("hub-public-weapon", {
+  let weapon = equipment.rollGear("hub-public-weapon", {
     slot: "weapon",
     rarity: "legendary",
     level: 72,
   });
-  weapon.enhancement = 5;
+  for (const roll of [0, 0.24, 0.51, 0.76, 0.999]) {
+    const enhanced = equipment.applySuccessfulGearEnhancement(weapon, roll);
+    assert.ok(enhanced, "the fixture must remain eligible for five canonical enhancements");
+    weapon = enhanced.item;
+  }
   const loadout = equipment.createEmptyEquipment();
   loadout.weapon = weapon;
   const publicEquipment = protocol.hubPublicEquipmentFromLoadout(loadout);
   assert.deepEqual(Object.keys(publicEquipment).sort(), [...equipment.EQUIPMENT_SLOTS].sort());
   assert.deepEqual(Object.keys(publicEquipment.weapon).sort(), [
-    "affixes", "baseName", "enhancement", "level", "rarity", "slot",
+    "affixes", "baseName", "enhancement", "enhancementRanks", "level", "rarity", "slot",
   ]);
+  assert.deepEqual(publicEquipment.weapon.enhancementRanks, weapon.enhancementRanks);
   assert.equal("id" in publicEquipment.weapon, false);
   assert.equal("powerScore" in publicEquipment.weapon, false);
   assert.equal("displayName" in publicEquipment.weapon, false);
+  assert.equal("legendaryPowerId" in publicEquipment.weapon, false);
   assert.equal("label" in publicEquipment.weapon.affixes[0], false);
 
   const forged = structuredClone(publicEquipment);
@@ -340,7 +346,51 @@ test("public plaza equipment is canonical, ten-slot, and strips private gear fie
   assert.equal("id" in normalized.weapon, false);
   assert.equal("css" in normalized.weapon, false);
   assert.equal("label" in normalized.weapon.affixes[0], false);
-  assert.equal(protocol.hubPublicEquipmentToLoadout(normalized).weapon.enhancement, 5);
+  const roundTripWeapon = protocol.hubPublicEquipmentToLoadout(normalized).weapon;
+  assert.ok(roundTripWeapon);
+  assert.equal(roundTripWeapon.enhancement, 5);
+  assert.deepEqual(roundTripWeapon.enhancementRanks, weapon.enhancementRanks);
+  assert.deepEqual(
+    equipment.resolveGearItemStats(roundTripWeapon),
+    equipment.resolveGearItemStats(weapon),
+    "public enhancement ranks must reproduce the exact combat stats",
+  );
+  assert.equal(
+    roundTripWeapon.powerScore,
+    weapon.powerScore,
+    "public equipment must regenerate the same canonical power score",
+  );
+
+  const localLegacyWeapon = structuredClone(weapon);
+  delete localLegacyWeapon.enhancementRanks;
+  localLegacyWeapon.powerScore = -1;
+  const migratedLocalWeapon = equipment.normalizeGearItem(localLegacyWeapon);
+  const legacyPublicEquipment = structuredClone(publicEquipment);
+  delete legacyPublicEquipment.weapon.enhancementRanks;
+  const migratedPublicWeapon = protocol.hubPublicEquipmentToLoadout(
+    protocol.normalizeHubPublicEquipment(legacyPublicEquipment),
+  ).weapon;
+  assert.ok(migratedLocalWeapon && migratedPublicWeapon);
+  assert.deepEqual(
+    migratedPublicWeapon.enhancementRanks,
+    migratedLocalWeapon.enhancementRanks,
+    "legacy public and local +N gear must receive the same deterministic allocation",
+  );
+
+  for (const malformedRanks of [
+    weapon.enhancementRanks.slice(1),
+    weapon.enhancementRanks.map((rank, index) => rank + (index === 0 ? 1 : 0)),
+    weapon.enhancementRanks.map((rank, index) => (index === 0 ? -1 : rank)),
+    weapon.enhancementRanks.map((rank, index) => (index === 0 ? rank + 0.5 : rank)),
+  ]) {
+    const malformed = structuredClone(publicEquipment);
+    malformed.weapon.enhancementRanks = malformedRanks;
+    assert.equal(
+      protocol.normalizeHubPublicEquipment(malformed).weapon,
+      null,
+      "malformed public enhancement ranks must be rejected",
+    );
+  }
 
   forged.weapon.baseName = "not-a-real-weapon";
   assert.equal(protocol.normalizeHubPublicEquipment(forged).weapon, null);

@@ -39,7 +39,17 @@ test("the plaza binds selected save visuals and keeps floor claims inside charac
   assert.match(flow, /savedCharacter\?\.world\?\.dungeonFloor/);
   assert.match(flow, /dungeonFloor,/);
   assert.match(flow, /dungeonFloor: self\?\.dungeonFloor \?\? dungeonFloor/);
-  assert.match(flow, /appearance: hubAppearance/);
+  assert.match(flow, /appearance: publishedProfile\.appearance/);
+  assert.match(
+    flow,
+    /getMemoryPlazaClient\(\)\.updateAppearance\(\s*hubAppearance,\s*level,\s*dungeonFloor,\s*publicEquipment/,
+    "equipment profile changes must patch the live plaza session",
+  );
+  assert.match(
+    flow,
+    /\}, \[arrival, displayName, selection, view\]\);/,
+    "equipment profile changes must not tear down and recreate the plaza session",
+  );
   assert.match(flow, /snapshot\.nearbyPlayers|hubSnapshot\?\.nearbyPlayers/);
   assert.match(flow, /localAuthoritativePosition=/);
   assert.match(flow, /getMemoryPlazaClient\(\)\.setMoveIntent/);
@@ -142,7 +152,7 @@ test("the town caravan reuses the account entitlement safety contract", async ()
   assert.match(plaza, /inert=\{paused\}/);
 });
 
-test("I opens a read-only inventory for the selected plaza character", async () => {
+test("I opens the selected plaza character inventory in manage mode", async () => {
   const [flow, plaza] = await Promise.all([
     source("app/GameEntryFlow.tsx"),
     source("app/PlazaHub.tsx"),
@@ -163,15 +173,15 @@ test("I opens a read-only inventory for the selected plaza character", async () 
   assert.match(flow, /calculateEquipmentCombatPower\(equipment\)/);
   assert.match(
     flow,
-    /\{inventoryOpen && \(\s*<InventoryOverlay\s+open\s+readOnly/,
+    /\{inventoryOpen && \(\s*<InventoryOverlay\s+open\s+equipment=/,
     "the plaza must mount the production inventory surface only while it is open",
   );
   const overlayProps = flow.match(/<InventoryOverlay([\s\S]*?)\/>/);
   assert.ok(overlayProps, "the plaza inventory component must be rendered");
-  assert.match(
+  assert.doesNotMatch(
     overlayProps[1],
     /\breadOnly\b/,
-    "the plaza must reuse the production inventory surface in inspection mode",
+    "the selected plaza character must open inventory in manage mode",
   );
   assert.match(overlayProps[1], /equipment=\{equipment\}/);
   assert.match(overlayProps[1], /inventory=\{inventory\}/);
@@ -179,12 +189,52 @@ test("I opens a read-only inventory for the selected plaza character", async () 
   assert.match(overlayProps[1], /selectedGearId=\{selectedGearId\}/);
   assert.match(overlayProps[1], /memoryAsh=\{memoryAsh\}/);
   assert.match(overlayProps[1], /equippedPower=\{equippedPower\}/);
+  assert.match(
+    overlayProps[1],
+    /autoSalvageMaxRarity=\{autoSalvageMaxRarity\}/,
+  );
+  assert.match(overlayProps[1], /operationNotice=\{plazaInventoryNotice\}/);
+
+  for (const prop of [
+    "onEquip",
+    "onUnequip",
+    "onSalvage",
+    "onSalvageMany",
+    "onAutoSalvageMaxRarityChange",
+    "onEnhance",
+    "onDivineForgeReroll",
+  ]) {
+    assert.match(
+      overlayProps[1],
+      new RegExp(`\\b${prop}=\\{[A-Za-z_$][\\w$]*\\}`),
+      `${prop} must use a concrete save-backed plaza callback`,
+    );
+  }
+  assert.doesNotMatch(
+    overlayProps[1],
+    /\b(?:onEquip|onUnequip|onEnhance|onSalvage|onSalvageMany|onDivineForgeReroll)=\{\([^)]*\)\s*=>\s*(?:undefined|null)\}/,
+    "plaza inventory callbacks must never be no-op placeholders",
+  );
+
+  assert.match(
+    flow,
+    /const commitPlazaEquipment = useCallback\([\s\S]{0,1200}?writeSaveSlot\(selection\.slot, nextSave\)[\s\S]{0,500}?setSaveRevision\(\(revision\) => revision \+ 1\)/,
+    "plaza equipment mutations must commit to the selected save slot before refreshing the view",
+  );
+  assert.match(
+    flow,
+    /const nextSave: SaveRunPayload = \{[\s\S]{0,420}?expeditionPowerRatingVersion:\s*undefined/,
+    "plaza equipment mutations must invalidate the cached expedition combat rating",
+  );
+  assert.match(flow, /writeAutoSalvagePreference\(selection\.slot, normalized\)/);
+  assert.match(flow, /className="game-confirmation-dialog is-danger"/);
+  assert.doesNotMatch(flow, /window\.(?:alert|confirm|prompt)\s*\(/);
 
   assert.match(plaza, /onInventoryOpen\?: \(\) => void;/);
   assert.match(plaza, /onClick=\{onInventoryOpen\}/);
   assert.match(plaza, /<kbd>I<\/kbd>/);
   assert.match(flow, /onInventoryOpen=\{openInventory\}/);
-  assert.match(flow, /const openInventory = useCallback\([\s\S]{0,180}?setInventoryOpen\(true\)/);
+  assert.match(flow, /const openInventory = useCallback\([\s\S]{0,320}?setInventoryOpen\(true\)/);
   assert.match(flow, /paused=\{shopOpen \|\| inventoryOpen \|\| profileState !== null\}/);
 });
 
@@ -196,11 +246,8 @@ test("plaza inventory keyboard handling is repeat-safe, shop-safe, and bubble-ph
   assert.ok(keyHandlerMatch, "the plaza inventory needs one ordinary window keydown listener");
   const keyHandler = keyHandlerMatch[1];
 
-  assert.match(
-    keyHandler,
-    /(?:shopOpen[\s\S]{0,100}?event\.repeat|event\.repeat[\s\S]{0,100}?shopOpen)/,
-    "shop and repeated key presses must not toggle the plaza inventory",
-  );
+  assert.match(keyHandler, /event\.repeat/, "repeated key presses must be ignored");
+  assert.match(keyHandler, /shopOpen/, "the shop must block inventory toggles");
   assert.match(
     keyHandler,
     /key === ["']i["'][\s\S]{0,220}?setInventoryOpen\(/,
@@ -249,11 +296,27 @@ test("read-only inventory preserves inspection while hiding every mutation surfa
     /\{!readOnly && (?:\(|)\s*<div\s+className=\{`inventory-screen-batch-toolbar/,
     "inspection mode must hide batch and automatic salvage controls",
   );
-  assert.match(
-    overlay,
-    /\{!readOnly && (?:\(|)\s*<div className="inventory-screen-detail-actions-column">[\s\S]{0,6000}?className="inventory-screen-enhancement"[\s\S]{0,6000}?selectedIsEquipped \? \(/,
-    "inspection mode must hide enhancement, equip, unequip, and single-salvage actions together",
+  const guardedDetailActions = overlay.match(
+    /\{!readOnly && \(\s*(<div className="inventory-screen-detail-actions-column">[\s\S]*?<\/div>)\s*\)\}\s*<\/div>\s*<\/div>\s*\)\s*:\s*\(/,
   );
+  assert.ok(
+    guardedDetailActions,
+    "inspection mode must place the entire detail-action column behind one read-only guard",
+  );
+  for (const mutationSurface of [
+    /className="inventory-screen-enhancement"/,
+    /onClick=\{\(\) => onEnhance\(selectedItem\.id\)\}/,
+    /selectedIsEquipped \? \(/,
+    /onClick=\{\(\) => unequipItem\(selectedItem\.slot\)\}/,
+    /onClick=\{\(\) => equipItem\(selectedItem\.id\)\}/,
+    /onClick=\{\(\) => requestSalvageOne\(selectedItem\.id\)\}/,
+  ]) {
+    assert.match(
+      guardedDetailActions[1],
+      mutationSurface,
+      "inspection mode must hide enhancement, equip, unequip, and single-salvage actions together",
+    );
+  }
   assert.match(
     overlay,
     /INVENTORY_SORT_OPTIONS\.map\(\(option\) =>/,

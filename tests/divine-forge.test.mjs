@@ -39,6 +39,21 @@ function gear(equipment, seed, rarity, level, slot = "weapon") {
   return equipment.rollGear(seed, { rarity, level, slot });
 }
 
+function enhanceGear(equipment, item, optionIndices) {
+  return optionIndices.reduce((current, optionIndex) => {
+    const optionCount = current.affixes.length + 1;
+    assert.ok(optionIndex >= 0 && optionIndex < optionCount);
+    const result = equipment.applySuccessfulGearEnhancement(
+      current,
+      (optionIndex + 0.5) / optionCount,
+    );
+    assert.ok(result, `enhancement +${current.enhancement + 1} must succeed`);
+    assert.equal(result.optionIndex, optionIndex);
+    assert.equal(equipment.isGearItem(result.item), true);
+    return result.item;
+  }, item);
+}
+
 function affixSignature(item) {
   return item.affixes
     .map((affix) => `${affix.stat}:${affix.value}:${affix.rollPercent}:${affix.label}`)
@@ -90,9 +105,17 @@ test("materials require the exact rarity, five distinct inventory items, and str
   );
 
   const sorted = forge.sortDivineForgeMaterials([
-    { ...valid[0], level: 70, enhancement: 2, powerScore: 9999 },
-    { ...valid[1], level: 60, enhancement: 4, powerScore: 4000 },
-    { ...valid[2], level: 60, enhancement: 0, powerScore: 5000 },
+    enhanceGear(
+      equipment,
+      gear(equipment, "sort-level-70", "legendary", 70, "weapon"),
+      [0, 1],
+    ),
+    enhanceGear(
+      equipment,
+      gear(equipment, "sort-level-60-enhanced", "legendary", 60, "offhand"),
+      [0, 1, 1, 2],
+    ),
+    gear(equipment, "sort-level-60-base", "legendary", 60, "helm"),
   ]);
   assert.deepEqual(sorted.map((item) => [item.level, item.enhancement]), [[60, 0], [60, 4], [70, 2]]);
 });
@@ -100,11 +123,14 @@ test("materials require the exact rarity, five distinct inventory items, and str
 test("full affix rerolls preserve item identity and canonical high-tier contracts", async () => {
   const { equipment, forge } = await modulesPromise;
   for (const [rarity, expectedAffixes] of [["mythic", 7], ["cosmic", 8]]) {
-    const base = {
-      ...gear(equipment, `${rarity}-reroll-target`, rarity, 88, "relic"),
-      enhancement: 7,
-    };
-    base.powerScore = equipment.calculateGearPowerScore(base);
+    const rolledBase = gear(equipment, `${rarity}-reroll-target`, rarity, 88, "relic");
+    const lastOptionIndex = rolledBase.affixes.length;
+    const base = enhanceGear(
+      equipment,
+      rolledBase,
+      [0, 0, 1, 2, 2, lastOptionIndex, lastOptionIndex],
+    );
+    const enhancementRanksBefore = [...base.enhancementRanks];
     const first = forge.rerollDivineForgeItem(base, `${rarity}-forge-seed`);
     const repeated = forge.rerollDivineForgeItem(base, `${rarity}-forge-seed`);
 
@@ -115,6 +141,12 @@ test("full affix rerolls preserve item identity and canonical high-tier contract
     for (const field of ["id", "slot", "rarity", "level", "baseName", "displayName", "iconIndex", "legendaryPowerId", "enhancement"]) {
       assert.equal(first[field], base[field], `${field} must survive a forge reroll`);
     }
+    assert.deepEqual(
+      first.enhancementRanks,
+      enhancementRanksBefore,
+      "the rank attached to each visible option position must survive a forge reroll",
+    );
+    assert.equal(first.enhancementRanks.reduce((sum, rank) => sum + rank, 0), first.enhancement);
     assert.equal(first.divineForgeRerolls, 1);
     assert.equal(first.qualityScore, equipment.calculateGearQualityScore(first.affixes));
     assert.equal(first.powerScore, equipment.calculateGearPowerScore(first));
@@ -135,6 +167,7 @@ test("pure transactions atomically consume exact donors for inventory and equipp
   const unrelated = gear(equipment, "transaction-unrelated", "legendary", 20, "relic");
   const inventory = [mythicTarget, ...legendaryDonors, unrelated];
   const loadout = equipment.createEmptyEquipment();
+  assert.ok(inventory.every((item) => equipment.isGearItem(item)));
   const inventoryBefore = structuredClone(inventory);
   const loadoutBefore = structuredClone(loadout);
   const mythicTransaction = forge.applyDivineForgeTransaction({
@@ -162,16 +195,21 @@ test("pure transactions atomically consume exact donors for inventory and equipp
   const forgedMythic = mythicTransaction.inventory.find((item) => item.id === mythicTarget.id);
   assert.ok(forgedMythic);
   assert.equal(forgedMythic.divineForgeRerolls, 1);
+  assert.deepEqual(forgedMythic.enhancementRanks, mythicTarget.enhancementRanks);
+  assert.equal(equipment.isGearItem(forgedMythic), true);
   assert.notEqual(affixSignature(forgedMythic), affixSignature(mythicTarget));
 
-  const cosmicTarget = {
-    ...gear(equipment, "transaction-cosmic", "cosmic", 30, "relic"),
-    enhancement: 4,
-  };
-  cosmicTarget.powerScore = equipment.calculateGearPowerScore(cosmicTarget);
+  const cosmicTarget = enhanceGear(
+    equipment,
+    gear(equipment, "transaction-cosmic", "cosmic", 30, "relic"),
+    [0, 2, 2, 7],
+  );
+  const cosmicRanksBefore = [...cosmicTarget.enhancementRanks];
   const mythicDonors = Array.from({ length: 5 }, (_, index) =>
     gear(equipment, `transaction-mythic-donor-${index}`, "mythic", 31 + index, equipment.EQUIPMENT_SLOTS[index]),
   );
+  assert.equal(equipment.isGearItem(cosmicTarget), true);
+  assert.ok(mythicDonors.every((item) => equipment.isGearItem(item)));
   const equippedLoadout = equipment.createEmptyEquipment();
   equippedLoadout.relic = cosmicTarget;
   const equippedBefore = structuredClone(equippedLoadout);
@@ -193,7 +231,10 @@ test("pure transactions atomically consume exact donors for inventory and equipp
   assert.deepEqual(mythicDonors, donorsBefore);
   assert.equal(cosmicTransaction.equipment.relic.id, cosmicTarget.id);
   assert.equal(cosmicTransaction.equipment.relic.enhancement, 4);
+  assert.deepEqual(cosmicTransaction.equipment.relic.enhancementRanks, cosmicRanksBefore);
   assert.equal(cosmicTransaction.equipment.relic.divineForgeRerolls, 1);
+  assert.equal(cosmicTransaction.equipment.relic.powerScore, equipment.calculateGearPowerScore(cosmicTransaction.equipment.relic));
+  assert.equal(equipment.isGearItem(cosmicTransaction.equipment.relic), true);
   assert.notEqual(cosmicTransaction.equipment.relic, cosmicTarget);
 
   const restored = equipment.reconcileEquipmentLevelRequirements(
@@ -202,6 +243,8 @@ test("pure transactions atomically consume exact donors for inventory and equipp
     JSON.parse(JSON.stringify(cosmicTransaction.inventory)),
   );
   assert.equal(restored.equipment.relic.divineForgeRerolls, 1);
+  assert.deepEqual(restored.equipment.relic.enhancementRanks, cosmicRanksBefore);
+  assert.equal(equipment.isGearItem(restored.equipment.relic), true);
 
   const invalidSix = forge.applyDivineForgeTransaction({
     inventory,
@@ -245,9 +288,12 @@ test("reroll count migrates legacy saves and hard-stops each item after three us
 });
 
 test("runtime transaction and inventory UI keep costs atomic and use generated forge chrome", async () => {
-  const gameCanvas = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
-  const inventoryOverlay = await readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8");
-  const css = await readFile(path.join(root, "app/game.css"), "utf8");
+  const [gameCanvas, plazaFlow, inventoryOverlay, css] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+  ]);
 
   assert.match(gameCanvas, /applyDivineForgeTransaction\(\{[\s\S]{0,500}?materialIds,[\s\S]{0,200}?seed:/);
   assert.match(gameCanvas, /if \(!transaction\.ok\)[\s\S]{0,900}?return null;/);
@@ -256,6 +302,9 @@ test("runtime transaction and inventory UI keep costs atomic and use generated f
   assert.match(gameCanvas, /player\.equipment = transaction\.equipment/);
   assert.match(gameCanvas, /previousMaxHp[\s\S]{0,1200}?aggregateEquipmentStats\(player\.equipment\)\.maxHpFlat/);
   assert.match(gameCanvas, /onDivineForgeReroll=\{performDivineForgeReroll\}/);
+  assert.match(plazaFlow, /applyDivineForgeTransaction\(\{[\s\S]{0,500}?materialIds,[\s\S]{0,200}?seed:/);
+  assert.match(plazaFlow, /onDivineForgeReroll=\{rerollPlazaDivineForge\}/);
+  assert.doesNotMatch(plazaFlow, /onDivineForgeReroll=\{\(\) => null\}/);
 
   assert.match(inventoryOverlay, /sortDivineForgeMaterials\([\s\S]{0,160}?inventory\.filter/);
   assert.match(inventoryOverlay, /eligibleMaterials\.slice\(0, rule\.materialCount\)/);

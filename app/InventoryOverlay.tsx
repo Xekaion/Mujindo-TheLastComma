@@ -20,10 +20,10 @@ import {
   GEAR_RARITIES,
   GEAR_ICON_COLUMNS,
   GEAR_ICON_ROWS,
-  GEAR_ENHANCEMENT_EFFECT_PER_STAGE,
   GEAR_RARITY_META,
   LEGENDARY_POWERS,
   MAX_GEAR_ENHANCEMENT,
+  applySuccessfulGearEnhancement,
   canEquipGearAtLevel,
   calculateEquipmentPowerDelta,
   formatCompactGearLabel,
@@ -86,6 +86,7 @@ export type InventoryOverlayProps = {
   onAutoSalvageMaxRarityChange: (threshold: AutoSalvageThreshold) => void;
   onGrantRarityShowcase?: () => void;
   memoryAsh: number;
+  operationNotice?: string | null;
   onEnhance: (gearId: string) => void;
   onDivineForgeReroll: (
     gearId: string,
@@ -1002,6 +1003,7 @@ export default function InventoryOverlay({
   onAutoSalvageMaxRarityChange,
   onGrantRarityShowcase,
   memoryAsh,
+  operationNotice = null,
   onEnhance,
   onDivineForgeReroll,
   onGrantDivineForgeShowcase,
@@ -1142,24 +1144,32 @@ export default function InventoryOverlay({
   const enhancementRule = selectedItem
     ? getGearEnhancementRule(selectedItem)
     : null;
-  const enhancementEfficiencyPercent = selectedItem
-    ? (GEAR_ENHANCEMENT_EFFECT_PER_STAGE[selectedItem.rarity] * 100).toFixed(2)
-    : "0.00";
   const selectedImplicitDisplay = selectedItem
     ? getGearImplicitDisplay(selectedItem)
     : null;
   const equipmentWithSelectedItem: EquipmentLoadout = selectedItem
     ? { ...equipment, [selectedItem.slot]: selectedItem }
     : equipment;
-  const enhancementPowerGain = selectedItem && enhancementRule
-    ? Math.max(
-        0,
-        calculateEquipmentPowerDelta(equipmentWithSelectedItem, {
-          ...selectedItem,
-          enhancement: enhancementRule.target,
-        }),
-      )
+  const enhancementOptionPreviews = selectedItem && enhancementRule
+    ? Array.from({ length: selectedItem.affixes.length + 1 }, (_, index) =>
+        applySuccessfulGearEnhancement(
+          selectedItem,
+          (index + 0.5) / (selectedItem.affixes.length + 1),
+        ),
+      ).flatMap((result) => (result ? [result] : []))
+    : [];
+  const enhancementPowerGains = enhancementOptionPreviews.map(({ item }) =>
+    Math.max(0, calculateEquipmentPowerDelta(equipmentWithSelectedItem, item)),
+  );
+  const minimumEnhancementPowerGain = enhancementPowerGains.length > 0
+    ? Math.min(...enhancementPowerGains)
     : 0;
+  const maximumEnhancementPowerGain = enhancementPowerGains.length > 0
+    ? Math.max(...enhancementPowerGains)
+    : 0;
+  const enhancementPowerGainLabel = minimumEnhancementPowerGain === maximumEnhancementPowerGain
+    ? `+${minimumEnhancementPowerGain.toLocaleString("ko-KR")}`
+    : `+${minimumEnhancementPowerGain.toLocaleString("ko-KR")}~+${maximumEnhancementPowerGain.toLocaleString("ko-KR")}`;
   const canAffordEnhancement = enhancementRule
     ? memoryAsh >= enhancementRule.ashCost
     : false;
@@ -1686,17 +1696,27 @@ export default function InventoryOverlay({
                                   <i aria-hidden="true">→</i>
                                   <span>목표 <b>+{enhancementRule.target}</b></span>
                                   <em>
-                                    단계마다 기본 옵션 수치의 {enhancementEfficiencyPercent}% 추가
+                                    성공 시 {selectedItem.affixes.length + 1}개 옵션 중 1개 균등 선택 · 중복 가능
                                   </em>
                                 </div>
                                 <div className="inventory-screen-enhancement-affix-gains">
-                                  <strong>이번 단계 증가</strong>
+                                  <strong>당첨 후보 · 각 1/{selectedItem.affixes.length + 1}</strong>
                                   <ul>
                                     <li>
                                       <span>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.totalLabel) : ""}</span>
                                       <em>{selectedImplicitDisplay ? formatCompactGearLabel(selectedImplicitDisplay.nextStageGainLabel) : ""}</em>
                                     </li>
+                                    {selectedItem.affixes.map((affix) => {
+                                      const display = getGearAffixDisplay(affix, selectedItem);
+                                      return (
+                                        <li key={affix.stat}>
+                                          <span>{formatCompactGearLabel(display.totalLabel)}</span>
+                                          <em>{formatCompactGearLabel(display.nextStageGainLabel)}</em>
+                                        </li>
+                                      );
+                                    })}
                                   </ul>
+                                  <small>원래 옵션 수치는 유지되며, 당첨된 옵션 줄에 강화 횟수가 누적됩니다.</small>
                                 </div>
                                 <dl className="inventory-screen-enhancement-rates">
                                   <div className="inventory-screen-enhancement-rate--cost">
@@ -1744,7 +1764,7 @@ export default function InventoryOverlay({
                             >
                               +{enhancementRule.target} 강화
                               <small>
-                                장착 보스 전투력 +{enhancementPowerGain.toLocaleString("ko-KR")} · 재 {enhancementRule.ashCost.toLocaleString("ko-KR")}
+                                장착 보스 전투력 {enhancementPowerGainLabel} · 재 {enhancementRule.ashCost.toLocaleString("ko-KR")}
                               </small>
                             </button>
                           )}
@@ -2053,6 +2073,17 @@ export default function InventoryOverlay({
           <span><kbd>I</kbd> 또는 <kbd>ESC</kbd> 닫기</span>
         </footer>
       </div>
+
+      {operationNotice && (
+        <div
+          className="inventory-screen-operation-notice"
+          role="status"
+          aria-live="polite"
+        >
+          <span aria-hidden="true">✦</span>
+          <p>{operationNotice}</p>
+        </div>
+      )}
 
       {!readOnly && salvageConfirmationOpen && (
         <div

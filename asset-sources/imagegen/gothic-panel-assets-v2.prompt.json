@@ -1,0 +1,33 @@
+{
+  "asset": "gothic-panel-assets-v2",
+  "generator": "OpenAI built-in image_gen",
+  "useCase": "stylized-concept and precise-object-edit",
+  "referenceImages": [
+    "asset-sources/imagegen/gothic-panel-assets-v2-problem-reference.png"
+  ],
+  "draft": {
+    "source": "asset-sources/imagegen/gothic-modal-frame-v2-source.png",
+    "keyed": "asset-sources/imagegen/gothic-modal-frame-v2-keyed.png",
+    "prompt": "Create a large square, front-facing premium gothic action-RPG memorial panel with crisp blackened bronze, restrained oxblood enamel, a quiet charcoal center, complete symmetric corners, and a perfectly flat #00ff00 chroma-key exterior. Keep the central 68% clear, make the edges 9-slice aware, and include no text, logo, watermark, perspective, blur, or cast shadow."
+  },
+  "modalPlate": {
+    "source": "asset-sources/imagegen/gothic-modal-panel-v2-source.png",
+    "keyed": "asset-sources/imagegen/gothic-modal-panel-v2-keyed.png",
+    "output": "public/assets/ui/gothic-modal-panel-v2.png",
+    "prompt": "Recompose the approved square frame as a genuinely authored landscape 3:2 modal plate. Preserve the black iron, aged bronze, restrained oxblood, sharp engraving, and dense charcoal center texture. Keep all corners visible, central 72% clear, outside perfectly uniform #00ff00, and do not stretch the square reference. No text, logo, watermark, character, perspective, blur, or external shadow."
+  },
+  "modularFrame": {
+    "source": "asset-sources/imagegen/gothic-nine-slice-frame-v2-source.png",
+    "keyed": "asset-sources/imagegen/gothic-nine-slice-frame-v2-keyed.png",
+    "output": "public/assets/ui/gothic-nine-slice-frame-v2.png",
+    "prompt": "Convert the approved square frame into a true modular 9-slice border: remove all midpoint crests, jewels, and the entire interior plate; reconnect every edge as a straight continuous low-detail engraved rail; retain only four complete decorated corners; make every non-frame pixel perfectly uniform #00ff00. Preserve material style and crisp detail. No text, logo, watermark, perspective, blur, interior fill, or outside shadow."
+  },
+  "productionBuilder": "scripts/build_gothic_panel_assets_v2.py",
+  "constraints": {
+    "noAxisDistortion": true,
+    "modalAspectRatio": "3:2",
+    "nineSliceCenterTransparent": true,
+    "nineSliceCornerDecorationOnly": true,
+    "chromaKey": "#00ff00"
+  }
+}

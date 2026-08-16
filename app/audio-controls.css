@@ -16,7 +16,7 @@
 .audio-dock__panel {
   pointer-events: auto;
   border: 14px solid transparent;
-  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 14px / 0 stretch;
+  border-image: url("/assets/ui/gothic-nine-slice-frame-v2.png") 16% / 14px / 0 round;
   background:
     linear-gradient(135deg, rgba(31, 28, 24, 0.96), rgba(7, 11, 12, 0.98)),
     #080b0c;

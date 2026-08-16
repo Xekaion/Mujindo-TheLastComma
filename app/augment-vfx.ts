@@ -62,6 +62,8 @@ export type GameplayVfxId =
   | `legendary:${LegendaryVfxId}`
   | `projectile:${ProjectileVfxAffinity}`;
 
+export type GameplayVfxBeamMode = "three-slice" | "tile";
+
 export type GameplayVfxDefinition = Readonly<{
   assetPath: string;
   columns: number;
@@ -70,6 +72,8 @@ export type GameplayVfxDefinition = Readonly<{
   anchorY: number;
   scale: number;
   blendMode: GlobalCompositeOperation;
+  /** Preserve authored proportions when a frame connects two world points. */
+  beamMode?: GameplayVfxBeamMode;
 }>;
 
 const makeDefinition = (
@@ -77,7 +81,13 @@ const makeDefinition = (
   options: Partial<
     Pick<
       GameplayVfxDefinition,
-      "columns" | "rows" | "frames" | "anchorY" | "scale" | "blendMode"
+      | "columns"
+      | "rows"
+      | "frames"
+      | "anchorY"
+      | "scale"
+      | "blendMode"
+      | "beamMode"
     >
   > = {},
 ): GameplayVfxDefinition => ({
@@ -88,13 +98,20 @@ const makeDefinition = (
   anchorY: options.anchorY ?? 0.5,
   scale: options.scale ?? 1,
   blendMode: options.blendMode ?? "lighter",
+  beamMode: options.beamMode,
 });
 
 const augmentEntries = EFFECT_PRODUCING_AUGMENT_IDS.map(
   (id) =>
     [
       `augment:${id}`,
-      makeDefinition(`/assets/effects/augments/${id}-v1.png`),
+      makeDefinition(`/assets/effects/augments/${id}-v1.png`, {
+        // Storm frames already contain authored end bursts and a repeatable
+        // lightning core. Ricochet frames are square crests, so repeating the
+        // complete cell is preferable to flattening one crest into a beam.
+        beamMode:
+          id === "storm" ? "three-slice" : id === "ricochet" ? "tile" : undefined,
+      }),
     ] as const,
 );
 
@@ -225,6 +242,153 @@ export function gameplayVfxFrameInterpolation(
   };
 }
 
+export type DrawHorizontalAtlasCellOptions = Readonly<{
+  sourceX: number;
+  sourceY: number;
+  sourceWidth: number;
+  sourceHeight: number;
+  destinationX: number;
+  destinationY: number;
+  destinationLength: number;
+  destinationHeight: number;
+  sourceCapWidth?: number;
+}>;
+
+const validHorizontalAtlasCell = (
+  options: DrawHorizontalAtlasCellOptions,
+): boolean =>
+  [
+    options.sourceX,
+    options.sourceY,
+    options.sourceWidth,
+    options.sourceHeight,
+    options.destinationX,
+    options.destinationY,
+    options.destinationLength,
+    options.destinationHeight,
+  ].every(Number.isFinite) &&
+  options.sourceWidth > 0 &&
+  options.sourceHeight > 0 &&
+  options.destinationLength > 0 &&
+  options.destinationHeight > 0;
+
+/**
+ * Draw a horizontal atlas cell without changing its authored scale on either
+ * axis. The end caps keep their silhouettes and only the uniformly scaled
+ * centre strip repeats to cover the requested world-space length.
+ */
+export function drawHorizontalThreeSliceAtlasCell(
+  context: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  options: DrawHorizontalAtlasCellOptions,
+): boolean {
+  if (!validHorizontalAtlasCell(options)) return false;
+  const requestedCapWidth = Number.isFinite(options.sourceCapWidth)
+    ? options.sourceCapWidth!
+    : options.sourceWidth / 4;
+  const sourceCapWidth = Math.max(
+    1,
+    Math.min(options.sourceWidth / 2, requestedCapWidth),
+  );
+  // Very short links shrink uniformly until both caps fit. Normal chains retain
+  // the requested height and repeat the authored centre instead.
+  const scale = Math.min(
+    options.destinationHeight / options.sourceHeight,
+    options.destinationLength / (sourceCapWidth * 2),
+  );
+  if (!Number.isFinite(scale) || scale <= 0) return false;
+  const drawHeight = options.sourceHeight * scale;
+  const destinationY =
+    options.destinationY + (options.destinationHeight - drawHeight) / 2;
+  const capWidth = sourceCapWidth * scale;
+  const middleSourceWidth = options.sourceWidth - sourceCapWidth * 2;
+  const middleTileWidth = middleSourceWidth * scale;
+
+  context.drawImage(
+    image,
+    options.sourceX,
+    options.sourceY,
+    sourceCapWidth,
+    options.sourceHeight,
+    options.destinationX,
+    destinationY,
+    capWidth,
+    drawHeight,
+  );
+  let destinationX = options.destinationX + capWidth;
+  const middleEndX = options.destinationX + options.destinationLength - capWidth;
+  if (middleSourceWidth > 0 && middleTileWidth > 0) {
+    while (destinationX < middleEndX - 0.01) {
+      const tileWidth = Math.min(middleTileWidth, middleEndX - destinationX);
+      const tileSourceWidth = tileWidth / scale;
+      context.drawImage(
+        image,
+        options.sourceX + sourceCapWidth,
+        options.sourceY,
+        tileSourceWidth,
+        options.sourceHeight,
+        destinationX,
+        destinationY,
+        tileWidth,
+        drawHeight,
+      );
+      destinationX += tileWidth;
+    }
+  }
+  context.drawImage(
+    image,
+    options.sourceX + options.sourceWidth - sourceCapWidth,
+    options.sourceY,
+    sourceCapWidth,
+    options.sourceHeight,
+    options.destinationX + options.destinationLength - capWidth,
+    destinationY,
+    capWidth,
+    drawHeight,
+  );
+  return true;
+}
+
+/**
+ * Repeat a complete atlas cell at uniform scale. A final partial tile crops its
+ * source by the same ratio instead of horizontally squeezing the artwork.
+ */
+export function drawHorizontalTiledAtlasCell(
+  context: CanvasRenderingContext2D,
+  image: CanvasImageSource,
+  options: DrawHorizontalAtlasCellOptions,
+): boolean {
+  if (!validHorizontalAtlasCell(options)) return false;
+  const scale = Math.min(
+    options.destinationHeight / options.sourceHeight,
+    options.destinationLength / options.sourceWidth,
+  );
+  if (!Number.isFinite(scale) || scale <= 0) return false;
+  const drawHeight = options.sourceHeight * scale;
+  const tileWidth = options.sourceWidth * scale;
+  const destinationY =
+    options.destinationY + (options.destinationHeight - drawHeight) / 2;
+  let destinationX = options.destinationX;
+  const destinationEndX = options.destinationX + options.destinationLength;
+  while (destinationX < destinationEndX - 0.01) {
+    const drawWidth = Math.min(tileWidth, destinationEndX - destinationX);
+    const sourceWidth = drawWidth / scale;
+    context.drawImage(
+      image,
+      options.sourceX,
+      options.sourceY,
+      sourceWidth,
+      options.sourceHeight,
+      destinationX,
+      destinationY,
+      drawWidth,
+      drawHeight,
+    );
+    destinationX += drawWidth;
+  }
+  return true;
+}
+
 /** Draw an authored VFX sprite sheet. Returns false until it is loadable. */
 export function drawGameplayVfxFrame(
   context: CanvasRenderingContext2D,
@@ -274,17 +438,37 @@ export function drawGameplayVfxFrame(
     const column = frame % definition.columns;
     const row = Math.floor(frame / definition.columns);
     context.globalAlpha = baseAlpha * alpha;
-    context.drawImage(
-      image,
-      column * sourceWidth,
-      row * sourceHeight,
-      sourceWidth,
-      sourceHeight,
-      -drawWidth / 2,
-      -drawHeight * definition.anchorY,
-      drawWidth,
-      drawHeight,
-    );
+    if (hasBeamTarget) {
+      const beamOptions = {
+        sourceX: column * sourceWidth,
+        sourceY: row * sourceHeight,
+        sourceWidth,
+        sourceHeight,
+        destinationX: -drawWidth / 2,
+        destinationY: -drawHeight * definition.anchorY,
+        destinationLength: drawWidth,
+        destinationHeight: drawHeight,
+      };
+      if (definition.beamMode === "three-slice") {
+        drawHorizontalThreeSliceAtlasCell(context, image, beamOptions);
+      } else {
+        // A beam target is never permission to flatten a square sprite. Effects
+        // without authored end caps repeat complete uniformly scaled cells.
+        drawHorizontalTiledAtlasCell(context, image, beamOptions);
+      }
+    } else {
+      context.drawImage(
+        image,
+        column * sourceWidth,
+        row * sourceHeight,
+        sourceWidth,
+        sourceHeight,
+        -drawWidth / 2,
+        -drawHeight * definition.anchorY,
+        drawWidth,
+        drawHeight,
+      );
+    }
   };
   if (
     options.interpolateFrames &&

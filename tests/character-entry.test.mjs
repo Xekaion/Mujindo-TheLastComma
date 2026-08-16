@@ -16,9 +16,16 @@ test("the root route requires an explicit three-slot character selection", async
   assert.doesNotMatch(page, /<GameCanvas\s*\/>/);
   assert.match(gate, /SAVE_SLOT_IDS\.map\(\(slot, index\) =>/);
   assert.match(gate, /aria-label="캐릭터 저장 슬롯"/);
-  assert.match(gate, /onEnter\(\{ slot: selectedSlot, occupied: selectedSummary !== null \}\)/);
+  assert.match(gate, /const selectedSave = readSaveSlot\(selectedSlot\);/);
+  assert.match(gate, /occupied: selectedSave !== null,[\s\S]{0,80}?save: selectedSave/);
+  assert.match(
+    gate,
+    /onDoubleClick[\s\S]*?const selectedSave = readSaveSlot\(slot\);[\s\S]*?occupied: selectedSave !== null,[\s\S]{0,80}?save: selectedSave/,
+    "double-click entry must pass the same save snapshot as the confirm button",
+  );
   assert.match(flow, /selection === null[\s\S]*?<CharacterEntryGate[\s\S]*?onEnter=\{enterCharacter\}/);
   assert.match(flow, /data-entry-save-slot=\{selection\.slot\}/);
+  assert.match(flow, /if \(saveRevision === 0 && selection\.save\) return selection\.save;/);
 });
 
 test("character selection preserves migration and isolates destructive slot actions", async () => {
@@ -60,7 +67,7 @@ test("character selection exposes protected recovery cards and restores before e
   );
   assert.match(
     gate,
-    /if \(!restoreRecovery\(selectedRecovery\)\) return;\s*writeActiveSaveSlot\(selectedSlot\);\s*onEnter\(\{ slot: selectedSlot, occupied: true \}\);/,
+    /if \(!restoreRecovery\(selectedRecovery\)\) return;\s*writeActiveSaveSlot\(selectedSlot\);\s*const restoredSave = readSaveSlot\(selectedSlot\);\s*if \(!restoredSave\) return;\s*onEnter\(\{ slot: selectedSlot, occupied: true, save: restoredSave \}\);/,
     "entry must occur only after the byte-preserving restore succeeds",
   );
   assert.match(gate, /보호본 복구 후 입장/);

@@ -8,6 +8,7 @@ import {
   migrateLegacySave,
   readActiveSaveSlot,
   readSaveRecoveryCandidates,
+  readSaveSlot,
   readSaveSlotSummaries,
   removeSaveSlot,
   restoreSaveRecoveryCandidate,
@@ -15,6 +16,7 @@ import {
   type SaveRecoveryCandidate,
   type SaveSlotId,
   type SaveSlotSummary,
+  type SaveRunPayload,
 } from "./save-slots";
 import "./character-entry.css";
 
@@ -26,6 +28,8 @@ type CharacterEntryGateProps = {
 export type CharacterEntrySelection = {
   slot: SaveSlotId;
   occupied: boolean;
+  /** Exact validated snapshot selected by the card; plaza must not re-resolve it. */
+  save: SaveRunPayload | null;
 };
 
 const validSavedAt = (timestamp: number) => {
@@ -185,11 +189,18 @@ export default function CharacterEntryGate({
     if (selectedSummary === null && selectedRecovery) {
       if (!restoreRecovery(selectedRecovery)) return;
       writeActiveSaveSlot(selectedSlot);
-      onEnter({ slot: selectedSlot, occupied: true });
+      const restoredSave = readSaveSlot(selectedSlot);
+      if (!restoredSave) return;
+      onEnter({ slot: selectedSlot, occupied: true, save: restoredSave });
       return;
     }
     writeActiveSaveSlot(selectedSlot);
-    onEnter({ slot: selectedSlot, occupied: selectedSummary !== null });
+    const selectedSave = readSaveSlot(selectedSlot);
+    onEnter({
+      slot: selectedSlot,
+      occupied: selectedSave !== null,
+      save: selectedSave,
+    });
   }, [
     onEnter,
     ready,
@@ -204,7 +215,7 @@ export default function CharacterEntryGate({
     (slot: SaveSlotId) => {
       setRecoveryError(null);
       writeActiveSaveSlot(slot);
-      onEnter({ slot, occupied: false });
+      onEnter({ slot, occupied: false, save: null });
     },
     [onEnter],
   );
@@ -277,11 +288,18 @@ export default function CharacterEntryGate({
                     if (recovery) {
                       if (!restoreRecovery(recovery)) return;
                       writeActiveSaveSlot(slot);
-                      onEnter({ slot, occupied: true });
+                      const restoredSave = readSaveSlot(slot);
+                      if (!restoredSave) return;
+                      onEnter({ slot, occupied: true, save: restoredSave });
                       return;
                     }
                     writeActiveSaveSlot(slot);
-                    onEnter({ slot, occupied: summary !== null });
+                    const selectedSave = readSaveSlot(slot);
+                    onEnter({
+                      slot,
+                      occupied: selectedSave !== null,
+                      save: selectedSave,
+                    });
                   }}
                 >
                   <span className="character-entry-card-number">SLOT {String(slot).padStart(2, "0")}</span>

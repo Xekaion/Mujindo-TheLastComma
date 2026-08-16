@@ -535,7 +535,7 @@
 .pvp-combatant,
 .pvp-scoreboard {
   border: 7px solid transparent;
-  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 7px / 0 stretch;
+  border-image: url("/assets/ui/gothic-nine-slice-frame-v2.png") 16% / 7px / 0 round;
   background: linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84));
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.5),

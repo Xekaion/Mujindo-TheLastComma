@@ -178,6 +178,67 @@ test("authored projectile frames are temporally blended instead of held as discr
   assert.ok(Math.abs(drawCalls[0].alpha - 0.8) < 1e-9);
 });
 
+test("chain arcs preserve authored frame proportions with three-slice or tiled rendering", async () => {
+  const { drawGameplayVfxFrame, GAMEPLAY_VFX_MANIFEST } = await importTypeScriptModule(
+    new URL("../app/augment-vfx.ts", import.meta.url),
+  );
+  const image = { complete: true, naturalWidth: 512, naturalHeight: 512 };
+  const render = (id) => {
+    const drawCalls = [];
+    const context = {
+      save() {},
+      restore() {},
+      translate() {},
+      rotate() {},
+      set globalAlpha(_value) {},
+      set globalCompositeOperation(_value) {},
+      set imageSmoothingEnabled(_value) {},
+      drawImage(...args) {
+        drawCalls.push(args);
+      },
+    };
+    assert.equal(
+      drawGameplayVfxFrame(context, image, GAMEPLAY_VFX_MANIFEST[id], {
+        x: 10,
+        y: 20,
+        endX: 250,
+        endY: 20,
+        size: 14,
+        progress: 0,
+      }),
+      true,
+    );
+    return drawCalls;
+  };
+
+  const stormCalls = render("augment:storm");
+  const ricochetCalls = render("augment:ricochet");
+  assert.equal(GAMEPLAY_VFX_MANIFEST["augment:storm"].beamMode, "three-slice");
+  assert.equal(GAMEPLAY_VFX_MANIFEST["augment:ricochet"].beamMode, "tile");
+  assert.ok(stormCalls.length > 3, "storm must keep two caps and repeat its lightning core");
+  assert.ok(ricochetCalls.length > 1, "ricochet must repeat square crests along the link");
+
+  for (const [label, drawCalls] of [
+    ["storm", stormCalls],
+    ["ricochet", ricochetCalls],
+  ]) {
+    let coveredLength = 0;
+    for (const args of drawCalls) {
+      const sourceScaleX = args[7] / args[3];
+      const sourceScaleY = args[8] / args[4];
+      assert.ok(
+        Math.abs(sourceScaleX - sourceScaleY) < 1e-9,
+        `${label} cell may be cropped but must never be stretched on one axis`,
+      );
+      coveredLength += args[7];
+    }
+    assert.ok(
+      Math.abs(coveredLength - 240) < 1e-9,
+      `${label} slices must cover the complete endpoint distance`,
+    );
+  }
+});
+
 test("every moving projectile uses its 16-frame affinity core while keeping its unique impact VFX", () => {
   assert.match(
     gameSource,

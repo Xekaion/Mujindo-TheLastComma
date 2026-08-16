@@ -200,6 +200,9 @@ export function rerollDivineForgeItem(
   const normalized = normalizeGearItem({
     ...target,
     affixes: rolled.affixes,
+    // Ranks belong to visible option positions, so a full reroll transfers
+    // each accumulated rank to the newly rolled option in the same row.
+    enhancementRanks: [...target.enhancementRanks],
     divineForgeRerolls: target.divineForgeRerolls + 1,
   });
   if (!normalized) throw new Error("The divine forge produced invalid gear data.");

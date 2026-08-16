@@ -1,0 +1,113 @@
+{
+  "version": 2,
+  "builder": "scripts/build_gothic_panel_assets_v2.py",
+  "generator": "OpenAI built-in image_gen",
+  "pipeline": {
+    "chromaRemoval": "remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill",
+    "modalContract": "fixed 3:2 geometry; contain/no-repeat; uniform downscale only",
+    "frameContract": "transparent center; 16% nine-slice; decorated corners fixed; straight rails repeat"
+  },
+  "inputs": [
+    {
+      "path": "asset-sources/imagegen/gothic-panel-assets-v2.prompt.json",
+      "sha256": "bfe1f329985b02816ced72d9fd90e3cacb1f8283ce916ea580c8974f1a5e231e",
+      "bytes": 2375
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-modal-panel-v2-source.png",
+      "sha256": "a5101d425a858e4b291058f28742706e3ad4c7e863398f4229139e53b890ae0d",
+      "bytes": 2452704,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-modal-panel-v2-keyed.png",
+      "sha256": "520c3895ccc3a238e000174f675f21af28b8c634afbb493b63acd915af7f766e",
+      "bytes": 2038851,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-nine-slice-frame-v2-source.png",
+      "sha256": "d5becb001a5674c7a4cec8eb998c4bf2be97cee525f94d5c65de678b44819c4a",
+      "bytes": 1318524,
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-nine-slice-frame-v2-keyed.png",
+      "sha256": "690a6817a6b34d7e492f7ce9e89dcb49ec9667dab101a0871581a91d01b6413e",
+      "bytes": 643360,
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "public/assets/ui/gothic-modal-panel-v2.png",
+      "sha256": "520c3895ccc3a238e000174f675f21af28b8c634afbb493b63acd915af7f766e",
+      "bytes": 2038851,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "role": "fixed-aspect 3:2 modal plate",
+      "visibleBbox": [
+        32,
+        94,
+        1502,
+        933
+      ],
+      "transparentPixels": 456615,
+      "partiallyTransparentPixels": 5039,
+      "hiddenRgbPixels": 0,
+      "chromaResidualPixels": 0,
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": "public/assets/ui/gothic-nine-slice-frame-v2.png",
+      "sha256": "690a6817a6b34d7e492f7ce9e89dcb49ec9667dab101a0871581a91d01b6413e",
+      "bytes": 643360,
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGBA",
+      "role": "transparent modular nine-slice frame",
+      "visibleBbox": [
+        25,
+        25,
+        1230,
+        1230
+      ],
+      "transparentPixels": 1253244,
+      "partiallyTransparentPixels": 12938,
+      "hiddenRgbPixels": 0,
+      "chromaResidualPixels": 0,
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

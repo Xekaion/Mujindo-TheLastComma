@@ -45,7 +45,7 @@
     },
     {
       "path": "asset-sources/imagegen/gothic-scrollbar-v1.prompt.json",
-      "sha256": "718c443c9cac4e703c1ee1de599ee0d6b3a6de77e8ea23e8fcf5accf76198cf9"
+      "sha256": "f49ec0132645a4c749c21030d4f4c1a66c65c935a1a7c4b1b2b94a44896ac7a8"
     }
   ],
   "pipeline": {

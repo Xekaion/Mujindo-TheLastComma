@@ -272,19 +272,33 @@ export class MemoryPlazaClient {
     dungeonFloor: unknown = this.config?.dungeonFloor,
     publicEquipment: unknown = this.config?.publicEquipment,
   ): Promise<void> {
+    const normalizedAppearance = normalizeHubAppearance(appearance);
+    const normalizedLevelValue = normalizeHubLevel(level);
+    const normalizedDungeonFloorValue = normalizeHubDungeonFloor(dungeonFloor);
+    const normalizedPublicEquipment = publicEquipment === undefined
+      ? undefined
+      : normalizeHubPublicEquipment(publicEquipment);
+    if (this.config) {
+      this.config = {
+        ...this.config,
+        appearance: normalizedAppearance,
+        level: normalizedLevelValue,
+        dungeonFloor: normalizedDungeonFloorValue,
+        ...(normalizedPublicEquipment === undefined
+          ? {}
+          : { publicEquipment: normalizedPublicEquipment }),
+      };
+    }
     if (!this.token) return;
     const generation = this.generation;
     try {
-      const normalizedPublicEquipment = publicEquipment === undefined
-        ? undefined
-        : normalizeHubPublicEquipment(publicEquipment);
       const payload = await this.requestJson(
         "/api/hub/appearance",
         "PATCH",
         {
-          appearance: normalizeHubAppearance(appearance),
-          level: normalizeHubLevel(level),
-          dungeonFloor: normalizeHubDungeonFloor(dungeonFloor),
+          appearance: normalizedAppearance,
+          level: normalizedLevelValue,
+          dungeonFloor: normalizedDungeonFloorValue,
           ...(normalizedPublicEquipment === undefined
             ? {}
             : { publicEquipment: normalizedPublicEquipment }),

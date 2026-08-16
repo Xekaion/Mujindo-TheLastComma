@@ -1296,6 +1296,12 @@ export type GearItem = {
   legendaryPowerId: LegendaryPowerId | null;
   /** Current memory-ash enhancement stage. Canonical range: +0 through +10. */
   enhancement: number;
+  /**
+   * Enhancement ranks by visible option position. Index 0 is the slot's
+   * implicit option and indices 1..N map to affixes 0..N-1. The values are
+   * non-negative integers whose sum is always exactly `enhancement`.
+   */
+  enhancementRanks: number[];
   /** Completed divine-forge full-affix rerolls. Canonical range: 0 through 3. */
   divineForgeRerolls: number;
   /** Mean affix percentile, recomputed from canonical affixes (1–100). */
@@ -1394,9 +1400,9 @@ const GEAR_ENHANCEMENT_DESTROY_PERCENT = [
 ] as const;
 
 /**
- * Per-stage implicit-option growth. Random additional options never change.
- * Legendary receives exactly twice the common per-stage efficiency, while
- * cosmic receives three times as much, making risky high-tier upgrades matter.
+ * Rarity scaling applied when an option is selected by enhancement. Legendary
+ * receives exactly twice the common efficiency, while cosmic receives three
+ * times as much, preserving the old high-tier risk/reward curve.
  */
 export const GEAR_ENHANCEMENT_EFFECT_PER_STAGE: Readonly<
   Record<GearRarity, number>
@@ -1409,6 +1415,45 @@ export const GEAR_ENHANCEMENT_EFFECT_PER_STAGE: Readonly<
   legendary: 0.14,
   mythic: 0.17,
   cosmic: 0.21,
+};
+
+/**
+ * Per-hit option gains at the rare/tier-100 balance anchor. Continuous stats
+ * are scaled by item tier and rarity below. Count-like projectile options use
+ * fractional progress so one lucky draw cannot double total projectile DPS.
+ */
+export const GEAR_OPTION_ENHANCEMENT_BASE_GAIN: Readonly<
+  Record<GearStat, number>
+> = {
+  attackPowerFlat: 0.25,
+  damagePercent: 1.44,
+  attackSpeedPercent: 1.5,
+  projectileSpeedPercent: 3.27,
+  maxHpFlat: 15,
+  damageReductionPercent: 0.75,
+  moveSpeedPercent: 1.8,
+  dashCooldownPercent: 1.57,
+  pickupRadiusPercent: 5.14,
+  xpGainPercent: 2.57,
+  critChancePercent: 0.78,
+  critDamagePercent: 2.77,
+  projectileSizePercent: 3.27,
+  eliteDamagePercent: 1.8,
+  lifeOnHitFlat: 0.45,
+  gearFindPercent: 3.6,
+  projectileCountFlat: 0.2,
+  pierceFlat: 0.25,
+  projectileLifetimePercent: 3.6,
+  homingStrengthFlat: 0.56,
+  hpRegenPerSecondFlat: 0.51,
+  roomClearHealFlat: 2.77,
+  roomEntryShieldFlat: 9,
+  dashSpeedPercent: 2.12,
+  bossDamagePercent: 2,
+  executeDamagePercent: 2.4,
+  cosmicFinalDamagePercent: 0.53,
+  cosmicAegisPercent: 0.45,
+  cosmicActionSpeedPercent: 0.64,
 };
 
 /**
@@ -1696,17 +1741,20 @@ export function rollFirstRoomGuaranteedRarity(roll: number): GearRarity {
   return rarityFromWeights(roll, FIRST_ROOM_GUARANTEED_RARITY_WEIGHTS);
 }
 
-/** One shared rarity-aware multiplier for displayed power and live affixes. */
+/**
+ * Legacy-compatible rarity curve helper. New enhancement applies this curve
+ * only through the selected option's per-rank gain.
+ */
 export function getGearEnhancementMultiplier(
   rarity: GearRarity,
-  enhancement: number,
+  rankCount: number,
 ): number {
-  const normalizedEnhancement = clamp(
-    Number.isFinite(enhancement) ? Math.floor(enhancement) : 0,
+  const normalizedRankCount = clamp(
+    Number.isFinite(rankCount) ? Math.floor(rankCount) : 0,
     0,
     MAX_GEAR_ENHANCEMENT,
   );
-  return 1 + normalizedEnhancement * GEAR_ENHANCEMENT_EFFECT_PER_STAGE[rarity];
+  return 1 + normalizedRankCount * GEAR_ENHANCEMENT_EFFECT_PER_STAGE[rarity];
 }
 
 /**
@@ -1777,6 +1825,77 @@ export function createSeededRng(seed: GearSeed): () => number {
 const randomIndex = (rng: () => number, length: number) =>
   Math.min(length - 1, Math.floor(rng() * length));
 
+type GearEnhancementMigrationInput = Pick<
+  GearItem,
+  | "id"
+  | "slot"
+  | "rarity"
+  | "level"
+  | "baseName"
+  | "affixes"
+  | "enhancement"
+  | "divineForgeRerolls"
+>;
+
+/** Stable one-time migration for equipment saved before random option ranks. */
+function migrateLegacyGearEnhancementRanks(
+  item: GearEnhancementMigrationInput,
+): number[] {
+  const ranks = Array.from({ length: item.affixes.length + 1 }, () => 0);
+  const affixSignature = item.affixes
+    .map((affix) => `${affix.stat}:${affix.value}:${affix.rollPercent}`)
+    .join("|");
+  // Use only fields carried by the public plaza profile. This keeps a legacy
+  // +N item's one-time allocation identical locally and during remote inspect.
+  const rng = createSeededRng(
+    [
+      "gear-enhancement-ranks-v1",
+      item.slot,
+      item.rarity,
+      item.level,
+      item.baseName,
+      affixSignature,
+    ].join("|"),
+  );
+  for (let stage = 0; stage < item.enhancement; stage += 1) {
+    ranks[randomIndex(rng, ranks.length)] += 1;
+  }
+  return ranks;
+}
+
+function normalizeGearEnhancementRanks(
+  value: unknown,
+  item: GearEnhancementMigrationInput,
+): number[] | null {
+  if (value === undefined) return migrateLegacyGearEnhancementRanks(item);
+  if (!Array.isArray(value) || value.length !== item.affixes.length + 1) {
+    return null;
+  }
+  const ranks: number[] = [];
+  let total = 0;
+  for (const rank of value) {
+    if (
+      typeof rank !== "number" ||
+      !Number.isSafeInteger(rank) ||
+      rank < 0 ||
+      rank > MAX_GEAR_ENHANCEMENT
+    ) {
+      return null;
+    }
+    ranks.push(rank);
+    total += rank;
+  }
+  return total === item.enhancement ? ranks : null;
+}
+
+const getGearEnhancementRank = (
+  item: { enhancementRanks?: readonly number[] },
+  optionIndex: number,
+): number => {
+  const rank = item.enhancementRanks?.[optionIndex];
+  return Number.isSafeInteger(rank) && (rank ?? 0) >= 0 ? (rank as number) : 0;
+};
+
 /**
  * Deterministically rolls a fresh drop level from character level, independent
  * of room count. Normal and elite loot retain the symmetric ±5 band. Boss loot
@@ -1830,7 +1949,8 @@ function formatGearAffixMagnitude(
   value: number,
 ): string {
   const numericValue = Number.isFinite(value) ? Math.abs(value) : 0;
-  return GEAR_AFFIX_DEFINITIONS[stat].integerRoll
+  const isWholeValue = Math.abs(numericValue - Math.round(numericValue)) < 0.005;
+  return GEAR_AFFIX_DEFINITIONS[stat].integerRoll && isWholeValue
     ? Math.round(numericValue).toLocaleString("ko-KR")
     : formatGearNumericValue(numericValue);
 }
@@ -1885,39 +2005,16 @@ export function formatGearDisplayName(
     : item.displayName;
 }
 
-/**
- * Additional options are fate-locked when the item drops. Keep this helper for
- * callers and legacy integrations, but enhancement deliberately never changes
- * the rolled value.
- */
-export function getEnhancedGearAffixValue(
-  _item: Pick<GearItem, "rarity" | "enhancement">,
-  affix: Pick<GearAffix, "value">,
-): number {
-  void _item;
-  return affix.value;
-}
-
-/** Formats the fixed additional-option value that combat formulas consume. */
-export function formatEnhancedGearAffix(
-  item: Pick<GearItem, "rarity" | "enhancement">,
-  affix: Pick<GearAffix, "stat" | "value">,
-): string {
-  return formatGearAffix(
-    affix.stat,
-    getEnhancedGearAffixValue(item, affix),
-  );
-}
-
 export type GearAffixDisplay = {
-  /** Current fixed magnitude. */
+  /** Rolled value plus all ranks allocated to this option line. */
   totalValue: number;
   /** Rolled magnitude stored in the save. */
   baseValue: number;
-  /** Always zero because additional options never enhance. */
+  /** Derived bonus; the original roll remains immutable. */
   enhancementValue: number;
-  /** Always zero because additional options never enhance. */
+  /** Gain if this option wins the next successful enhancement draw. */
   nextStageGainValue: number;
+  enhancementCount: number;
   totalLabel: string;
   baseLabel: string;
   enhancementLabel: string;
@@ -1948,28 +2045,96 @@ const formatGearAffixContribution = (
   return `${sign}${amount}${unit}`;
 };
 
-/**
- * Gives every tooltip one canonical view of the fate-locked additional roll.
- */
+type GearOptionEnhancementInput = Pick<
+  GearItem,
+  "rarity" | "level" | "enhancement" | "enhancementRanks" | "affixes"
+>;
+
+/** Exact gain granted when a specific stat wins one enhancement draw. */
+export function getGearOptionEnhancementGain(
+  item: Pick<GearItem, "rarity" | "level">,
+  stat: GearStat,
+): number {
+  if (
+    stat !== "attackPowerFlat" &&
+    GEAR_AFFIX_DEFINITIONS[stat].integerRoll
+  ) {
+    return GEAR_OPTION_ENHANCEMENT_BASE_GAIN[stat];
+  }
+  const tierScale = gearImplicitTierGrowth(item.level, item.rarity);
+  const rarityScale =
+    GEAR_ENHANCEMENT_EFFECT_PER_STAGE[item.rarity] /
+    GEAR_ENHANCEMENT_EFFECT_PER_STAGE.rare;
+  return roundGearDisplayValue(
+    GEAR_OPTION_ENHANCEMENT_BASE_GAIN[stat] * tierScale * rarityScale,
+  );
+}
+
+const findGearAffixIndex = (
+  item: Pick<GearItem, "affixes">,
+  affix: Pick<GearAffix, "stat">,
+): number => item.affixes.findIndex((candidate) => candidate.stat === affix.stat);
+
+export function getGearAffixEnhancementCount(
+  item: Pick<GearItem, "affixes" | "enhancementRanks">,
+  affix: Pick<GearAffix, "stat">,
+): number {
+  const affixIndex = findGearAffixIndex(item, affix);
+  return affixIndex < 0 ? 0 : getGearEnhancementRank(item, affixIndex + 1);
+}
+
+/** The live additional-option value consumed by combat and power formulas. */
+export function getEnhancedGearAffixValue(
+  item: GearOptionEnhancementInput,
+  affix: Pick<GearAffix, "stat" | "value">,
+): number {
+  const enhancementCount = getGearAffixEnhancementCount(item, affix);
+  return roundGearDisplayValue(
+    affix.value +
+      enhancementCount * getGearOptionEnhancementGain(item, affix.stat),
+  );
+}
+
+export function formatEnhancedGearAffix(
+  item: GearOptionEnhancementInput,
+  affix: Pick<GearAffix, "stat" | "value">,
+): string {
+  return formatGearAffix(affix.stat, getEnhancedGearAffixValue(item, affix));
+}
+
+/** Gives every equipment surface one canonical enhanced additional-option row. */
 export function getGearAffixDisplay(
   affix: Pick<GearAffix, "stat" | "value">,
-  _item: Pick<GearItem, "rarity" | "enhancement">,
+  item: GearOptionEnhancementInput,
 ): GearAffixDisplay {
-  void _item;
   const baseValue = roundGearDisplayValue(Math.abs(affix.value));
-  const totalValue = baseValue;
-  const enhancementValue = 0;
-  const nextStageGainValue = 0;
+  const enhancementCount = getGearAffixEnhancementCount(item, affix);
+  const perRankGain = getGearOptionEnhancementGain(item, affix.stat);
+  const enhancementValue = roundGearDisplayValue(
+    enhancementCount * perRankGain,
+  );
+  const totalValue = roundGearDisplayValue(baseValue + enhancementValue);
+  const nextStageGainValue =
+    item.enhancement < MAX_GEAR_ENHANCEMENT ? perRankGain : 0;
+  const percentPoint = GEAR_AFFIX_DEFINITIONS[affix.stat].unit === "percent";
+  const rankSuffix = enhancementCount > 0 ? ` · 강화 ${enhancementCount}회` : "";
 
   return {
     totalValue,
     baseValue,
     enhancementValue,
     nextStageGainValue,
-    totalLabel: formatGearAffix(affix.stat, totalValue),
-    baseLabel: `획득 수치 ${formatGearAffixContribution(affix.stat, baseValue)}`,
-    enhancementLabel: "강화 영향 없음",
-    nextStageGainLabel: "고정",
+    enhancementCount,
+    totalLabel: `${formatGearAffix(affix.stat, totalValue)}${rankSuffix}`,
+    baseLabel: `기본 ${formatGearAffixContribution(affix.stat, baseValue)}`,
+    enhancementLabel:
+      enhancementCount > 0
+        ? `강화 ${formatGearAffixContribution(affix.stat, enhancementValue, percentPoint)} (${enhancementCount}회)`
+        : "강화 0회",
+    nextStageGainLabel:
+      item.enhancement < MAX_GEAR_ENHANCEMENT
+        ? `당첨 시 ${formatGearAffixContribution(affix.stat, nextStageGainValue, percentPoint)}`
+        : "최대 강화",
   };
 }
 
@@ -2124,7 +2289,7 @@ export function affixValueForRollPercent(
 
 export type GearImplicitInput = Pick<
   GearItem,
-  "slot" | "level" | "rarity" | "enhancement"
+  "slot" | "level" | "rarity" | "enhancement" | "enhancementRanks"
 >;
 
 export type GearImplicitDisplay = {
@@ -2134,6 +2299,7 @@ export type GearImplicitDisplay = {
   baseValue: number;
   enhancementValue: number;
   nextStageGainValue: number;
+  enhancementCount: number;
   totalLabel: string;
   baseLabel: string;
   enhancementLabel: string;
@@ -2159,11 +2325,20 @@ export function getGearImplicitBaseValue(item: GearImplicitInput): number {
   );
 }
 
-/** Exact live implicit value after the item's completed enhancement stages. */
+export function getGearImplicitEnhancementCount(
+  item: Pick<GearItem, "enhancementRanks">,
+): number {
+  return getGearEnhancementRank(item, 0);
+}
+
+/** Exact live implicit value after ranks allocated to the basic option. */
 export function getEnhancedGearImplicitValue(item: GearImplicitInput): number {
+  const definition = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
+  const enhancementCount = getGearImplicitEnhancementCount(item);
   return roundGearDisplayValue(
-    getGearImplicitBaseValue(item) *
-      getGearEnhancementMultiplier(item.rarity, item.enhancement),
+    getGearImplicitBaseValue(item) +
+      enhancementCount *
+        getGearOptionEnhancementGain(item, definition.stat),
   );
 }
 
@@ -2174,6 +2349,7 @@ export function getGearImplicitDisplay(
   const definition = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
   const baseValue = getGearImplicitBaseValue(item);
   const totalValue = getEnhancedGearImplicitValue(item);
+  const enhancementCount = getGearImplicitEnhancementCount(item);
   const enhancementValue = roundGearDisplayValue(
     Math.max(0, totalValue - baseValue),
   );
@@ -2182,16 +2358,10 @@ export function getGearImplicitDisplay(
     0,
     MAX_GEAR_ENHANCEMENT,
   );
-  const nextStageTotal =
+  const nextStageGainValue =
     normalizedEnhancement < MAX_GEAR_ENHANCEMENT
-      ? getEnhancedGearImplicitValue({
-          ...item,
-          enhancement: normalizedEnhancement + 1,
-        })
-      : totalValue;
-  const nextStageGainValue = roundGearDisplayValue(
-    Math.max(0, nextStageTotal - totalValue),
-  );
+      ? getGearOptionEnhancementGain(item, definition.stat)
+      : 0;
   const percentPoint =
     definition.stat !== "attackPowerFlat" &&
     GEAR_AFFIX_DEFINITIONS[definition.stat].unit === "percent";
@@ -2205,12 +2375,16 @@ export function getGearImplicitDisplay(
     baseValue,
     enhancementValue,
     nextStageGainValue,
-    totalLabel: `${definition.label} ${formatContribution(totalValue)}`,
+    enhancementCount,
+    totalLabel: `${definition.label} ${formatContribution(totalValue)}${enhancementCount > 0 ? ` · 강화 ${enhancementCount}회` : ""}`,
     baseLabel: `+0 ${formatContribution(baseValue)}`,
-    enhancementLabel: `강화 ${formatContribution(enhancementValue, percentPoint)}`,
+    enhancementLabel:
+      enhancementCount > 0
+        ? `강화 ${formatContribution(enhancementValue, percentPoint)} (${enhancementCount}회)`
+        : "강화 0회",
     nextStageGainLabel:
       normalizedEnhancement < MAX_GEAR_ENHANCEMENT
-        ? formatContribution(nextStageGainValue, percentPoint)
+        ? `당첨 시 ${formatContribution(nextStageGainValue, percentPoint)}`
         : "최대 강화",
   };
 }
@@ -2303,6 +2477,7 @@ export type PowerScoreInput = Pick<
   | "affixes"
   | "legendaryPowerId"
   | "enhancement"
+  | "enhancementRanks"
 >;
 
 /** Recomputes an item's displayed affix quality without trusting save data. */
@@ -2529,16 +2704,16 @@ export function calculateCombatPowerFromEquipmentStats(
 }
 
 /**
- * Single source of truth for both inventory power and live combat. The slot's
- * implicit option receives enhancement; every rolled additional option stays
- * at its original drop value forever.
+ * Single source of truth for both inventory power and live combat. Rolled
+ * values stay immutable while separately stored ranks enhance the selected
+ * visible option lines.
  */
 export function resolveGearItemStats(item: PowerScoreInput): GearStatTotals {
   const totals = createEmptyGearStatTotals();
   const implicit = GEAR_IMPLICIT_OPTION_BY_SLOT[item.slot];
   totals[implicit.stat] += getEnhancedGearImplicitValue(item);
   for (const affix of item.affixes) {
-    totals[affix.stat] += affix.value;
+    totals[affix.stat] += getEnhancedGearAffixValue(item, affix);
   }
   for (const stat of GEAR_STAT_KEYS) {
     totals[stat] = roundGearDisplayValue(totals[stat]);
@@ -2567,6 +2742,80 @@ export function calculateGearPowerScore(item: PowerScoreInput): number {
     item.legendaryPowerId ? [item.legendaryPowerId] : [],
   ).total;
   return Math.max(0, power - BASE_EQUIPMENT_COMBAT_POWER);
+}
+
+export type SuccessfulGearEnhancementResult = {
+  item: GearItem;
+  /** 0 = implicit option, 1..N = affix position + 1. */
+  optionIndex: number;
+  optionLabel: string;
+  gainValue: number;
+  gainLabel: string;
+};
+
+/**
+ * Applies one successful stage and uniformly selects one visible option line.
+ * Repeated selections are allowed. Supplying the roll keeps tests and previews
+ * deterministic while the expedition and plaza share the exact same logic.
+ */
+export function applySuccessfulGearEnhancement(
+  item: GearItem,
+  roll: number,
+): SuccessfulGearEnhancementResult | null {
+  const rule = getGearEnhancementRule(item);
+  if (
+    !rule ||
+    item.enhancementRanks.length !== item.affixes.length + 1 ||
+    item.enhancementRanks.some(
+      (rank) => !Number.isSafeInteger(rank) || rank < 0,
+    ) ||
+    item.enhancementRanks.reduce((total, rank) => total + rank, 0) !==
+      item.enhancement
+  ) {
+    return null;
+  }
+
+  const normalizedRoll = clamp(
+    Number.isFinite(roll) ? roll : 0,
+    0,
+    0.999999999,
+  );
+  const optionIndex = Math.floor(normalizedRoll * item.enhancementRanks.length);
+  const enhancementRanks = [...item.enhancementRanks];
+  enhancementRanks[optionIndex] += 1;
+
+  let optionLabel: string;
+  let gainValue: number;
+  let gainLabel: string;
+  if (optionIndex === 0) {
+    const display = getGearImplicitDisplay(item);
+    optionLabel = display.label;
+    gainValue = display.nextStageGainValue;
+    gainLabel = display.nextStageGainLabel.replace(/^당첨 시\s*/, "");
+  } else {
+    const affix = item.affixes[optionIndex - 1];
+    const display = getGearAffixDisplay(affix, item);
+    optionLabel = GEAR_AFFIX_DEFINITIONS[affix.stat].name;
+    gainValue = display.nextStageGainValue;
+    gainLabel = display.nextStageGainLabel.replace(/^당첨 시\s*/, "");
+  }
+
+  const candidate: GearItem = {
+    ...item,
+    enhancement: rule.target,
+    enhancementRanks,
+  };
+  const enhancedItem: GearItem = {
+    ...candidate,
+    powerScore: calculateGearPowerScore(candidate),
+  };
+  return {
+    item: enhancedItem,
+    optionIndex,
+    optionLabel,
+    gainValue,
+    gainLabel,
+  };
 }
 
 /**
@@ -2611,6 +2860,7 @@ export function rollGear(seed: GearSeed, options: RollGearOptions = {}): GearIte
     affixes,
     legendaryPowerId,
     enhancement: 0,
+    enhancementRanks: Array.from({ length: affixes.length + 1 }, () => 0),
     divineForgeRerolls: 0,
   };
   return {
@@ -3021,6 +3271,20 @@ export function normalizeGearItem(value: unknown): GearItem | null {
     value.level,
   );
   if (!affixes) return null;
+  const enhancementRanks = normalizeGearEnhancementRanks(
+    value.enhancementRanks,
+    {
+      id: value.id,
+      slot: value.slot,
+      rarity: value.rarity,
+      level: value.level,
+      baseName: value.baseName,
+      affixes,
+      enhancement,
+      divineForgeRerolls,
+    },
+  );
+  if (!enhancementRanks) return null;
   const legendaryPowerId =
     value.rarity === "legendary" ||
     value.rarity === "mythic" ||
@@ -3037,6 +3301,7 @@ export function normalizeGearItem(value: unknown): GearItem | null {
     affixes,
     legendaryPowerId,
     enhancement,
+    enhancementRanks,
     divineForgeRerolls,
   };
   return {
@@ -3053,6 +3318,7 @@ export function isGearItem(value: unknown): value is GearItem {
   const normalized = normalizeGearItem(value);
   if (!normalized) return false;
   const originalAffixes = value.affixes;
+  const originalEnhancementRanks = value.enhancementRanks;
   if (
     value.displayName !== normalized.displayName ||
     value.iconIndex !== normalized.iconIndex ||
@@ -3061,6 +3327,11 @@ export function isGearItem(value: unknown): value is GearItem {
     value.divineForgeRerolls !== normalized.divineForgeRerolls ||
     value.qualityScore !== normalized.qualityScore ||
     value.powerScore !== normalized.powerScore ||
+    !Array.isArray(originalEnhancementRanks) ||
+    originalEnhancementRanks.length !== normalized.enhancementRanks.length ||
+    !normalized.enhancementRanks.every(
+      (rank, index) => originalEnhancementRanks[index] === rank,
+    ) ||
     !Array.isArray(originalAffixes) ||
     originalAffixes.length !== normalized.affixes.length
   ) {

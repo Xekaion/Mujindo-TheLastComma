@@ -291,6 +291,28 @@ test("GameCanvas integrates kind 12 through aligned data, floor-aware spawning, 
   );
 });
 
+test("Inkbound chain links use a uniformly scaled three-slice instead of stretching a square cell", async () => {
+  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  const rendererStart = source.indexOf("const drawInkboundMagistratePattern");
+  const rendererEnd = source.indexOf("const drawForbiddenIndexerPattern", rendererStart);
+  assert.ok(rendererStart >= 0 && rendererEnd > rendererStart);
+  const renderer = source.slice(rendererStart, rendererEnd);
+  assert.match(
+    renderer,
+    /const drawChainCell = \([\s\S]{0,800}?drawHorizontalThreeSliceAtlasCell\(context, image,[\s\S]{0,500}?sourceCapWidth: sourceWidth \/ 4/,
+    "chain end caps and the repeating middle must retain one uniform source scale",
+  );
+  assert.match(
+    renderer,
+    /drawChainCell\([\s\S]{0,240}?chainLength \/ 0\.72,[\s\S]{0,100}?state\.phase === "telegraph" \? 118 : 154/,
+  );
+  assert.doesNotMatch(
+    renderer,
+    /drawCell\(\s*state\.phase === "telegraph" \? 0 : 1,[\s\S]{0,180}?chainLength \/ 0\.72/,
+    "the 512px chain cell must not return to independent width/height scaling",
+  );
+});
+
 test("Inkbound Magistrate walk and pattern atlases are transparent, populated, and correctly tiled", async () => {
   const assets = [
     {

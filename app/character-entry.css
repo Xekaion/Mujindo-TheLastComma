@@ -74,7 +74,7 @@
   width: min(1120px, calc(100cqw - 48px));
   margin-top: 96px;
   border: 12px solid transparent;
-  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 12px / 0 stretch;
+  border-image: url("/assets/ui/gothic-nine-slice-frame-v2.png") 16% / 12px / 0 round;
   padding: 18px 20px 20px;
   background: linear-gradient(145deg, rgba(15, 17, 20, 0.94), rgba(5, 7, 9, 0.96));
   box-shadow:

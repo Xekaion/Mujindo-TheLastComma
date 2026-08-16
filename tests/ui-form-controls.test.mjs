@@ -13,7 +13,10 @@ test("native buttons and selects cannot fall back to operating-system chrome", (
   assert.match(css, /:where\(body\.game-viewport\) button\s*\{[\s\S]*?appearance:\s*none/);
   assert.match(css, /:where\(body\.game-viewport\) button\s*\{[\s\S]*?border:\s*1px solid[\s\S]*?linear-gradient/);
   assert.match(css, /body\.game-viewport select\s*\{[\s\S]*?appearance:\s*none\s*!important/);
-  assert.match(css, /tooltip-panel\.png/);
+  assert.match(css, /gothic-nine-slice-frame-v2\.png/);
+  assert.match(css, /border-image-slice:\s*16%/);
+  assert.match(css, /border-image-repeat:\s*round/);
+  assert.doesNotMatch(css, /tooltip-panel\.png/);
   assert.match(css, /linear-gradient\(45deg[\s\S]*linear-gradient\(135deg/);
   assert.match(css, /select:hover:not\(:disabled\)/);
   assert.match(css, /select:focus-visible/);

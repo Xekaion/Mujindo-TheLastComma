@@ -37,6 +37,7 @@ const uiPromptFiles = [
   "asset-sources/imagegen/gothic-scrollbar-v1.prompt.json",
   "asset-sources/imagegen/divine-forge-ui-v1.prompt.json",
   "asset-sources/imagegen/inventory-enhancement-button-v1.prompt.json",
+  "asset-sources/imagegen/gothic-panel-assets-v2.prompt.json",
 ];
 
 function posix(relativePath) {
@@ -222,6 +223,40 @@ test("runtime UI references resolve and standalone art uses ratio-safe rendering
   assert.match(scrollbarCss, /border-image-source:\s*url\("\/assets\/ui\/scrollbars\/gothic-track-v1\.png"\)/);
   assert.match(scrollbarCss, /border-image-source:\s*url\("\/assets\/ui\/scrollbars\/gothic-thumb-gold-v1\.png"\)/);
   assert.match(scrollbarCss, /border-image-source:\s*url\("\/assets\/ui\/scrollbars\/gothic-thumb-aether-v1\.png"\)/);
+});
+
+test("gothic panel V2 keeps fixed modal geometry and a fill-free modular frame", async () => {
+  const [gameCss, runtimeFiles, modalMetadata, frameImage] = await Promise.all([
+    readFile(path.join(root, "app", "game.css"), "utf8"),
+    filesUnder(path.join(root, "app"), (file) => /\.(?:css|ts|tsx)$/.test(file)),
+    sharp(path.join(uiRoot, "gothic-modal-panel-v2.png")).metadata(),
+    sharp(path.join(uiRoot, "gothic-nine-slice-frame-v2.png"))
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true }),
+  ]);
+  const runtimeSource = (await Promise.all(runtimeFiles.map((file) => readFile(file, "utf8")))).join("\n");
+
+  assert.deepEqual([modalMetadata.width, modalMetadata.height], [1536, 1024]);
+  assert.equal(modalMetadata.channels, 4);
+  assert.deepEqual([frameImage.info.width, frameImage.info.height], [1254, 1254]);
+  const centerOffset =
+    (Math.floor(frameImage.info.height / 2) * frameImage.info.width +
+      Math.floor(frameImage.info.width / 2)) *
+    4;
+  assert.equal(frameImage.data[centerOffset + 3], 0, "the modular frame center must stay transparent");
+
+  assert.match(
+    gameCss,
+    /\.death-modal\s*\{[\s\S]{0,700}?aspect-ratio:\s*3\s*\/\s*2;[\s\S]{0,300}?border-image:\s*none;[\s\S]{0,400}?gothic-modal-panel-v2\.png["']?\)\s+center\s*\/\s*contain\s+no-repeat;/,
+  );
+  assert.match(gameCss, /\.death-retry-button\s*\{[^}]*background:\s*transparent;/);
+  assert.match(runtimeSource, /gothic-nine-slice-frame-v2\.png["']?\)\s+16%\s*\/[^;]+\sround;/);
+  assert.doesNotMatch(
+    runtimeSource,
+    /inventory-chrome\/tooltip-panel\.png/,
+    "the retired low-resolution filled panel must not return to runtime",
+  );
 });
 
 test("UI build reports and ImageGen prompts resolve only versioned, hash-locked provenance", async () => {

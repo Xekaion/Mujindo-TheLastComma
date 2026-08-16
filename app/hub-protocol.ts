@@ -112,6 +112,7 @@ export type HubPublicGearItem = {
   level: number;
   baseName: string;
   enhancement: number;
+  enhancementRanks: number[];
   affixes: HubPublicGearAffix[];
 };
 
@@ -347,6 +348,7 @@ function publicGearFromCanonical(item: GearItem): HubPublicGearItem {
     level: item.level,
     baseName: item.baseName,
     enhancement: item.enhancement,
+    enhancementRanks: [...item.enhancementRanks],
     affixes: item.affixes.map(({ stat, value, rollPercent }) => ({
       stat,
       value,
@@ -370,6 +372,7 @@ function canonicalGearFromPublic(
     level: value.level,
     baseName: value.baseName,
     enhancement: value.enhancement,
+    enhancementRanks: value.enhancementRanks,
     affixes: value.affixes,
   });
 }
