@@ -1342,16 +1342,18 @@ export const HIGH_TIER_RESONANCE_THRESHOLDS: readonly HighTierResonanceBonus[] =
 
 /** Cosmic-only totals, applied in addition to high-tier resonance. */
 export const COSMIC_TRANSCENDENCE_THRESHOLDS: readonly CosmicTranscendenceBonus[] = [
-  { count: 1, finalDamagePercent: 10, actionSpeedPercent: 3 },
-  { count: 2, finalDamagePercent: 12, actionSpeedPercent: 4 },
-  { count: 3, finalDamagePercent: 14, actionSpeedPercent: 5 },
-  { count: 4, finalDamagePercent: 16, actionSpeedPercent: 6 },
-  { count: 5, finalDamagePercent: 18, actionSpeedPercent: 7 },
-  { count: 6, finalDamagePercent: 20, actionSpeedPercent: 8 },
-  { count: 7, finalDamagePercent: 22, actionSpeedPercent: 9 },
-  { count: 8, finalDamagePercent: 24, actionSpeedPercent: 10 },
-  { count: 9, finalDamagePercent: 27, actionSpeedPercent: 11 },
-  { count: 10, finalDamagePercent: 30, actionSpeedPercent: 12 },
+  // Each equipped cosmic piece adds exactly 25 percentage points of
+  // cumulative final damage. Existing action-speed progression is preserved.
+  { count: 1, finalDamagePercent: 25, actionSpeedPercent: 3 },
+  { count: 2, finalDamagePercent: 50, actionSpeedPercent: 4 },
+  { count: 3, finalDamagePercent: 75, actionSpeedPercent: 5 },
+  { count: 4, finalDamagePercent: 100, actionSpeedPercent: 6 },
+  { count: 5, finalDamagePercent: 125, actionSpeedPercent: 7 },
+  { count: 6, finalDamagePercent: 150, actionSpeedPercent: 8 },
+  { count: 7, finalDamagePercent: 175, actionSpeedPercent: 9 },
+  { count: 8, finalDamagePercent: 200, actionSpeedPercent: 10 },
+  { count: 9, finalDamagePercent: 225, actionSpeedPercent: 11 },
+  { count: 10, finalDamagePercent: 250, actionSpeedPercent: 12 },
 ] as const;
 
 export type EquipmentRarityResonance = {

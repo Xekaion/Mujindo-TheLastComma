@@ -41,16 +41,16 @@ const EXPECTED_HIGH_TIER_RESONANCE = [
 }));
 
 const EXPECTED_COSMIC_TRANSCENDENCE = [
-  [10, 3],
-  [12, 4],
-  [14, 5],
-  [16, 6],
-  [18, 7],
-  [20, 8],
-  [22, 9],
-  [24, 10],
-  [27, 11],
-  [30, 12],
+  [25, 3],
+  [50, 4],
+  [75, 5],
+  [100, 6],
+  [125, 7],
+  [150, 8],
+  [175, 9],
+  [200, 10],
+  [225, 11],
+  [250, 12],
 ].map(([finalDamagePercent, actionSpeedPercent], index) => ({
   count: index + 1,
   finalDamagePercent,
@@ -115,6 +115,16 @@ test("rarity resonance exports the exact cumulative H1-H10 and C1-C10 tables", a
     assert.equal(current.attackSpeedPercent - previous.attackSpeedPercent, 10);
     assert.equal(current.bossDamagePercent - previous.bossDamagePercent, 10);
   }
+  for (let index = 0; index < EXPECTED_COSMIC_TRANSCENDENCE.length; index += 1) {
+    const previousFinalDamage = index === 0
+      ? 0
+      : EXPECTED_COSMIC_TRANSCENDENCE[index - 1].finalDamagePercent;
+    assert.equal(
+      EXPECTED_COSMIC_TRANSCENDENCE[index].finalDamagePercent - previousFinalDamage,
+      25,
+      `C${index + 1} must add exactly 25 percentage points of final damage`,
+    );
+  }
 });
 
 test("cosmic equipment counts toward both H and C while legendary counts toward neither", async () => {
@@ -168,7 +178,7 @@ test("threshold bonuses use the selected cumulative row and enter aggregate stat
   assert.equal(aggregate.damagePercent - raw.damagePercent, 35);
   assert.equal(aggregate.attackSpeedPercent - raw.attackSpeedPercent, 35);
   assert.equal(aggregate.bossDamagePercent - raw.bossDamagePercent, 25);
-  assert.equal(aggregate.cosmicFinalDamagePercent - raw.cosmicFinalDamagePercent, 10);
+  assert.equal(aggregate.cosmicFinalDamagePercent - raw.cosmicFinalDamagePercent, 25);
   assert.equal(aggregate.cosmicActionSpeedPercent - raw.cosmicActionSpeedPercent, 3);
   assert.notEqual(
     aggregate.damagePercent - raw.damagePercent,
