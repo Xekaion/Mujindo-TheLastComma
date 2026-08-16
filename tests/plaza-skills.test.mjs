@@ -88,15 +88,19 @@ test("showcase loadout is deterministic, storage-free, and preserves all ten slo
   assert.equal(new Set(equippedPowerIds).size, equippedPowerIds.length);
   assert.deepEqual(
     new Set(equipment.EQUIPMENT_SLOTS.map((slot) => first[slot].rarity)),
-    new Set(["legendary", "mythic"]),
+    new Set(["legendary", "mythic", "cosmic"]),
   );
   assert.equal(
     equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot].rarity === "legendary").length,
-    5,
+    4,
   );
   assert.equal(
     equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot].rarity === "mythic").length,
-    5,
+    3,
+  );
+  assert.equal(
+    equipment.EQUIPMENT_SLOTS.filter((slot) => first[slot].rarity === "cosmic").length,
+    3,
   );
   assert.equal(first.shoulders.legendaryPowerId, "starfallMantle");
   assert.equal(first.legs.legendaryPowerId, "phantomMarch");
@@ -146,12 +150,23 @@ test("dash visual specs cover every equipped power once without a three-effect c
     new Set(specs.map((spec) => spec.layer)),
     new Set(["body", "ground"]),
   );
+  assert.deepEqual(
+    new Set(specs.map((spec) => spec.renderPass)),
+    new Set(["ground", "body", "foreground"]),
+  );
 
   for (const spec of specs) {
     assert.ok(spec.layer === "body" || spec.layer === "ground");
+    assert.ok(["ground", "body", "foreground"].includes(spec.renderPass));
+    assert.equal(
+      spec.layer === "ground",
+      spec.renderPass === "ground",
+      "foot-anchored effects belong below actors; body anchors belong inside the actor stack",
+    );
+    assert.ok(Number.isFinite(spec.maxAlpha) && spec.maxAlpha > 0 && spec.maxAlpha <= 0.82);
     assert.ok(Number.isFinite(spec.delaySeconds) && spec.delaySeconds >= 0);
     assert.ok(Number.isFinite(spec.durationSeconds) && spec.durationSeconds > 0);
-    assert.ok(Number.isFinite(spec.size) && spec.size > 0);
+    assert.ok(Number.isFinite(spec.size) && spec.size > 0 && spec.size <= 100);
     assert.ok(Number.isFinite(spec.forwardOffset));
     assert.ok(Number.isFinite(spec.lateralOffset));
     assert.ok(Number.isFinite(spec.angleOffset));
@@ -160,6 +175,31 @@ test("dash visual specs cover every equipped power once without a three-effect c
     new Set(specs.map((spec) => spec.delaySeconds)).size,
     specs.length,
     "a full loadout needs distinct stagger phases rather than ten simultaneous flashes",
+  );
+  assert.ok(
+    specs.at(-1).delaySeconds >= 1,
+    "the full ten-power presentation must read as a sequence, not one screen-covering flash",
+  );
+  let maximumConcurrentEffects = 0;
+  for (let time = 0; time <= 1.6; time += 0.005) {
+    maximumConcurrentEffects = Math.max(
+      maximumConcurrentEffects,
+      specs.filter(
+        (spec) =>
+          time >= spec.delaySeconds &&
+          time < spec.delaySeconds + spec.durationSeconds,
+      ).length,
+    );
+  }
+  assert.ok(
+    maximumConcurrentEffects <= 4,
+    `all ten effects still fire, but no more than four may obscure the actor at once (got ${maximumConcurrentEffects})`,
+  );
+  assert.ok(
+    Math.max(
+      ...specs.map((spec) => spec.delaySeconds + spec.durationSeconds),
+    ) <= plaza.PLAZA_DASH_BASE_COOLDOWN_SECONDS,
+    "one complete equipment-VFX sequence must finish before another legal dash can stack it",
   );
 
   const partial = ["commaResonance", "crescentEcho"];

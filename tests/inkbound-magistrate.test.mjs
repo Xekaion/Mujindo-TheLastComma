@@ -191,8 +191,9 @@ test("boss progression preserves Blank, keeps floor-one Binder, and unlocks kind
   assert.equal(roster.isBossKind(9), true);
   assert.equal(roster.isBossKind(11), true);
   assert.equal(roster.isBossKind(12), true);
+  assert.equal(roster.isBossKind(13), true);
   assert.equal(roster.isBossKind(10), false);
-  assert.equal(roster.isBossKind(13), false);
+  assert.equal(roster.isBossKind(14), false);
 
   for (const endingVersion of [-20, 0, 1]) {
     for (const floor of [1, 2, 19, Number.POSITIVE_INFINITY]) {
@@ -218,10 +219,10 @@ test("boss progression preserves Blank, keeps floor-one Binder, and unlocks kind
   );
   for (const floor of [2, 3, 99]) {
     assert.deepEqual(
-      Array.from({ length: 9 }, (_, index) =>
+      Array.from({ length: 10 }, (_, index) =>
         roster.bossKindForProgress(2, index + 1, floor),
       ),
-      [12, 11, 5, 9, 12, 11, 5, 9, 12],
+      [12, 13, 11, 5, 9, 12, 13, 11, 5, 9],
       `floor ${floor} must introduce the Inkbound Magistrate on its first post-ending boss room`,
     );
   }
@@ -234,13 +235,13 @@ test("GameCanvas integrates kind 12 through aligned data, floor-aware spawning, 
   const kinds = [...enemyKind[1].matchAll(/\b(\d+)\b/g)].map((match) => Number(match[1]));
   assert.deepEqual(
     [...new Set(kinds)].sort((left, right) => left - right),
-    Array.from({ length: 13 }, (_, kind) => kind),
-    "enemy indices must remain contiguous from 0 through 12",
+    Array.from({ length: 14 }, (_, kind) => kind),
+    "enemy indices must remain contiguous from 0 through 13",
   );
   for (const arrayName of ["ENEMY_NAMES", "WALK_IMAGE_KEYS", "ENEMY_DIRECTION_FRAMES"]) {
     assert.equal(
       arrayLiteralElementCount(source, arrayName),
-      13,
+      14,
       `${arrayName} must align with every enemy kind`,
     );
   }
@@ -276,7 +277,7 @@ test("GameCanvas integrates kind 12 through aligned data, floor-aware spawning, 
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
   for (const [name, entries] of Object.entries({ hpBases, speedBases, damageBases, radii })) {
-    assert.equal(entries.length, 13, `${name} must align with all 13 enemy kinds`);
+    assert.equal(entries.length, 14, `${name} must align with all 14 enemy kinds`);
   }
   assert.deepEqual(
     [hpBases[12], speedBases[12], damageBases[12], radii[12]],

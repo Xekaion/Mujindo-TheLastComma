@@ -22,6 +22,7 @@ import {
 } from "./hub-client";
 import {
   HUB_PALETTES,
+  hubAppearanceFromLoadout,
   hubPublicEquipmentFromLoadout,
   type HubAppearance,
   type HubArrival,
@@ -70,6 +71,13 @@ const LOCAL_LOOT_VFX_SHOWCASE_MODES: readonly LocalLootVfxShowcaseMode[] = [
 ];
 const LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT =
   createPlazaSkillShowcaseEquipment();
+const LOCAL_PLAZA_SKILL_SHOWCASE_APPEARANCE = {
+  ...hubAppearanceFromLoadout(
+    LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT,
+    HUB_PALETTES[0],
+  ),
+  equipped: true,
+};
 
 const isLocalLootVfxShowcaseMode = (
   value: string | null,
@@ -142,7 +150,8 @@ export default function GameEntryFlow({
         const requestedPlazaMotionShowcase = search.get("plazaMotionShowcase");
         if (
           requestedEnemyMode === "margin-severer" ||
-          requestedEnemyMode === "silent-librarian"
+          requestedEnemyMode === "silent-librarian" ||
+          requestedEnemyMode === "forbidden-indexer"
         ) {
           setLocalEnemyVfxShowcase(requestedEnemyMode);
         }
@@ -238,24 +247,11 @@ export default function GameEntryFlow({
   );
 
   const hubAppearance = useMemo<HubAppearance>(() => {
-    const entries = Object.entries(equipment);
-    const equipped = entries.some(([, item]) => item !== null);
-    const gear = Object.fromEntries(
-      entries.map(([slot, item]) => [
-        slot,
-        item ? Math.max(0, Math.min(9, Math.floor(item.iconIndex / 10))) : null,
-      ]),
-    ) as HubAppearance["gear"];
-    const rarities = Object.fromEntries(
-      entries.map(([slot, item]) => [slot, item?.rarity ?? null]),
-    ) as HubAppearance["rarities"];
     const slotIndex = selection ? selection.slot - 1 : 0;
-    return {
-      spriteKey: equipped ? "harin-equipped" : "harin",
-      palette: HUB_PALETTES[slotIndex] ?? "scarlet",
-      gear,
-      rarities,
-    };
+    return hubAppearanceFromLoadout(
+      equipment,
+      HUB_PALETTES[slotIndex] ?? "scarlet",
+    );
   }, [equipment, selection]);
 
   const level = savedCharacter?.player.level ?? 1;
@@ -481,6 +477,7 @@ export default function GameEntryFlow({
             level: 99,
             dungeonFloor: 99,
             saveSlot: 1,
+            appearance: LOCAL_PLAZA_SKILL_SHOWCASE_APPEARANCE,
           }}
           equipment={LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT}
           connectionState="offline"
@@ -601,6 +598,7 @@ export default function GameEntryFlow({
           onSalvageMany={() => undefined}
           onAutoSalvageMaxRarityChange={() => undefined}
           onEnhance={() => undefined}
+          onDivineForgeReroll={() => null}
         />
       )}
       {shopOpen && (

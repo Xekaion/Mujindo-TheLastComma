@@ -117,7 +117,12 @@ export function resolvePlazaMobilityProfile(
 
 export type PlazaDashPowerVfxSpec = Readonly<{
   powerId: LegendaryPowerId;
+  /** Coordinate semantic: feet stay on the floor, body follows the rig centre. */
   layer: "body" | "ground";
+  /** Explicit painter's pass inside the local actor's depth-sorted stack. */
+  renderPass: "ground" | "body" | "foreground";
+  /** Peak authored opacity. All ten powers fire without hiding the character. */
+  maxAlpha: number;
   /** Delay after dash activation, allowing a full ten-piece loadout to read. */
   delaySeconds: number;
   durationSeconds: number;
@@ -141,91 +146,111 @@ type PlazaDashPowerVfxTuning = Omit<PlazaDashPowerVfxSpec, "powerId">;
 export const PLAZA_DASH_POWER_VFX_CONFIG = {
   crescentEcho: {
     layer: "body",
+    renderPass: "foreground",
+    maxAlpha: 0.82,
     delaySeconds: 0,
-    durationSeconds: 0.44,
-    size: 86,
-    forwardOffset: 24,
-    lateralOffset: -16,
+    durationSeconds: 0.34,
+    size: 74,
+    forwardOffset: 20,
+    lateralOffset: -13,
     angleOffset: -0.2,
   },
   mirrorAegis: {
     layer: "body",
-    delaySeconds: 0.03,
-    durationSeconds: 0.62,
-    size: 112,
+    renderPass: "body",
+    maxAlpha: 0.62,
+    delaySeconds: 0.12,
+    durationSeconds: 0.46,
+    size: 94,
     forwardOffset: 0,
     lateralOffset: 0,
     angleOffset: 0,
   },
   hunterSigil: {
     layer: "body",
-    delaySeconds: 0.06,
-    durationSeconds: 0.56,
-    size: 96,
+    renderPass: "body",
+    maxAlpha: 0.68,
+    delaySeconds: 0.24,
+    durationSeconds: 0.38,
+    size: 78,
     forwardOffset: 4,
     lateralOffset: 0,
     angleOffset: 0,
   },
   starfallMantle: {
     layer: "body",
-    delaySeconds: 0.09,
-    durationSeconds: 0.54,
-    size: 118,
+    renderPass: "body",
+    maxAlpha: 0.58,
+    delaySeconds: 0.36,
+    durationSeconds: 0.42,
+    size: 92,
     forwardOffset: 0,
     lateralOffset: 0,
     angleOffset: 0,
   },
   lastMemory: {
     layer: "body",
-    delaySeconds: 0.12,
-    durationSeconds: 0.84,
-    size: 132,
+    renderPass: "body",
+    maxAlpha: 0.56,
+    delaySeconds: 0.48,
+    durationSeconds: 0.5,
+    size: 100,
     forwardOffset: -4,
     lateralOffset: 0,
     angleOffset: 0,
   },
   bloodwovenGrip: {
     layer: "body",
-    delaySeconds: 0.15,
-    durationSeconds: 0.46,
-    size: 88,
-    forwardOffset: 24,
-    lateralOffset: 16,
+    renderPass: "foreground",
+    maxAlpha: 0.8,
+    delaySeconds: 0.6,
+    durationSeconds: 0.34,
+    size: 76,
+    forwardOffset: 20,
+    lateralOffset: 13,
     angleOffset: 0.2,
   },
   ashboundGirdle: {
     layer: "body",
-    delaySeconds: 0.18,
-    durationSeconds: 0.72,
-    size: 112,
+    renderPass: "body",
+    maxAlpha: 0.62,
+    delaySeconds: 0.72,
+    durationSeconds: 0.46,
+    size: 88,
     forwardOffset: -2,
     lateralOffset: 0,
     angleOffset: 0,
   },
   phantomMarch: {
     layer: "ground",
-    delaySeconds: 0.21,
-    durationSeconds: 0.95,
-    size: 74,
-    forwardOffset: -34,
-    lateralOffset: -12,
+    renderPass: "ground",
+    maxAlpha: 0.56,
+    delaySeconds: 0.84,
+    durationSeconds: 0.5,
+    size: 64,
+    forwardOffset: -30,
+    lateralOffset: -10,
     angleOffset: 0,
   },
   riftStride: {
     layer: "ground",
-    delaySeconds: 0.24,
-    durationSeconds: 0.3,
-    size: 52,
-    forwardOffset: -18,
-    lateralOffset: 12,
+    renderPass: "ground",
+    maxAlpha: 0.62,
+    delaySeconds: 0.96,
+    durationSeconds: 0.28,
+    size: 46,
+    forwardOffset: -16,
+    lateralOffset: 10,
     angleOffset: 0,
   },
   commaResonance: {
     layer: "body",
-    delaySeconds: 0.27,
-    durationSeconds: 0.52,
-    size: 82,
-    forwardOffset: 18,
+    renderPass: "foreground",
+    maxAlpha: 0.76,
+    delaySeconds: 1.08,
+    durationSeconds: 0.26,
+    size: 70,
+    forwardOffset: 16,
     lateralOffset: 0,
     angleOffset: 0,
   },
@@ -294,14 +319,15 @@ export function plazaDashDirection(
 
 /**
  * Deterministic, storage-free equipment for the localhost plaza skill QA route.
- * Every slot power is represented, split between legendary and mythic gear.
+ * Every slot power is represented across legendary, mythic, and cosmic gear.
  */
 export function createPlazaSkillShowcaseEquipment(): EquipmentLoadout {
   const equipment = createEmptyEquipment();
+  const showcaseRarities = ["legendary", "mythic", "cosmic"] as const;
   for (const [index, slot] of EQUIPMENT_SLOTS.entries()) {
     equipment[slot] = rollGear(`plaza-skill-showcase-${slot}-v2`, {
       slot,
-      rarity: index % 2 === 0 ? "legendary" : "mythic",
+      rarity: showcaseRarities[index % showcaseRarities.length],
       level: 100,
     });
   }

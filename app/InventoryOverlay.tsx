@@ -61,6 +61,11 @@ import {
   validateDivineForgeAttempt,
   type DivineForgeResult,
 } from "./divine-forge";
+import {
+  clientPointToGamePlane,
+  clientRectSizeToGamePlane,
+  readGamePlaneMetrics,
+} from "./canonical-game-plane";
 
 export type InventoryOverlayProps = {
   open: boolean;
@@ -121,13 +126,12 @@ function clampTooltipPosition(
   tooltipWidth = TOOLTIP_WIDTH,
   tooltipHeight = TOOLTIP_MAX_HEIGHT,
 ): TooltipPosition {
-  if (typeof window === "undefined") return { x: clientX, y: clientY };
-
-  const frameRect = document.body.getBoundingClientRect();
-  const frameWidth = Math.max(0, frameRect.width || window.innerWidth);
-  const frameHeight = Math.max(0, frameRect.height || window.innerHeight);
-  const localX = clientX - frameRect.left;
-  const localY = clientY - frameRect.top;
+  const frame = readGamePlaneMetrics();
+  const localPoint = clientPointToGamePlane(clientX, clientY, frame);
+  const frameWidth = frame.width;
+  const frameHeight = frame.height;
+  const localX = localPoint.x;
+  const localY = localPoint.y;
   const safeWidth = Math.min(tooltipWidth, Math.max(0, frameWidth - 24));
   const safeHeight = Math.min(tooltipHeight, Math.max(0, frameHeight - 24));
   const roomOnRight = localX + TOOLTIP_GAP + safeWidth <= frameWidth;
@@ -138,6 +142,15 @@ function clampTooltipPosition(
   return {
     x: Math.max(12, Math.min(preferredX, frameWidth - safeWidth - 12)),
     y: Math.max(12, Math.min(localY - 48, frameHeight - safeHeight - 12)),
+  };
+}
+
+function focusTooltipAnchor(rect: DOMRect) {
+  const frame = readGamePlaneMetrics();
+  const logicalOffsetInClientPixels = 56 / frame.clientToPlaneScaleY;
+  return {
+    x: rect.right,
+    y: rect.top + Math.min(rect.height / 2, logicalOffsetInClientPixels),
   };
 }
 
@@ -533,12 +546,14 @@ function GearTooltip({
 
     const reportSize = () => {
       const rect = tooltip.getBoundingClientRect();
-      onMeasure(rect.width, rect.height);
+      const size = clientRectSizeToGamePlane(rect);
+      onMeasure(size.width, size.height);
     };
     reportSize();
-    const observer = new ResizeObserver(reportSize);
-    observer.observe(tooltip);
-    return () => observer.disconnect();
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(reportSize);
+    observer?.observe(tooltip);
+    return () => observer?.disconnect();
   }, [item.id, onMeasure]);
 
   return (
@@ -1236,10 +1251,7 @@ export default function InventoryOverlay({
     if (salvageModeActive) return;
     setResonanceDetail(null);
     const rect = event.currentTarget.getBoundingClientRect();
-    const anchor = {
-      x: rect.right,
-      y: rect.top + Math.min(rect.height / 2, 56),
-    };
+    const anchor = focusTooltipAnchor(rect);
     tooltipAnchorRef.current = anchor;
     setHoveredItem(item);
     setHoveredItemIsEquipped(equipped);
@@ -1249,10 +1261,7 @@ export default function InventoryOverlay({
   const hidePointerTooltip = (event: MouseEvent<HTMLElement>) => {
     if (document.activeElement === event.currentTarget) {
       const rect = event.currentTarget.getBoundingClientRect();
-      const anchor = {
-        x: rect.right,
-        y: rect.top + Math.min(rect.height / 2, 56),
-      };
+      const anchor = focusTooltipAnchor(rect);
       tooltipAnchorRef.current = anchor;
       setTooltipPosition(clampTooltipPosition(anchor.x, anchor.y));
       return;
@@ -2010,15 +2019,15 @@ export default function InventoryOverlay({
                           <strong>분해 선택됨</strong>
                         </span>
                       )}
-                      <span className={`inventory-screen-grid-delta ${powerDeltaClass(itemPowerDelta)}`}>
+                      <span className={`inventory-screen-card-edge-chip inventory-screen-grid-delta ${powerDeltaClass(itemPowerDelta)}`}>
                         {formatPowerDelta(itemPowerDelta)}
                       </span>
-                      <span className={`inventory-screen-grid-level${levelLocked ? " inventory-screen-level-requirement--locked" : ""}`}>
+                      <span className={`inventory-screen-card-edge-chip inventory-screen-grid-level${levelLocked ? " inventory-screen-level-requirement--locked" : ""}`}>
                         LV.{item.level}
                         <small>착용 {requiredLevel}</small>
                       </span>
-                      <span className="inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
-                      <strong className="inventory-screen-enhancement-badge">+{item.enhancement}</strong>
+                      <span className="inventory-screen-card-edge-chip inventory-screen-grid-quality">품질 {item.qualityScore}/100</span>
+                      <strong className="inventory-screen-card-edge-chip inventory-screen-enhancement-badge">+{item.enhancement}</strong>
                       <small className="inventory-screen-grid-name">{formatGearDisplayName(item)}</small>
                       {overCapacity && (
                         <span className="inventory-screen-over-capacity-mark">초과 보관</span>

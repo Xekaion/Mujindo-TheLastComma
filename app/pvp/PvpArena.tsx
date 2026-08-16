@@ -77,6 +77,7 @@ import {
   type GameplayVfxId,
 } from "../augment-vfx";
 import { isLocalPvpShowcaseRequest } from "../pvp-showcase";
+import { canvasBackingDimensions } from "../canvas-performance";
 import "./pvp.css";
 
 type PvpArenaProps = {
@@ -275,7 +276,9 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     localPvpShowcaseServerSnapshot,
   );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const canvasBackingScaleRef = useRef(1);
+  const [paperdollImageStore] = useState(createBrowserPaperdollImageStore);
+  const paperdollImagesRef = useRef(paperdollImageStore);
   const equippedRarityVfxImagesRef = useRef<
     Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
   >({});
@@ -347,6 +350,37 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     });
     return () => window.cancelAnimationFrame(frame);
   }, [localShowcase, suggestedName]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeBackingStore = () => {
+      const rect = canvas.getBoundingClientRect();
+      const backing = canvasBackingDimensions(
+        PVP_ARENA_WIDTH,
+        PVP_ARENA_HEIGHT,
+        rect.width,
+        rect.height,
+        window.devicePixelRatio || 1,
+      );
+      canvasBackingScaleRef.current = backing.scale;
+      if (canvas.width !== backing.width) canvas.width = backing.width;
+      if (canvas.height !== backing.height) canvas.height = backing.height;
+    };
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(resizeBackingStore);
+    observer?.observe(canvas);
+    window.addEventListener("resize", resizeBackingStore);
+    resizeBackingStore();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", resizeBackingStore);
+    };
+  }, [activeSnapshot?.matchId]);
 
   useEffect(() => {
     paperdollImagesRef.current.reconcile(paperdollPathSignature.split("|"));
@@ -592,17 +626,27 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     const fallbackRoom = new Image();
     fallbackRoom.decoding = "async";
     fallbackRoom.src = "/assets/maps/room-elite.webp";
-    const roomVignette = context.createRadialGradient(
-      PVP_ARENA_WIDTH / 2,
-      PVP_ARENA_HEIGHT / 2,
-      180,
-      PVP_ARENA_WIDTH / 2,
-      PVP_ARENA_HEIGHT / 2,
-      735,
-    );
-    roomVignette.addColorStop(0, "rgba(0,0,0,0)");
-    roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
-    roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
+    let roomVignette: CanvasGradient | null = null;
+    let roomVignetteBackingScale = 0;
+    const getRoomVignette = () => {
+      const backingScale = canvasBackingScaleRef.current;
+      if (roomVignette && roomVignetteBackingScale === backingScale) {
+        return roomVignette;
+      }
+      roomVignette = context.createRadialGradient(
+        PVP_ARENA_WIDTH / 2,
+        PVP_ARENA_HEIGHT / 2,
+        180,
+        PVP_ARENA_WIDTH / 2,
+        PVP_ARENA_HEIGHT / 2,
+        735,
+      );
+      roomVignette.addColorStop(0, "rgba(0,0,0,0)");
+      roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
+      roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
+      roomVignetteBackingScale = backingScale;
+      return roomVignette;
+    };
     const renderedPositions = new Map<
       string,
       { x: number; y: number; facing: number; walkCycle: number }
@@ -633,26 +677,6 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       );
     }
     let animationFrame = 0;
-    let canvasCssScale = 1;
-    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
-      if (renderedWidth <= 0 || renderedHeight <= 0) return;
-      canvasCssScale = Math.max(
-        0.01,
-        Math.min(
-          renderedWidth / PVP_ARENA_WIDTH,
-          renderedHeight / PVP_ARENA_HEIGHT,
-        ),
-      );
-    };
-    const initialCanvasRect = canvas.getBoundingClientRect();
-    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
-    const canvasResizeObserver = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
-    });
-    canvasResizeObserver.observe(canvas);
-    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
-      Math.max(basePx, minimumCssPx / canvasCssScale);
 
     const appearanceForPlayer = (player: PvpPlayerSnapshot): PvpAppearance => {
       return (
@@ -709,7 +733,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       context.fillStyle = "#7e2527";
       context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
       context.restore();
-      context.fillStyle = roomVignette;
+      context.fillStyle = getRoomVignette();
       context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
 
       const ambientTime = renderTime / 1_000;
@@ -775,7 +799,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
       context.globalCompositeOperation = "source-over";
       context.globalAlpha = 1;
-      context.fillStyle = roomVignette;
+      context.fillStyle = getRoomVignette();
       context.fillRect(0, 0, PVP_ARENA_WIDTH, PVP_ARENA_HEIGHT);
       context.restore();
     };
@@ -859,13 +883,33 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       context.fill();
       const bodyAtlas = paperdollImagesRef.current.get(PAPERDOLL_BODY_PATH);
       const appearance = appearanceForPlayer(player);
+      const rarityVfxPlan = rarityVfxPlanForPlayer(player);
+      const drawPvpRarityVfxPass = (pass: "pvp-back" | "pvp-front") =>
+        drawEquippedRarityVfx(context, {
+          plan: rarityVfxPlan,
+          images: equippedRarityVfxImagesRef.current,
+          direction: rendered.facing,
+          frame,
+          timeMs: renderTime,
+          x: rendered.x,
+          y: rendered.y + PVP_PLAYER_GROUND_OFFSET_Y,
+          width: PAPERDOLL_WORLD_RENDER_WIDTH,
+          height: PAPERDOLL_WORLD_RENDER_HEIGHT,
+          context: pass,
+          alpha,
+        });
       if (
         bodyAtlas?.complete &&
         bodyAtlas.naturalWidth > 0 &&
         bodyAtlas.naturalHeight > 0
       ) {
+        // Keep the broad mythic/cosmic halo behind the complete ten-piece
+        // paperdoll so neither duelist turns into an additive white silhouette.
+        context.shadowBlur = 0;
+        context.shadowColor = "transparent";
+        drawPvpRarityVfxPass("pvp-back");
         context.shadowColor = accent;
-        context.shadowBlur = 16;
+        context.shadowBlur = 12;
         const appearanceDrawn = drawPaperdollCharacterDirect(context, {
           bodyAtlas,
           layerSources: paperdollImagesRef.current.imageMap(),
@@ -881,19 +925,9 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
         if (appearanceDrawn) {
           context.shadowBlur = 0;
           context.shadowColor = "transparent";
-          drawEquippedRarityVfx(context, {
-            plan: rarityVfxPlanForPlayer(player),
-            images: equippedRarityVfxImagesRef.current,
-            direction: rendered.facing,
-            frame,
-            timeMs: renderTime,
-            x: rendered.x,
-            y: rendered.y + PVP_PLAYER_GROUND_OFFSET_Y,
-            width: PAPERDOLL_WORLD_RENDER_WIDTH,
-            height: PAPERDOLL_WORLD_RENDER_HEIGHT,
-            context: "combat",
-            alpha,
-          });
+          // Only the two highest-priority equipment glints return in front at
+          // low opacity; armour pixels and held-gear edges stay fully legible.
+          drawPvpRarityVfxPass("pvp-front");
         }
         if (!appearanceDrawn) {
           context.fillStyle = accent;
@@ -909,7 +943,7 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
       }
       context.restore();
 
-      context.font = `700 ${readableCanvasFontSize(12, 11)}px Pretendard, sans-serif`;
+      context.font = "700 12px Pretendard, sans-serif";
       context.letterSpacing = "0px";
       context.textAlign = "center";
       context.fillStyle = "rgba(250, 239, 216, 0.95)";
@@ -931,6 +965,8 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
 
     let previousRenderTime: number | null = null;
     const render = (renderTime: number) => {
+      const backingScale = canvasBackingScaleRef.current;
+      context.setTransform(backingScale, 0, 0, backingScale, 0, 0);
       const elapsedSeconds =
         previousRenderTime === null
           ? 0
@@ -1045,13 +1081,13 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
         if (current.phase === "countdown") {
           const remaining = Math.max(0, current.startsAt - Date.now());
           context.textAlign = "center";
-          context.font = `700 ${readableCanvasFontSize(82, 11)}px Georgia, serif`;
+          context.font = "700 82px Georgia, serif";
           context.fillStyle = "rgba(250, 224, 168, 0.96)";
           context.shadowColor = "rgba(231, 90, 108, 0.72)";
           context.shadowBlur = 28;
           context.fillText(String(Math.max(1, Math.ceil(remaining / 1_000))), 640, 336);
           context.shadowBlur = 0;
-          context.font = `800 ${readableCanvasFontSize(12, 10)}px Pretendard, sans-serif`;
+          context.font = "800 12px Pretendard, sans-serif";
           context.letterSpacing = "0.32em";
           context.fillText("기억 결투", 640, 370);
         }
@@ -1060,7 +1096,6 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
     };
     animationFrame = window.requestAnimationFrame(render);
     return () => {
-      canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
       roomAtlas.onload = null;
       roomAtlas.onerror = null;
@@ -1232,8 +1267,6 @@ export default function PvpArena({ suggestedName }: PvpArenaProps) {
 
           <canvas
             ref={canvasRef}
-            width={PVP_ARENA_WIDTH}
-            height={PVP_ARENA_HEIGHT}
             className="pvp-canvas"
             onPointerMove={handleAim}
             onPointerDown={handleAim}

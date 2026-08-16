@@ -229,6 +229,10 @@ test("localhost plaza motion QA renders directly without touching a save or hub 
   assert.match(directBlock, /data-entry-view="local-plaza-motion-showcase"/);
   assert.match(directBlock, /<PlazaHub/);
   assert.match(directBlock, /equipment=\{LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT\}/);
+  assert.match(
+    directBlock,
+    /appearance:\s*LOCAL_PLAZA_SKILL_SHOWCASE_APPEARANCE/,
+  );
   assert.match(directBlock, /connectionState="offline"/);
   assert.doesNotMatch(
     directBlock,
@@ -237,6 +241,10 @@ test("localhost plaza motion QA renders directly without touching a save or hub 
   assert.match(
     flow,
     /const LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT\s*=\s*createPlazaSkillShowcaseEquipment\(\);/,
+  );
+  assert.match(
+    flow,
+    /const LOCAL_PLAZA_SKILL_SHOWCASE_APPEARANCE\s*=\s*\{[\s\S]{0,260}?hubAppearanceFromLoadout\(\s*LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT,[\s\S]{0,100}?equipped:\s*true/,
   );
 });
 

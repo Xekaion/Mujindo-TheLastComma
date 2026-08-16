@@ -200,6 +200,7 @@ def main() -> None:
     output.save(OUTPUT, optimize=True)
     report = {
         "version": 6,
+        "builder": "scripts/build_inventory_rarity_frames_v6.py",
         "format": "RGBA PNG",
         "sheet": {
             "columns": len(RARITIES),

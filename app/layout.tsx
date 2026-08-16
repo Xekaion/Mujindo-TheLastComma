@@ -2,6 +2,9 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import GameAudioProvider from "./GameAudioProvider";
 import "./globals.css";
+import "./ui-scrollbars.css";
+import "./ui-controls.css";
+import "./ui-form-controls.css";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();

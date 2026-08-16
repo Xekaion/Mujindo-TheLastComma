@@ -1,4 +1,6 @@
 {
+  "version": 1,
+  "builder": "scripts/build_world_announcement_assets.py",
   "format": "RGBA PNG",
   "atlas": {
     "columns": 4,
@@ -16,7 +18,7 @@
   },
   "rarities": {
     "mythic": {
-      "source": "work/imagegen/world-announcement-v1/mythic-source.png",
+      "source": "asset-sources/imagegen/world-announcement-mythic-v1-source.png",
       "sourceSha256": "6aeeb70427775841d9599f6c39f9ccc1efde0dbd8a94450b4c7af420f5964910",
       "output": "public/assets/ui/world-announcement-mythic-v1.png",
       "outputSha256": "8759bbd44573a7f941fa7211c800a5bc2ad2fc03bc2e27a424bd8149e0a45b44",
@@ -137,7 +139,7 @@
       ]
     },
     "cosmic": {
-      "source": "work/imagegen/world-announcement-v1/cosmic-source.png",
+      "source": "asset-sources/imagegen/world-announcement-cosmic-v1-source.png",
       "sourceSha256": "058b67b8d4b3890cb76ca629234e59c1e93cf6b0329265dddf9e1c1708da04b9",
       "output": "public/assets/ui/world-announcement-cosmic-v1.png",
       "outputSha256": "5d61d9c91be14922ff41b18dcc96602a98c091388dc45959b622d5d31b25d58b",

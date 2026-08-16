@@ -73,6 +73,7 @@ import {
 } from "./augment-vfx";
 import { playGameSfx } from "./game-audio";
 import { advanceContinuousMovement } from "./legendary-runtime";
+import { compactPositiveFieldInPlace } from "./runtime-performance";
 import type { EquipmentLoadout } from "./equipment";
 import {
   PLAZA_DASH_DURATION_SECONDS,
@@ -102,6 +103,31 @@ export const PLAZA_REMOTE_RENDER_MARGIN = 220;
 export const PLAZA_REMOTE_RENDER_LIMIT = 32;
 /** Only the nearest players keep ten high-resolution wearable atlases resident. */
 export const PLAZA_REMOTE_EQUIPMENT_DETAIL_LIMIT = 2;
+
+/**
+ * Canonical painter's order for the local actor stack. Keeping this explicit
+ * prevents additive equipment effects from leaking above nearer actors or UI.
+ */
+export const PLAZA_PLAYER_RENDER_PASS_ORDER = [
+  "ground-vfx",
+  "shadow",
+  "paperdoll",
+  "equipped-vfx",
+  "body-vfx",
+  "foreground-vfx",
+  "nameplate",
+] as const;
+
+export function plazaPlayerGroundAnchorY(playerY: number): number {
+  return playerY + PLAZA_PLAYER_GROUND_OFFSET_Y;
+}
+
+export function plazaPlayerBodyCenterY(playerY: number): number {
+  return paperdollVisualCenterY(
+    plazaPlayerGroundAnchorY(playerY),
+    PAPERDOLL_WORLD_RENDER_HEIGHT,
+  );
+}
 
 export type PlazaCharacterIdentity = {
   characterId: string;
@@ -185,6 +211,8 @@ type PlazaSkillEffect = {
   angle: number;
   delaySeconds: number;
   layer: "body" | "ground";
+  renderPass: "ground" | "body" | "foreground";
+  maxAlpha: number;
 };
 
 const PLAZA_SKILL_FALLBACK_COLORS = {
@@ -220,7 +248,7 @@ function drawPlazaSkillEffect(
       size: effect.size,
       progress,
       angle: effect.angle,
-      alpha: Math.min(1, Math.sin(progress * Math.PI) * 1.38),
+      alpha: Math.sin(progress * Math.PI) * effect.maxAlpha,
       interpolateFrames: true,
     },
   );
@@ -228,13 +256,63 @@ function drawPlazaSkillEffect(
 
   context.save();
   context.globalCompositeOperation = "lighter";
-  context.globalAlpha = Math.sin(progress * Math.PI) * 0.72;
+  context.globalAlpha = Math.sin(progress * Math.PI) * effect.maxAlpha;
   context.fillStyle = PLAZA_SKILL_FALLBACK_COLORS[effect.vfxId] ?? "#ffe69a";
   context.shadowColor = context.fillStyle;
   context.shadowBlur = 18;
   context.beginPath();
   context.arc(effect.x, effect.y, effect.size * 0.18, 0, Math.PI * 2);
   context.fill();
+  context.restore();
+}
+
+function drawPlazaSkillEffectsForPass(
+  context: CanvasRenderingContext2D,
+  effects: readonly PlazaSkillEffect[],
+  renderPass: PlazaSkillEffect["renderPass"],
+  images: ReadonlyMap<string, HTMLImageElement>,
+) {
+  for (const effect of effects) {
+    if (effect.renderPass !== renderPass) continue;
+    drawPlazaSkillEffect(context, effect, images);
+  }
+}
+
+function drawPlazaStarfallMantle(
+  context: CanvasRenderingContext2D,
+  x: number,
+  playerY: number,
+  time: number,
+  remainingSeconds: number,
+  images: ReadonlyMap<string, HTMLImageElement>,
+) {
+  if (remainingSeconds <= 0) return;
+  const mantleVfxId = legendaryVfxId("starfallMantle");
+  const bodyCenterY = plazaPlayerBodyCenterY(playerY);
+  const endFade = Math.min(1, remainingSeconds / 0.32);
+  const pulse = 0.42 + (Math.sin(time * 4.2) + 1) * 0.045;
+  const mantleDrawn = drawGameplayVfxFrame(
+    context,
+    images.get(gameplayVfxImageKey(mantleVfxId)),
+    GAMEPLAY_VFX_MANIFEST[mantleVfxId],
+    {
+      x,
+      y: bodyCenterY,
+      size: 90,
+      progress: ((time * 1.05) % 1 + 1) % 1,
+      alpha: pulse * endFade,
+      interpolateFrames: true,
+    },
+  );
+  if (mantleDrawn) return;
+
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.globalAlpha = pulse * endFade;
+  context.fillStyle = "#ffeaa6";
+  context.shadowColor = "#f8d98a";
+  context.shadowBlur = 12;
+  context.fillRect(x - 2, bodyCenterY - 2, 4, 4);
   context.restore();
 }
 
@@ -545,16 +623,36 @@ function drawPlazaDecor(context: CanvasRenderingContext2D, time: number) {
   }
 }
 
-function drawPlayer(
+type PlazaPlayerDrawPlan = Readonly<{
+  alpha: number;
+  frame: number;
+  loadout: ReturnType<typeof paperdollLoadoutFromVisualGear>;
+}>;
+
+function createPlazaPlayerDrawPlan(player: DrawPlayer): PlazaPlayerDrawPlan {
+  return {
+    alpha: player.stale ? 0.44 : 1,
+    frame: characterRenderFrameIndex(
+      player.facing,
+      player.walkCycle,
+      player.moving,
+    ),
+    loadout: paperdollLoadoutFromVisualGear(
+      player.gear,
+      "common",
+      0,
+      player.rarities,
+    ),
+  };
+}
+
+function drawPlazaPlayerShadow(
   context: CanvasRenderingContext2D,
   player: DrawPlayer,
-  bodyImage: HTMLImageElement | undefined,
-  layerSources: ReadonlyMap<string, HTMLImageElement>,
-  rarityVfxImages: EquippedRarityVfxImageMap,
-  timeMs: number,
-  readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
 ) {
   const shadowWidth = player.local ? 34 : 30;
+  context.save();
+  context.globalAlpha = player.stale ? 0.44 : 1;
   context.fillStyle = "rgba(0, 0, 0, .58)";
   context.beginPath();
   context.ellipse(
@@ -567,63 +665,76 @@ function drawPlayer(
     Math.PI * 2,
   );
   context.fill();
+  context.restore();
+}
 
-  const alpha = player.stale ? 0.44 : 1;
-  const frame = characterRenderFrameIndex(
-    player.facing,
-    player.walkCycle,
-    player.moving,
-  );
-  const loadout = paperdollLoadoutFromVisualGear(
-    player.gear,
-    "common",
-    0,
-    player.rarities,
-  );
+function drawPlazaPlayerPaperdoll(
+  context: CanvasRenderingContext2D,
+  player: DrawPlayer,
+  plan: PlazaPlayerDrawPlan,
+  bodyImage: HTMLImageElement | undefined,
+  layerSources: ReadonlyMap<string, HTMLImageElement>,
+) {
   const appearanceDrawn = Boolean(
     bodyImage?.complete &&
       bodyImage.naturalWidth > 0 &&
       drawPaperdollCharacterDirect(context, {
         bodyAtlas: bodyImage,
         layerSources,
-        loadout,
+        loadout: plan.loadout,
         direction: player.facing,
-        frame,
+        frame: plan.frame,
         x: player.x,
-        y: player.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+        y: plazaPlayerGroundAnchorY(player.y),
         width: PAPERDOLL_WORLD_RENDER_WIDTH,
         height: PAPERDOLL_WORLD_RENDER_HEIGHT,
-        alpha,
+        alpha: plan.alpha,
       }),
   );
-  // Coarse remote players intentionally carry no rarity map. That avoids both
-  // hidden rarity disclosure and needless plan allocation for the other 29
-  // visible players; only the local actor and two detailed remotes reach VFX.
-  if (appearanceDrawn && player.rarities) {
-    drawEquippedRarityVfx(context, {
-      plan: resolveEquippedRarityVfxPlan(loadout),
-      images: rarityVfxImages,
-      direction: player.facing,
-      frame,
-      timeMs,
-      x: player.x,
-      y: player.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
-      width: PAPERDOLL_WORLD_RENDER_WIDTH,
-      height: PAPERDOLL_WORLD_RENDER_HEIGHT,
-      context: player.local ? "plaza-local" : "plaza-remote",
-      alpha,
-    });
-  }
   if (!appearanceDrawn) {
     context.save();
-    context.globalAlpha = alpha;
+    context.globalAlpha = plan.alpha;
     context.fillStyle = player.local ? "#9b3f43" : "#3b6973";
     context.beginPath();
     context.arc(player.x, player.y - 16, 24, 0, Math.PI * 2);
     context.fill();
     context.restore();
   }
+  return appearanceDrawn;
+}
 
+function drawPlazaPlayerEquippedVfx(
+  context: CanvasRenderingContext2D,
+  player: DrawPlayer,
+  plan: PlazaPlayerDrawPlan,
+  rarityVfxImages: EquippedRarityVfxImageMap,
+  timeMs: number,
+  appearanceDrawn: boolean,
+) {
+  // Coarse remote players intentionally carry no rarity map. That avoids both
+  // hidden rarity disclosure and needless plan allocation for the other 29
+  // visible players; only the local actor and two detailed remotes reach VFX.
+  if (!appearanceDrawn || !player.rarities) return;
+  drawEquippedRarityVfx(context, {
+    plan: resolveEquippedRarityVfxPlan(plan.loadout),
+    images: rarityVfxImages,
+    direction: player.facing,
+    frame: plan.frame,
+    timeMs,
+    x: player.x,
+    y: plazaPlayerGroundAnchorY(player.y),
+    width: PAPERDOLL_WORLD_RENDER_WIDTH,
+    height: PAPERDOLL_WORLD_RENDER_HEIGHT,
+    context: player.local ? "plaza-local" : "plaza-remote",
+    alpha: plan.alpha,
+  });
+}
+
+function drawPlazaPlayerNameplate(
+  context: CanvasRenderingContext2D,
+  player: DrawPlayer,
+  readableCanvasFontSize: (basePx: number, minimumCssPx: number) => number,
+) {
   context.save();
   context.textAlign = "center";
   context.shadowColor = "rgba(0, 0, 0, .95)";
@@ -693,7 +804,8 @@ export default function PlazaHub({
   const skillEffectsRef = useRef<PlazaSkillEffect[]>([]);
   const viewportRef = useRef<ViewportState>({ width: 1280, height: 720, dpr: 1 });
   const sceneImagesRef = useRef(new Map<string, HTMLImageElement>());
-  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const [paperdollImageStore] = useState(createBrowserPaperdollImageStore);
+  const paperdollImagesRef = useRef(paperdollImageStore);
   const paperdollPathSignatureRef = useRef("");
   const rarityVfxImagesRef = useRef<
     Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
@@ -855,6 +967,7 @@ export default function PlazaHub({
     for (const characterId of remoteRenderPointsRef.current.keys()) {
       if (!activeIds.has(characterId)) {
         remoteRenderPointsRef.current.delete(characterId);
+        remoteWalkCyclesRef.current.delete(characterId);
       }
     }
   }, [visibleRemotePlayers]);
@@ -915,33 +1028,56 @@ export default function PlazaHub({
 
     const resize = () => {
       const rect = root.getBoundingClientRect();
-      const dpr = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-      const width = Math.max(1, rect.width);
-      const height = Math.max(1, rect.height);
+      const width = Math.max(1, root.clientWidth);
+      const height = Math.max(1, root.clientHeight);
+      const renderedScale = Math.max(
+        0.01,
+        Math.min(rect.width / width, rect.height / height),
+      );
+      const dpr = Math.min(
+        2,
+        Math.max(1, (window.devicePixelRatio || 1) * renderedScale),
+      );
       viewportRef.current = { width, height, dpr };
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
     };
 
-    const observer = new ResizeObserver(resize);
-    observer.observe(root);
+    const observer =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(resize);
+    observer?.observe(root);
+    window.addEventListener("resize", resize);
     resize();
-    return () => observer.disconnect();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", resize);
+    };
   }, []);
 
   useEffect(() => {
+    const images = sceneImagesRef.current;
+    const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
     for (const path of [PLAZA_MAP_PATH]) {
-      if (sceneImagesRef.current.has(path)) continue;
+      if (images.has(path)) continue;
       const image = new Image();
       image.decoding = "async";
-      image.addEventListener("error", () => sceneImagesRef.current.delete(path), {
+      image.addEventListener("error", () => images.delete(path), {
         once: true,
       });
       image.src = path;
-      sceneImagesRef.current.set(path, image);
+      images.set(path, image);
+      ownedImages.push([path, image]);
     }
+    return () => {
+      for (const [path, image] of ownedImages) {
+        if (images.get(path) === image) images.delete(path);
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src");
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -1050,34 +1186,34 @@ export default function PlazaHub({
     const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
     let animationFrame = 0;
-    let canvasCssScale = 1;
-    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
-      const { width: logicalWidth, height: logicalHeight } = viewportRef.current;
-      if (
-        renderedWidth <= 0 ||
-        renderedHeight <= 0 ||
-        logicalWidth <= 0 ||
-        logicalHeight <= 0
-      ) {
-        return;
-      }
-      canvasCssScale = Math.max(
-        0.01,
-        Math.min(renderedWidth / logicalWidth, renderedHeight / logicalHeight),
-      );
+    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) => {
+      void minimumCssPx;
+      return basePx;
     };
-    const initialCanvasRect = canvas.getBoundingClientRect();
-    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
-    const canvasResizeObserver = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
-    });
-    canvasResizeObserver.observe(canvas);
-    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
-      Math.max(basePx, minimumCssPx / canvasCssScale);
     let renderableRemotePlayers: readonly PlazaRemotePlayer[] = [];
     let detailedRemotePlayerIds = new Set<string>();
     let nextRemoteVisibilityCheckAt = 0;
+    let viewportVignette: CanvasGradient | null = null;
+    let viewportVignetteKey = "";
+
+    const getViewportVignette = (width: number, height: number, dpr: number) => {
+      const key = `${width}x${height}@${dpr}`;
+      if (viewportVignette && viewportVignetteKey === key) {
+        return viewportVignette;
+      }
+      viewportVignette = context.createRadialGradient(
+        width / 2,
+        height / 2,
+        Math.min(width, height) * 0.25,
+        width / 2,
+        height / 2,
+        Math.max(width, height) * 0.72,
+      );
+      viewportVignette.addColorStop(0, "rgba(0,0,0,0)");
+      viewportVignette.addColorStop(1, "rgba(0,0,0,.62)");
+      viewportVignetteKey = key;
+      return viewportVignette;
+    };
 
     const refreshRenderableRemotePlayers = (now: number) => {
       if (now < nextRemoteVisibilityCheckAt) return;
@@ -1189,7 +1325,7 @@ export default function PlazaHub({
         effect.delaySeconds = Math.max(0, effect.delaySeconds - dt);
         effect.life -= activeSeconds;
       }
-      skillEffectsRef.current = skillEffectsRef.current.filter((effect) => effect.life > 0);
+      compactPositiveFieldInPlace(skillEffectsRef.current, "life");
 
       if (dashQueuedRef.current && !pausedRef.current && dashCooldownRef.current <= 0) {
         dashQueuedRef.current = false;
@@ -1206,11 +1342,8 @@ export default function PlazaHub({
         for (const spec of dashPowerVfxSpecs) {
           const anchorY =
             spec.layer === "body"
-              ? paperdollVisualCenterY(
-                  positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
-                  PAPERDOLL_WORLD_RENDER_HEIGHT,
-                )
-              : positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y;
+              ? plazaPlayerBodyCenterY(positionRef.current.y)
+              : plazaPlayerGroundAnchorY(positionRef.current.y);
           skillEffectsRef.current.push({
             id: ++skillEffectIdRef.current,
             vfxId: legendaryVfxId(spec.powerId),
@@ -1228,6 +1361,8 @@ export default function PlazaHub({
             angle: dashAngle + spec.angleOffset,
             delaySeconds: spec.delaySeconds,
             layer: spec.layer,
+            renderPass: spec.renderPass,
+            maxAlpha: spec.maxAlpha,
           });
         }
         // The worker accepts the fastest legitimate RiftStride cadence but
@@ -1273,13 +1408,15 @@ export default function PlazaHub({
             id: ++skillEffectIdRef.current,
             vfxId: legendaryVfxId("riftStride"),
             x: positionRef.current.x,
-            y: positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+            y: plazaPlayerGroundAnchorY(positionRef.current.y),
             size: 52,
             life: 0.3,
             duration: 0.3,
             angle: Math.atan2(direction.y, direction.x),
             delaySeconds: 0,
             layer: "ground",
+            renderPass: "ground",
+            maxAlpha: 0.48,
           });
         }
       } else if (hasMovementInput) {
@@ -1348,7 +1485,7 @@ export default function PlazaHub({
           id: ++skillEffectIdRef.current,
           vfxId: legendaryVfxId("phantomMarch"),
           x: previousPosition.x,
-          y: previousPosition.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
+          y: plazaPlayerGroundAnchorY(previousPosition.y),
           size: 74,
           life: 0.95,
           duration: 0.95,
@@ -1358,6 +1495,8 @@ export default function PlazaHub({
           ),
           delaySeconds: 0,
           layer: "ground",
+          renderPass: "ground",
+          maxAlpha: 0.46,
         });
       }
       if (motion.moving) {
@@ -1450,10 +1589,12 @@ export default function PlazaHub({
         );
       }
 
-      for (const effect of skillEffectsRef.current) {
-        if (effect.layer !== "ground") continue;
-        drawPlazaSkillEffect(context, effect, skillVfxImagesRef.current);
-      }
+      drawPlazaSkillEffectsForPass(
+        context,
+        skillEffectsRef.current,
+        "ground",
+        skillVfxImagesRef.current,
+      );
 
       const currentTime = Date.now();
       const remoteLerp = 1 - Math.exp(-dt * 11);
@@ -1529,69 +1670,61 @@ export default function PlazaHub({
       });
       players.sort((left, right) => left.y - right.y || Number(left.local) - Number(right.local));
       for (const player of players) {
-        drawPlayer(
+        const drawPlan = createPlazaPlayerDrawPlan(player);
+        drawPlazaPlayerShadow(context, player);
+        const appearanceDrawn = drawPlazaPlayerPaperdoll(
           context,
           player,
+          drawPlan,
           paperdollImages.get(PAPERDOLL_BODY_PATH),
           paperdollImages.imageMap(),
+        );
+        drawPlazaPlayerEquippedVfx(
+          context,
+          player,
+          drawPlan,
           rarityVfxImagesRef.current,
           now,
+          appearanceDrawn,
+        );
+        if (!player.local) continue;
+        drawPlazaSkillEffectsForPass(
+          context,
+          skillEffectsRef.current,
+          "body",
+          skillVfxImagesRef.current,
+        );
+        drawPlazaStarfallMantle(
+          context,
+          player.x,
+          player.y,
+          time,
+          starfallMantleTimeRef.current,
+          skillVfxImagesRef.current,
+        );
+        drawPlazaSkillEffectsForPass(
+          context,
+          skillEffectsRef.current,
+          "foreground",
+          skillVfxImagesRef.current,
+        );
+      }
+      for (const player of players) {
+        drawPlazaPlayerNameplate(
+          context,
+          player,
           readableCanvasFontSize,
         );
       }
-      for (const effect of skillEffectsRef.current) {
-        if (effect.layer !== "body") continue;
-        drawPlazaSkillEffect(context, effect, skillVfxImagesRef.current);
-      }
-      if (starfallMantleTimeRef.current > 0) {
-        const mantleVfxId = legendaryVfxId("starfallMantle");
-        const bodyCenterY = paperdollVisualCenterY(
-          positionRef.current.y + PLAZA_PLAYER_GROUND_OFFSET_Y,
-          PAPERDOLL_WORLD_RENDER_HEIGHT,
-        );
-        const mantleDrawn = drawGameplayVfxFrame(
-          context,
-          skillVfxImagesRef.current.get(gameplayVfxImageKey(mantleVfxId)),
-          GAMEPLAY_VFX_MANIFEST[mantleVfxId],
-          {
-            x: positionRef.current.x,
-            y: bodyCenterY,
-            size: 108,
-            progress: ((time * 1.4) % 1 + 1) % 1,
-            alpha: 0.92,
-            interpolateFrames: true,
-          },
-        );
-        if (!mantleDrawn) {
-          context.save();
-          context.globalCompositeOperation = "lighter";
-          context.fillStyle = "#ffeaa6";
-          context.shadowColor = "#f8d98a";
-          context.shadowBlur = 16;
-          context.fillRect(positionRef.current.x - 2, bodyCenterY - 2, 4, 4);
-          context.restore();
-        }
-      }
       context.restore();
 
-      const vignette = context.createRadialGradient(
-        width / 2,
-        height / 2,
-        Math.min(width, height) * 0.25,
-        width / 2,
-        height / 2,
-        Math.max(width, height) * 0.72,
-      );
-      vignette.addColorStop(0, "rgba(0,0,0,0)");
-      vignette.addColorStop(1, "rgba(0,0,0,.62)");
-      context.fillStyle = vignette;
+      context.fillStyle = getViewportVignette(width, height, dpr);
       context.fillRect(0, 0, width, height);
       animationFrame = window.requestAnimationFrame(frame);
     };
 
     animationFrame = window.requestAnimationFrame(frame);
     return () => {
-      canvasResizeObserver.disconnect();
       window.cancelAnimationFrame(animationFrame);
       paperdollPathSignatureRef.current = "";
       paperdollImages.clear();

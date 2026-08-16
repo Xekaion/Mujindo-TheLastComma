@@ -73,11 +73,10 @@
 .character-entry-panel {
   width: min(1120px, calc(100cqw - 48px));
   margin-top: 96px;
-  border: 1px solid rgba(205, 176, 112, 0.34);
+  border: 12px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 12px / 0 stretch;
   padding: 18px 20px 20px;
-  background:
-    linear-gradient(145deg, rgba(15, 17, 20, 0.94), rgba(5, 7, 9, 0.96)),
-    url("/assets/augment-ui-atlas.png") center 72% / 360% auto;
+  background: linear-gradient(145deg, rgba(15, 17, 20, 0.94), rgba(5, 7, 9, 0.96));
   box-shadow:
     0 32px 90px rgba(0, 0, 0, 0.7),
     inset 0 0 0 3px rgba(255, 232, 180, 0.025),

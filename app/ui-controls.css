@@ -1,0 +1,120 @@
+/* Canonical 1920x1080 icon controls. The body transform owns all viewport scaling. */
+:root {
+  --game-icon-close-size: 42px;
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+) {
+  display: grid;
+  flex: 0 0 var(--game-icon-close-size);
+  place-items: center;
+  width: var(--game-icon-close-size);
+  min-width: var(--game-icon-close-size);
+  max-width: var(--game-icon-close-size);
+  height: var(--game-icon-close-size);
+  min-height: var(--game-icon-close-size);
+  max-height: var(--game-icon-close-size);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  appearance: none;
+  color: transparent;
+  background-color: transparent;
+  background-image: url("/assets/ui/inventory-controls/close.png");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  box-shadow: none;
+  cursor: pointer;
+  font-size: 0;
+  line-height: 0;
+  text-shadow: none;
+  transform: translateZ(0);
+  transform-origin: center;
+  transition:
+    filter 120ms ease,
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+) > span[aria-hidden="true"] {
+  visibility: hidden;
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+):not(:disabled):hover {
+  filter: brightness(1.22) saturate(1.14) drop-shadow(0 0 7px rgba(224, 175, 91, 0.56));
+  transform: translateZ(0) scale(1.045);
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+):focus-visible {
+  outline: 2px solid rgba(113, 225, 208, 0.92);
+  outline-offset: 3px;
+  filter: brightness(1.18) saturate(1.1) drop-shadow(0 0 7px rgba(113, 225, 208, 0.5));
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+):not(:disabled):active {
+  filter: brightness(0.94) saturate(1.08);
+  transform: translateZ(0) scale(0.955);
+}
+
+body.game-viewport :is(
+  .build-panel-close,
+  .map-close,
+  .shop-close,
+  .inventory-screen-close,
+  .inventory-screen-divine-forge-close,
+  .plaza-character-profile__close
+):disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  filter: grayscale(0.72) brightness(0.72);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.game-viewport :is(
+    .build-panel-close,
+    .map-close,
+    .shop-close,
+    .inventory-screen-close,
+    .inventory-screen-divine-forge-close,
+    .plaza-character-profile__close
+  ) {
+    transition: none;
+  }
+}

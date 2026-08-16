@@ -119,12 +119,11 @@
 .save-slot-card {
   position: relative;
   min-height: 156px;
-  border: 1px solid rgba(198, 174, 124, 0.28);
+  border: 8px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 8px / 0 stretch;
   padding: 12px;
   overflow: hidden;
-  background:
-    linear-gradient(145deg, rgba(18, 19, 21, 0.94), rgba(7, 9, 11, 0.96)),
-    url("/assets/augment-ui-atlas.png") center 78% / 620% auto;
+  background: linear-gradient(145deg, rgba(18, 19, 21, 0.94), rgba(7, 9, 11, 0.96));
   box-shadow: inset 0 0 0 3px rgba(255, 234, 187, 0.025);
 }
 
@@ -261,14 +260,13 @@
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  border: 1px solid rgba(213, 189, 139, 0.54);
+  border: 9px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/destructive-button.png") 20% 12% fill / 9px 11px / 0 stretch;
   border-radius: 2px;
   padding: 13px 22px;
   cursor: pointer;
   overflow: hidden;
-  background:
-    linear-gradient(110deg, rgba(150, 45, 37, 0.82), rgba(87, 26, 27, 0.92)),
-    url("/assets/augment-ui-atlas.png") center 78% / 780% auto;
+  background: linear-gradient(110deg, rgba(150, 45, 37, 0.82), rgba(87, 26, 27, 0.92));
   box-shadow:
     inset 0 0 0 1px rgba(255, 223, 157, 0.08),
     0 14px 45px rgba(0, 0, 0, 0.26);
@@ -290,6 +288,7 @@
 
 .secondary-button {
   border-color: rgba(180, 166, 133, 0.3);
+  border-image-source: url("/assets/ui/inventory-chrome/primary-button.png");
   background: rgba(12, 14, 17, 0.86);
 }
 
@@ -377,10 +376,9 @@
 }
 
 .hud-panel {
-  border: 1px solid rgba(198, 174, 124, 0.34);
-  background:
-    linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84)),
-    url("/assets/augment-ui-atlas.png") 50% 98% / 640% auto;
+  border: 6px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 6px / 0 stretch;
+  background: linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84));
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.5),
     0 10px 35px rgba(0, 0, 0, 0.32);
@@ -839,11 +837,10 @@
 .build-content {
   width: min(360px, 84cqw);
   height: 100%;
-  border: 1px solid rgba(198, 174, 124, 0.42);
+  border: 10px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 10px / 0 stretch;
   padding: 18px;
-  background:
-    linear-gradient(rgba(8, 10, 12, 0.96), rgba(8, 9, 11, 0.93)),
-    url("/assets/augment-ui-atlas.png") center bottom / 180% auto;
+  background: linear-gradient(rgba(8, 10, 12, 0.96), rgba(8, 9, 11, 0.93));
   box-shadow: -18px 18px 60px rgba(0, 0, 0, 0.48);
   overflow: hidden;
   pointer-events: auto;
@@ -1153,12 +1150,11 @@
   min-height: 390px;
   flex-direction: column;
   align-items: center;
-  border: 1px solid color-mix(in srgb, var(--augment-color) 55%, #675d4b);
+  border: 9px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 9px / 0 stretch;
   padding: 28px 22px 23px;
   cursor: pointer;
-  background:
-    linear-gradient(180deg, rgba(23, 23, 24, 0.97), rgba(8, 9, 11, 0.98)),
-    url("/assets/augment-ui-atlas.png") center 86% / 360% auto;
+  background: linear-gradient(180deg, rgba(23, 23, 24, 0.97), rgba(8, 9, 11, 0.98));
   box-shadow:
     inset 0 0 30px color-mix(in srgb, var(--augment-color) 8%, transparent),
     0 24px 70px rgba(0, 0, 0, 0.28);
@@ -1268,11 +1264,10 @@
 .ending-modal,
 .pause-modal {
   width: min(690px, 92cqw);
-  border: 1px solid rgba(205, 182, 135, 0.42);
+  border: 12px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 12px / 0 stretch;
   padding: clamp(35px, 5cqw, 68px);
-  background:
-    linear-gradient(130deg, rgba(14, 15, 17, 0.97), rgba(8, 9, 11, 0.98)),
-    url("/assets/augment-ui-atlas.png") center bottom / 190% auto;
+  background: linear-gradient(130deg, rgba(14, 15, 17, 0.97), rgba(8, 9, 11, 0.98));
   box-shadow:
     inset 0 0 0 4px rgba(0, 0, 0, 0.4),
     0 32px 100px rgba(0, 0, 0, 0.6);
@@ -4252,14 +4247,14 @@ button.map-cell {
 }
 
 .menu-controls {
-  bottom: max(24px, calc(env(safe-area-inset-bottom) + 14px));
+  bottom: max(24px, calc(var(--game-safe-bottom) + 14px));
   font-size: 10px;
 }
 
 /* Combat information hierarchy */
 
 .top-hud {
-  top: max(18px, calc(env(safe-area-inset-top) + 10px));
+  top: max(18px, calc(var(--game-safe-top) + 10px));
   gap: 18px;
 }
 
@@ -4325,7 +4320,7 @@ button.map-cell {
 /* Build and equipment archive */
 
 .build-rail {
-  bottom: max(64px, calc(env(safe-area-inset-bottom) + 54px));
+  bottom: max(64px, calc(var(--game-safe-bottom) + 54px));
 }
 
 .build-toggle {
@@ -4767,8 +4762,8 @@ button.equipment-slot-card:hover {
   --gear-color: #d9c18a;
   position: absolute;
   z-index: 19;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px));
+  right: max(18px, var(--game-safe-right));
+  bottom: max(64px, calc(var(--game-safe-bottom) + 56px));
   display: grid;
   min-width: min(320px, calc(100cqw - 36px));
   grid-template-columns: 4px auto 1fr;
@@ -4889,10 +4884,10 @@ button.equipment-slot-card:hover {
 }
 
 .modal-layer {
-  padding-top: max(20px, env(safe-area-inset-top));
-  padding-right: max(20px, env(safe-area-inset-right));
-  padding-bottom: max(20px, env(safe-area-inset-bottom));
-  padding-left: max(20px, env(safe-area-inset-left));
+  padding-top: max(20px, var(--game-safe-top));
+  padding-right: max(20px, var(--game-safe-right));
+  padding-bottom: max(20px, var(--game-safe-bottom));
+  padding-left: max(20px, var(--game-safe-left));
 }
 
 .text-button:hover,
@@ -4924,9 +4919,9 @@ button.equipment-slot-card:hover {
 /* Touch layout uses a true 3 x 3 cross, leaving the center visually open. */
 
 .touch-controls {
-  right: max(16px, env(safe-area-inset-right));
-  bottom: max(16px, calc(env(safe-area-inset-bottom) + 8px));
-  left: max(16px, env(safe-area-inset-left));
+  right: max(16px, var(--game-safe-right));
+  bottom: max(16px, calc(var(--game-safe-bottom) + 8px));
+  left: max(16px, var(--game-safe-left));
 }
 
 .dpad {
@@ -4987,9 +4982,9 @@ button.equipment-slot-card:hover {
   }
 
   .menu-copy {
-    right: max(22px, env(safe-area-inset-right));
-    bottom: max(82px, calc(env(safe-area-inset-bottom) + 62px));
-    left: max(22px, env(safe-area-inset-left));
+    right: max(22px, var(--game-safe-right));
+    bottom: max(82px, calc(var(--game-safe-bottom) + 62px));
+    left: max(22px, var(--game-safe-left));
   }
 
   .menu-stage-shell {
@@ -5000,19 +4995,19 @@ button.equipment-slot-card:hover {
   }
 
   .top-hud {
-    top: max(10px, env(safe-area-inset-top));
-    right: max(10px, env(safe-area-inset-right));
-    left: max(10px, env(safe-area-inset-left));
+    top: max(10px, var(--game-safe-top));
+    right: max(10px, var(--game-safe-right));
+    left: max(10px, var(--game-safe-left));
   }
 
   .build-rail {
-    top: max(98px, calc(env(safe-area-inset-top) + 88px));
-    bottom: max(98px, calc(env(safe-area-inset-bottom) + 88px));
+    top: max(98px, calc(var(--game-safe-top) + 88px));
+    bottom: max(98px, calc(var(--game-safe-bottom) + 88px));
   }
 
   .loot-toast {
     right: 50%;
-    bottom: max(108px, calc(env(safe-area-inset-bottom) + 98px));
+    bottom: max(108px, calc(var(--game-safe-bottom) + 98px));
     transform: translateX(50%);
     animation-name: loot-toast-in-mobile;
   }
@@ -5029,7 +5024,7 @@ button.equipment-slot-card:hover {
   }
 
   .menu-copy {
-    bottom: max(58px, calc(env(safe-area-inset-bottom) + 45px));
+    bottom: max(58px, calc(var(--game-safe-bottom) + 45px));
   }
 
   .menu-stage-shell {
@@ -5123,7 +5118,7 @@ button.equipment-slot-card:hover {
   .menu-controls { display: none; }
 
   .top-hud {
-    top: max(7px, env(safe-area-inset-top));
+    top: max(7px, var(--game-safe-top));
   }
 
   .vitals,
@@ -5133,8 +5128,8 @@ button.equipment-slot-card:hover {
   .room-heading { padding-top: 0; }
 
   .build-rail {
-    top: max(78px, calc(env(safe-area-inset-top) + 68px));
-    bottom: max(48px, calc(env(safe-area-inset-bottom) + 42px));
+    top: max(78px, calc(var(--game-safe-top) + 68px));
+    bottom: max(48px, calc(var(--game-safe-bottom) + 42px));
   }
 
   .build-toggle { height: 132px; }
@@ -5147,8 +5142,8 @@ button.equipment-slot-card:hover {
 
   .modal-layer {
     align-items: center;
-    padding-top: max(12px, env(safe-area-inset-top));
-    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    padding-top: max(12px, var(--game-safe-top));
+    padding-bottom: max(12px, var(--game-safe-bottom));
   }
 
   .story-modal,
@@ -5166,7 +5161,7 @@ button.equipment-slot-card:hover {
 @container game-viewport (max-height: 560px) {
   .menu-copy {
     right: auto;
-    left: max(28px, calc(env(safe-area-inset-left) + 18px));
+    left: max(28px, calc(var(--game-safe-left) + 18px));
     width: min(680px, 64cqw);
   }
 
@@ -5183,7 +5178,7 @@ button.equipment-slot-card:hover {
   }
 
   .touch-controls {
-    bottom: max(8px, env(safe-area-inset-bottom));
+    bottom: max(8px, var(--game-safe-bottom));
   }
 
   .dpad {
@@ -6865,7 +6860,7 @@ button.equipment-slot-card:hover {
     url("/assets/ui/inventory-chrome-atlas.png"),
     url("/assets/ui/rarity-frames-v6.png");
   background-repeat: no-repeat, no-repeat;
-  background-size: 400% 200%, 700% 100%;
+  background-size: 400% 200%, 800% 100%;
   background-position: 100% 100%, var(--inventory-rarity-frame-x) center;
   filter: drop-shadow(0 8px 10px rgba(0, 0, 0, 0.82));
   opacity: 0.98;
@@ -7094,8 +7089,8 @@ button.equipment-slot-card:hover {
   z-index: 64;
   display: grid;
   place-items: center;
-  padding: max(16px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right))
-    max(16px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  padding: max(16px, var(--game-safe-top)) max(18px, var(--game-safe-right))
+    max(16px, var(--game-safe-bottom)) max(18px, var(--game-safe-left));
   overflow: hidden;
   color: #e7dfcf;
   background:
@@ -8020,11 +8015,11 @@ button.equipment-slot-card:hover {
 
   .inventory-screen-header {
     min-height: 94px;
-    padding: max(20px, env(safe-area-inset-top)) 64px 13px 18px;
+    padding: max(20px, var(--game-safe-top)) 64px 13px 18px;
   }
 
   .inventory-screen-subtitle { display: none; }
-  .inventory-screen-close { top: max(18px, env(safe-area-inset-top)); right: 16px; }
+  .inventory-screen-close { top: max(18px, var(--game-safe-top)); right: 16px; }
 
   .inventory-screen-layout {
     display: grid;
@@ -8068,9 +8063,9 @@ button.equipment-slot-card:hover {
     bottom: 0;
     left: 0;
     min-height: 38px;
-    padding-right: max(14px, env(safe-area-inset-right));
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: max(14px, env(safe-area-inset-left));
+    padding-right: max(14px, var(--game-safe-right));
+    padding-bottom: var(--game-safe-bottom);
+    padding-left: max(14px, var(--game-safe-left));
   }
 }
 
@@ -9912,9 +9907,10 @@ button.equipment-slot-card:hover {
   bottom: -3px;
   left: 3px;
   height: 12px;
-  background-image: url("/assets/ui/inventory-controls/divider.png");
-  background-size: 100% 100%;
-  background-position: center;
+  background:
+    linear-gradient(90deg, rgba(105, 79, 40, 0.08), rgba(207, 170, 94, 0.62)) left center / calc(50% - 23px) 1px no-repeat,
+    linear-gradient(90deg, rgba(207, 170, 94, 0.62), rgba(105, 79, 40, 0.08)) right center / calc(50% - 23px) 1px no-repeat,
+    url("/assets/ui/inventory-controls/divider.png") center / auto 12px no-repeat;
 }
 
 .inventory-screen-header-resources::after {
@@ -12656,8 +12652,8 @@ button.equipment-slot-card:hover {
   inset: auto;
   top: 43%;
   left: 50%;
-  width: min(126vmax, 1500px);
-  height: min(126vmax, 1500px);
+  width: 1500px;
+  height: 1500px;
   border-radius: 50%;
   opacity: 0;
   background: repeating-conic-gradient(
@@ -12677,8 +12673,8 @@ button.equipment-slot-card:hover {
 }
 
 .profession-ceremony-rays--inner {
-  width: min(88vmax, 1050px);
-  height: min(88vmax, 1050px);
+  width: 1050px;
+  height: 1050px;
   background: repeating-conic-gradient(
     from -2deg,
     transparent 0 10deg,
@@ -12726,7 +12722,7 @@ button.equipment-slot-card:hover {
   z-index: 2;
   top: 43%;
   left: 50%;
-  width: min(78vmin, 820px);
+  width: 820px;
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   contain: layout style;
@@ -12825,8 +12821,8 @@ button.equipment-slot-card:hover {
   top: 50%;
   left: 50%;
   display: grid;
-  width: clamp(148px, 16vmin, 172px);
-  height: clamp(148px, 16vmin, 172px);
+  width: clamp(148px, 16cqh, 172px);
+  height: clamp(148px, 16cqh, 172px);
   place-items: center;
   border: 1px solid rgba(255, 241, 189, 0.92);
   border-radius: 50%;
@@ -12872,7 +12868,7 @@ button.equipment-slot-card:hover {
   left: -2px;
   display: block;
   width: 4px;
-  height: clamp(10px, 1.8vmin, 20px);
+  height: clamp(10px, 1.8cqh, 20px);
   border-radius: 999px;
   opacity: 0;
   background: linear-gradient(#fff, var(--profession-ceremony-gold), var(--profession-color), transparent);
@@ -12899,9 +12895,9 @@ button.equipment-slot-card:hover {
   z-index: 5;
   top: 43%;
   left: 50%;
-  width: 20vmin;
-  height: 20vmin;
-  border: clamp(1px, 0.25vmin, 3px) solid rgba(255, 246, 207, 0.92);
+  width: 20cqh;
+  height: 20cqh;
+  border: clamp(1px, 0.25cqh, 3px) solid rgba(255, 246, 207, 0.92);
   border-radius: 50%;
   opacity: 0;
   box-shadow:
@@ -13114,7 +13110,7 @@ button.equipment-slot-card:hover {
 @container game-viewport (max-width: 720px) or (max-height: 650px) {
   .profession-ceremony-sigil-stage {
     top: 39%;
-    width: min(72vmin, 560px);
+    width: 560px;
   }
 
   .profession-ceremony-rays,
@@ -13124,7 +13120,7 @@ button.equipment-slot-card:hover {
 
   .profession-ceremony-revelation {
     right: 18px;
-    bottom: max(20px, env(safe-area-inset-bottom));
+    bottom: max(20px, var(--game-safe-bottom));
     left: 18px;
   }
 
@@ -13466,6 +13462,117 @@ button.equipment-slot-card:hover {
     118px
     50px;
   gap: 11px;
+}
+
+/* Investor-ready inventory card hierarchy V10 ------------------------
+   Every release viewport renders the same 1920x1080 design plane, so these
+   edge chips scale with the card instead of reflowing over its artwork. */
+.inventory-screen-card-edge-chip {
+  position: absolute;
+  inset: auto;
+  z-index: 7;
+  display: grid;
+  box-sizing: border-box;
+  max-width: calc(100% - 10px);
+  margin: 0;
+  padding: 2px 4px;
+  border: 1px solid rgba(224, 196, 128, 0.17);
+  border-radius: 2px;
+  background:
+    linear-gradient(180deg, rgba(8, 10, 11, 0.9), rgba(2, 4, 5, 0.82));
+  box-shadow:
+    0 1px 4px rgba(0, 0, 0, 0.86),
+    inset 0 0 0 1px rgba(255, 244, 207, 0.025);
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 1px 3px #000;
+  white-space: nowrap;
+}
+
+.inventory-screen .inventory-screen-card-edge-chip.inventory-screen-grid-level {
+  top: 5px;
+  right: auto;
+  bottom: auto;
+  left: 6px;
+  display: flex;
+  width: auto;
+  min-width: 31px;
+  padding: 2px 4px 3px;
+  align-items: flex-start;
+  gap: 1px;
+  color: rgba(240, 231, 212, 0.9);
+  font-size: 8px;
+  font-weight: 850;
+  line-height: 0.95;
+}
+
+.inventory-screen .inventory-screen-grid-level > small {
+  color: rgba(207, 195, 171, 0.74);
+  font-size: 6px;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.inventory-screen .inventory-screen-card-edge-chip.inventory-screen-grid-delta {
+  top: 5px;
+  right: 5px;
+  bottom: auto;
+  left: auto;
+  display: grid;
+  width: auto;
+  min-width: 38px;
+  height: 20px;
+  padding: 0 5px;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 9px;
+  font-weight: 900;
+}
+
+.inventory-screen .inventory-screen-grid-delta::before {
+  border-width: 5px;
+}
+
+.inventory-screen .inventory-screen-card-edge-chip.inventory-screen-enhancement-badge {
+  top: auto;
+  right: auto;
+  bottom: 6px;
+  left: 6px;
+  display: grid;
+  width: auto;
+  min-width: 25px;
+  height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  color: #f4d991;
+  font-size: 9px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.inventory-screen .inventory-screen-card-edge-chip.inventory-screen-grid-quality {
+  top: auto;
+  right: 5px;
+  bottom: 6px;
+  left: auto;
+  display: grid;
+  width: auto;
+  height: 17px;
+  padding: 0 4px;
+  place-items: center;
+  color: #9bd9ca;
+  font-size: 7px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.inventory-screen .inventory-screen-grid-item .inventory-screen-slot-clip > .inventory-screen-gear-icon {
+  width: calc(100% - 2px) !important;
+  height: calc(100% - 2px) !important;
 }
 
 @container game-viewport (max-width: 900px) {

@@ -6,6 +6,11 @@ import { inflateSync } from "node:zlib";
 import ts from "typescript";
 
 const root = process.cwd();
+const rigManifest = JSON.parse(
+  await readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8"),
+);
+const frameWidth = rigManifest.frame.width;
+const frameHeight = rigManifest.frame.height;
 
 async function importTypeScriptModule(relativePath) {
   const source = await readFile(path.join(root, relativePath), "utf8");
@@ -58,28 +63,19 @@ function decodePng(buffer) {
 }
 
 function alphaMask(image, row, column) {
-  const mask = new Uint8Array(256 * 192);
-  for (let y = 0; y < 192; y += 1) for (let x = 0; x < 256; x += 1) {
-    const source = (((row * 192 + y) * image.width + column * 256 + x) * 4) + 3;
-    mask[y * 256 + x] = image.pixels[source] > 16 ? 1 : 0;
+  const mask = new Uint8Array(frameWidth * frameHeight);
+  for (let y = 0; y < frameHeight; y += 1) for (let x = 0; x < frameWidth; x += 1) {
+    const source = (((row * frameHeight + y) * image.width + column * frameWidth + x) * 4) + 3;
+    mask[y * frameWidth + x] = image.pixels[source] > 16 ? 1 : 0;
   }
   return mask;
 }
 
-function mirrorIou(mask) {
-  let intersection = 0, union = 0;
-  for (let y = 0; y < 192; y += 1) for (let x = 0; x < 256; x += 1) {
-    const a = mask[y * 256 + x], b = mask[y * 256 + (255 - x)];
-    if (a || b) union += 1;
-    if (a && b) intersection += 1;
-  }
-  return intersection / union;
-}
-
 function lowerIou(left, right) {
   let intersection = 0, union = 0;
-  for (let y = 104; y < 192; y += 1) for (let x = 0; x < 256; x += 1) {
-    const a = left[y * 256 + x], b = right[y * 256 + x];
+  const lowerBodyStart = Math.round(frameHeight * (104 / 192));
+  for (let y = lowerBodyStart; y < frameHeight; y += 1) for (let x = 0; x < frameWidth; x += 1) {
+    const a = left[y * frameWidth + x], b = right[y * frameWidth + x];
     if (a || b) union += 1;
     if (a && b) intersection += 1;
   }
@@ -105,13 +101,20 @@ test("halted characters always render the balanced standing frame", async () => 
   assert.deepEqual([0, 1, 2, 3].map((cycle) => motion.characterWalkFrameIndex(cycle, true)), [0, 1, 2, 3]);
 });
 
-test("north and south stance art is straight while contact poses alternate", async () => {
-  const image = decodePng(await readFile(path.join(root, "public/assets/walk/harin-mannequin-v5.png")));
-  assert.deepEqual([image.width, image.height], [1024, 1536]);
-  for (const row of [0, 4]) {
-    const idle = alphaMask(image, row, 1);
-    assert.ok(mirrorIou(idle) > 0.92, `cardinal row ${row} standing art leans diagonally`);
-    const maximumContactIou = row === 4 ? 0.93 : 0.86;
+test("the active rig's north and south contact poses alternate", async () => {
+  const image = decodePng(
+    await readFile(path.join(root, "public", rigManifest.bodyPath.replace(/^\/+/, ""))),
+  );
+  assert.equal(rigManifest.version, "v1");
+  assert.deepEqual(
+    [image.width, image.height],
+    [
+      frameWidth * rigManifest.frame.columns,
+      frameHeight * rigManifest.frame.directionRows.length,
+    ],
+  );
+  for (const [direction, maximumContactIou] of [[0, 0.86], [4, 0.93]]) {
+    const row = rigManifest.frame.directionRows[direction];
     assert.ok(lowerIou(alphaMask(image, row, 0), alphaMask(image, row, 2)) < maximumContactIou, `cardinal row ${row} does not alternate feet`);
   }
 });
@@ -123,15 +126,50 @@ test("expedition, plaza, and PVP share one corrected player scale", async () => 
     readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
     readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
   ]);
-  assert.match(paperdoll, /harin-mannequin-v1\.png/);
-  assert.match(paperdoll, /paperdoll\/v1/);
+  assert.match(paperdoll, /paperdoll-rig-manifest\.json/);
+  assert.match(
+    paperdoll,
+    /PAPERDOLL_BODY_PATH\s*=\s*PAPERDOLL_RIG_MANIFEST\.bodyPath/,
+  );
+  assert.match(
+    paperdoll,
+    /PAPERDOLL_LAYER_ROOT\s*=\s*PAPERDOLL_RIG_MANIFEST\.layerRoot/,
+  );
   assert.match(paperdoll, /context\.imageSmoothingEnabled\s*=\s*false/g);
-  assert.match(paperdoll, /PAPERDOLL_WORLD_RENDER_WIDTH\s*=\s*136/);
-  assert.match(paperdoll, /PAPERDOLL_WORLD_RENDER_HEIGHT\s*=\s*102/);
+  assert.match(
+    paperdoll,
+    /PAPERDOLL_WORLD_RENDER_WIDTH\s*=\s*PAPERDOLL_RIG_MANIFEST\.worldRender\.width/,
+  );
+  assert.match(
+    paperdoll,
+    /PAPERDOLL_WORLD_RENDER_HEIGHT\s*=\s*PAPERDOLL_RIG_MANIFEST\.worldRender\.height/,
+  );
+  assert.deepEqual(rigManifest.worldRender, { width: 136, height: 102 });
   for (const source of [expedition, plaza, pvp]) {
     assert.match(source, /PAPERDOLL_WORLD_RENDER_WIDTH/);
     assert.match(source, /PAPERDOLL_WORLD_RENDER_HEIGHT/);
   }
   assert.doesNotMatch(`${expedition}\n${plaza}`, /width:\s*171[\s\S]{0,30}height:\s*128/);
   assert.doesNotMatch(pvp, /width:\s*157[\s\S]{0,30}height:\s*118/);
+});
+
+test("static and local paperdoll QA consume the active runtime rig manifest", async () => {
+  const [fixture, renderer, server] = await Promise.all([
+    readFile(path.join(root, "tests/fixtures/paperdoll-visual-qa.html"), "utf8"),
+    readFile(path.join(root, "scripts/render_layered_paperdoll_qa.py"), "utf8"),
+    readFile(path.join(root, "scripts/serve-paperdoll-visual-qa.mjs"), "utf8"),
+  ]);
+
+  assert.equal(rigManifest.version, "v1");
+  assert.equal(rigManifest.bodyPath, "/assets/walk/harin-mannequin-v1.png");
+  assert.equal(rigManifest.layerRoot, "/assets/paperdoll/v1");
+  assert.match(fixture, /const rig = __PAPERDOLL_RIG_MANIFEST__;/);
+  assert.match(fixture, /imageFor\(rig\.bodyPath\)/);
+  assert.match(fixture, /`\$\{rig\.layerRoot\}\/\$\{slot\}/);
+  assert.doesNotMatch(fixture, /harin-mannequin-v[25]|paperdoll\/v[25]/);
+  assert.match(renderer, /paperdoll-rig-manifest\.json/);
+  assert.match(renderer, /version = args\.version or active_version/);
+  assert.doesNotMatch(renderer, /default=["']v[25]["']/);
+  assert.match(server, /paperdoll-rig-manifest\.json/);
+  assert.match(server, /replaceAll\("__PAPERDOLL_RIG_MANIFEST__"/);
 });

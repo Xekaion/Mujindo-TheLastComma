@@ -1,0 +1,403 @@
+/*
+ * Native form-control skin for the canonical 1920x1080 game plane.
+ *
+ * Components keep native select/input semantics and their existing layout.
+ * This layer only removes platform chrome and supplies one accessible gothic
+ * ARPG interaction language. The body transform owns viewport scaling.
+ */
+:root {
+  --game-form-gold: #d8b76e;
+  --game-form-gold-bright: #ffe4a2;
+  --game-form-aether: #75ddcf;
+  --game-form-ink: #07090b;
+  --game-form-paper: #eee2c9;
+  --game-form-muted: #8e897d;
+  --game-form-danger: #dc7063;
+  --game-form-focus: rgba(117, 221, 207, 0.96);
+}
+
+body.game-viewport :where(button, input, select, textarea) {
+  font: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent any unscoped button from falling back to an OS bevel. The :where()
+   keeps this fallback below every class-based or component-scoped skin. */
+:where(body.game-viewport) button {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid rgba(202, 163, 86, 0.34);
+  border-radius: 0;
+  padding: 6px 12px;
+  color: #e8d9b8;
+  background:
+    linear-gradient(180deg, rgba(116, 81, 37, 0.26), rgba(28, 22, 16, 0.12)),
+    #090b0d;
+  box-shadow:
+    inset 0 1px rgba(255, 235, 188, 0.045),
+    inset 0 -1px rgba(0, 0, 0, 0.72);
+  text-shadow: 0 1px 1px #000;
+}
+
+:where(body.game-viewport) button:not(:disabled) {
+  cursor: pointer;
+}
+
+:where(body.game-viewport) button:disabled {
+  cursor: not-allowed;
+}
+
+:where(body.game-viewport) button::-moz-focus-inner {
+  border: 0;
+  padding: 0;
+}
+
+body.game-viewport :where(button, input, select, textarea):focus-visible {
+  outline: 2px solid var(--game-form-focus);
+  outline-offset: 2px;
+}
+
+/* Text and numeric inputs already receive component-specific dimensions and
+   frames. These declarations remove residual platform styling without
+   disturbing joined controls such as the PVP name field. */
+body.game-viewport :where(
+  input:not([type]),
+  input[type="text"],
+  input[type="search"],
+  input[type="number"],
+  input[type="email"],
+  input[type="password"],
+  input[type="url"],
+  input[type="tel"],
+  textarea
+) {
+  -webkit-appearance: none;
+  appearance: none;
+  border-radius: 0;
+  caret-color: var(--game-form-aether);
+  color: var(--game-form-paper);
+  color-scheme: dark;
+}
+
+body.game-viewport :where(input, textarea)::placeholder {
+  color: rgba(174, 165, 145, 0.48);
+  opacity: 1;
+}
+
+body.game-viewport :where(input, textarea):read-only {
+  caret-color: transparent;
+}
+
+body.game-viewport :where(input, textarea):disabled {
+  color: rgba(202, 195, 178, 0.42);
+  -webkit-text-fill-color: rgba(202, 195, 178, 0.42);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+body.game-viewport input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+body.game-viewport input[type="number"]::-webkit-inner-spin-button,
+body.game-viewport input[type="number"]::-webkit-outer-spin-button,
+body.game-viewport input[type="search"]::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  appearance: none;
+  margin: 0;
+}
+
+/* Native select behavior is retained. The arrow is pure CSS and the edge
+   treatment reuses the inventory tooltip chrome as a compact nine-slice. */
+body.game-viewport select {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  border: 1px solid rgba(204, 165, 88, 0.34);
+  border-image-source: url("/assets/ui/inventory-chrome/tooltip-panel.png");
+  border-image-slice: 18%;
+  border-image-width: 5px;
+  border-image-outset: 0;
+  border-image-repeat: stretch;
+  border-radius: 0;
+  padding-inline-end: 32px !important;
+  overflow: hidden;
+  color: var(--game-form-paper);
+  color-scheme: dark;
+  background-color: rgba(7, 10, 12, 0.96);
+  background-image:
+    linear-gradient(45deg, transparent 48%, var(--game-form-gold) 50% 64%, transparent 66%),
+    linear-gradient(135deg, transparent 34%, var(--game-form-gold) 36% 50%, transparent 52%),
+    linear-gradient(90deg, transparent, rgba(218, 178, 101, 0.08)) !important;
+  background-position:
+    calc(100% - 17px) calc(50% - 1px),
+    calc(100% - 12px) calc(50% - 1px),
+    100% 0 !important;
+  background-size: 6px 6px, 6px 6px, 38px 100% !important;
+  background-repeat: no-repeat !important;
+  box-shadow:
+    inset 0 1px rgba(255, 235, 188, 0.035),
+    inset 0 -8px 16px rgba(0, 0, 0, 0.22);
+  cursor: pointer;
+  text-overflow: ellipsis;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    filter 120ms ease;
+}
+
+body.game-viewport select:hover:not(:disabled) {
+  border-color: rgba(244, 206, 127, 0.68);
+  filter: brightness(1.12);
+  box-shadow:
+    inset 0 1px rgba(255, 239, 196, 0.07),
+    0 0 9px rgba(211, 163, 76, 0.14);
+}
+
+body.game-viewport select:focus-visible {
+  border-color: var(--game-form-aether);
+  box-shadow:
+    inset 0 0 0 1px rgba(117, 221, 207, 0.22),
+    0 0 10px rgba(117, 221, 207, 0.28);
+}
+
+body.game-viewport select:disabled {
+  border-color: rgba(139, 126, 101, 0.18);
+  color: rgba(202, 195, 178, 0.4);
+  cursor: not-allowed;
+  filter: grayscale(0.72) brightness(0.68);
+  opacity: 0.78;
+}
+
+body.game-viewport select option,
+body.game-viewport select optgroup {
+  color: var(--game-form-paper);
+  background: #090b0d;
+}
+
+/* Audio and future option sliders use the same forged rail and luminous
+   bronze thumb in Blink/WebKit and Gecko. */
+body.game-viewport input[type="range"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 100%;
+  height: 20px !important;
+  margin: 0;
+  border: 0;
+  outline-offset: 1px;
+  accent-color: var(--game-form-gold);
+  background: transparent !important;
+  cursor: pointer;
+}
+
+body.game-viewport input[type="range"]::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 6px;
+  border: 1px solid rgba(199, 160, 83, 0.42);
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(96, 213, 195, 0.34), rgba(209, 167, 82, 0.26)),
+    linear-gradient(#090c0e, #17130e);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.92),
+    0 0 5px rgba(201, 158, 76, 0.12);
+}
+
+body.game-viewport input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -7px;
+  border: 2px solid #5a4220;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, #fff4c1 0 8%, transparent 10%),
+    radial-gradient(circle, #f0c767 0 22%, #9f6d27 48%, #332414 72%);
+  box-shadow:
+    0 0 0 1px rgba(239, 203, 126, 0.56),
+    0 0 9px rgba(235, 190, 94, 0.46),
+    inset 0 0 4px rgba(255, 237, 174, 0.45);
+  transition: filter 100ms ease, transform 100ms ease;
+}
+
+body.game-viewport input[type="range"]::-moz-range-track {
+  width: 100%;
+  height: 4px;
+  border: 1px solid rgba(199, 160, 83, 0.42);
+  border-radius: 0;
+  background: linear-gradient(#090c0e, #17130e);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.92);
+}
+
+body.game-viewport input[type="range"]::-moz-range-progress {
+  height: 4px;
+  border: 1px solid rgba(103, 208, 193, 0.56);
+  border-radius: 0;
+  background: linear-gradient(90deg, #34796f, #d3a951);
+  box-shadow: 0 0 6px rgba(103, 208, 193, 0.24);
+}
+
+body.game-viewport input[type="range"]::-moz-range-thumb {
+  width: 15px;
+  height: 15px;
+  border: 2px solid #5a4220;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 38% 32%, #fff4c1 0 8%, transparent 10%),
+    radial-gradient(circle, #f0c767 0 22%, #9f6d27 48%, #332414 72%);
+  box-shadow:
+    0 0 0 1px rgba(239, 203, 126, 0.56),
+    0 0 9px rgba(235, 190, 94, 0.46);
+}
+
+body.game-viewport input[type="range"]:hover:not(:disabled)::-webkit-slider-thumb {
+  filter: brightness(1.24) saturate(1.1);
+  transform: scale(1.08);
+}
+
+body.game-viewport input[type="range"]:hover:not(:disabled)::-moz-range-thumb {
+  filter: brightness(1.24) saturate(1.1);
+}
+
+body.game-viewport input[type="range"]:focus-visible::-webkit-slider-thumb {
+  box-shadow:
+    0 0 0 2px var(--game-form-ink),
+    0 0 0 4px var(--game-form-focus),
+    0 0 11px rgba(117, 221, 207, 0.5);
+}
+
+body.game-viewport input[type="range"]:focus-visible::-moz-range-thumb {
+  box-shadow:
+    0 0 0 2px var(--game-form-ink),
+    0 0 0 4px var(--game-form-focus),
+    0 0 11px rgba(117, 221, 207, 0.5);
+}
+
+body.game-viewport input[type="range"]:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.85) brightness(0.62);
+  opacity: 0.62;
+}
+
+/* Inventory control art is already production-keyed and transparent. */
+body.game-viewport input[type="checkbox"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 22px;
+  min-width: 22px;
+  height: 22px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  background-image: url("/assets/ui/inventory-controls/checkbox-off.png") !important;
+  background-position: center !important;
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  cursor: pointer;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.78));
+  transition: filter 100ms ease, transform 100ms ease;
+}
+
+body.game-viewport input[type="checkbox"]:checked {
+  background-image: url("/assets/ui/inventory-controls/checkbox-on.png") !important;
+  filter:
+    brightness(1.08)
+    drop-shadow(0 0 5px rgba(223, 181, 91, 0.34))
+    drop-shadow(0 2px 2px rgba(0, 0, 0, 0.78));
+}
+
+body.game-viewport input[type="checkbox"]:indeterminate {
+  background-image:
+    linear-gradient(var(--game-form-gold-bright), var(--game-form-gold-bright)),
+    url("/assets/ui/inventory-controls/checkbox-off.png") !important;
+  background-position: center, center !important;
+  background-size: 9px 2px, contain !important;
+}
+
+body.game-viewport input[type="checkbox"]:hover:not(:disabled),
+body.game-viewport input[type="checkbox"]:focus-visible {
+  filter:
+    brightness(1.2)
+    drop-shadow(0 0 6px rgba(117, 221, 207, 0.38));
+  transform: scale(1.06);
+}
+
+body.game-viewport input[type="checkbox"]:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.85) brightness(0.62);
+  opacity: 0.68;
+}
+
+/* No bespoke radio bitmap exists; this compact seal is rendered in CSS so
+   it remains crisp at every canonical-plane scale. */
+body.game-viewport input[type="radio"] {
+  -webkit-appearance: none !important;
+  appearance: none !important;
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  margin: 0;
+  border: 2px solid #755c32;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 237, 178, 0.08), transparent 58%),
+    #080a0c;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    inset 0 0 5px rgba(0, 0, 0, 0.92);
+  cursor: pointer;
+  transition: border-color 100ms ease, box-shadow 100ms ease, filter 100ms ease;
+}
+
+body.game-viewport input[type="radio"]:checked {
+  border-color: #d2a958;
+  background:
+    radial-gradient(circle, #fff3be 0 12%, #e3b757 15% 31%, transparent 34%),
+    radial-gradient(circle, rgba(117, 221, 207, 0.16), transparent 62%),
+    #080a0c;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 7px rgba(226, 181, 86, 0.4),
+    inset 0 0 5px rgba(0, 0, 0, 0.88);
+}
+
+body.game-viewport input[type="radio"]:hover:not(:disabled),
+body.game-viewport input[type="radio"]:focus-visible {
+  border-color: var(--game-form-aether);
+  filter: brightness(1.18);
+}
+
+body.game-viewport input[type="radio"]:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.9) brightness(0.62);
+  opacity: 0.68;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body.game-viewport :where(select, input[type="range"], input[type="checkbox"], input[type="radio"]) {
+    transition: none;
+  }
+}
+
+/* Preserve operability for Windows High Contrast and other forced palettes. */
+@media (forced-colors: active) {
+  body.game-viewport button,
+  body.game-viewport select,
+  body.game-viewport input[type="range"],
+  body.game-viewport input[type="checkbox"],
+  body.game-viewport input[type="radio"] {
+    forced-color-adjust: auto;
+  }
+
+  body.game-viewport select,
+  body.game-viewport input[type="range"],
+  body.game-viewport input[type="checkbox"],
+  body.game-viewport input[type="radio"] {
+    -webkit-appearance: auto !important;
+    appearance: auto !important;
+    border-image: none;
+    background-image: none !important;
+    accent-color: Highlight;
+  }
+}

@@ -192,6 +192,35 @@ test("hub appearance preserves only allowlisted equipped-rarity cosmetics", asyn
   assert.equal("prototypePollution" in session.appearance.rarities, false);
 });
 
+test("canonical equipment produces one deterministic plaza paperdoll appearance", async () => {
+  const { equipment, protocol } = await importPlazaModules();
+  const loadout = equipment.createEmptyEquipment();
+  for (const [index, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+    loadout[slot] = equipment.rollGear(`plaza-appearance-qa-${slot}`, {
+      slot,
+      rarity: index % 2 === 0 ? "legendary" : "mythic",
+      level: 100,
+    });
+  }
+
+  const first = protocol.hubAppearanceFromLoadout(loadout, "jade");
+  const second = protocol.hubAppearanceFromLoadout(loadout, "jade");
+  assert.deepEqual(first, second);
+  assert.equal(first.spriteKey, "harin-equipped");
+  assert.equal(first.palette, "jade");
+  for (const slot of equipment.EQUIPMENT_SLOTS) {
+    assert.equal(
+      first.gear[slot],
+      Math.floor(loadout[slot].iconIndex / equipment.GEAR_ICON_COLUMNS),
+    );
+    assert.equal(first.rarities[slot], loadout[slot].rarity);
+  }
+  assert.deepEqual(
+    protocol.hubAppearanceFromLoadout(equipment.createEmptyEquipment()),
+    protocol.DEFAULT_HUB_APPEARANCE,
+  );
+});
+
 test("hub protocol strips coordinate authority and allowlists every visual field", async () => {
   const { protocol } = await importPlazaModules();
   assert.equal(protocol.parseHubSessionRequest({ characterSlot: 0 }), null);

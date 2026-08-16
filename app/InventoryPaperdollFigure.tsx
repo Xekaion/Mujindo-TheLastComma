@@ -158,32 +158,67 @@ export default function InventoryPaperdollFigure({
     reducedMotion = motionQuery.matches;
     imageStore.reconcile(requiredPaths);
 
+    let portraitViewport: Readonly<{
+      width: number;
+      height: number;
+      dpr: number;
+    }> | null = null;
+
+    const syncPortraitViewport = () => {
+      // All portrait geometry is authored in the untransformed game plane.
+      // getBoundingClientRect() reports post-transform pixels, so it may tune
+      // backing resolution but must never become a drawing coordinate.
+      const logicalWidth = host.clientWidth;
+      const logicalHeight = host.clientHeight;
+      if (logicalWidth <= 0 || logicalHeight <= 0) {
+        portraitViewport = null;
+        return false;
+      }
+      const renderedBounds = host.getBoundingClientRect();
+      const renderedScale = Math.max(
+        0.01,
+        Math.min(
+          renderedBounds.width / logicalWidth,
+          renderedBounds.height / logicalHeight,
+        ),
+      );
+      const dpr = Math.min(
+        MAX_PORTRAIT_DPR,
+        Math.max(1, (window.devicePixelRatio || 1) * renderedScale),
+      );
+      const pixelWidth = Math.max(1, Math.round(logicalWidth * dpr));
+      const pixelHeight = Math.max(1, Math.round(logicalHeight * dpr));
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+      portraitViewport = {
+        width: logicalWidth,
+        height: logicalHeight,
+        dpr,
+      };
+      return true;
+    };
+
     const drawLoadedPortrait = (timeMs = performance.now()) => {
       if (cancelled) return false;
       if (!arePortraitSourcesReady(imageStore, layerPaths)) return false;
       const bodyAtlas = imageStore.get(PAPERDOLL_BODY_PATH)!;
-
-      const bounds = host.getBoundingClientRect();
-      if (bounds.width <= 0 || bounds.height <= 0) return false;
-      const dpr = Math.min(
-        MAX_PORTRAIT_DPR,
-        Math.max(1, window.devicePixelRatio || 1),
-      );
-      const pixelWidth = Math.max(1, Math.round(bounds.width * dpr));
-      const pixelHeight = Math.max(1, Math.round(bounds.height * dpr));
-      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
-      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
+      if (!portraitViewport && !syncPortraitViewport()) return false;
+      const {
+        width: logicalWidth,
+        height: logicalHeight,
+        dpr,
+      } = portraitViewport!;
 
       const context = canvas.getContext("2d");
       if (!context) return false;
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.clearRect(0, 0, bounds.width, bounds.height);
+      context.clearRect(0, 0, logicalWidth, logicalHeight);
 
       // 1.2× the viewport width is the audited no-crop height for the widest
       // v2 weapon/relic silhouette; the panel height remains the other bound.
       const portraitHeight = Math.max(
         1,
-        Math.min(bounds.height * 0.965, bounds.width * 1.2),
+        Math.min(logicalHeight * 0.965, logicalWidth * 1.2),
       );
       const portraitWidth =
         portraitHeight * (PAPERDOLL_FRAME_WIDTH / PAPERDOLL_FRAME_HEIGHT);
@@ -193,8 +228,8 @@ export default function InventoryPaperdollFigure({
         loadout,
         direction: PORTRAIT_DIRECTION,
         frame: PORTRAIT_IDLE_FRAME,
-        x: bounds.width / 2,
-        y: bounds.height * 0.975,
+        x: logicalWidth / 2,
+        y: logicalHeight * 0.975,
         width: portraitWidth,
         height: portraitHeight,
       });
@@ -206,8 +241,8 @@ export default function InventoryPaperdollFigure({
         direction: PORTRAIT_DIRECTION,
         frame: PORTRAIT_IDLE_FRAME,
         timeMs,
-        x: bounds.width / 2,
-        y: bounds.height * 0.975,
+        x: logicalWidth / 2,
+        y: logicalHeight * 0.975,
         width: portraitWidth,
         height: portraitHeight,
         context: "portrait",
@@ -298,15 +333,22 @@ export default function InventoryPaperdollFigure({
     };
     pollUntilReady();
 
-    const resizeObserver = new ResizeObserver(() => {
+    const redrawAtCanonicalScale = () => {
+      if (!syncPortraitViewport()) return;
       if (hasRenderedRef.current) drawLoadedPortrait();
-    });
-    resizeObserver.observe(host);
+    };
+    const resizeObserver =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(redrawAtCanonicalScale);
+    resizeObserver?.observe(host);
+    window.addEventListener("resize", redrawAtCanonicalScale);
 
     return () => {
       cancelled = true;
       stopRarityVfxAnimation();
-      resizeObserver.disconnect();
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", redrawAtCanonicalScale);
       motionQuery.removeEventListener("change", handleMotionPreference);
       for (const image of rarityVfxImageList) {
         image.onload = null;

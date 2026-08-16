@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "version": "v1",
+  "bodyPath": "/assets/walk/harin-mannequin-v1.png",
+  "layerRoot": "/assets/paperdoll/v1",
+  "frame": {
+    "width": 256,
+    "height": 192,
+    "columns": 4,
+    "directionRows": [0, 7, 6, 3, 4, 5, 2, 1],
+    "groundBaseline": 184
+  },
+  "worldRender": {
+    "width": 136,
+    "height": 102
+  },
+  "slots": [
+    "weapon",
+    "offhand",
+    "helm",
+    "shoulders",
+    "armor",
+    "gloves",
+    "belt",
+    "legs",
+    "boots",
+    "relic"
+  ],
+  "anchorReport": {
+    "auditPath": "paperdoll-rig-anchors.generated.json",
+    "runtimePath": "paperdoll-rig-anchors.runtime.generated.json",
+    "schemaVersion": 1,
+    "algorithmVersion": "visible-bbox-median-v1",
+    "alphaThreshold": 16
+  },
+  "variantNames": [
+    "iron",
+    "frost",
+    "jade",
+    "blood",
+    "arcane",
+    "waraxe",
+    "celestial",
+    "void",
+    "sealed",
+    "cosmic"
+  ]
+}

@@ -32,6 +32,8 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageFilter
 
+from align_paperdoll_held_gear import build as align_held_gear_assets
+
 
 CELL_WIDTH = 256
 CELL_HEIGHT = 192
@@ -701,6 +703,18 @@ def build_assets(workspace: Path) -> dict[str, object]:
     report_path = workspace / "tmp" / "paperdoll-layer-metrics.json"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    # The equipped authoring sheets have variant-specific frame origins.  The
+    # slot partition above intentionally preserves their pixels; finish the v1
+    # build by applying the audited integer-only grip registration so a future
+    # full rebuild cannot silently restore floating weapon/offhand atlases.
+    held_source_root = workspace / "asset-sources/paperdoll/held-gear-v1"
+    align_held_gear_assets(
+        workspace,
+        output_root,
+        output_root,
+        held_source_root / "alignment-report.json",
+        held_source_root / "alignment-preview.png",
+    )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     print(report_path)
     return report

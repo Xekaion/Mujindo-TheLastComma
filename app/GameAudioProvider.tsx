@@ -51,6 +51,7 @@ const LOCAL_LOOT_VFX_SHOWCASE_MODES = new Set([
 const LOCAL_ENEMY_VFX_SHOWCASE_MODES = new Set([
   "margin-severer",
   "silent-librarian",
+  "forbidden-indexer",
 ]);
 const LOCAL_SHOWCASE_HOSTNAMES = new Set([
   "localhost",
@@ -60,11 +61,11 @@ const LOCAL_SHOWCASE_HOSTNAMES = new Set([
 ]);
 
 const subscribeToLocalShowcaseLocation = () => () => undefined;
+const isLocalShowcaseHost = () =>
+  isLocalRoomDoorShowcaseHost(window.location.host) ||
+  LOCAL_SHOWCASE_HOSTNAMES.has(window.location.hostname.toLowerCase());
 const localShowcaseBrowserSnapshot = () => {
-  const isLocalHost =
-    isLocalRoomDoorShowcaseHost(window.location.host) ||
-    LOCAL_SHOWCASE_HOSTNAMES.has(window.location.hostname.toLowerCase());
-  if (!isLocalHost) return false;
+  if (!isLocalShowcaseHost()) return false;
 
   const search = new URLSearchParams(window.location.search);
   const lootMode = search.get("lootVfxShowcase");
@@ -81,6 +82,9 @@ const localShowcaseBrowserSnapshot = () => {
     (roomMode !== null && ROOM_DOOR_SHOWCASE_ROOMS.some((room) => room === roomMode))
   );
 };
+const localAudioDockShowcaseBrowserSnapshot = () =>
+  isLocalShowcaseHost() &&
+  new URLSearchParams(window.location.search).get("audioDockShowcase") === "1";
 const localShowcaseServerSnapshot = () => false;
 
 export default function GameAudioProvider({ children }: GameAudioProviderProps) {
@@ -91,9 +95,14 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
     localShowcaseBrowserSnapshot,
     localShowcaseServerSnapshot,
   );
+  const localAudioDockShowcase = useSyncExternalStore(
+    subscribeToLocalShowcaseLocation,
+    localAudioDockShowcaseBrowserSnapshot,
+    localShowcaseServerSnapshot,
+  );
 
   useEffect(() => {
-    if (localShowcaseBrowserSnapshot()) return undefined;
+    if (localShowcaseBrowserSnapshot() || localAudioDockShowcase) return undefined;
 
     const audio = getGameAudio();
     const unsubscribe = audio.subscribe(setSettings);
@@ -131,22 +140,34 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
       document.removeEventListener("keydown", unlock, { capture: true });
       document.removeEventListener("click", handleGlobalClick);
     };
-  }, [localShowcaseBypass]);
+  }, [localAudioDockShowcase, localShowcaseBypass]);
+
+  const applySettings = (patch: Partial<GameAudioSettings>) => {
+    if (localAudioDockShowcase) {
+      setSettings((current) => ({ ...current, ...patch }));
+      return;
+    }
+    getGameAudio().setSettings(patch);
+  };
 
   const updateVolume =
     (key: "musicVolume" | "sfxVolume") =>
     (event: ChangeEvent<HTMLInputElement>) => {
-      getGameAudio().setSettings({ [key]: Number(event.target.value) / 100 });
+      applySettings({ [key]: Number(event.target.value) / 100 });
     };
 
   const musicActive = !settings.musicMuted && settings.musicVolume > 0;
 
-  if (localShowcaseBypass) return <>{children}</>;
+  if (localShowcaseBypass && !localAudioDockShowcase) return <>{children}</>;
 
   return (
     <>
       {children}
-      <aside className={`audio-dock${panelOpen ? " is-open" : ""}`} aria-label="사운드 설정">
+      <aside
+        className={`audio-dock${panelOpen ? " is-open" : ""}`}
+        aria-label="사운드 설정"
+        data-audio-showcase={localAudioDockShowcase ? "true" : undefined}
+      >
         {panelOpen && (
           <section className="audio-dock__panel" aria-label="오디오 믹서">
             <header className="audio-dock__header">
@@ -165,7 +186,7 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
                 aria-pressed={settings.musicMuted}
                 aria-label={settings.musicMuted ? "배경음악 켜기" : "배경음악 끄기"}
                 onClick={() =>
-                  getGameAudio().setSettings({ musicMuted: !settings.musicMuted })
+                  applySettings({ musicMuted: !settings.musicMuted })
                 }
               >
                 {settings.musicMuted ? "OFF" : "ON"}
@@ -196,7 +217,7 @@ export default function GameAudioProvider({ children }: GameAudioProviderProps) 
                 aria-pressed={settings.sfxMuted}
                 aria-label={settings.sfxMuted ? "효과음 켜기" : "효과음 끄기"}
                 onClick={() =>
-                  getGameAudio().setSettings({ sfxMuted: !settings.sfxMuted })
+                  applySettings({ sfxMuted: !settings.sfxMuted })
                 }
               >
                 {settings.sfxMuted ? "OFF" : "ON"}

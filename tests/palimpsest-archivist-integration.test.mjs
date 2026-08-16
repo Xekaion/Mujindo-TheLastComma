@@ -129,8 +129,8 @@ test("GameCanvas catalogs kind 11, its authored atlases, and complete spawn stat
   const kinds = [...enemyKind[1].matchAll(/\b(\d+)\b/g)].map((match) => Number(match[1]));
   assert.deepEqual(
     [...new Set(kinds)].sort((left, right) => left - right),
-    Array.from({ length: 13 }, (_, kind) => kind),
-    "enemy array indices require a contiguous 0 through 12 union",
+    Array.from({ length: 14 }, (_, kind) => kind),
+    "enemy array indices require a contiguous 0 through 13 union",
   );
 
   const enemyNames = sourceSection(source, "const ENEMY_NAMES", "const spriteCrops");

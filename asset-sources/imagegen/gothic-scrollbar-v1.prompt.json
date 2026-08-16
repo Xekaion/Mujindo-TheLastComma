@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "generator": "OpenAI built-in image_gen",
+  "source": "asset-sources/imagegen/gothic-scrollbar-v1-source.png",
+  "keyed": "asset-sources/imagegen/gothic-scrollbar-v1-keyed.png",
+  "outputs": [
+    "public/assets/ui/scrollbars/gothic-track-v1.png",
+    "public/assets/ui/scrollbars/gothic-thumb-gold-v1.png",
+    "public/assets/ui/scrollbars/gothic-thumb-aether-v1.png",
+    "public/assets/ui/scrollbars/gothic-track-horizontal-v1.png",
+    "public/assets/ui/scrollbars/gothic-thumb-gold-horizontal-v1.png",
+    "public/assets/ui/scrollbars/gothic-thumb-aether-horizontal-v1.png"
+  ],
+  "referenceImages": [
+    "public/assets/ui/inventory-chrome/tooltip-panel.png",
+    "public/assets/ui/inventory-chrome/resource-counter.png"
+  ],
+  "generationPrompt": "Use case: stylized-concept\nAsset type: production game UI asset sheet — gothic native scrollbar rail and two scrollbar thumbs\nInput images: Image 1 and Image 2 are material, edge-detail, and palette references only. Create new scrollbar components; do not copy their silhouette, symbols, or dimensions.\nPrimary request: create one clean production asset sheet containing exactly three isolated, perfectly vertical scrollbar components aligned left-to-right: (1) one empty recessed forged-iron scrollbar track, (2) one antique-gold scrollbar thumb, and (3) one corpse-aether teal scrollbar thumb. Each component must be independently authored as a very long narrow object with a visual ratio of exactly 1:6, designed for three-slice / nine-slice vertical resizing without looking mechanically stretched.\nScene/backdrop: perfectly flat solid #00FF00 chroma-key background for later removal; absolutely uniform, with no shadow, gradient, texture, floor, reflection, or lighting variation.\nGeometry: each component has a compact ornamental top cap, a calm repeatable middle shaft with continuous material grain, and a compact ornamental bottom cap. All three components have identical outer width and height. Keep large, equal green gutters between them and generous green padding around the full sheet. No overlap or detached pieces.\nTrack design: narrow recessed blackened-iron channel with restrained antique-bronze edge pins, dark enough to recede behind content.\nGold thumb design: dark forged-iron body, thin aged-gold rims, tiny diamond rivet at both caps, warm restrained highlights.\nAether thumb design: same exact geometry and material hierarchy as the gold thumb, but its thin accent line and tiny cap rivets are muted turquoise/aether teal; no bright neon flood.\nStyle/medium: high-detail painted 2D gothic early-2000s ARPG UI, Diablo-era atmosphere, crisp production-ready bitmap, physically coherent metal.\nComposition/framing: front-facing, no perspective, all components fully visible and centered in their thirds. Target each visible component about 120 pixels wide by 720 pixels tall within the square canvas.\nLighting/mood: restrained edge lighting only, sober dark center, readable at a final 8–12 pixel rendered width.\nNine-slice contract: reserve the top 18% and bottom 18% for caps; the middle 64% must be straight, seamless-looking, and free of one-off symbols so it can stretch vertically. The track center must remain empty.\nConstraints: no text, letters, numbers, logos, watermark, arrows, skulls, flames, giant gemstones, handles wider than the track, horizontal objects, curved perspective, cropped caps, bright bloom, green within any component, additional assets, or decorative background. The green background must be exactly uniform.",
+  "chromaRemoval": "imagegen/scripts/remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill",
+  "productionBuilder": "scripts/build_investor_ui_assets_v1.py",
+  "sliceContract": {
+    "verticalCanvas": [96, 576],
+    "horizontalCanvas": [576, 96],
+    "capSourcePixels": 112,
+    "nominalRenderWidth": "10-12 CSS pixels"
+  }
+}

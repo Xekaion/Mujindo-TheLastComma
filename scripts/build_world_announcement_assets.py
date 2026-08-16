@@ -15,7 +15,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_ROOT = ROOT / "work" / "imagegen" / "world-announcement-v1"
+SOURCE_ROOT = ROOT / "asset-sources" / "imagegen"
 OUTPUT_ROOT = ROOT / "public" / "assets" / "ui"
 REPORT = OUTPUT_ROOT / "world-announcement-v1.build.json"
 CELL_WIDTH = 1024
@@ -234,6 +234,8 @@ def validate(path: Path, frames: list[dict[str, object]]) -> None:
 
 def main() -> None:
     report: dict[str, object] = {
+        "version": 1,
+        "builder": "scripts/build_world_announcement_assets.py",
         "format": "RGBA PNG",
         "atlas": {
             "columns": COLUMNS,
@@ -244,7 +246,7 @@ def main() -> None:
         "rarities": {},
     }
     for rarity in ("mythic", "cosmic"):
-        source_path = SOURCE_ROOT / f"{rarity}-source.png"
+        source_path = SOURCE_ROOT / f"world-announcement-{rarity}-v1-source.png"
         source = normalize_source(source_path)
         atlas, frames = build_atlas(source, rarity)
         output = OUTPUT_ROOT / f"world-announcement-{rarity}-v1.png"

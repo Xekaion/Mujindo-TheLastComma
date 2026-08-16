@@ -1,7 +1,7 @@
 .audio-dock {
   position: fixed;
-  right: max(18px, env(safe-area-inset-right));
-  bottom: max(18px, env(safe-area-inset-bottom));
+  right: max(18px, var(--game-safe-right));
+  bottom: max(18px, var(--game-safe-bottom));
   z-index: 330;
   pointer-events: none;
   color: #eee7d4;
@@ -13,10 +13,10 @@
   font: inherit;
 }
 
-.audio-dock__trigger,
 .audio-dock__panel {
   pointer-events: auto;
-  border: 1px solid rgba(194, 161, 99, 0.45);
+  border: 14px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 14px / 0 stretch;
   background:
     linear-gradient(135deg, rgba(31, 28, 24, 0.96), rgba(7, 11, 12, 0.98)),
     #080b0c;
@@ -27,33 +27,41 @@
 }
 
 .audio-dock__trigger {
-  width: 64px;
-  height: 54px;
-  padding: 7px 8px 5px;
+  pointer-events: auto;
+  width: 52px;
+  height: 52px;
+  padding: 9px 10px 8px;
   display: grid;
   justify-items: center;
-  gap: 4px;
+  align-content: center;
+  gap: 1px;
   margin-left: auto;
+  border: 0;
+  border-radius: 0;
+  background: url("/assets/ui/audio/audio-dock-medallion-v1.png") center / contain no-repeat;
   color: #d9c79a;
   cursor: pointer;
-  border-radius: 3px;
   letter-spacing: 0.17em;
-  font-size: 8px;
+  font-size: 7px;
   font-weight: 800;
-  transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  filter: drop-shadow(0 5px 9px rgba(0, 0, 0, 0.72));
+  transition: color 160ms ease, filter 160ms ease, transform 160ms ease;
 }
 
 .audio-dock__trigger:hover,
 .audio-dock__trigger:focus-visible,
 .audio-dock.is-open .audio-dock__trigger {
   color: #fff1c7;
-  border-color: rgba(233, 192, 107, 0.86);
-  transform: translateY(-1px);
+  filter:
+    brightness(1.14)
+    drop-shadow(0 0 8px rgba(218, 176, 91, 0.34))
+    drop-shadow(0 5px 9px rgba(0, 0, 0, 0.72));
+  transform: scale(1.04);
   outline: none;
 }
 
 .audio-dock__meter {
-  height: 23px;
+  height: 19px;
   display: flex;
   align-items: end;
   justify-content: center;
@@ -62,16 +70,16 @@
 
 .audio-dock__meter i {
   display: block;
-  width: 3px;
-  height: 5px;
+  width: 2px;
+  height: 4px;
   background: currentColor;
   box-shadow: 0 0 8px rgba(231, 184, 92, 0.6);
   transform-origin: bottom;
 }
 
-.audio-dock__meter i:nth-child(2) { height: 13px; }
-.audio-dock__meter i:nth-child(3) { height: 19px; }
-.audio-dock__meter i:nth-child(4) { height: 9px; }
+.audio-dock__meter i:nth-child(2) { height: 10px; }
+.audio-dock__meter i:nth-child(3) { height: 15px; }
+.audio-dock__meter i:nth-child(4) { height: 7px; }
 
 .audio-dock__meter.is-playing i {
   animation: audio-meter 880ms ease-in-out infinite alternate;
@@ -84,10 +92,10 @@
 .audio-dock__panel {
   position: absolute;
   right: 0;
-  bottom: 66px;
+  bottom: 58px;
   width: min(322px, calc(100cqw - 32px));
-  padding: 18px;
-  border-radius: 4px;
+  padding: 8px;
+  border-radius: 0;
   animation: audio-panel-in 170ms ease-out both;
 }
 
@@ -209,18 +217,6 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@container game-viewport (max-width: 720px) {
-  .audio-dock {
-    right: max(10px, env(safe-area-inset-right));
-    bottom: max(92px, calc(env(safe-area-inset-bottom) + 78px));
-  }
-
-  .audio-dock__trigger {
-    width: 55px;
-    height: 48px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .audio-dock__meter.is-playing i,
   .audio-dock__panel {
@@ -230,7 +226,7 @@
 
 /* Readability and viewport-safe audio controls. */
 .audio-dock__trigger {
-  font-size: 10px;
+  font-size: 7px;
   line-height: 1.2;
 }
 
@@ -251,10 +247,4 @@
 
 .audio-dock__track button {
   font-size: 11px;
-}
-
-@container game-viewport (max-width: 720px) {
-  .audio-dock__panel {
-    max-height: calc(100cqh - 176px);
-  }
 }

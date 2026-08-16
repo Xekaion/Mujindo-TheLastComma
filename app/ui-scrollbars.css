@@ -1,0 +1,669 @@
+/*
+ * Shared native-scroll contract.
+ *
+ * This layer only skins elements that already own overflow. It deliberately
+ * leaves overflow, focusability, wheel/touch handling, and keyboard scrolling
+ * to the owning component.
+ */
+.game-scrollbar,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+) {
+  --game-scrollbar-track-color: #050708;
+  --game-scrollbar-thumb-color: #a77b34;
+  --game-scrollbar-track-vertical-image: url("/assets/ui/scrollbars/gothic-track-v1.png");
+  --game-scrollbar-track-horizontal-image: url("/assets/ui/scrollbars/gothic-track-horizontal-v1.png");
+  --game-scrollbar-thumb-vertical-image: url("/assets/ui/scrollbars/gothic-thumb-gold-v1.png");
+  --game-scrollbar-thumb-horizontal-image: url("/assets/ui/scrollbars/gothic-thumb-gold-horizontal-v1.png");
+  scrollbar-color: var(--game-scrollbar-thumb-color) var(--game-scrollbar-track-color);
+  scrollbar-width: thin;
+}
+
+/* Enhancement/aether surfaces keep the same track and use the teal thumb. */
+.game-scrollbar--aether,
+.game-scrollbar[data-scrollbar-tone="aether"],
+.game-viewport :is(
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-divine-forge-body
+) {
+  --game-scrollbar-thumb-color: #4eaa9d;
+  --game-scrollbar-thumb-vertical-image: url("/assets/ui/scrollbars/gothic-thumb-aether-v1.png");
+  --game-scrollbar-thumb-horizontal-image: url("/assets/ui/scrollbars/gothic-thumb-aether-horizontal-v1.png");
+}
+
+/*
+ * Keep the vertical image source on the unqualified pseudo-element as a safe
+ * baseline. Directional rules below replace it with the horizontal artwork
+ * when needed, while preserving a direct asset contract for every owner.
+ */
+.game-scrollbar::-webkit-scrollbar-track,
+.inventory-screen::-webkit-scrollbar-track,
+.inventory-screen-layout::-webkit-scrollbar-track,
+.inventory-screen-grid-viewport::-webkit-scrollbar-track,
+.inventory-screen-detail-stats::-webkit-scrollbar-track,
+.inventory-screen-enhancement-scroll::-webkit-scrollbar-track,
+.inventory-screen-tooltip-scroll::-webkit-scrollbar-track,
+.inventory-screen-confirm-dialog::-webkit-scrollbar-track,
+.game-confirmation-dialog::-webkit-scrollbar-track,
+.inventory-screen-divine-forge-body::-webkit-scrollbar-track,
+.menu-stage-shell::-webkit-scrollbar-track,
+.save-slot-grid::-webkit-scrollbar-track,
+.augment-stack-list::-webkit-scrollbar-track,
+.augment-choices::-webkit-scrollbar-track,
+.synergy-list::-webkit-scrollbar-track,
+.inventory-grid::-webkit-scrollbar-track,
+.gear-comparison::-webkit-scrollbar-track,
+.equipment-slots::-webkit-scrollbar-track,
+.ending-story::-webkit-scrollbar-track,
+.pause-modal::-webkit-scrollbar-track,
+.map-board::-webkit-scrollbar-track,
+.map-legend::-webkit-scrollbar-track,
+.character-entry::-webkit-scrollbar-track,
+.shop-layout::-webkit-scrollbar-track,
+.shop-category::-webkit-scrollbar-track,
+.shop-product-grid::-webkit-scrollbar-track,
+.shop-checkout::-webkit-scrollbar-track,
+.stats-content::-webkit-scrollbar-track,
+.audio-dock__panel::-webkit-scrollbar-track,
+.market-screen::-webkit-scrollbar-track,
+.market-vault-list::-webkit-scrollbar-track,
+.market-confirm::-webkit-scrollbar-track,
+.plaza-portal-directory::-webkit-scrollbar-track,
+.plaza-character-profile__content::-webkit-scrollbar-track,
+.plaza-character-profile__slots::-webkit-scrollbar-track,
+.plaza-character-profile__detail::-webkit-scrollbar-track,
+.plaza-character-profile__detail-empty::-webkit-scrollbar-track,
+.pvp-screen::-webkit-scrollbar-track,
+.pvp-lobby::-webkit-scrollbar-track {
+  box-sizing: border-box;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 12px 0;
+  border-image-source: url("/assets/ui/scrollbars/gothic-track-v1.png") !important;
+  border-image-slice: 96 0 96 0 fill !important;
+  border-image-width: 12px 0 !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb,
+.inventory-screen::-webkit-scrollbar-thumb,
+.inventory-screen-layout::-webkit-scrollbar-thumb,
+.inventory-screen-grid-viewport::-webkit-scrollbar-thumb,
+.inventory-screen-detail-stats::-webkit-scrollbar-thumb,
+.inventory-screen-tooltip-scroll::-webkit-scrollbar-thumb,
+.inventory-screen-confirm-dialog::-webkit-scrollbar-thumb,
+.game-confirmation-dialog::-webkit-scrollbar-thumb,
+.menu-stage-shell::-webkit-scrollbar-thumb,
+.save-slot-grid::-webkit-scrollbar-thumb,
+.augment-stack-list::-webkit-scrollbar-thumb,
+.augment-choices::-webkit-scrollbar-thumb,
+.synergy-list::-webkit-scrollbar-thumb,
+.inventory-grid::-webkit-scrollbar-thumb,
+.gear-comparison::-webkit-scrollbar-thumb,
+.equipment-slots::-webkit-scrollbar-thumb,
+.ending-story::-webkit-scrollbar-thumb,
+.pause-modal::-webkit-scrollbar-thumb,
+.map-board::-webkit-scrollbar-thumb,
+.map-legend::-webkit-scrollbar-thumb,
+.character-entry::-webkit-scrollbar-thumb,
+.shop-layout::-webkit-scrollbar-thumb,
+.shop-category::-webkit-scrollbar-thumb,
+.shop-product-grid::-webkit-scrollbar-thumb,
+.shop-checkout::-webkit-scrollbar-thumb,
+.stats-content::-webkit-scrollbar-thumb,
+.audio-dock__panel::-webkit-scrollbar-thumb,
+.market-screen::-webkit-scrollbar-thumb,
+.market-vault-list::-webkit-scrollbar-thumb,
+.market-confirm::-webkit-scrollbar-thumb,
+.plaza-portal-directory::-webkit-scrollbar-thumb,
+.plaza-character-profile__content::-webkit-scrollbar-thumb,
+.plaza-character-profile__slots::-webkit-scrollbar-thumb,
+.plaza-character-profile__detail::-webkit-scrollbar-thumb,
+.plaza-character-profile__detail-empty::-webkit-scrollbar-thumb,
+.pvp-screen::-webkit-scrollbar-thumb,
+.pvp-lobby::-webkit-scrollbar-thumb {
+  box-sizing: border-box;
+  min-height: 28px;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 12px 0;
+  border-image-source: url("/assets/ui/scrollbars/gothic-thumb-gold-v1.png") !important;
+  border-image-slice: 96 0 96 0 fill !important;
+  border-image-width: 12px 0 !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar--aether::-webkit-scrollbar-thumb,
+.game-scrollbar[data-scrollbar-tone="aether"]::-webkit-scrollbar-thumb,
+.inventory-screen-enhancement-scroll::-webkit-scrollbar-thumb,
+.inventory-screen-divine-forge-body::-webkit-scrollbar-thumb {
+  box-sizing: border-box;
+  min-height: 28px;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 12px 0;
+  border-image-source: url("/assets/ui/scrollbars/gothic-thumb-aether-v1.png") !important;
+  border-image-slice: 96 0 96 0 fill !important;
+  border-image-width: 12px 0 !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar::-webkit-scrollbar,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.game-scrollbar::-webkit-scrollbar-track,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-track {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+  background-color: var(--game-scrollbar-track-color) !important;
+  background-image: none !important;
+}
+
+/* 96px source caps become 12px UI caps: vertical 3-slice. */
+.game-scrollbar::-webkit-scrollbar-track:vertical,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-track:vertical {
+  border-color: transparent;
+  border-style: solid;
+  border-width: 12px 0;
+  border-image-source: var(--game-scrollbar-track-vertical-image) !important;
+  border-image-slice: 96 0 96 0 fill !important;
+  border-image-width: 12px 0 !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+/* Horizontal artwork is sliced left/center/right, preserving both end caps. */
+.game-scrollbar::-webkit-scrollbar-track:horizontal,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-track:horizontal {
+  border-color: transparent;
+  border-style: solid;
+  border-width: 0 12px;
+  border-image-source: var(--game-scrollbar-track-horizontal-image) !important;
+  border-image-slice: 0 96 0 96 fill !important;
+  border-image-width: 0 12px !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-thumb {
+  box-sizing: border-box;
+  border-radius: 0 !important;
+  background-color: var(--game-scrollbar-thumb-color) !important;
+  background-image: none !important;
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb:vertical,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-thumb:vertical {
+  min-height: 28px;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 12px 0;
+  border-image-source: var(--game-scrollbar-thumb-vertical-image) !important;
+  border-image-slice: 96 0 96 0 fill !important;
+  border-image-width: 12px 0 !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb:horizontal,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-thumb:horizontal {
+  min-height: 0;
+  min-width: 28px;
+  border-color: transparent;
+  border-style: solid;
+  border-width: 0 12px;
+  border-image-source: var(--game-scrollbar-thumb-horizontal-image) !important;
+  border-image-slice: 0 96 0 96 fill !important;
+  border-image-width: 0 12px !important;
+  border-image-outset: 0;
+  border-image-repeat: stretch !important;
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb:hover,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-thumb:hover {
+  filter: brightness(1.14) saturate(1.08);
+}
+
+.game-scrollbar::-webkit-scrollbar-thumb:active,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-thumb:active {
+  filter: brightness(1.24) saturate(1.12);
+}
+
+.game-scrollbar::-webkit-scrollbar-corner,
+.game-viewport :is(
+  .inventory-screen,
+  .inventory-screen-layout,
+  .inventory-screen-grid-viewport,
+  .inventory-screen-detail-stats,
+  .inventory-screen-enhancement-scroll,
+  .inventory-screen-tooltip-scroll,
+  .inventory-screen-confirm-dialog,
+  .game-confirmation-dialog,
+  .inventory-screen-divine-forge-body,
+  .menu-stage-shell,
+  .save-slot-grid,
+  .augment-stack-list,
+  .augment-choices,
+  .synergy-list,
+  .inventory-grid,
+  .gear-comparison,
+  .equipment-slots,
+  .ending-story,
+  .pause-modal,
+  .map-board,
+  .map-legend,
+  .character-entry,
+  .shop-layout,
+  .shop-category,
+  .shop-product-grid,
+  .shop-checkout,
+  .stats-content,
+  .audio-dock__panel,
+  .market-screen,
+  .market-vault-list,
+  .market-confirm,
+  .plaza-portal-directory,
+  .plaza-character-profile__content,
+  .plaza-character-profile__slots,
+  .plaza-character-profile__detail,
+  .plaza-character-profile__detail-empty,
+  .pvp-screen,
+  .pvp-lobby
+)::-webkit-scrollbar-corner {
+  background: var(--game-scrollbar-track-color);
+}

@@ -7,31 +7,38 @@ const root = path.resolve(import.meta.dirname, "..");
 const readSource = (relativePath) =>
   readFile(path.join(root, relativePath), "utf8");
 
-test("the expedition canvas caches its CSS scale and keeps combat labels readable", async () => {
+test("the expedition canvas keeps every label in its canonical 1280 by 720 coordinate plane", async () => {
   const source = await readSource("app/GameCanvas.tsx");
 
+  assert.doesNotMatch(
+    source,
+    /<canvas[\s\S]{0,120}?(?:width=\{WIDTH\}|height=\{HEIGHT\})/,
+    "React props must not reset the resize-managed backing store to 1280x720",
+  );
+  assert.match(source, /canvasBackingDimensions\(\s*WIDTH,\s*HEIGHT,/);
+  assert.doesNotMatch(
+    source,
+    /canvasCssScale|cacheCanvasCssScale|readableCanvasFontSize/,
+  );
+  assert.doesNotMatch(source, /minimumCssPx\s*\/\s*canvasCssScale/);
+  assert.match(source, /context\.font = "800 18px serif";/);
+  assert.match(source, /context\.font = "700 10px sans-serif";/);
+  assert.match(source, /\? "700 15px serif"\s*: "600 11px sans-serif"/);
+  assert.match(source, /context\.font = "700 12px sans-serif";/);
   assert.match(
     source,
-    /const initialCanvasRect = canvas\.getBoundingClientRect\(\);\s*cacheCanvasCssScale\(initialCanvasRect\.width, initialCanvasRect\.height\);/,
+    /return \(\) => \{\s*cancelAnimationFrame\(frame\);\s*\};/,
+  );
+
+  // Map scrolling is also expressed in layout pixels; visual DOMRect pixels
+  // would apply the outer 16:9 scale twice.
+  assert.match(
+    source,
+    /current\.offsetLeft \+\s*current\.offsetWidth \/ 2 - board\.clientWidth \/ 2/,
   );
   assert.match(
     source,
-    /new ResizeObserver\(\(\[entry\]\) => \{[\s\S]{0,180}?entry\.contentRect\.width[\s\S]{0,80}?entry\.contentRect\.height/,
-  );
-  assert.match(
-    source,
-    /Math\.min\(renderedWidth \/ WIDTH, renderedHeight \/ HEIGHT\)/,
-  );
-  assert.match(
-    source,
-    /Math\.max\(basePx, minimumCssPx \/ canvasCssScale\)/,
-  );
-  assert.match(source, /readableCanvasFontSize\(10, 11\).*?sans-serif/);
-  assert.match(source, /readableCanvasFontSize\(11, 11\).*?sans-serif/);
-  assert.match(source, /readableCanvasFontSize\(12, 11\).*?sans-serif/);
-  assert.match(
-    source,
-    /return \(\) => \{\s*canvasResizeObserver\.disconnect\(\);\s*cancelAnimationFrame\(frame\);\s*\};/,
+    /current\.offsetTop \+\s*current\.offsetHeight \/ 2 - board\.clientHeight \/ 2/,
   );
 });
 
@@ -57,76 +64,109 @@ test("ordinary shield points stay in the HUD without drawing a persistent ring a
   );
 });
 
-test("the PVP canvas applies the same scale floor to names, respawn text, and countdown copy", async () => {
+test("the PVP canvas scales names, respawn text, and countdown copy with the whole 16:9 plane", async () => {
   const source = await readSource("app/pvp/PvpArena.tsx");
 
-  assert.match(
+  assert.doesNotMatch(
     source,
-    /Math\.min\(\s*renderedWidth \/ PVP_ARENA_WIDTH,\s*renderedHeight \/ PVP_ARENA_HEIGHT,\s*\)/,
+    /<canvas[\s\S]{0,120}?(?:width=\{PVP_ARENA_WIDTH\}|height=\{PVP_ARENA_HEIGHT\})/,
+    "React props must not reset the resize-managed PVP backing store",
   );
   assert.match(
     source,
-    /const initialCanvasRect = canvas\.getBoundingClientRect\(\);\s*cacheCanvasCssScale\(initialCanvasRect\.width, initialCanvasRect\.height\);/,
+    /canvasBackingDimensions\(\s*PVP_ARENA_WIDTH,\s*PVP_ARENA_HEIGHT,/,
   );
+  assert.doesNotMatch(
+    source,
+    /canvasCssScale|cacheCanvasCssScale|readableCanvasFontSize/,
+  );
+  assert.doesNotMatch(source, /minimumCssPx\s*\/\s*canvasCssScale/);
   assert.match(
     source,
-    /new ResizeObserver\(\(\[entry\]\) => \{[\s\S]{0,180}?entry\.contentRect\.width[\s\S]{0,80}?entry\.contentRect\.height/,
-  );
-  assert.match(
-    source,
-    /context\.font = `700 \$\{readableCanvasFontSize\(12, 11\)\}px Pretendard, sans-serif`;\s*context\.letterSpacing = "0px";[\s\S]{0,180}?context\.fillText\(player\.name/,
+    /context\.font = "700 12px Pretendard, sans-serif";\s*context\.letterSpacing = "0px";[\s\S]{0,180}?context\.fillText\(player\.name/,
   );
   assert.match(
     source,
     /context\.fillText\(`\$\{Math\.ceil\(player\.respawnMs \/ 1_000\)\}`/,
   );
+  assert.match(source, /context\.font = "700 82px Georgia, serif";/);
   assert.match(
     source,
-    /readableCanvasFontSize\(12, 10\).*?Pretendard[\s\S]{0,180}?context\.fillText\("기억 결투"/,
+    /context\.font = "800 12px Pretendard, sans-serif";[\s\S]{0,180}?context\.fillText\(/,
   );
   assert.match(
     source,
-    /return \(\) => \{\s*canvasResizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(animationFrame\);[\s\S]{0,360}?roomAtlas\.src = "";[\s\S]{0,120}?fallbackRoom\.src = "";/,
+    /return \(\) => \{\s*window\.cancelAnimationFrame\(animationFrame\);[\s\S]{0,360}?roomAtlas\.src = "";[\s\S]{0,120}?fallbackRoom\.src = "";/,
   );
 });
 
-test("the shared plaza canvas keeps character labels readable without frame-time layout reads", async () => {
-  const source = await readSource("app/PlazaHub.tsx");
+test("the inventory portrait draws in layout coordinates and only uses visual scale for backing resolution", async () => {
+  const source = await readSource("app/InventoryPaperdollFigure.tsx");
 
+  assert.match(source, /const logicalWidth = host\.clientWidth;/);
+  assert.match(source, /const logicalHeight = host\.clientHeight;/);
   assert.match(
     source,
-    /const initialCanvasRect = canvas\.getBoundingClientRect\(\);\s*cacheCanvasCssScale\(initialCanvasRect\.width, initialCanvasRect\.height\);/,
+    /Math\.min\(\s*renderedBounds\.width \/ logicalWidth,\s*renderedBounds\.height \/ logicalHeight,\s*\)/,
   );
   assert.match(
     source,
-    /new ResizeObserver\(\(\[entry\]\) => \{[\s\S]{0,180}?entry\.contentRect\.width[\s\S]{0,80}?entry\.contentRect\.height/,
+    /Math\.max\(1, \(window\.devicePixelRatio \|\| 1\) \* renderedScale\)/,
   );
-  assert.match(
-    source,
-    /Math\.min\(renderedWidth \/ logicalWidth, renderedHeight \/ logicalHeight\)/,
-  );
-  assert.match(
-    source,
-    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,220}?context\.fillText\([\s\S]{0,100}?`\$\{player\.displayName\} · LV\.\$\{player\.level\}`/,
-  );
-  const drawPlayerBlock = source.slice(
-    source.indexOf("function drawPlayer("),
-    source.indexOf("function connectionLabel("),
+  assert.match(source, /Math\.round\(logicalWidth \* dpr\)/);
+  assert.match(source, /Math\.round\(logicalHeight \* dpr\)/);
+  assert.match(source, /context\.clearRect\(0, 0, logicalWidth, logicalHeight\)/);
+  assert.match(source, /x: logicalWidth \/ 2,/);
+  assert.match(source, /y: logicalHeight \* 0\.975,/);
+  assert.doesNotMatch(source, /Math\.min\(bounds\.height|bounds\.width \* 1\.2/);
+  assert.match(source, /window\.addEventListener\("resize", redrawAtCanonicalScale\)/);
+  assert.match(source, /window\.removeEventListener\("resize", redrawAtCanonicalScale\)/);
+  const animatedDraw = source.slice(
+    source.indexOf("const drawLoadedPortrait ="),
+    source.indexOf("const stopRarityVfxAnimation ="),
   );
   assert.doesNotMatch(
-    drawPlayerBlock,
-    /dungeonFloor|기록 심도|지하|현재 캐릭터/,
-    "plaza overhead labels must contain only the nickname and level",
+    animatedDraw,
+    /getBoundingClientRect\(\)|\.clientWidth|\.clientHeight/,
+    "animated rarity frames must reuse cached layout metrics",
+  );
+});
+
+test("the shared plaza canvas uses layout coordinates and never inversely scales character labels", async () => {
+  const source = await readSource("app/PlazaHub.tsx");
+
+  assert.match(source, /const width = Math\.max\(1, root\.clientWidth\);/);
+  assert.match(source, /const height = Math\.max\(1, root\.clientHeight\);/);
+  assert.match(source, /canvas\.style\.width = "100%";/);
+  assert.match(source, /canvas\.style\.height = "100%";/);
+  assert.doesNotMatch(source, /minimumCssPx\s*\/\s*canvasCssScale/);
+  assert.match(
+    source,
+    /readableCanvasFontSize = \(basePx: number, minimumCssPx: number\) => \{\s*void minimumCssPx;\s*return basePx;/,
   );
   assert.match(
     source,
-    /return \(\) => \{\s*canvasResizeObserver\.disconnect\(\);\s*window\.cancelAnimationFrame\(animationFrame\);/,
+    /readableCanvasFontSize\(14, 11\).*?sans-serif[\s\S]{0,220}?context\.fillText\([\s\S]{0,100}?`\$\{player\.displayName\}[^`]*LV\.\$\{player\.level\}`/,
+  );
+  const nameplateStart = source.indexOf("function drawPlazaPlayerNameplate(");
+  const connectionLabelStart = source.indexOf("function connectionLabel(");
+  assert.ok(
+    nameplateStart >= 0 && connectionLabelStart > nameplateStart,
+    "plaza nameplate renderer must exist",
+  );
+  const drawPlayerBlock = source.slice(nameplateStart, connectionLabelStart);
+  assert.doesNotMatch(
+    drawPlayerBlock,
+    /dungeonFloor/,
+    "plaza overhead labels must contain only the nickname and level",
   );
 
   const animationEffect = source.slice(
     source.indexOf('const context = canvas.getContext("2d", { alpha: false });'),
     source.indexOf("const handleCanvasPointer"),
   );
-  const animationFrameBody = animationEffect.slice(animationEffect.indexOf("const frame = (now: number) =>"));
+  const animationFrameBody = animationEffect.slice(
+    animationEffect.indexOf("const frame = (now: number) =>"),
+  );
   assert.doesNotMatch(animationFrameBody, /getBoundingClientRect\(\)/);
 });

@@ -1,0 +1,193 @@
+{
+  "version": 1,
+  "builder": "scripts/build_investor_ui_assets_v1.py",
+  "generator": "OpenAI built-in image_gen",
+  "inputs": [
+    {
+      "path": "asset-sources/imagegen/audio-dock-medallion-v1-keyed.png",
+      "sha256": "a33fdd809081b22b8f46e21f28566a4ce81b2a5608b71c10d6bd67c20f0237ce",
+      "bytes": 1552645,
+      "size": [
+        1254,
+        1254
+      ],
+      "visibleBbox": [
+        136,
+        135,
+        1118,
+        1133
+      ],
+      "alphaLevels": 202,
+      "transparentPixels": 673796,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-scrollbar-v1-keyed.png",
+      "sha256": "172be65302b2fd1e5eab8fd4339d44fb52769843ade1ee4ba9a7ce83dc9ef712",
+      "bytes": 853557,
+      "size": [
+        1254,
+        1254
+      ],
+      "visibleBbox": [
+        188,
+        49,
+        1061,
+        1205
+      ],
+      "alphaLevels": 230,
+      "transparentPixels": 1183432,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "asset-sources/imagegen/audio-dock-medallion-v1.prompt.json",
+      "sha256": "b2ff9830f8395518b419ceccbcd4de0309d966adeead437b453142711aa6d2c8"
+    },
+    {
+      "path": "asset-sources/imagegen/gothic-scrollbar-v1.prompt.json",
+      "sha256": "718c443c9cac4e703c1ee1de599ee0d6b3a6de77e8ea23e8fcf5accf76198cf9"
+    }
+  ],
+  "pipeline": {
+    "crop": "alpha bbox with transparent safety padding",
+    "resize": "premultiplied-alpha LANCZOS contain; no axis distortion",
+    "audioCanvas": [
+      320,
+      320
+    ],
+    "scrollbarCanvas": [
+      96,
+      576
+    ],
+    "horizontalVariants": "deterministic 90 degree rotation of each authored vertical component",
+    "cssContract": "three-slice/nine-slice caps; 112 source pixels at each long-axis end"
+  },
+  "outputs": [
+    {
+      "path": "public/assets/ui/audio/audio-dock-medallion-v1.png",
+      "sha256": "4b7b74721d28c5d8affdb17081f7d8e645ec7c11a237ef462e659b7e8effc5fe",
+      "bytes": 148981,
+      "size": [
+        320,
+        320
+      ],
+      "visibleBbox": [
+        16,
+        14,
+        304,
+        306
+      ],
+      "alphaLevels": 233,
+      "transparentPixels": 24090,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-track-v1.png",
+      "sha256": "5236a3d1c2839a5f8b338b80e7b9f0b385e2e7535c94f1b3e07bc56ce4f3add4",
+      "bytes": 68536,
+      "size": [
+        96,
+        576
+      ],
+      "visibleBbox": [
+        11,
+        16,
+        83,
+        561
+      ],
+      "alphaLevels": 214,
+      "transparentPixels": 24210,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-track-horizontal-v1.png",
+      "sha256": "7316d3d1b1360d4d4ff9e4c196846698cbcc4671e22a8a11d9555032e3085706",
+      "bytes": 65896,
+      "size": [
+        576,
+        96
+      ],
+      "visibleBbox": [
+        16,
+        13,
+        561,
+        85
+      ],
+      "alphaLevels": 214,
+      "transparentPixels": 24210,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-thumb-gold-v1.png",
+      "sha256": "7811aec3aa6e30f0a9242653440ff9150609547e247f1110aba1fa3b0deb3f83",
+      "bytes": 67401,
+      "size": [
+        96,
+        576
+      ],
+      "visibleBbox": [
+        12,
+        16,
+        84,
+        561
+      ],
+      "alphaLevels": 221,
+      "transparentPixels": 24984,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-thumb-gold-horizontal-v1.png",
+      "sha256": "43d10bf3307d393019ba0787517b664bce497a68e26e707a8eeae802beab4934",
+      "bytes": 64538,
+      "size": [
+        576,
+        96
+      ],
+      "visibleBbox": [
+        16,
+        12,
+        561,
+        84
+      ],
+      "alphaLevels": 221,
+      "transparentPixels": 24984,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-thumb-aether-v1.png",
+      "sha256": "55e82629f418b281a7b2a82f31102422b19fbee0777ba9dd76d69eb5cc0242db",
+      "bytes": 68537,
+      "size": [
+        96,
+        576
+      ],
+      "visibleBbox": [
+        12,
+        16,
+        84,
+        561
+      ],
+      "alphaLevels": 241,
+      "transparentPixels": 25058,
+      "chromaResidualPixels": 0
+    },
+    {
+      "path": "public/assets/ui/scrollbars/gothic-thumb-aether-horizontal-v1.png",
+      "sha256": "a453362846aeb0b8206201cc82306d02ad00a9a7e7994f28f24afda425140acc",
+      "bytes": 65902,
+      "size": [
+        576,
+        96
+      ],
+      "visibleBbox": [
+        16,
+        12,
+        561,
+        84
+      ],
+      "alphaLevels": 241,
+      "transparentPixels": 25058,
+      "chromaResidualPixels": 0
+    }
+  ]
+}

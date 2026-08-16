@@ -9,6 +9,8 @@ import {
 } from "./plaza-world";
 import {
   EQUIPMENT_SLOTS,
+  GEAR_ICON_COLUMNS,
+  GEAR_ICON_ROWS,
   GEAR_RARITIES,
   normalizeEquipment,
   normalizeGearItem,
@@ -299,6 +301,40 @@ export function normalizeHubAppearance(value: unknown): HubAppearance {
     palette: isOneOf(HUB_PALETTES, raw.palette)
       ? raw.palette
       : DEFAULT_HUB_APPEARANCE.palette,
+    gear,
+    rarities,
+  };
+}
+
+/**
+ * Produces the allowlisted visual summary used by both normal plaza entry and
+ * storage-free QA characters. Canonical equipment remains the only input;
+ * private item fields never reach the public appearance object.
+ */
+export function hubAppearanceFromLoadout(
+  value: unknown,
+  palette: HubPalette = DEFAULT_HUB_APPEARANCE.palette,
+): HubAppearance {
+  const loadout = normalizeEquipment(value);
+  const gear = emptyVisualGear();
+  const rarities = emptyVisualRarities();
+  let equipped = false;
+  for (const slot of HUB_VISUAL_GEAR_SLOTS) {
+    const item = loadout[slot];
+    if (!item) continue;
+    equipped = true;
+    gear[slot] = Math.max(
+      0,
+      Math.min(
+        GEAR_ICON_ROWS - 1,
+        Math.floor(item.iconIndex / GEAR_ICON_COLUMNS),
+      ),
+    );
+    rarities[slot] = item.rarity;
+  }
+  return {
+    spriteKey: equipped ? "harin-equipped" : "harin",
+    palette,
     gear,
     rarities,
   };

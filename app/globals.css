@@ -6,6 +6,18 @@
   --aether: #67c6b3;
   --gold: #c6a15b;
   --panel: rgba(11, 13, 16, 0.88);
+  --game-design-width: 1920px;
+  --game-design-height: 1080px;
+  /* The release picture is one letterboxed design plane. Browser safe-area
+     insets must not move individual overlays inside that picture. */
+  --game-safe-top: 0px;
+  --game-safe-right: 0px;
+  --game-safe-bottom: 0px;
+  --game-safe-left: 0px;
+  --game-viewport-scale: min(
+    calc(100vw / var(--game-design-width)),
+    calc(100dvh / var(--game-design-height))
+  );
 }
 
 * {
@@ -26,12 +38,14 @@ html {
 }
 
 body.game-viewport {
-  position: relative;
-  width: min(100vw, 177.777778dvh);
-  height: min(100dvh, 56.25vw);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--game-design-width);
+  height: var(--game-design-height);
   min-width: 0;
   min-height: 0;
-  margin: 0;
+  margin: -540px 0 0 -960px;
   overflow: hidden;
   aspect-ratio: 16 / 9;
   container-name: game-viewport;
@@ -42,7 +56,8 @@ body.game-viewport {
   font-family:
     Pretendard, "Noto Sans KR", "Apple SD Gothic Neo", system-ui, sans-serif;
   isolation: isolate;
-  transform: translateZ(0);
+  transform: translateZ(0) scale(var(--game-viewport-scale));
+  transform-origin: center;
 }
 
 .game-entry-flow {
@@ -73,7 +88,7 @@ button {
   --world-accent-soft: rgba(255, 46, 139, 0.42);
   --world-frame: url("/assets/ui/world-announcement-mythic-v1.png");
   position: fixed;
-  top: max(6px, env(safe-area-inset-top));
+  top: max(6px, var(--game-safe-top));
   left: 50%;
   z-index: 620;
   isolation: isolate;

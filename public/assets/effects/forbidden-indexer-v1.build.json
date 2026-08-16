@@ -1,0 +1,1049 @@
+{
+  "format": "RGBA PNG",
+  "rowOrder": [
+    "south",
+    "south-west",
+    "west",
+    "north-west",
+    "north",
+    "north-east",
+    "east",
+    "south-east"
+  ],
+  "phaseOrder": [
+    "left-contact",
+    "passing",
+    "right-contact",
+    "return"
+  ],
+  "walk": {
+    "source": "asset-sources/legacy-arpg/forbidden-indexer-walk-source-v1.png",
+    "sourceSha256": "d1e37530bba1c9499933b54877f3e0764d69e090358a8b6a0bcd324ba53f81f7",
+    "output": "public/assets/walk/forbidden-indexer-walk-v1.png",
+    "outputSha256": "3583dee83acc450a0092e24aeb2aceef3ef8aa0a73f323fe734ce316546dc794",
+    "frames": [
+      {
+        "row": 0,
+        "column": 0,
+        "alphaBounds": [
+          58,
+          9,
+          198,
+          185
+        ],
+        "padding": [
+          58,
+          9,
+          58,
+          7
+        ],
+        "visiblePixels": 14191,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "b599d7cddd399bcff0fb6397fe6437512d33eedfd93093ad540a8b95ed275464"
+      },
+      {
+        "row": 0,
+        "column": 1,
+        "alphaBounds": [
+          58,
+          9,
+          198,
+          185
+        ],
+        "padding": [
+          58,
+          9,
+          58,
+          7
+        ],
+        "visiblePixels": 13315,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "55015dd4af6cb34df8f2db098fb412b1ad0fcceb0a7f8d39819bb3f24da7f7a5"
+      },
+      {
+        "row": 0,
+        "column": 2,
+        "alphaBounds": [
+          56,
+          9,
+          199,
+          185
+        ],
+        "padding": [
+          56,
+          9,
+          57,
+          7
+        ],
+        "visiblePixels": 13692,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "91753ba39234ef46a61b7eb26f47f817faa2a6afcc0d2d715708c9de7a3c99a2"
+      },
+      {
+        "row": 0,
+        "column": 3,
+        "alphaBounds": [
+          58,
+          9,
+          197,
+          185
+        ],
+        "padding": [
+          58,
+          9,
+          59,
+          7
+        ],
+        "visiblePixels": 13513,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "70f1e7088b37c6b3cc8da03632325fc0c5a523f40db6874ecb19c61fc2c871f8"
+      },
+      {
+        "row": 1,
+        "column": 0,
+        "alphaBounds": [
+          47,
+          10,
+          209,
+          185
+        ],
+        "padding": [
+          47,
+          10,
+          47,
+          7
+        ],
+        "visiblePixels": 14969,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "8b0fabce59335820a9320e9ad4db342ecfe72b0b8125feb5c33ffa6003ae9246"
+      },
+      {
+        "row": 1,
+        "column": 1,
+        "alphaBounds": [
+          43,
+          9,
+          212,
+          185
+        ],
+        "padding": [
+          43,
+          9,
+          44,
+          7
+        ],
+        "visiblePixels": 15204,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "8ba7d0c609c8347914aa789732c2aabf0acc868bc2d7cb08fa5bc874a3bd73ad"
+      },
+      {
+        "row": 1,
+        "column": 2,
+        "alphaBounds": [
+          47,
+          9,
+          208,
+          185
+        ],
+        "padding": [
+          47,
+          9,
+          48,
+          7
+        ],
+        "visiblePixels": 14354,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "665f3529b39e45b1a07b869abfb8fdff5ce1c756bf0f595661af81bb25435b0a"
+      },
+      {
+        "row": 1,
+        "column": 3,
+        "alphaBounds": [
+          52,
+          9,
+          203,
+          185
+        ],
+        "padding": [
+          52,
+          9,
+          53,
+          7
+        ],
+        "visiblePixels": 13970,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "b1145a6ce7092a53d95fb28a023d12ce67306dc0f0591671d2513aed05fcf20d"
+      },
+      {
+        "row": 2,
+        "column": 0,
+        "alphaBounds": [
+          50,
+          11,
+          206,
+          185
+        ],
+        "padding": [
+          50,
+          11,
+          50,
+          7
+        ],
+        "visiblePixels": 14816,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "083e8fdfa7beb4336a2d473d28e83d586bc8756c9084e37a38d940f5f823b947"
+      },
+      {
+        "row": 2,
+        "column": 1,
+        "alphaBounds": [
+          51,
+          11,
+          204,
+          185
+        ],
+        "padding": [
+          51,
+          11,
+          52,
+          7
+        ],
+        "visiblePixels": 13588,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "17c3174c02f3527a82dd862717fade5f0a5d59ad9e5e7804c80a7a5a22356845"
+      },
+      {
+        "row": 2,
+        "column": 2,
+        "alphaBounds": [
+          47,
+          11,
+          208,
+          185
+        ],
+        "padding": [
+          47,
+          11,
+          48,
+          7
+        ],
+        "visiblePixels": 14816,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "4d947530f625e0ba4cc211b6cea818a66c64c34bbd9ef6cc9b336a6ac49b5889"
+      },
+      {
+        "row": 2,
+        "column": 3,
+        "alphaBounds": [
+          56,
+          11,
+          200,
+          185
+        ],
+        "padding": [
+          56,
+          11,
+          56,
+          7
+        ],
+        "visiblePixels": 14119,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "21a705f48a7b9b933d9de08d01edd1ea209853c6d8cf942760e6df090c04b667"
+      },
+      {
+        "row": 3,
+        "column": 0,
+        "alphaBounds": [
+          55,
+          7,
+          200,
+          185
+        ],
+        "padding": [
+          55,
+          7,
+          56,
+          7
+        ],
+        "visiblePixels": 14125,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "4ae01c35a2afdd78f7fdc0d0b459369f1c26ec5ba3a91f1ac16d9bf3eb822ae8"
+      },
+      {
+        "row": 3,
+        "column": 1,
+        "alphaBounds": [
+          58,
+          7,
+          198,
+          185
+        ],
+        "padding": [
+          58,
+          7,
+          58,
+          7
+        ],
+        "visiblePixels": 13623,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "e843e755c1cb6ff5707ef0169cd8635f944e909ccfdf12332f8851800729fdac"
+      },
+      {
+        "row": 3,
+        "column": 2,
+        "alphaBounds": [
+          59,
+          8,
+          197,
+          185
+        ],
+        "padding": [
+          59,
+          8,
+          59,
+          7
+        ],
+        "visiblePixels": 13639,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "8f69578e81bffb52cebda47f91d8ad5f35604ba9bde83c0ea9e180c1f58d2150"
+      },
+      {
+        "row": 3,
+        "column": 3,
+        "alphaBounds": [
+          61,
+          7,
+          195,
+          185
+        ],
+        "padding": [
+          61,
+          7,
+          61,
+          7
+        ],
+        "visiblePixels": 13498,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "0521ac895d97246d1f2bf1012488469b06ac1b467b8b693a400e759523b79e29"
+      },
+      {
+        "row": 4,
+        "column": 0,
+        "alphaBounds": [
+          46,
+          9,
+          209,
+          185
+        ],
+        "padding": [
+          46,
+          9,
+          47,
+          7
+        ],
+        "visiblePixels": 15571,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "0590312c76551687461d37f03379e777ceead9dba0e139509111ad8090e5dbb9"
+      },
+      {
+        "row": 4,
+        "column": 1,
+        "alphaBounds": [
+          49,
+          9,
+          207,
+          185
+        ],
+        "padding": [
+          49,
+          9,
+          49,
+          7
+        ],
+        "visiblePixels": 15935,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "2f11cd0f8f5a57c64a1ddd661bf9b26bd980e1beb28988c5c3d03a1b422d189f"
+      },
+      {
+        "row": 4,
+        "column": 2,
+        "alphaBounds": [
+          51,
+          9,
+          204,
+          185
+        ],
+        "padding": [
+          51,
+          9,
+          52,
+          7
+        ],
+        "visiblePixels": 15526,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "30c62077097fa73ec09420550e37669b4f3f3642b591f9f225da68364e9027c6"
+      },
+      {
+        "row": 4,
+        "column": 3,
+        "alphaBounds": [
+          55,
+          9,
+          200,
+          185
+        ],
+        "padding": [
+          55,
+          9,
+          56,
+          7
+        ],
+        "visiblePixels": 15215,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "63fab9d899a27b770178dd7fbb357094633e273fd71e3d1a8276a64c6610f392"
+      },
+      {
+        "row": 5,
+        "column": 0,
+        "alphaBounds": [
+          60,
+          11,
+          193,
+          185
+        ],
+        "padding": [
+          60,
+          11,
+          63,
+          7
+        ],
+        "visiblePixels": 13157,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "f7a9afeb3e10c806d646cdf2417bf32f6c0151e1cec5180a44c8f12c749b3df6"
+      },
+      {
+        "row": 5,
+        "column": 1,
+        "alphaBounds": [
+          57,
+          11,
+          199,
+          185
+        ],
+        "padding": [
+          57,
+          11,
+          57,
+          7
+        ],
+        "visiblePixels": 13100,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "726dfe445ccb3f284f2444e313077a169955f47c39eb9a1d51aeae380725bf63"
+      },
+      {
+        "row": 5,
+        "column": 2,
+        "alphaBounds": [
+          59,
+          11,
+          196,
+          185
+        ],
+        "padding": [
+          59,
+          11,
+          60,
+          7
+        ],
+        "visiblePixels": 13142,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "dad7d75c70cfbf56de4b519eb5ceab1e41d3ce43438efde56bce826da50508d9"
+      },
+      {
+        "row": 5,
+        "column": 3,
+        "alphaBounds": [
+          58,
+          11,
+          197,
+          185
+        ],
+        "padding": [
+          58,
+          11,
+          59,
+          7
+        ],
+        "visiblePixels": 13026,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "2281f5bb493dd7f2b98cf67fde1a36c4869f7cb5585321873932191a7cb4e182"
+      },
+      {
+        "row": 6,
+        "column": 0,
+        "alphaBounds": [
+          62,
+          11,
+          194,
+          185
+        ],
+        "padding": [
+          62,
+          11,
+          62,
+          7
+        ],
+        "visiblePixels": 13325,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "725ea0b2a9bc0c62eabfa551ba480c7f7e39a3d47f84a7566cf2e7b08a021750"
+      },
+      {
+        "row": 6,
+        "column": 1,
+        "alphaBounds": [
+          60,
+          11,
+          196,
+          184
+        ],
+        "padding": [
+          60,
+          11,
+          60,
+          8
+        ],
+        "visiblePixels": 13552,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "d894c9a9b4986a0f6d853d2b7030edfd68fdc017bfcae105cee1fcce75ae58c3"
+      },
+      {
+        "row": 6,
+        "column": 2,
+        "alphaBounds": [
+          63,
+          11,
+          192,
+          185
+        ],
+        "padding": [
+          63,
+          11,
+          64,
+          7
+        ],
+        "visiblePixels": 12918,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "435716e73120361923124dfef2eac761973016016cd6f33130c33f9f0f06d374"
+      },
+      {
+        "row": 6,
+        "column": 3,
+        "alphaBounds": [
+          62,
+          11,
+          194,
+          185
+        ],
+        "padding": [
+          62,
+          11,
+          62,
+          7
+        ],
+        "visiblePixels": 13013,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "1e67acca59fcde9ce6a0f805887bb1edcdc5c22d80b59fb5ab6cd9bcfb919108"
+      },
+      {
+        "row": 7,
+        "column": 0,
+        "alphaBounds": [
+          47,
+          10,
+          209,
+          185
+        ],
+        "padding": [
+          47,
+          10,
+          47,
+          7
+        ],
+        "visiblePixels": 14969,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "03fb367e2ce51a8bdd06376cd2435f31eb1ebe1e2ba116823d0e70ea87401c36"
+      },
+      {
+        "row": 7,
+        "column": 1,
+        "alphaBounds": [
+          44,
+          9,
+          213,
+          185
+        ],
+        "padding": [
+          44,
+          9,
+          43,
+          7
+        ],
+        "visiblePixels": 15204,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "c3c1d6d13da93189a9a5dd95c63185a23aee95d515172cd0e4b79e2f66b3f0f7"
+      },
+      {
+        "row": 7,
+        "column": 2,
+        "alphaBounds": [
+          48,
+          9,
+          209,
+          185
+        ],
+        "padding": [
+          48,
+          9,
+          47,
+          7
+        ],
+        "visiblePixels": 14354,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "17279cdc29efd0d3784ce232455c1be464c9843be6fa29f1b6603523569a5043"
+      },
+      {
+        "row": 7,
+        "column": 3,
+        "alphaBounds": [
+          53,
+          9,
+          204,
+          185
+        ],
+        "padding": [
+          53,
+          9,
+          52,
+          7
+        ],
+        "visiblePixels": 13970,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "4d033348693e4e5aeab1767d1c627dacb0046f62b2a62a3ca6d50f0036177c08"
+      }
+    ]
+  },
+  "vfx": {
+    "source": "asset-sources/legacy-arpg/forbidden-indexer-vfx-source-v1.png",
+    "sourceSha256": "7044956a121fc4d12707a32106113c4b29a9bc25c2a04d5e09c830962dfdbcf3",
+    "output": "public/assets/effects/forbidden-indexer-patterns-v1.png",
+    "outputSha256": "d3e1aff0c586693948b7bb4aa627dc482c2f753760e4142d74115c710485fdd5",
+    "frames": [
+      {
+        "row": 0,
+        "column": 0,
+        "alphaBounds": [
+          20,
+          194,
+          492,
+          317
+        ],
+        "padding": [
+          20,
+          194,
+          20,
+          195
+        ],
+        "visiblePixels": 18818,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "f9150d9664051751485ea075cef159b070307511070b204a90cf83249d006948"
+      },
+      {
+        "row": 0,
+        "column": 1,
+        "alphaBounds": [
+          20,
+          136,
+          492,
+          376
+        ],
+        "padding": [
+          20,
+          136,
+          20,
+          136
+        ],
+        "visiblePixels": 38300,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "4fd73b32f9f3a87f520097d0a4de349d9da4d6342e2f41be41289b1576d8b440"
+      },
+      {
+        "row": 0,
+        "column": 2,
+        "alphaBounds": [
+          41,
+          20,
+          470,
+          492
+        ],
+        "padding": [
+          41,
+          20,
+          42,
+          20
+        ],
+        "visiblePixels": 59623,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "74c7a082eb5bbf770961307d9c77b5276a9c5f33ab4870d9d22b96d46fe3ae16"
+      },
+      {
+        "row": 0,
+        "column": 3,
+        "alphaBounds": [
+          20,
+          28,
+          492,
+          484
+        ],
+        "padding": [
+          20,
+          28,
+          20,
+          28
+        ],
+        "visiblePixels": 87744,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "e07ae2e7d174cb0a769e973e530d97f07379404b04b7189f2d4e75f00ac8d138"
+      },
+      {
+        "row": 1,
+        "column": 0,
+        "alphaBounds": [
+          21,
+          20,
+          490,
+          492
+        ],
+        "padding": [
+          21,
+          20,
+          22,
+          20
+        ],
+        "visiblePixels": 79882,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "6d5a84fb410ae3b855ace5043df3739198aafeb5a150342dbcfabba22d453812"
+      },
+      {
+        "row": 1,
+        "column": 1,
+        "alphaBounds": [
+          20,
+          24,
+          492,
+          487
+        ],
+        "padding": [
+          20,
+          24,
+          20,
+          25
+        ],
+        "visiblePixels": 90824,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "e97499bd7a003a49660c552ef297e69b77f4ff0fecd87447fcebfa9b8e201518"
+      },
+      {
+        "row": 1,
+        "column": 2,
+        "alphaBounds": [
+          20,
+          33,
+          492,
+          479
+        ],
+        "padding": [
+          20,
+          33,
+          20,
+          33
+        ],
+        "visiblePixels": 102931,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "0f152ab826d0eca6abec5ed56519ed6edafc019c1e941dd5560c07d91d6dceac"
+      },
+      {
+        "row": 1,
+        "column": 3,
+        "alphaBounds": [
+          20,
+          46,
+          492,
+          465
+        ],
+        "padding": [
+          20,
+          46,
+          20,
+          47
+        ],
+        "visiblePixels": 75325,
+        "alphaLevels": [
+          0,
+          72,
+          128,
+          192,
+          255
+        ],
+        "pixelHash": "3c9e9fc2b50fff8e912ff42460ca013fe1b8a5305e689791291524f6f949856b"
+      }
+    ]
+  },
+  "pipeline": {
+    "walkMatte": "green-dominance key + centered component association + despill",
+    "missingFacing": "south-east is the exact horizontal mirror of south-west",
+    "vfxMatte": "green-dominance key + despill; detached fragments retained",
+    "paletteSize": 52,
+    "alphaLevels": [
+      0,
+      72,
+      128,
+      192,
+      255
+    ],
+    "runtimeResampling": "nearest-neighbour"
+  }
+}

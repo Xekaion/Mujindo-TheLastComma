@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
-import json
-
 import argparse
+import json
+from pathlib import Path
 
 from PIL import Image, ImageDraw
 
 
-CELL_W, CELL_H = 256, 192
+ROOT = Path(__file__).resolve().parents[1]
+RIG_MANIFEST_PATH = ROOT / "app" / "paperdoll-rig-manifest.json"
+RIG_MANIFEST = json.loads(RIG_MANIFEST_PATH.read_text(encoding="utf-8"))
+FRAME = RIG_MANIFEST["frame"]
+CELL_W, CELL_H = FRAME["width"], FRAME["height"]
 SLOTS = ("weapon", "offhand", "helm", "shoulders", "armor", "gloves", "belt", "legs", "boots", "relic")
-NAMES = ("iron", "frost", "jade", "blood", "arcane", "waraxe", "celestial", "void", "sealed", "cosmic")
-ROWS = tuple(range(8))
-PHASES = tuple(range(4))
-AUTHORED_TO_RUNTIME_DIRECTION = (0, 7, 6, 3, 4, 5, 2, 1)
+NAMES = tuple(RIG_MANIFEST["variantNames"])
+RUNTIME_TO_AUTHORED_DIRECTION = tuple(FRAME["directionRows"])
+ROWS = tuple(range(len(RUNTIME_TO_AUTHORED_DIRECTION)))
+PHASES = tuple(range(FRAME["columns"]))
+AUTHORED_TO_RUNTIME_DIRECTION = tuple(
+    RUNTIME_TO_AUTHORED_DIRECTION.index(authored_row) for authored_row in ROWS
+)
 
 
 def crop(atlas: Image.Image, column: int, row: int) -> Image.Image:
@@ -29,14 +34,27 @@ def crop_alpha(alpha: Image.Image, column: int, row: int) -> Image.Image:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--version", default="v2")
+    parser.add_argument(
+        "--version",
+        help="Historical rig override. Defaults to the active runtime manifest.",
+    )
     parser.add_argument("--body", type=Path)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
-    root = Path(__file__).resolve().parents[1]
-    body_path = args.body or root / f"public/assets/walk/harin-mannequin-{args.version}.png"
+    active_version = RIG_MANIFEST["version"]
+    version = args.version or active_version
+    uses_active_manifest = version == active_version
+    body_path = args.body or (
+        ROOT / "public" / RIG_MANIFEST["bodyPath"].lstrip("/")
+        if uses_active_manifest
+        else ROOT / f"public/assets/walk/harin-mannequin-{version}.png"
+    )
     mannequin = Image.open(body_path).convert("RGBA")
-    layer_root = root / f"public/assets/paperdoll/{args.version}"
+    layer_root = (
+        ROOT / "public" / RIG_MANIFEST["layerRoot"].lstrip("/")
+        if uses_active_manifest
+        else ROOT / f"public/assets/paperdoll/{version}"
+    )
     layers = {
         (slot, variant): Image.open(layer_root / slot / f"{variant:02d}-{NAMES[variant]}.png").convert("RGBA")
         for slot in SLOTS
@@ -86,7 +104,7 @@ def main() -> None:
                 frame = frame.resize((tile_w, tile_h), Image.Resampling.NEAREST)
                 sheet.alpha_composite(frame, (build_index * tile_w, qa_row * tile_h))
                 draw.text((build_index * tile_w + 10, qa_row * tile_h + 8), f"{label} / row {authored_row} / phase {phase}", fill=(255, 240, 196, 255))
-    out = args.output or root / f"tmp/paperdoll-layer-qa-{args.version}.png"
+    out = args.output or ROOT / f"tmp/paperdoll-layer-qa-{version}.png"
     out.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(out)
     print(out)
@@ -114,12 +132,14 @@ def main() -> None:
                 ):
                     edge_risk.append(f"{key}@{row},{column}")
     integrity = {
+        "rig_version": version,
+        "active_manifest": str(RIG_MANIFEST_PATH.relative_to(ROOT)),
         "atlas_count": len(layers),
         "wrong_size": wrong_size,
         "empty_atlases": empty,
         "cell_edge_crop_risks": edge_risk,
     }
-    integrity_path = root / "tmp/paperdoll-layer-integrity.json"
+    integrity_path = ROOT / "tmp/paperdoll-layer-integrity.json"
     integrity_path.write_text(json.dumps(integrity, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(integrity, ensure_ascii=False, indent=2))
     if wrong_size or empty or edge_risk:

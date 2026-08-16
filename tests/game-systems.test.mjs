@@ -7,6 +7,9 @@ import { inflateSync } from "node:zlib";
 import ts from "typescript";
 
 const root = process.cwd();
+const paperdollRigManifest = JSON.parse(
+  await readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8"),
+);
 
 function decodeRgbaPng(png, relativePath) {
   assert.equal(png.subarray(0, 8).toString("hex"), "89504e470d0a1a0a", relativePath);
@@ -624,6 +627,13 @@ class MemoryStorage {
   removeItem(key) {
     this.#items.delete(key);
   }
+}
+
+async function jsonDefaultModuleUrl(relativePath) {
+  const value = JSON.parse(await readFile(path.join(root, relativePath), "utf8"));
+  return `data:text/javascript;base64,${Buffer.from(
+    `export default ${JSON.stringify(value)};`,
+  ).toString("base64")}`;
 }
 
 class WriteRejectingStorage extends MemoryStorage {
@@ -1518,8 +1528,8 @@ test("the blank cartographer owns the first boss and its long ending can trigger
   assert.equal(roster.bossKindForProgress(1, 99, 99), 5);
   assert.equal(roster.bossKindForProgress(2, 1, 99), 12);
   assert.deepEqual(
-    Array.from({ length: 8 }, (_, index) => roster.bossKindForProgress(2, index + 1, 2)),
-    [12, 11, 5, 9, 12, 11, 5, 9],
+    Array.from({ length: 10 }, (_, index) => roster.bossKindForProgress(2, index + 1, 2)),
+    [12, 13, 11, 5, 9, 12, 13, 11, 5, 9],
   );
   assert.equal(ending.normalizeEndingVersion(undefined, false), 0);
   assert.equal(ending.normalizeEndingVersion(undefined, true), 1);
@@ -1725,7 +1735,7 @@ test("the blank cartographer deterministically cycles every inherited attack beh
   );
   assert.match(
     source,
-    /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? hud\.world\.archivistPattern \?\? hud\.world\.magistratePattern \?\? "none"\}/,
+    /data-boss-pattern=\{hud\.world\.bossPattern \?\? hud\.world\.binderPattern \?\? hud\.world\.archivistPattern \?\? hud\.world\.magistratePattern \?\? hud\.world\.indexerPattern \?\? "none"\}/,
   );
   assert.match(source, /BLANK_CARTOGRAPHER_PATTERN_LABELS\[hud\.world\.bossPattern\]/);
 });
@@ -2084,6 +2094,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/walk/final-binder-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/silent-librarian-walk-v2.png", [1024, 1536]],
     ["public/assets/walk/palimpsest-archivist-walk-v1.png", [1024, 1536]],
+    ["public/assets/walk/forbidden-indexer-walk-v1.png", [1024, 1536]],
     ["public/assets/walk/harin-neutral-walk-v4.png", [1024, 1536]],
     ["public/assets/walk/harin-mannequin-v2.png", [1024, 1536]],
     ["public/assets/effects/summon-rift.png", [1024, 1024]],
@@ -2095,6 +2106,7 @@ test("generated walk, VFX, and equipment sheets retain their required PNG dimens
     ["public/assets/effects/final-binder-patterns-v1.png", [1254, 1254]],
     ["public/assets/effects/silent-librarian-echo-v4.png", [512, 256]],
     ["public/assets/effects/palimpsest-archivist-patterns-v1.png", [2048, 1024]],
+    ["public/assets/effects/forbidden-indexer-patterns-v1.png", [2048, 1024]],
     ["public/assets/equipment/equipment-types-v4.png", [2800, 2800]],
     ["public/assets/equipment/equipment-icons-expanded.png", [1400, 1120]],
     ["public/assets/effects/loot-awakening.png", [1600, 800]],
@@ -2205,12 +2217,12 @@ test("the Time Stalker uses an authored 4x8 atlas and a sequential predictive ri
   );
   assert.match(
     source,
-    /enemy\.kind === 7 \|\|[\s\S]{0,80}?enemy\.kind === MARGIN_SEVERER_KIND \|\|[\s\S]{0,80}?enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,80}?\? false[\s\S]{0,80}?: directionFrame\.flipX/,
+    /enemy\.kind === 7 \|\|[\s\S]{0,80}?enemy\.kind === MARGIN_SEVERER_KIND \|\|[\s\S]{0,80}?enemy\.kind === SILENT_LIBRARIAN_KIND[\s\S]{0,220}?\? false[\s\S]{0,80}?: directionFrame\.flipX/,
     "kind 7 must never be mirrored at draw time",
   );
   assert.match(
     source,
-    /const hpBases = \[[\s\S]{0,420}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,80}?PALIMPSEST_ARCHIVIST_BASE_HP,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,380}?const speedBases = \[[\s\S]{0,240}?76, 50, 43, 26, 62, 38, 72, 66, 58,[\s\S]{0,80}?FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_SPEED,/,
+    /const hpBases = \[[\s\S]{0,420}?BLANK_CARTOGRAPHER_BASE_HP,[\s\S]{0,80}?58,[\s\S]{0,80}?92,[\s\S]{0,80}?68,[\s\S]{0,80}?FINAL_BINDER_BASE_HP,[\s\S]{0,80}?82,[\s\S]{0,80}?PALIMPSEST_ARCHIVIST_BASE_HP,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_HP,[\s\S]{0,80}?FORBIDDEN_INDEXER_BASE_HP,[\s\S]{0,40}?\];[\s\S]{0,380}?const speedBases = \[[\s\S]{0,240}?76, 50, 43, 26, 62, 38, 72, 66, 58,[\s\S]{0,80}?FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,[\s\S]{0,80}?INKBOUND_MAGISTRATE_BASE_SPEED,[\s\S]{0,80}?FORBIDDEN_INDEXER_BASE_SPEED,/,
     "kind 7 needs explicit health and movement stats",
   );
   assert.match(
@@ -2405,10 +2417,10 @@ test("the Margin Severer keeps one deterministic line contract from spawn throug
   const speedBases = readBalanceArray("speedBases");
   const damageBases = readBalanceArray("damageBases");
   const radii = readBalanceArray("radii");
-  assert.equal(hpBases.length, 13, "every enemy kind needs an aligned health entry");
-  assert.equal(speedBases.length, 13, "every enemy kind needs an aligned speed entry");
-  assert.equal(damageBases.length, 13, "every enemy kind needs an aligned damage entry");
-  assert.equal(radii.length, 13, "every enemy kind needs an aligned radius entry");
+  assert.equal(hpBases.length, 14, "every enemy kind needs an aligned health entry");
+  assert.equal(speedBases.length, 14, "every enemy kind needs an aligned speed entry");
+  assert.equal(damageBases.length, 14, "every enemy kind needs an aligned damage entry");
+  assert.equal(radii.length, 14, "every enemy kind needs an aligned radius entry");
   assert.deepEqual(
     [hpBases[8], speedBases[8], damageBases[8], radii[8]],
     ["68", "58", "11", "23"],
@@ -3029,7 +3041,10 @@ test("the Margin Severer uses eight aspect-safe authored sever stages instead of
   assert.match(showcase, /enemyVfxShowcaseMode !== ["']margin-severer["']/);
   assert.match(showcase, /enemyVfxShowcaseMode !== ["']silent-librarian["']/);
   assert.match(showcase, /enemyVfxShowcaseMode === ["']silent-librarian["']/);
-  assert.match(showcase, /silentLibrarianShowcase \? SILENT_LIBRARIAN_KIND : MARGIN_SEVERER_KIND/);
+  assert.match(
+    showcase,
+    /forbiddenIndexerShowcase\s*\? FORBIDDEN_INDEXER_KIND\s*:\s*silentLibrarianShowcase\s*\? SILENT_LIBRARIAN_KIND\s*:\s*MARGIN_SEVERER_KIND/,
+  );
   assert.match(showcase, /silentLibrarianShowcase \? ["']echoWindup["'] : ["']inscribe["']/);
   assert.match(
     showcase,
@@ -6442,19 +6457,27 @@ test("shared character motion follows post-collision displacement and travelled 
 });
 
 test("the paperdoll compositor consumes ten registered 32-frame wearable layers with bounded caching", async () => {
-  const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
+  const [equipmentUrl, rigManifestUrl] = await Promise.all([
+    typeScriptModuleUrl("app/equipment.ts"),
+    jsonDefaultModuleUrl("app/paperdoll-rig-manifest.json"),
+  ]);
   const [equipment, paperdoll, motion, paperdollSource] = await Promise.all([
     importTypeScriptModule("app/equipment.ts"),
     importTypeScriptModule("app/character-paperdoll.ts", {
       "./equipment": equipmentUrl,
+      "./paperdoll-rig-manifest.json": rigManifestUrl,
     }),
     importTypeScriptModule("app/character-motion.ts"),
     readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
   ]);
 
   assert.equal(equipment.EQUIPMENT_SLOTS.length, 10);
-  assert.equal(paperdoll.PAPERDOLL_FRAME_COLUMNS, 4);
-  assert.equal(paperdoll.PAPERDOLL_DIRECTION_COUNT, 8);
+  assert.equal(paperdoll.PAPERDOLL_ACTIVE_RIG_VERSION, paperdollRigManifest.version);
+  assert.equal(paperdoll.PAPERDOLL_FRAME_COLUMNS, paperdollRigManifest.frame.columns);
+  assert.equal(
+    paperdoll.PAPERDOLL_DIRECTION_COUNT,
+    paperdollRigManifest.frame.directionRows.length,
+  );
   assert.deepEqual(
     [...paperdoll.PAPERDOLL_DIRECTION_ROWS],
     [...motion.HARIN_WALK_ROW_BY_FACING],
@@ -6514,16 +6537,25 @@ test("the paperdoll compositor consumes ten registered 32-frame wearable layers 
   );
 
   assert.deepEqual(paperdoll.paperdollFrameCell(6, 2), {
-    x: 512,
-    y: 384,
-    width: 256,
-    height: 192,
+    x: 2 * paperdollRigManifest.frame.width,
+    y:
+      paperdollRigManifest.frame.directionRows[6] *
+      paperdollRigManifest.frame.height,
+    width: paperdollRigManifest.frame.width,
+    height: paperdollRigManifest.frame.height,
   });
-  assert.equal(paperdoll.PAPERDOLL_GROUND_ANCHOR_RATIO, 184 / 192);
+  assert.equal(
+    paperdoll.PAPERDOLL_GROUND_ANCHOR_RATIO,
+    paperdollRigManifest.frame.groundBaseline / paperdollRigManifest.frame.height,
+  );
   assert.ok(
     Math.abs(
-      paperdoll.paperdollVisualCenterY(8, paperdoll.PAPERDOLL_WORLD_RENDER_HEIGHT) +
-        38.75,
+      paperdoll.paperdollVisualCenterY(8, paperdoll.PAPERDOLL_WORLD_RENDER_HEIGHT) -
+        (
+          8 +
+          paperdoll.PAPERDOLL_WORLD_RENDER_HEIGHT *
+            (0.5 - paperdollRigManifest.frame.groundBaseline / paperdollRigManifest.frame.height)
+        ),
     ) < 1e-9,
     "the expedition ground baseline must resolve to the audited paperdoll body centre",
   );
@@ -6560,33 +6592,55 @@ test("the paperdoll compositor consumes ten registered 32-frame wearable layers 
 });
 
 test("all hundred fitted wearable atlases are registered, crop-safe, and independent", async () => {
-  const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
+  const [equipmentUrl, rigManifestUrl] = await Promise.all([
+    typeScriptModuleUrl("app/equipment.ts"),
+    jsonDefaultModuleUrl("app/paperdoll-rig-manifest.json"),
+  ]);
   const [equipment, paperdoll] = await Promise.all([
     importTypeScriptModule("app/equipment.ts"),
     importTypeScriptModule("app/character-paperdoll.ts", {
       "./equipment": equipmentUrl,
+      "./paperdoll-rig-manifest.json": rigManifestUrl,
     }),
   ]);
 
   let count = 0;
   for (const slot of equipment.EQUIPMENT_SLOTS) {
     const paths = paperdoll.PAPERDOLL_LAYER_PATHS[slot];
-    assert.equal(paths.length, 10);
+    assert.equal(paths.length, paperdollRigManifest.variantNames.length);
     for (const publicPath of paths) {
-      assert.match(publicPath, new RegExp(`/assets/paperdoll/v1/${slot}/`));
+      assert.match(
+        publicPath,
+        new RegExp(`${paperdollRigManifest.layerRoot}/${slot}/`),
+      );
       const relativePath = `public${publicPath}`;
       const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
-      assert.deepEqual([image.width, image.height], [1024, 1536]);
+      assert.deepEqual(
+        [image.width, image.height],
+        [
+          paperdollRigManifest.frame.width * paperdollRigManifest.frame.columns,
+          paperdollRigManifest.frame.height *
+            paperdollRigManifest.frame.directionRows.length,
+        ],
+      );
       let opaque = 0;
       for (let index = 3; index < image.pixels.length; index += 4) {
         if (image.pixels[index] > 8) opaque += 1;
       }
       assert.ok(opaque > 20, `${relativePath} must contain a visible fitted layer`);
-      for (let row = 0; row < 8; row += 1) {
-        for (let column = 0; column < 4; column += 1) {
+      for (let row = 0; row < paperdollRigManifest.frame.directionRows.length; row += 1) {
+        for (let column = 0; column < paperdollRigManifest.frame.columns; column += 1) {
           let frameOpaque = 0;
-          for (let y = row * 192; y < (row + 1) * 192; y += 1) {
-            for (let x = column * 256; x < (column + 1) * 256; x += 1) {
+          for (
+            let y = row * paperdollRigManifest.frame.height;
+            y < (row + 1) * paperdollRigManifest.frame.height;
+            y += 1
+          ) {
+            for (
+              let x = column * paperdollRigManifest.frame.width;
+              x < (column + 1) * paperdollRigManifest.frame.width;
+              x += 1
+            ) {
               const alphaIndex = (y * image.width + x) * 4 + 3;
               if (image.pixels[alphaIndex] > 8) frameOpaque += 1;
             }
@@ -6662,7 +6716,12 @@ test("paperdoll image storage prunes stale atlases and recovers from bounded fai
     },
     imageStore.PAPERDOLL_IMAGE_MAX_ATTEMPTS,
     (callback, delayMs) => invalidRetries.push({ callback, delayMs }),
-    (_path, image) => image.naturalWidth === 1024 && image.naturalHeight === 1536,
+    (_path, image) =>
+      image.naturalWidth ===
+        paperdollRigManifest.frame.width * paperdollRigManifest.frame.columns &&
+      image.naturalHeight ===
+        paperdollRigManifest.frame.height *
+          paperdollRigManifest.frame.directionRows.length,
   );
   validatingStore.reconcile(["wrong-size"]);
   invalidPending.get("wrong-size").onLoad();
@@ -6690,14 +6749,25 @@ test("expedition and plaza render independent fitted layers and preserve public 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.match(paperdollSource, /harin-mannequin-v1\.png/);
-  assert.match(paperdollSource, /PAPERDOLL_LAYER_ROOT\s*=\s*["']\/assets\/paperdoll\/v1["']/);
+  assert.equal(paperdollRigManifest.version, "v1");
+  assert.match(paperdollSource, /paperdoll-rig-manifest\.json/);
+  assert.match(
+    paperdollSource,
+    /PAPERDOLL_BODY_PATH\s*=\s*PAPERDOLL_RIG_MANIFEST\.bodyPath/,
+  );
+  assert.match(
+    paperdollSource,
+    /PAPERDOLL_LAYER_ROOT\s*=\s*PAPERDOLL_RIG_MANIFEST\.layerRoot/,
+  );
   assert.match(
     paperdollSource,
     /context\.imageSmoothingEnabled\s*=\s*false/g,
     "the legacy pre-rendered body and equipment pixels must not be blurred at runtime",
   );
-  assert.match(paperdollSource, /PAPERDOLL_GROUND_BASELINE\s*=\s*184/);
+  assert.match(
+    paperdollSource,
+    /PAPERDOLL_GROUND_BASELINE\s*=\s*PAPERDOLL_RIG_MANIFEST\.frame\.groundBaseline/,
+  );
   assert.doesNotMatch(paperdollSource, /equipment-types-v4\.png/);
   assert.match(source, /getEquipmentRuntimeCache\(player\.equipment\)[\s\S]{0,120}?\.loadout/);
   assert.match(source, /paperdollLoadoutFromEquipment\(equipment\)/);
@@ -6858,6 +6928,19 @@ test("PVP preserves expedition gait and renders both sanitized duel appearances"
     /y:\s*rendered\.y \+ PVP_PLAYER_GROUND_OFFSET_Y/,
     "PVP must share the expedition collision-foot baseline instead of sinking actors",
   );
+  const pvpBackPass = source.indexOf('drawPvpRarityVfxPass("pvp-back")');
+  const paperdollPass = source.indexOf("const appearanceDrawn = drawPaperdollCharacterDirect");
+  const pvpFrontPass = source.indexOf('drawPvpRarityVfxPass("pvp-front")');
+  assert.ok(
+    pvpBackPass >= 0 && pvpBackPass < paperdollPass && paperdollPass < pvpFrontPass,
+    "PVP must sandwich the complete paperdoll between restrained rear and front rarity passes",
+  );
+  assert.match(source, /const drawPvpRarityVfxPass = \(pass: "pvp-back" \| "pvp-front"\)/);
+  assert.doesNotMatch(
+    source.slice(pvpBackPass, pvpFrontPass + 80),
+    /context:\s*"combat"/,
+    "duels must not reuse the full-opacity expedition equipment flash over armour",
+  );
 });
 
 test("active PVP combat reuses the authored expedition room and fills the 16:9 frame", async () => {
@@ -7014,7 +7097,7 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   );
   assert.match(
     overlay,
-    /<strong className="inventory-screen-enhancement-badge">\+\{item\.enhancement\}<\/strong>/,
+    /<strong className="inventory-screen-card-edge-chip inventory-screen-enhancement-badge">\+\{item\.enhancement\}<\/strong>/,
     "icon-first backpack cards must retain a compact stage marker from +0 onward",
   );
   assert.match(
@@ -7059,8 +7142,8 @@ test("inventory hover and keyboard focus expose a complete Diablo-style item too
   );
   assert.match(
     overlay,
-    /onMeasure\(rect\.width, rect\.height\)[\s\S]{0,160}?new ResizeObserver\(reportSize\)/,
-    "tooltip placement must use its rendered dimensions instead of a fixed guessed height",
+    /const size = clientRectSizeToGamePlane\(rect\);[\s\S]{0,100}?onMeasure\(size\.width, size\.height\);[\s\S]{0,180}?new ResizeObserver\(reportSize\)/,
+    "tooltip placement must convert rendered dimensions back into canonical game-plane units",
   );
   assert.match(
     css.slice(css.indexOf("Tooltip and confirmation readability contract V7")),
@@ -7557,7 +7640,7 @@ test("every backpack item shows its equipped-slot power delta before hover", asy
   );
   assert.match(
     overlay,
-    /className=\{`inventory-screen-grid-delta\s+\$\{powerDeltaClass\(itemPowerDelta\)\}`\}/,
+    /className=\{`inventory-screen-card-edge-chip inventory-screen-grid-delta\s+\$\{powerDeltaClass\(itemPowerDelta\)\}`\}/,
     "power deltas need persistent positive, negative, and neutral badge treatments",
   );
   for (const state of ["positive", "negative", "neutral"]) {
@@ -9264,7 +9347,7 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   );
   assert.match(
     audioProvider.slice(audioProvider.lastIndexOf("useEffect(() =>", providerAudioAccess), providerAudioAccess),
-    /if \(localShowcaseBrowserSnapshot\(\)\) return undefined;/,
+    /if \(localShowcaseBrowserSnapshot\(\) \|\| localAudioDockShowcase\) return undefined;/,
   );
 
   const showcase = source.match(

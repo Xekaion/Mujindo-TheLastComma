@@ -40,6 +40,69 @@ test("hot-path array compaction preserves identity and ordering", async () => {
   assert.deepEqual(effects, [{ life: 1 }, { life: 0.5 }]);
 });
 
+test("canvas backing resolution follows rendered pixels with a bounded memory ceiling", async () => {
+  const { canvasBackingDimensions, MAX_CANVAS_BACKING_SCALE } =
+    await importTypeScriptModule("app/canvas-performance.ts");
+
+  assert.equal(MAX_CANVAS_BACKING_SCALE, 2);
+  assert.deepEqual(
+    canvasBackingDimensions(1280, 720, 1920, 1080, 1),
+    { width: 1920, height: 1080, scale: 1.5 },
+    "a 1080p game plane must render at native 1080p instead of stretching 720p",
+  );
+  assert.deepEqual(
+    canvasBackingDimensions(1280, 720, 960, 540, 2),
+    { width: 1920, height: 1080, scale: 1.5 },
+    "high-DPI windowed mode should retain the pixels its display can show",
+  );
+  assert.deepEqual(
+    canvasBackingDimensions(1280, 720, 3840, 2160, 1),
+    { width: 2560, height: 1440, scale: 2 },
+    "4K rendering must stay under the two-times backing-store memory cap",
+  );
+  assert.deepEqual(
+    canvasBackingDimensions(1280, 720, 640, 360, 1),
+    { width: 1280, height: 720, scale: 1 },
+    "small windows keep the authored canvas rather than throwing away source detail",
+  );
+});
+
+test("canvas and measured overlays retain a resize fallback without ResizeObserver", async () => {
+  for (const relativePath of [
+    "app/GameCanvas.tsx",
+    "app/pvp/PvpArena.tsx",
+    "app/PlazaHub.tsx",
+    "app/InventoryOverlay.tsx",
+    "app/InventoryPaperdollFigure.tsx",
+  ]) {
+    const source = await readFile(path.join(root, relativePath), "utf8");
+    assert.match(
+      source,
+      /typeof ResizeObserver === "undefined"/,
+      `${relativePath} must not abort its layout effect when ResizeObserver is unavailable`,
+    );
+  }
+  for (const relativePath of [
+    "app/GameCanvas.tsx",
+    "app/pvp/PvpArena.tsx",
+    "app/PlazaHub.tsx",
+    "app/InventoryPaperdollFigure.tsx",
+  ]) {
+    const source = await readFile(path.join(root, relativePath), "utf8");
+    assert.match(
+      source,
+      /window\.addEventListener\("resize",/,
+      `${relativePath} must retain a browser resize fallback`,
+    );
+  }
+  const expedition = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  assert.match(
+    expedition,
+    /const canvas = canvasRef\.current;[\s\S]{0,900}?resizeBackingStore\(\);[\s\S]{0,220}?\}, \[started\]\);/,
+    "the backing-store effect must rerun when the menu creates the expedition canvas",
+  );
+});
+
 test("nearest-target scan ignores dead and excluded enemies without sorting", async () => {
   const { findNearestAliveEntity, findNearestUnhitAliveEntity } = await importTypeScriptModule(
     "app/runtime-performance.ts",
@@ -185,7 +248,82 @@ test("expedition hot path wires caches and visual budgets without skipping cores
     /for \(const projectile of world\.projectiles\) \{\s*drawProjectileVfx\(projectile, ambientTime, projectileCount, "core"\)/,
   );
   assert.equal(
-    (source.match(/const roomVignette = context\.createRadialGradient/g) ?? []).length,
+    (source.match(/roomVignette = context\.createRadialGradient/g) ?? []).length,
     1,
   );
+});
+
+test("expedition and PVP resize backing stores outside animation frames", async () => {
+  const [game, pvp] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/pvp/PvpArena.tsx"), "utf8"),
+  ]);
+
+  for (const [label, source, endMarker] of [
+    ["expedition", game, "const handleAim ="],
+    ["PVP", pvp, "const handleAim ="],
+  ]) {
+    assert.match(source, /canvasBackingDimensions\(/, `${label} must size its backing store`);
+    assert.match(source, /new ResizeObserver\(resizeBackingStore\)/);
+    assert.match(source, /window\.addEventListener\("resize", resizeBackingStore\)/);
+    assert.match(
+      source,
+      /context\.setTransform\(backingScale, 0, 0, backingScale, 0, 0\)/,
+      `${label} must preserve its logical 1280 by 720 draw coordinates`,
+    );
+    const animationStart = Math.max(
+      source.indexOf("const loop = (now: number) =>"),
+      source.indexOf("const render = (renderTime: number) =>"),
+    );
+    assert.ok(animationStart >= 0, `${label} animation frame must exist`);
+    assert.doesNotMatch(
+      source.slice(animationStart, source.indexOf(endMarker, animationStart)),
+      /getBoundingClientRect\(\)/,
+      `${label} animation frames must reuse resize-time layout metrics`,
+    );
+  }
+
+  assert.match(game, /image\.decoding = "async";[\s\S]{0,80}?image\.src = source;/);
+  assert.match(
+    game,
+    /for \(const image of new Set\(Object\.values\(imagesRef\.current\)\)\)[\s\S]{0,220}?image\.removeAttribute\("src"\);[\s\S]{0,100}?imagesRef\.current = \{\};/,
+    "expedition teardown must release its owned image elements",
+  );
+});
+
+test("the plaza animation reuses bounded arrays and its viewport gradient", async () => {
+  const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
+  const frameStart = source.indexOf("const frame = (now: number) =>");
+  assert.ok(frameStart >= 0);
+  const frame = source.slice(frameStart, source.indexOf("const handleCanvasPointer"));
+
+  assert.match(frame, /compactPositiveFieldInPlace\(skillEffectsRef\.current, "life"\)/);
+  assert.doesNotMatch(
+    frame,
+    /skillEffectsRef\.current\s*=\s*skillEffectsRef\.current\.filter/,
+  );
+  assert.match(source, /const getViewportVignette =/);
+  assert.match(frame, /context\.fillStyle = getViewportVignette\(width, height, dpr\)/);
+  assert.match(
+    source,
+    /remoteRenderPointsRef\.current\.delete\(characterId\);\s*remoteWalkCyclesRef\.current\.delete\(characterId\);/,
+    "departed plaza players must not leave an unbounded walk-cycle cache",
+  );
+  assert.equal(
+    (frame.match(/context\.createRadialGradient\(/g) ?? []).length,
+    0,
+    "the viewport vignette must not allocate a new gradient inside each frame",
+  );
+});
+
+test("scene paperdoll image stores initialize once per mount, not once per render", async () => {
+  const sources = await Promise.all(
+    ["app/GameCanvas.tsx", "app/PlazaHub.tsx", "app/pvp/PvpArena.tsx"].map(
+      (relativePath) => readFile(path.join(root, relativePath), "utf8"),
+    ),
+  );
+  for (const source of sources) {
+    assert.match(source, /useState\(createBrowserPaperdollImageStore\)/);
+    assert.doesNotMatch(source, /useRef\(createBrowserPaperdollImageStore\(\)\)/);
+  }
 });

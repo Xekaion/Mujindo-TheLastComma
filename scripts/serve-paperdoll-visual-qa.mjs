@@ -8,6 +8,10 @@ const fixturePath = path.resolve(
   scriptDirectory,
   "../tests/fixtures/paperdoll-visual-qa.html",
 );
+const rigManifestPath = path.resolve(
+  scriptDirectory,
+  "../app/paperdoll-rig-manifest.json",
+);
 
 function readArgument(name, fallback) {
   const prefix = `--${name}=`;
@@ -38,7 +42,11 @@ if (!Number.isInteger(portValue) || portValue < 1 || portValue > 65_535) {
   throw new Error(`--port must be an integer from 1 to 65535: ${portValue}`);
 }
 
-const fixture = await readFile(fixturePath, "utf8");
+const [fixture, rigManifestSource] = await Promise.all([
+  readFile(fixturePath, "utf8"),
+  readFile(rigManifestPath, "utf8"),
+]);
+const rigManifest = JSON.parse(rigManifestSource);
 
 function requestBuffer(url) {
   return new Promise((resolve, reject) => {
@@ -58,7 +66,10 @@ function requestBuffer(url) {
   });
 }
 
-const page = fixture.replaceAll("__PAPERDOLL_APP_ORIGIN__", "");
+const serializedRigManifest = JSON.stringify(rigManifest).replaceAll("<", "\\u003c");
+const page = fixture
+  .replaceAll("__PAPERDOLL_APP_ORIGIN__", "")
+  .replaceAll("__PAPERDOLL_RIG_MANIFEST__", serializedRigManifest);
 
 const server = createServer((request, response) => {
   const requestUrl = new URL(request.url ?? "/", `http://${host}:${portValue}`);
@@ -72,7 +83,11 @@ const server = createServer((request, response) => {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
     });
-    response.end(JSON.stringify({ ok: true, appOrigin }));
+    response.end(JSON.stringify({
+      ok: true,
+      appOrigin,
+      paperdollRigVersion: rigManifest.version,
+    }));
     return;
   }
   if (requestUrl.pathname.startsWith("/assets/")) {

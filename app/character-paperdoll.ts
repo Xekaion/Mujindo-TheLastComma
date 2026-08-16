@@ -8,29 +8,65 @@ import {
   type GearItem,
   type GearRarity,
 } from "./equipment";
+import paperdollRigManifest from "./paperdoll-rig-manifest.json";
 
-export const PAPERDOLL_FRAME_WIDTH = 256;
-export const PAPERDOLL_FRAME_HEIGHT = 192;
-export const PAPERDOLL_FRAME_COLUMNS = 4;
-export const PAPERDOLL_DIRECTION_COUNT = 8;
-export const PAPERDOLL_BODY_ATLAS_WIDTH = 1_024;
-export const PAPERDOLL_BODY_ATLAS_HEIGHT = 1_536;
+export type PaperdollRigManifest = Readonly<{
+  schemaVersion: number;
+  version: string;
+  bodyPath: string;
+  layerRoot: string;
+  frame: Readonly<{
+    width: number;
+    height: number;
+    columns: number;
+    directionRows: readonly number[];
+    groundBaseline: number;
+  }>;
+  worldRender: Readonly<{
+    width: number;
+    height: number;
+  }>;
+  slots: readonly EquipmentSlot[];
+  anchorReport: Readonly<{
+    auditPath: string;
+    runtimePath: string;
+    schemaVersion: number;
+    algorithmVersion: string;
+    alphaThreshold: number;
+  }>;
+  variantNames: readonly string[];
+}>;
+
+/** Shared by runtime and every local/static paperdoll QA consumer. */
+export const PAPERDOLL_RIG_MANIFEST =
+  paperdollRigManifest as PaperdollRigManifest;
+export const PAPERDOLL_ACTIVE_RIG_VERSION = PAPERDOLL_RIG_MANIFEST.version;
+export const PAPERDOLL_FRAME_WIDTH = PAPERDOLL_RIG_MANIFEST.frame.width;
+export const PAPERDOLL_FRAME_HEIGHT = PAPERDOLL_RIG_MANIFEST.frame.height;
+export const PAPERDOLL_FRAME_COLUMNS = PAPERDOLL_RIG_MANIFEST.frame.columns;
+export const PAPERDOLL_DIRECTION_COUNT =
+  PAPERDOLL_RIG_MANIFEST.frame.directionRows.length;
+export const PAPERDOLL_BODY_ATLAS_WIDTH =
+  PAPERDOLL_FRAME_WIDTH * PAPERDOLL_FRAME_COLUMNS;
+export const PAPERDOLL_BODY_ATLAS_HEIGHT =
+  PAPERDOLL_FRAME_HEIGHT * PAPERDOLL_DIRECTION_COUNT;
 export const PAPERDOLL_LAYER_ATLAS_WIDTH = PAPERDOLL_BODY_ATLAS_WIDTH;
 export const PAPERDOLL_LAYER_ATLAS_HEIGHT = PAPERDOLL_BODY_ATLAS_HEIGHT;
 export const PAPERDOLL_CACHE_LIMIT = 256;
-export const PAPERDOLL_GROUND_BASELINE = 184;
+export const PAPERDOLL_GROUND_BASELINE =
+  PAPERDOLL_RIG_MANIFEST.frame.groundBaseline;
 export const PAPERDOLL_GROUND_ANCHOR_RATIO =
   PAPERDOLL_GROUND_BASELINE / PAPERDOLL_FRAME_HEIGHT;
-// The v1 rig is the last fully hand-painted, pre-rendered equipment family.
-// Later generated rigs retained the geometry but broke the worn silhouettes
-// into clean polygonal fragments, which clashes with the game's legacy ARPG
-// art direction. Keep body and all ten wearable layers on one matched family.
-export const PAPERDOLL_BODY_PATH = "/assets/walk/harin-mannequin-v1.png";
-export const PAPERDOLL_LAYER_ROOT = "/assets/paperdoll/v1";
+// The active manifest selects the fully hand-painted, pre-rendered equipment
+// family. Keep the body and all ten wearable layers on that matched family.
+export const PAPERDOLL_BODY_PATH = PAPERDOLL_RIG_MANIFEST.bodyPath;
+export const PAPERDOLL_LAYER_ROOT = PAPERDOLL_RIG_MANIFEST.layerRoot;
 
 /** One world-space silhouette contract shared by expedition, plaza and PvP. */
-export const PAPERDOLL_WORLD_RENDER_WIDTH = 136;
-export const PAPERDOLL_WORLD_RENDER_HEIGHT = 102;
+export const PAPERDOLL_WORLD_RENDER_WIDTH =
+  PAPERDOLL_RIG_MANIFEST.worldRender.width;
+export const PAPERDOLL_WORLD_RENDER_HEIGHT =
+  PAPERDOLL_RIG_MANIFEST.worldRender.height;
 
 /**
  * Converts the rig's authored ground baseline into the visual centre of its
@@ -46,20 +82,19 @@ export function paperdollVisualCenterY(
 }
 
 /** Runtime S,SW,W,NW,N,NE,E,SE -> authored S,SE,E,NW,N,NE,W,SW. */
-export const PAPERDOLL_DIRECTION_ROWS = [0, 7, 6, 3, 4, 5, 2, 1] as const;
+export const PAPERDOLL_DIRECTION_ROWS =
+  PAPERDOLL_RIG_MANIFEST.frame.directionRows as readonly [
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+    number,
+  ];
 
-export const PAPERDOLL_VARIANT_NAMES = [
-  "iron",
-  "frost",
-  "jade",
-  "blood",
-  "arcane",
-  "waraxe",
-  "celestial",
-  "void",
-  "sealed",
-  "cosmic",
-] as const;
+export const PAPERDOLL_VARIANT_NAMES = PAPERDOLL_RIG_MANIFEST.variantNames;
 export const PAPERDOLL_VARIANT_COUNT = PAPERDOLL_VARIANT_NAMES.length;
 export const PAPERDOLL_LAYER_PASSES = ["rear", "body", "front"] as const;
 

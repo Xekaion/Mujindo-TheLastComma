@@ -29,15 +29,26 @@ async function transpiledModuleUrl(relativePath, dependencyUrls = {}) {
   );
 }
 
+async function jsonDefaultModuleUrl(relativePath) {
+  const value = JSON.parse(await readFile(path.join(root, relativePath), "utf8"));
+  return moduleUrl(`export default ${JSON.stringify(value)};`);
+}
+
 async function importVfxModule() {
-  const equipmentUrl = await transpiledModuleUrl("app/equipment.ts");
+  const [equipmentUrl, rigManifestUrl, runtimeAnchorsUrl] = await Promise.all([
+    transpiledModuleUrl("app/equipment.ts"),
+    jsonDefaultModuleUrl("app/paperdoll-rig-manifest.json"),
+    jsonDefaultModuleUrl("app/paperdoll-rig-anchors.runtime.generated.json"),
+  ]);
   const paperdollUrl = await transpiledModuleUrl("app/character-paperdoll.ts", {
     "./equipment": equipmentUrl,
+    "./paperdoll-rig-manifest.json": rigManifestUrl,
   });
   return import(
     await transpiledModuleUrl("app/equipped-rarity-vfx.ts", {
       "./equipment": equipmentUrl,
       "./character-paperdoll": paperdollUrl,
+      "./paperdoll-rig-anchors.runtime.generated.json": runtimeAnchorsUrl,
     })
   );
 }
@@ -212,6 +223,300 @@ test("equipped rarity VFX draws every equipped chase-tier piece in every context
   );
 });
 
+test("PVP rarity VFX uses bounded back and front passes that preserve armour contrast", async () => {
+  const vfx = await importVfxModule();
+  const plan = vfx.resolveEquippedRarityVfxPlan(fullChaseLoadout());
+  const source = { width: 1024, height: 256 };
+  const shared = {
+    plan,
+    images: { mythic: source, cosmic: source },
+    direction: 2,
+    frame: 1,
+    timeMs: 800,
+    x: 400,
+    y: 300,
+    width: 136,
+    height: 102,
+    reducedMotion: true,
+  };
+  const back = mockCanvas();
+  const front = mockCanvas();
+
+  assert.equal(
+    vfx.drawEquippedRarityVfx(back.context, { ...shared, context: "pvp-back" }),
+    4,
+    "the rear halo must stop before ten chase-tier sprites pile into one white mass",
+  );
+  assert.equal(
+    vfx.drawEquippedRarityVfx(front.context, { ...shared, context: "pvp-front" }),
+    2,
+    "only two priority glints may cross in front of the duel paperdoll",
+  );
+  assert.equal(plan.pieces.length, 10, "the render budget must not alter equipped gear data");
+  assert.ok(back.drawStates.every((state) => state.globalAlpha === 0.32));
+  assert.ok(front.drawStates.every((state) => state.globalAlpha === 0.08));
+  assert.ok(
+    front.calls.every((call, index) => call[7] < back.calls[index][7]),
+    "front glints must also be physically smaller than the rear halo",
+  );
+});
+
+test("equipped rarity VFX follows the compact runtime projection of every audited gait anchor", async () => {
+  const [vfx, rigManifest, auditReport, runtimeAnchors, source] = await Promise.all([
+    importVfxModule(),
+    readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8").then(JSON.parse),
+    readFile(path.join(root, "app/paperdoll-rig-anchors.generated.json"), "utf8").then(JSON.parse),
+    readFile(
+      path.join(root, "app/paperdoll-rig-anchors.runtime.generated.json"),
+      "utf8",
+    ).then(JSON.parse),
+    readFile(path.join(root, "app/equipped-rarity-vfx.ts"), "utf8"),
+  ]);
+
+  assert.equal(auditReport.rigVersion, rigManifest.version);
+  assert.equal(runtimeAnchors.rigVersion, rigManifest.version);
+  assert.equal(runtimeAnchors.schemaVersion, rigManifest.anchorReport.schemaVersion);
+  assert.equal(runtimeAnchors.algorithmVersion, rigManifest.anchorReport.algorithmVersion);
+  assert.deepEqual(runtimeAnchors.frame, auditReport.frame);
+  assert.deepEqual(runtimeAnchors.frame.directionRows, rigManifest.frame.directionRows);
+  assert.deepEqual(runtimeAnchors.frame.footPivot, [
+    rigManifest.frame.width / 2,
+    rigManifest.frame.groundBaseline,
+  ]);
+  assert.deepEqual(runtimeAnchors.sourceReportIntegrity, auditReport.integrity);
+  assert.deepEqual(Object.keys(auditReport.slots), rigManifest.slots);
+  assert.deepEqual(Object.keys(runtimeAnchors.slots), rigManifest.slots);
+
+  for (const slot of rigManifest.slots) {
+    const slotY = new Set();
+    assert.equal(runtimeAnchors.slots[slot].length, 8, `${slot} direction count`);
+    for (let direction = 0; direction < 8; direction += 1) {
+      assert.equal(runtimeAnchors.slots[slot][direction].length, 4, `${slot}/${direction}`);
+      for (let frame = 0; frame < 4; frame += 1) {
+        const auditedCell = auditReport.slots[slot][direction][frame];
+        const runtimeAnchor = runtimeAnchors.slots[slot][direction][frame];
+        assert.deepEqual(
+          runtimeAnchor,
+          auditedCell.visualAnchor,
+          `${slot}/${direction}/${frame} runtime anchor must project the audit exactly`,
+        );
+        assert.deepEqual(
+          vfx.equippedRarityVfxAnchor(slot, direction, frame),
+          runtimeAnchor,
+          `${slot}/${direction}/${frame} must use the compact generated anchor`,
+        );
+        assert.deepEqual(
+          auditedCell.attachmentFromFoot.map(
+            (offset, axis) => offset + auditReport.frame.footPivot[axis],
+          ),
+          runtimeAnchor,
+          `${slot}/${direction}/${frame} must preserve the foot-to-visual pivot contract`,
+        );
+        slotY.add(runtimeAnchor[1]);
+      }
+    }
+    assert.ok(slotY.size > 1, `${slot} must retain direction/frame-specific Y motion`);
+  }
+
+  const canvas = mockCanvas();
+  const width = 136;
+  const height = 102;
+  const x = 400;
+  const y = 300;
+  const direction = 0;
+  const frame = 2;
+  vfx.drawEquippedRarityVfx(canvas.context, {
+    plan: vfx.resolveEquippedRarityVfxPlan({ weapon: gear("weapon", "cosmic") }),
+    images: { cosmic: { width: 1024, height: 256 } },
+    direction,
+    frame,
+    timeMs: 0,
+    x,
+    y,
+    width,
+    height,
+    reducedMotion: true,
+  });
+  const call = canvas.calls[0];
+  const [anchorX, anchorY] = runtimeAnchors.slots.weapon[direction][frame];
+  const [footX, footY] = runtimeAnchors.frame.footPivot;
+  assert.equal(
+    call[5] + call[7] / 2,
+    x + ((anchorX - footX) / rigManifest.frame.width) * width,
+  );
+  assert.equal(
+    call[6] + call[8] / 2,
+    y + ((anchorY - footY) / rigManifest.frame.height) * height,
+  );
+
+  assert.match(source, /paperdoll-rig-anchors\.runtime\.generated\.json/);
+  assert.doesNotMatch(source, /from\s+["']\.\/paperdoll-rig-anchors\.generated\.json["']/);
+  assert.doesNotMatch(
+    source,
+    /bodyFrames|variantCount|sourceGeometrySha256|visibleAlphaPixelRange/,
+  );
+  assert.match(source, /PAPERDOLL_FRAME_WIDTH/);
+  assert.match(source, /PAPERDOLL_FRAME_HEIGHT/);
+  assert.doesNotMatch(source, /registered v2 wearable|SLOT_DIRECTION_ANCHORS|gaitX/);
+  assert.doesNotMatch(source, /anchorX\s*\/\s*256|anchorY\s*\/\s*192/);
+});
+
+test("generated v1 anchor report hashes all 101 rig atlases and its canonical geometry", async () => {
+  const rigManifest = JSON.parse(
+    await readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8"),
+  );
+  const reportPath = path.join(root, "app", rigManifest.anchorReport.auditPath);
+  const [reportBytes, builderBytes] = await Promise.all([
+    readFile(reportPath),
+    readFile(path.join(root, "scripts/build_paperdoll_anchor_report.py")),
+  ]);
+  const builder = builderBytes.toString("utf8");
+  const report = JSON.parse(reportBytes.toString("utf8"));
+  const sha256 = (value) => createHash("sha256").update(value).digest("hex");
+
+  assert.equal(report.generator, "scripts/build_paperdoll_anchor_report.py");
+  assert.equal(report.generatorSha256, sha256(builderBytes));
+  assert.equal(report.assets.files.length, 101, "one body plus ten variants for ten slots");
+  assert.equal(report.variants.length, 10);
+  assert.equal(Object.keys(report.slots).length, 10);
+  assert.match(report.contract.visibleBBox, /rightExclusive, bottomExclusive/);
+  assert.match(report.contract.footPivot, /groundBaseline/);
+  assert.match(report.contract.bodyVisibleFootEdge, /raw alpha bottomExclusive must equal/);
+  assert.match(report.contract.attachmentFromFoot, /visualAnchor - frame\.footPivot/);
+
+  const manifestBytes = await readFile(path.join(root, report.manifest.path));
+  assert.equal(report.manifest.bytes, manifestBytes.length);
+  assert.equal(report.manifest.sha256, sha256(manifestBytes));
+  for (const file of report.assets.files) {
+    const asset = await readFile(path.join(root, file.path));
+    assert.equal(asset.length, file.bytes, `${file.path} byte count`);
+    assert.equal(file.mode, "RGBA", `${file.path} mode`);
+    assert.equal(sha256(asset), file.sha256, `${file.path} sha256`);
+  }
+
+  assert.equal(
+    report.integrity.inputSha256,
+    sha256(JSON.stringify({ manifest: report.manifest, assets: report.assets.files })),
+  );
+  assert.equal(
+    report.integrity.geometrySha256,
+    sha256(JSON.stringify({ bodyFrames: report.bodyFrames, slots: report.slots })),
+  );
+  const payload = structuredClone(report);
+  delete payload.integrity.payloadSha256;
+  assert.equal(report.integrity.payloadSha256, sha256(JSON.stringify(payload)));
+
+  for (const slot of rigManifest.slots) {
+    for (const directions of report.slots[slot]) {
+      for (const cell of directions) {
+        assert.equal(cell.variantCount, rigManifest.variantNames.length);
+        assert.ok(cell.visibleAlphaPixelRange[0] > 0);
+        assert.equal(cell.visibleBBoxPivotRange.length, 4);
+        assert.ok(cell.lowSupportVariantCount >= 0 && cell.lowSupportVariantCount <= 10);
+        assert.match(cell.sourceGeometrySha256, /^[a-f0-9]{64}$/);
+      }
+    }
+  }
+  for (const direction of report.bodyFrames) {
+    for (const frame of direction) {
+      assert.equal(frame.rawSupportBottomEdge, report.frame.groundBaseline);
+      assert.equal(frame.rawSupportBBox[3], report.frame.groundBaseline);
+      assert.ok([1, 2].includes(frame.visibleFootGap));
+      assert.equal(
+        frame.visibleBBox[3] + frame.visibleFootGap,
+        report.frame.groundBaseline,
+      );
+    }
+  }
+  assert.match(builder, /visible\.getbbox\(\)/);
+  assert.match(builder, /median\(\[pivot\[axis\]/);
+  assert.match(builder, /audit_output_path/);
+  assert.match(builder, /runtime_output_path/);
+  assert.match(builder, /path\.read_bytes\(\) != serialized/);
+  assert.match(builder, /--check/);
+});
+
+test("runtime anchor bundle is a canonical compact projection with no audit bulk", async () => {
+  const rigManifest = JSON.parse(
+    await readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8"),
+  );
+  const [auditBytes, runtimeBytes, vfxSource, builder] = await Promise.all([
+    readFile(path.join(root, "app", rigManifest.anchorReport.auditPath)),
+    readFile(path.join(root, "app", rigManifest.anchorReport.runtimePath)),
+    readFile(path.join(root, "app/equipped-rarity-vfx.ts"), "utf8"),
+    readFile(path.join(root, "scripts/build_paperdoll_anchor_report.py"), "utf8"),
+  ]);
+  const audit = JSON.parse(auditBytes.toString("utf8"));
+  const runtime = JSON.parse(runtimeBytes.toString("utf8"));
+
+  assert.equal(rigManifest.anchorReport.auditPath, "paperdoll-rig-anchors.generated.json");
+  assert.equal(
+    rigManifest.anchorReport.runtimePath,
+    "paperdoll-rig-anchors.runtime.generated.json",
+  );
+  assert.ok(runtimeBytes.length <= 8_192, `runtime anchors grew to ${runtimeBytes.length} bytes`);
+  assert.ok(
+    runtimeBytes.length < auditBytes.length / 20,
+    `runtime projection must remain below 5% of the ${auditBytes.length}-byte audit`,
+  );
+  assert.equal(
+    runtimeBytes.toString("utf8"),
+    `${JSON.stringify(runtime)}\n`,
+    "runtime JSON must remain canonical and minified for direct client bundling",
+  );
+  assert.deepEqual(Object.keys(runtime), [
+    "schemaVersion",
+    "algorithmVersion",
+    "rigVersion",
+    "frame",
+    "slots",
+    "sourceReportIntegrity",
+  ]);
+  assert.deepEqual(runtime.sourceReportIntegrity, audit.integrity);
+  assert.deepEqual(Object.keys(runtime.slots), rigManifest.slots);
+  assert.equal(
+    rigManifest.slots.reduce(
+      (count, slot) => count + runtime.slots[slot].flat().length,
+      0,
+    ),
+    320,
+  );
+  assert.doesNotMatch(
+    runtimeBytes.toString("utf8"),
+    /assets|bodyFrames|variants|variantCount|visibleBBox|attachmentFromFoot|sourceGeometrySha256/,
+  );
+  assert.match(vfxSource, /from\s+"\.\/paperdoll-rig-anchors\.runtime\.generated\.json"/);
+  assert.doesNotMatch(vfxSource, /from\s+"\.\/paperdoll-rig-anchors\.generated\.json"/);
+  assert.match(builder, /canonical_json\(runtime_report\)/);
+  assert.match(builder, /stale_outputs/);
+});
+
+test("storage-free plaza motion showcase inspects the same compact ten-slot v1 anchors", async () => {
+  const [flow, vfxSource, rigManifest, runtimeAnchors] = await Promise.all([
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+    readFile(path.join(root, "app/equipped-rarity-vfx.ts"), "utf8"),
+    readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8").then(JSON.parse),
+    readFile(
+      path.join(root, "app/paperdoll-rig-anchors.runtime.generated.json"),
+      "utf8",
+    ).then(JSON.parse),
+  ]);
+  const directEntry = flow.indexOf("if (localPlazaMotionShowcase)");
+  const characterEntry = flow.indexOf("if (selection === null)", directEntry);
+  assert.ok(directEntry >= 0 && characterEntry > directEntry);
+  const directBlock = flow.slice(directEntry, characterEntry);
+
+  assert.match(directBlock, /equipment=\{LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT\}/);
+  assert.match(directBlock, /appearance:\s*LOCAL_PLAZA_SKILL_SHOWCASE_APPEARANCE/);
+  assert.doesNotMatch(
+    directBlock,
+    /getMemoryPlazaClient|readSaveSlot|writeSaveSlot|removeSaveSlot|migrateLegacySave|localStorage|sessionStorage/,
+  );
+  assert.match(vfxSource, /PAPERDOLL_RIG_RUNTIME_ANCHORS\.slots\[slot\]\[direction\]\[frame\]/);
+  assert.equal(runtimeAnchors.rigVersion, rigManifest.version);
+  assert.deepEqual(Object.keys(runtimeAnchors.slots), rigManifest.slots);
+});
+
 test("detailed plaza remotes preserve both mythic and cosmic equipped effects", async () => {
   const vfx = await importVfxModule();
   const mythic = { width: 1024, height: 256, id: "mythic-atlas" };
@@ -364,43 +669,6 @@ function decodeRgbaPng(png, relativePath) {
     }
   }
   return { width, height, pixels };
-}
-
-function frameMetrics(image, column, label) {
-  const cellSize = 256;
-  const cellLeft = column * cellSize;
-  let opaquePixels = 0;
-  let minimumX = cellSize;
-  let maximumX = -1;
-  let minimumY = cellSize;
-  let maximumY = -1;
-  const frameBytes = Buffer.alloc(cellSize * cellSize * 4);
-  for (let y = 0; y < cellSize; y += 1) {
-    for (let x = 0; x < cellSize; x += 1) {
-      const source = (y * image.width + cellLeft + x) * 4;
-      const target = (y * cellSize + x) * 4;
-      frameBytes[target] = image.pixels[source];
-      frameBytes[target + 1] = image.pixels[source + 1];
-      frameBytes[target + 2] = image.pixels[source + 2];
-      frameBytes[target + 3] = image.pixels[source + 3];
-      if (image.pixels[source + 3] === 0) continue;
-      opaquePixels += 1;
-      minimumX = Math.min(minimumX, x);
-      maximumX = Math.max(maximumX, x);
-      minimumY = Math.min(minimumY, y);
-      maximumY = Math.max(maximumY, y);
-    }
-  }
-  assert.ok(opaquePixels >= 5_000, `${label} is too sparse (${opaquePixels} pixels)`);
-  return {
-    hash: createHash("sha256").update(frameBytes).digest("hex"),
-    left: minimumX,
-    right: cellSize - 1 - maximumX,
-    top: minimumY,
-    bottom: cellSize - 1 - maximumY,
-    centerX: (minimumX + maximumX) / 2,
-    centerY: (minimumY + maximumY) / 2,
-  };
 }
 
 test("cosmic v3 flash is a bright padded cyan-white-violet four-frame galaxy", async () => {

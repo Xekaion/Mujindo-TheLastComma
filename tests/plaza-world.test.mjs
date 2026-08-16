@@ -193,6 +193,8 @@ test("PlazaHub supports keyboard and touch dash with every equipped power VFX", 
   );
   assert.match(acceptedDash, /skillEffectsRef\.current\.push\(\{/);
   assert.match(acceptedDash, /layer: spec\.layer/);
+  assert.match(acceptedDash, /renderPass: spec\.renderPass/);
+  assert.match(acceptedDash, /maxAlpha: spec\.maxAlpha/);
   assert.doesNotMatch(
     acceptedDash,
     /(?:dashPowerVfxSpecs|mobility\.equippedPowerIds)\.slice\(/,
@@ -200,23 +202,44 @@ test("PlazaHub supports keyboard and touch dash with every equipped power VFX", 
   );
   assert.match(
     acceptedDash,
-    /spec\.layer === "body"[\s\S]{0,260}?paperdollVisualCenterY\([\s\S]{0,180}?positionRef\.current\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/,
+    /spec\.layer === "body"[\s\S]{0,160}?plazaPlayerBodyCenterY\(positionRef\.current\.y\)/,
     "body-layer power VFX must follow the paperdoll's visual centre",
   );
   assert.match(
     acceptedDash,
-    /:\s*positionRef\.current\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/,
+    /:\s*plazaPlayerGroundAnchorY\(positionRef\.current\.y\)/,
     "ground-layer power VFX must stay at the character's feet",
   );
 
-  const groundLayerRender = source.indexOf('effect.layer !== "ground"');
+  const groundLayerRender = source.search(
+    /drawPlazaSkillEffectsForPass\(\s*context,\s*skillEffectsRef\.current,\s*"ground",/,
+  );
   const playerRender = source.indexOf("for (const player of players)");
-  const bodyLayerRender = source.indexOf('effect.layer !== "body"', playerRender);
+  const nameplateRender = source.indexOf(
+    "drawPlazaPlayerNameplate(",
+    playerRender,
+  );
   assert.ok(groundLayerRender >= 0, "ground-layer power VFX render pass is missing");
-  assert.ok(bodyLayerRender >= 0, "body-layer power VFX render pass is missing");
+  assert.ok(nameplateRender >= 0, "nameplates need their own final render pass");
   assert.ok(
-    groundLayerRender < playerRender && playerRender < bodyLayerRender,
-    "ground effects must render below actors and body effects above them",
+    groundLayerRender < playerRender && playerRender < nameplateRender,
+    "ground effects must render below actors and nameplates above the complete actor stack",
+  );
+  const secondPlayerRender = source.indexOf(
+    "for (const player of players)",
+    playerRender + 1,
+  );
+  assert.ok(secondPlayerRender > playerRender, "the final nameplate pass is missing");
+  const actorRender = source.slice(playerRender, secondPlayerRender);
+  assert.match(
+    actorRender,
+    /drawPlazaPlayerShadow\(context, player\);[\s\S]*?drawPlazaPlayerPaperdoll\([\s\S]*?drawPlazaPlayerEquippedVfx\([\s\S]*?"body"[\s\S]*?drawPlazaStarfallMantle\([\s\S]*?"foreground"/,
+    "each depth-sorted actor must paint shadow, paperdoll, equipment glow, body VFX, then foreground VFX",
+  );
+  assert.match(
+    source.slice(secondPlayerRender),
+    /drawPlazaPlayerNameplate\(/,
+    "nameplates must paint only after every actor and VFX pass",
   );
   assert.match(
     source,
@@ -248,7 +271,14 @@ test("plaza paperdolls contact their shadows instead of floating above them", as
     ground - (shadowCenter - shadowRadius) <= 3,
     "the shadow must not climb far enough to cover the lower body",
   );
-  assert.match(source, /y: player\.y \+ PLAZA_PLAYER_GROUND_OFFSET_Y/g);
+  assert.match(
+    source,
+    /function plazaPlayerGroundAnchorY\(playerY: number\): number \{[\s\S]{0,100}?playerY \+ PLAZA_PLAYER_GROUND_OFFSET_Y/,
+  );
+  assert.ok(
+    source.match(/y: plazaPlayerGroundAnchorY\(player\.y\)/g)?.length >= 2,
+    "paperdoll and equipped VFX must share the exact authored foot anchor",
+  );
   assert.match(
     source,
     /player\.y \+ PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y,[\s\S]{0,100}?PLAZA_PLAYER_SHADOW_RADIUS_Y/,

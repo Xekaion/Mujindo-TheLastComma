@@ -534,10 +534,9 @@
 
 .pvp-combatant,
 .pvp-scoreboard {
-  border: 1px solid rgba(213, 174, 105, 0.24);
-  background:
-    linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84)),
-    url("/assets/augment-ui-atlas.png") 50% 98% / 640% auto;
+  border: 7px solid transparent;
+  border-image: url("/assets/ui/inventory-chrome/tooltip-panel.png") 18% fill / 7px / 0 stretch;
+  background: linear-gradient(90deg, rgba(9, 11, 14, 0.95), rgba(16, 16, 17, 0.84));
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.5),
     0 10px 35px rgba(0, 0, 0, 0.32);

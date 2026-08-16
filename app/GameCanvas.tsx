@@ -73,6 +73,7 @@ import {
   shouldDrawProjectileTrail,
   sweptCircleMayOverlap,
 } from "./runtime-performance";
+import { canvasBackingDimensions } from "./canvas-performance";
 import {
   BASE_EXPEDITION_DIFFICULTY,
   calculateExpeditionDifficulty,
@@ -289,6 +290,30 @@ import {
   type InkboundMagistrateState,
 } from "./inkbound-magistrate";
 import {
+  FORBIDDEN_INDEXER_BASE_DAMAGE,
+  FORBIDDEN_INDEXER_BASE_HP,
+  FORBIDDEN_INDEXER_BASE_SPEED,
+  FORBIDDEN_INDEXER_DISPLAY_NAME,
+  FORBIDDEN_INDEXER_ECLIPSE_PULSE_SECONDS,
+  FORBIDDEN_INDEXER_ECLIPSE_RADII,
+  FORBIDDEN_INDEXER_KIND,
+  FORBIDDEN_INDEXER_LANCE_SECONDS,
+  FORBIDDEN_INDEXER_MARGIN_SAFE_HALF_GAP,
+  FORBIDDEN_INDEXER_MARGIN_SECONDS,
+  FORBIDDEN_INDEXER_PATTERN_LABELS,
+  FORBIDDEN_INDEXER_PHASE_LABELS,
+  FORBIDDEN_INDEXER_RADIUS,
+  FORBIDDEN_INDEXER_RECOVERY_SECONDS,
+  FORBIDDEN_INDEXER_TELEGRAPH_SECONDS,
+  advanceForbiddenIndexer,
+  createForbiddenIndexerState,
+  forbiddenIndexerLanceSegment,
+  forbiddenIndexerMarginFronts,
+  type ForbiddenIndexerPattern,
+  type ForbiddenIndexerPhase,
+  type ForbiddenIndexerState,
+} from "./forbidden-indexer";
+import {
   bossKindForProgress,
   isBossKind,
   type BossKind,
@@ -416,7 +441,7 @@ type GameMode =
   | "ending"
   | "paused";
 type RoomKind = "battle" | "horde" | "elite" | "memory" | "shelter" | "boss";
-type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12;
+type EnemyKind = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13;
 type ProjectileAffinity =
   | "arcane"
   | "blood"
@@ -516,6 +541,7 @@ type Enemy = {
   binderInitialSafeSector?: number;
   archivist?: PalimpsestArchivistRuntimeState;
   magistrate?: InkboundMagistrateState;
+  indexer?: ForbiddenIndexerState;
   timeRifts?: Array<{
     x: number;
     y: number;
@@ -1674,6 +1700,7 @@ const ENEMY_NAMES = [
   "침묵의 사서",
   "덧쓴 기록관",
   INKBOUND_MAGISTRATE_DISPLAY_NAME,
+  FORBIDDEN_INDEXER_DISPLAY_NAME,
 ];
 
 const spriteCrops = [
@@ -1700,6 +1727,7 @@ const WALK_IMAGE_KEYS = [
   "walkSilentLibrarian",
   "walkPalimpsestArchivist",
   "walkInkboundMagistrate",
+  "walkForbiddenIndexer",
 ] as const;
 type DirectionFrame = { row: number; flipX?: boolean };
 const makeDirectionFrames = (
@@ -1734,6 +1762,8 @@ const ENEMY_DIRECTION_FRAMES: readonly (readonly DirectionFrame[])[] = [
   // The Palimpsest Archivist owns all eight canonical facing rows.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
   // The Inkbound Magistrate owns all eight canonical facing rows.
+  makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
+  // The Forbidden Indexer atlas registers all eight canonical facing rows.
   makeDirectionFrames([0, 1, 2, 3, 4, 5, 6, 7]),
 ];
 const DIRECTION_NAMES = ["남", "남서", "서", "북서", "북", "북동", "동", "남동"];
@@ -2372,7 +2402,10 @@ type GameCanvasProps = {
   localLootVfxShowcase?: LocalLootVfxShowcaseMode;
 };
 
-export type LocalEnemyVfxShowcaseMode = "margin-severer" | "silent-librarian";
+export type LocalEnemyVfxShowcaseMode =
+  | "margin-severer"
+  | "silent-librarian"
+  | "forbidden-indexer";
 export type LocalLootVfxShowcaseMode =
   | "common"
   | "magic"
@@ -2394,6 +2427,7 @@ export default function GameCanvas({
     localEnemyVfxShowcase || localLootVfxShowcase,
   );
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const canvasBackingScaleRef = useRef(1);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<Player>(makePlayer());
   const worldRef = useRef<World>(makeWorld(1));
@@ -2431,7 +2465,8 @@ export default function GameCanvas({
   const roomDoorAtlasRevealDeadlineRef = useRef(
     new Map<RoomDoorBackdropKey, number>(),
   );
-  const paperdollImagesRef = useRef(createBrowserPaperdollImageStore());
+  const [paperdollImageStore] = useState(createBrowserPaperdollImageStore);
+  const paperdollImagesRef = useRef(paperdollImageStore);
   const equipmentRuntimeCacheRef = useRef<{
     equipment: EquipmentLoadout | null;
     equipmentItems: readonly (GearItem | null)[];
@@ -2586,6 +2621,8 @@ export default function GameCanvas({
       archivistPhase: null as PalimpsestArchivistPhase | null,
       magistratePattern: null as InkboundMagistratePattern | null,
       magistratePhase: null as InkboundMagistratePhase | null,
+      indexerPattern: null as ForbiddenIndexerPattern | null,
+      indexerPhase: null as ForbiddenIndexerPhase | null,
       activeEffects: 0,
       playerProjectiles: 0,
       hostileProjectiles: 0,
@@ -2940,6 +2977,8 @@ export default function GameCanvas({
         archivistPhase: boss?.archivist?.phase ?? null,
         magistratePattern: boss?.magistrate?.pattern ?? null,
         magistratePhase: boss?.magistrate?.phase ?? null,
+        indexerPattern: boss?.indexer?.pattern ?? null,
+        indexerPhase: boss?.indexer?.phase ?? null,
         activeEffects: world.effects.length,
         playerProjectiles: playerProjectileCount,
         hostileProjectiles: hostileProjectileCount,
@@ -3107,21 +3146,25 @@ export default function GameCanvas({
         82,
         PALIMPSEST_ARCHIVIST_BASE_HP,
         INKBOUND_MAGISTRATE_BASE_HP,
+        FORBIDDEN_INDEXER_BASE_HP,
       ];
       const speedBases = [
         76, 50, 43, 26, 62, 38, 72, 66, 58,
         FINAL_BINDER_BASE_SPEED, 54, PALIMPSEST_ARCHIVIST_BASE_SPEED,
         INKBOUND_MAGISTRATE_BASE_SPEED,
+        FORBIDDEN_INDEXER_BASE_SPEED,
       ];
       const damageBases = [
         8, 10, 14, 7, 12, 16, 15, 13, 11,
         FINAL_BINDER_BASE_DAMAGE, 14, PALIMPSEST_ARCHIVIST_BASE_DAMAGE,
         INKBOUND_MAGISTRATE_BASE_DAMAGE,
+        FORBIDDEN_INDEXER_BASE_DAMAGE,
       ];
       const radii = [
         21, 20, 28, 32, 22, 62, 24, 26, 23,
         FINAL_BINDER_RADIUS, 25, PALIMPSEST_ARCHIVIST_RADIUS,
         INKBOUND_MAGISTRATE_RADIUS,
+        FORBIDDEN_INDEXER_RADIUS,
       ];
       const radius = radii[kind];
       const spawnPoint = safeWalkableFloorPoint(x, y, radius);
@@ -3215,6 +3258,10 @@ export default function GameCanvas({
         magistrate:
           kind === INKBOUND_MAGISTRATE_KIND
             ? createInkboundMagistrateState()
+            : undefined,
+        indexer:
+          kind === FORBIDDEN_INDEXER_KIND
+            ? createForbiddenIndexerState()
             : undefined,
         timeRifts:
           kind === 7 || kind === BLANK_CARTOGRAPHER_KIND ? [] : undefined,
@@ -3496,6 +3543,10 @@ export default function GameCanvas({
         } else if (kind === "boss" && bossKind === INKBOUND_MAGISTRATE_KIND) {
           setToast(
             "삭제된 판결문이 바닥에서 일어납니다. 먹칠된 판관이 침묵한 죄목을 집행합니다.",
+          );
+        } else if (kind === "boss" && bossKind === FORBIDDEN_INDEXER_KIND) {
+          setToast(
+            "잠긴 금서의 색인표가 하나씩 열립니다. 금서의 색인관이 당신을 금단 목록에 올립니다.",
           );
         } else if (kind === "boss" && bossKind === FINAL_BINDER_KIND) {
           setToast(
@@ -4098,18 +4149,22 @@ export default function GameCanvas({
   useEffect(() => {
     if (isLocalVfxShowcase) return;
     if (initialSaveSlot === undefined || initialSaveSlotHandledRef.current) return;
-    initialSaveSlotHandledRef.current = true;
-    if (loadSave(initialSaveSlot)) return;
-    if (!hasSaveSlotData(initialSaveSlot)) {
-      startNewRun(initialSaveSlot);
-      return;
-    }
-    activateSaveSlot(initialSaveSlot);
-    setMenuStage("archive");
-    setGameMode("menu");
-    setToast(
-      `${initialSaveSlot}번 슬롯의 원본 기록을 보존했습니다. 불러오기에 실패해 새 원정을 시작하지 않았습니다.`,
-    );
+    const restoreTimer = window.setTimeout(() => {
+      if (initialSaveSlotHandledRef.current) return;
+      initialSaveSlotHandledRef.current = true;
+      if (loadSave(initialSaveSlot)) return;
+      if (!hasSaveSlotData(initialSaveSlot)) {
+        startNewRun(initialSaveSlot);
+        return;
+      }
+      activateSaveSlot(initialSaveSlot);
+      setMenuStage("archive");
+      setGameMode("menu");
+      setToast(
+        `${initialSaveSlot}번 슬롯의 원본 기록을 보존했습니다. 불러오기에 실패해 새 원정을 시작하지 않았습니다.`,
+      );
+    }, 0);
+    return () => window.clearTimeout(restoreTimer);
   }, [
     activateSaveSlot,
     initialSaveSlot,
@@ -4591,6 +4646,42 @@ export default function GameCanvas({
   }, [applyShopEntitlements, isLocalVfxShowcase]);
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const resizeBackingStore = () => {
+      const rect = canvas.getBoundingClientRect();
+      const backing = canvasBackingDimensions(
+        WIDTH,
+        HEIGHT,
+        rect.width,
+        rect.height,
+        window.devicePixelRatio || 1,
+      );
+      canvasBackingScaleRef.current = backing.scale;
+      if (canvas.width !== backing.width) canvas.width = backing.width;
+      if (canvas.height !== backing.height) canvas.height = backing.height;
+    };
+
+    const observer =
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(resizeBackingStore);
+    observer?.observe(canvas);
+    window.addEventListener("resize", resizeBackingStore);
+    resizeBackingStore();
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", resizeBackingStore);
+    };
+  }, [started]);
+
+  useEffect(() => {
+    const decodedStairRoomArt = decodedStairRoomArtRef.current;
+    const stairRoomArtLastUsed = stairRoomArtLastUsedRef.current;
+    const decodedRoomDoorAtlas = decodedRoomDoorAtlasRef.current;
+    const roomDoorAtlasLastUsed = roomDoorAtlasLastUsedRef.current;
+    const roomDoorAtlasRevealDeadline = roomDoorAtlasRevealDeadlineRef.current;
     const saveCheck = isLocalVfxShowcase
       ? null
       : window.setTimeout(() => {
@@ -4642,13 +4733,48 @@ export default function GameCanvas({
     }
     for (const [name, source] of Object.entries(imagePaths)) {
       const image = new Image();
+      image.decoding = "async";
       image.src = source;
       imagesRef.current[name] = image;
     }
     return () => {
       if (saveCheck !== null) window.clearTimeout(saveCheck);
+      for (const image of new Set(Object.values(imagesRef.current))) {
+        image.onload = null;
+        image.onerror = null;
+        image.removeAttribute("src");
+      }
+      imagesRef.current = {};
+      decodedStairRoomArt.clear();
+      stairRoomArtRetryRef.current = {};
+      stairRoomArtLastUsed.clear();
+      decodedRoomDoorAtlas.clear();
+      roomDoorAtlasRetryRef.current = {};
+      roomDoorAtlasLastUsed.clear();
+      roomDoorAtlasRevealDeadline.clear();
     };
   }, [isLocalVfxShowcase, refreshSaveSlots]);
+
+  useEffect(() => {
+    if (hud.world.bossKind !== FORBIDDEN_INDEXER_KIND) return;
+    const deferredBossImages = {
+      walkForbiddenIndexer: "/assets/walk/forbidden-indexer-walk-v1.png",
+      forbiddenIndexerPatterns:
+        "/assets/effects/forbidden-indexer-patterns-v1.png",
+    } as const;
+    for (const [name, source] of Object.entries(deferredBossImages)) {
+      if (imagesRef.current[name]) continue;
+      const image = new Image();
+      image.decoding = "async";
+      image.src = source;
+      imagesRef.current[name] = image;
+    }
+  }, [hud.world.bossKind]);
+
+  useEffect(() => {
+    const paperdollImages = paperdollImagesRef.current;
+    return () => paperdollImages.clear();
+  }, []);
 
   useEffect(() => {
     const loadout = paperdollLoadoutFromEquipment(hud.player.equipment);
@@ -4815,12 +4941,14 @@ export default function GameCanvas({
       const board = mapBoardRef.current;
       const current = board?.querySelector<HTMLElement>(".map-cell.is-current");
       if (!board || !current) return;
-      const boardRect = board.getBoundingClientRect();
-      const currentRect = current.getBoundingClientRect();
-      board.scrollLeft +=
-        currentRect.left - boardRect.left - board.clientWidth / 2 + currentRect.width / 2;
-      board.scrollTop +=
-        currentRect.top - boardRect.top - board.clientHeight / 2 + currentRect.height / 2;
+      // Scroll offsets live in the untransformed 1920 x 1080 layout plane.
+      // Mixing visual getBoundingClientRect() pixels with layout clientWidth
+      // made the current room drift off-center whenever the outer game plane
+      // was letterboxed or scaled down.
+      board.scrollLeft =
+        current.offsetLeft + current.offsetWidth / 2 - board.clientWidth / 2;
+      board.scrollTop =
+        current.offsetTop + current.offsetHeight / 2 - board.clientHeight / 2;
     });
     return () => window.cancelAnimationFrame(frame);
   }, [mapSnapshot, mode]);
@@ -4830,36 +4958,29 @@ export default function GameCanvas({
     const canvas = canvasRef.current;
     const context = canvas?.getContext("2d");
     if (!canvas || !context) return;
-    const roomVignette = context.createRadialGradient(
-      WIDTH / 2,
-      HEIGHT / 2,
-      180,
-      WIDTH / 2,
-      HEIGHT / 2,
-      735,
-    );
-    roomVignette.addColorStop(0, "rgba(0,0,0,0)");
-    roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
-    roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
+    let roomVignette: CanvasGradient | null = null;
+    let roomVignetteBackingScale = 0;
+    const getRoomVignette = () => {
+      const backingScale = canvasBackingScaleRef.current;
+      if (roomVignette && roomVignetteBackingScale === backingScale) {
+        return roomVignette;
+      }
+      roomVignette = context.createRadialGradient(
+        WIDTH / 2,
+        HEIGHT / 2,
+        180,
+        WIDTH / 2,
+        HEIGHT / 2,
+        735,
+      );
+      roomVignette.addColorStop(0, "rgba(0,0,0,0)");
+      roomVignette.addColorStop(0.68, "rgba(0,0,0,.04)");
+      roomVignette.addColorStop(1, "rgba(0,0,0,.54)");
+      roomVignetteBackingScale = backingScale;
+      return roomVignette;
+    };
     let frame = 0;
     let last = performance.now();
-    let canvasCssScale = 1;
-    const cacheCanvasCssScale = (renderedWidth: number, renderedHeight: number) => {
-      if (renderedWidth <= 0 || renderedHeight <= 0) return;
-      canvasCssScale = Math.max(
-        0.01,
-        Math.min(renderedWidth / WIDTH, renderedHeight / HEIGHT),
-      );
-    };
-    const initialCanvasRect = canvas.getBoundingClientRect();
-    cacheCanvasCssScale(initialCanvasRect.width, initialCanvasRect.height);
-    const canvasResizeObserver = new ResizeObserver(([entry]) => {
-      if (!entry) return;
-      cacheCanvasCssScale(entry.contentRect.width, entry.contentRect.height);
-    });
-    canvasResizeObserver.observe(canvas);
-    const readableCanvasFontSize = (basePx: number, minimumCssPx: number) =>
-      Math.max(basePx, minimumCssPx / canvasCssScale);
     const lootVfxShowcaseMode =
       localLootVfxShowcase ??
       (isLocalRarityShowcaseHost()
@@ -5197,7 +5318,8 @@ export default function GameCanvas({
       if (
         enemyVfxShowcaseSpawnedRef.current ||
         (enemyVfxShowcaseMode !== "margin-severer" &&
-          enemyVfxShowcaseMode !== "silent-librarian") ||
+          enemyVfxShowcaseMode !== "silent-librarian" &&
+          enemyVfxShowcaseMode !== "forbidden-indexer") ||
         modeRef.current !== "playing"
       ) {
         return;
@@ -5205,13 +5327,20 @@ export default function GameCanvas({
       enemyVfxShowcaseSpawnedRef.current = true;
       const world = worldRef.current;
       const silentLibrarianShowcase = enemyVfxShowcaseMode === "silent-librarian";
+      const forbiddenIndexerShowcase = enemyVfxShowcaseMode === "forbidden-indexer";
       const enemy = makeEnemy(
-        silentLibrarianShowcase ? SILENT_LIBRARIAN_KIND : MARGIN_SEVERER_KIND,
+        forbiddenIndexerShowcase
+          ? FORBIDDEN_INDEXER_KIND
+          : silentLibrarianShowcase
+            ? SILENT_LIBRARIAN_KIND
+            : MARGIN_SEVERER_KIND,
         WIDTH / 2,
-        silentLibrarianShowcase ? HEIGHT / 2 + 30 : 210,
+        silentLibrarianShowcase ? HEIGHT / 2 + 30 : forbiddenIndexerShowcase ? 260 : 210,
         Math.max(
           playerRef.current.rooms,
-          silentLibrarianShowcase
+          forbiddenIndexerShowcase
+            ? 99
+            : silentLibrarianShowcase
             ? SILENT_LIBRARIAN_UNLOCK_DEPTH
             : MARGIN_SEVERER_UNLOCK_DEPTH,
         ),
@@ -5230,6 +5359,18 @@ export default function GameCanvas({
       enemy.patternY = 0;
       enemy.patternHit = false;
       enemy.moving = false;
+      if (forbiddenIndexerShowcase) {
+        enemy.indexer = createForbiddenIndexerState({
+          phase: "telegraph",
+          patternIndex: 0,
+          origin: { x: WIDTH / 2, y: 260 },
+          anchor: { x: WIDTH * 0.78, y: HEIGHT * 0.62 },
+        });
+        playerRef.current.x = WIDTH * 0.78;
+        playerRef.current.y = HEIGHT * 0.62;
+        playerRef.current.fireCooldown = Number.POSITIVE_INFINITY;
+        inputRef.current.hasMoveTarget = false;
+      }
       if (silentLibrarianShowcase) {
         playerRef.current.x = WIDTH * 0.18;
         playerRef.current.y = HEIGHT * 0.54;
@@ -7139,6 +7280,97 @@ export default function GameCanvas({
               playGameSfx("playerImpact", { playbackRate: 0.43, gain: 1.3, priority: 10 });
             }
           }
+        } else if (enemy.kind === FORBIDDEN_INDEXER_KIND) {
+          const currentIndexer =
+            enemy.indexer ?? createForbiddenIndexerState();
+          if (currentIndexer.phase === "pursuit") {
+            const preferredDistance = 272;
+            const radialCorrection = clamp(
+              (d - preferredDistance) / 148,
+              -0.5,
+              0.68,
+            );
+            const strafeDirection =
+              currentIndexer.patternIndex % 2 === 0 ? -1 : 1;
+            let enemyMoveX =
+              Math.cos(angle) * radialCorrection +
+              Math.cos(angle + Math.PI / 2) * strafeDirection * 0.34;
+            let enemyMoveY =
+              Math.sin(angle) * radialCorrection +
+              Math.sin(angle + Math.PI / 2) * strafeDirection * 0.34;
+            const moveMagnitude = Math.hypot(enemyMoveX, enemyMoveY) || 1;
+            enemyMoveX /= moveMagnitude;
+            enemyMoveY /= moveMagnitude;
+            const slowMultiplier = enemy.slow > 0 ? 0.58 : 1;
+            enemy.x += enemyMoveX * enemy.speed * slowMultiplier * dt;
+            enemy.y += enemyMoveY * enemy.speed * slowMultiplier * dt;
+            enemy.moving = true;
+            enemy.facing = directionRow(enemyMoveX, enemyMoveY, enemy.facing);
+            enemy.walkCycle =
+              (enemy.walkCycle + dt * (4.8 + enemy.speed / 44) * slowMultiplier) % 4;
+          } else {
+            enemy.moving = false;
+            enemy.walkCycle = 1;
+            enemy.facing = directionRow(
+              player.x - enemy.x,
+              player.y - enemy.y,
+              enemy.facing,
+            );
+          }
+
+          const indexerStep = advanceForbiddenIndexer(currentIndexer, {
+            dt,
+            seed: world.seed ^ enemy.id,
+            castIndex: currentIndexer.castIndex,
+            bossPosition: { x: enemy.x, y: enemy.y },
+            previousPlayerPosition: {
+              x: previousPlayerX,
+              y: previousPlayerY,
+            },
+            playerPosition: { x: player.x, y: player.y },
+            playerRadius: player.radius,
+            arena: {
+              minX: WALKABLE_FLOOR_POLYGON[0].x,
+              minY: WALKABLE_FLOOR_POLYGON[0].y,
+              maxX: WALKABLE_FLOOR_POLYGON[4].x,
+              maxY: WALKABLE_FLOOR_POLYGON[4].y,
+            },
+          });
+          enemy.indexer = indexerStep.state;
+          for (const command of indexerStep.commands) {
+            if (command.type === "damage") {
+              damagePlayer(enemy.damage * command.multiplier);
+              continue;
+            }
+            if (command.type === "telegraph") {
+              setToast(
+                `${FORBIDDEN_INDEXER_DISPLAY_NAME} · ${FORBIDDEN_INDEXER_PATTERN_LABELS[command.pattern]} — 보랏빛 색인표의 빈틈을 찾으세요.`,
+              );
+              playGameSfx("enemyCharge", {
+                pan: clamp((enemy.x - WIDTH / 2) / (WIDTH * 0.55), -0.7, 0.7),
+                playbackRate: 0.52,
+                gain: 1.16,
+                priority: 9,
+              });
+            } else if (command.type === "indexLance") {
+              playGameSfx("playerImpact", {
+                playbackRate: 0.74 + command.strikeIndex * 0.08,
+                gain: 1.04,
+              });
+            } else if (command.type === "marginPrison") {
+              playGameSfx("timeRift", {
+                playbackRate: 0.58,
+                gain: 1.08,
+                priority: 8,
+              });
+            } else if (command.type === "eclipseRing") {
+              playGameSfx("timeRift", {
+                playbackRate: 0.64 - command.pulseIndex * 0.06,
+                gain: 1.12,
+                priority: 9,
+              });
+            }
+          }
         } else if (enemy.kind === 6) {
           const phase = enemy.patternPhase ?? "stalk";
           if (phase === "stalk") {
@@ -7570,6 +7802,8 @@ export default function GameCanvas({
                 ? enemy.archivist?.phase === "pursuit"
                 : enemy.kind === INKBOUND_MAGISTRATE_KIND
                   ? enemy.magistrate?.phase === "pursuit"
+                  : enemy.kind === FORBIDDEN_INDEXER_KIND
+                    ? enemy.indexer?.phase === "pursuit"
               : true;
         if (
           enemy.kind !== 6 &&
@@ -8817,7 +9051,7 @@ export default function GameCanvas({
             completed ? 0.42 : current ? 1 : 0.7,
           );
           context.save();
-          context.font = `800 ${readableCanvasFontSize(18, 14)}px serif`;
+          context.font = "800 18px serif";
           context.textAlign = "center";
           context.textBaseline = "middle";
           context.fillStyle = completed ? "#79c9b8" : "#fff4c8";
@@ -9037,6 +9271,306 @@ export default function GameCanvas({
           active ? 1 : 0.68 + progress * 0.28,
         );
       }
+      context.restore();
+      return true;
+    };
+
+    const drawForbiddenIndexerPattern = (
+      image: HTMLImageElement | undefined,
+      enemy: Enemy,
+    ) => {
+      const state = enemy.indexer;
+      if (!state || state.phase === "pursuit") return false;
+      if (
+        state.phase === "recovery" &&
+        state.pattern !== "eclipseRing"
+      ) {
+        return false;
+      }
+      if (!image?.complete || !image.naturalWidth || !image.naturalHeight) {
+        return false;
+      }
+      const sourceWidth = image.naturalWidth / 4;
+      const sourceHeight = image.naturalHeight / 2;
+      const drawCell = (
+        column: number,
+        row: number,
+        x: number,
+        y: number,
+        size: number,
+        alpha = 1,
+        rotation = 0,
+      ) => {
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-over";
+        context.shadowColor = "transparent";
+        context.shadowBlur = 0;
+        context.imageSmoothingEnabled = true;
+        context.drawImage(
+          image,
+          column * sourceWidth,
+          row * sourceHeight,
+          sourceWidth,
+          sourceHeight,
+          -size / 2,
+          -size / 2,
+          size,
+          size,
+        );
+        context.restore();
+      };
+      const drawLanceCell = (
+        column: number,
+        x: number,
+        y: number,
+        length: number,
+        height: number,
+        alpha: number,
+        rotation: number,
+      ) => {
+        // The lance also uses a three-slice: its ornate head and tail stay at
+        // authored scale while only the energy-bearing centre is repeated.
+        const sourceCapWidth = sourceWidth / 4;
+        const scale = height / sourceHeight;
+        const capWidth = sourceCapWidth * scale;
+        const middleSourceWidth = sourceWidth - sourceCapWidth * 2;
+        const middleTileWidth = middleSourceWidth * scale;
+        const sourceX = column * sourceWidth;
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        context.globalAlpha = alpha;
+        context.globalCompositeOperation = "source-over";
+        context.imageSmoothingEnabled = true;
+        context.drawImage(
+          image,
+          sourceX,
+          0,
+          sourceCapWidth,
+          sourceHeight,
+          -length / 2,
+          -height / 2,
+          capWidth,
+          height,
+        );
+        let destinationX = -length / 2 + capWidth;
+        const middleEndX = length / 2 - capWidth;
+        while (destinationX < middleEndX - 0.01) {
+          const tileWidth = Math.min(middleTileWidth, middleEndX - destinationX);
+          const tileSourceWidth = tileWidth / scale;
+          context.drawImage(
+            image,
+            sourceX + sourceCapWidth,
+            0,
+            tileSourceWidth,
+            sourceHeight,
+            destinationX,
+            -height / 2,
+            tileWidth,
+            height,
+          );
+          destinationX += tileWidth;
+        }
+        context.drawImage(
+          image,
+          sourceX + sourceWidth - sourceCapWidth,
+          0,
+          sourceCapWidth,
+          sourceHeight,
+          length / 2 - capWidth,
+          -height / 2,
+          capWidth,
+          height,
+        );
+        context.restore();
+      };
+      const drawMarginHalf = (
+        column: number,
+        half: 0 | 1,
+        x: number,
+        y: number,
+        height: number,
+        alpha: number,
+        rotation: number,
+      ) => {
+        // Preserve the authored wall without stretching it: fixed-size end caps
+        // and a uniformly scaled repeating centre form a vertical three-slice.
+        const sourceHalfWidth = sourceWidth / 2;
+        const sourceCapHeight = sourceHeight / 4;
+        const width = 154;
+        const scale = width / sourceHalfWidth;
+        const capHeight = sourceCapHeight * scale;
+        const middleSourceHeight = sourceHeight - sourceCapHeight * 2;
+        const middleTileHeight = middleSourceHeight * scale;
+        const sourceX = column * sourceWidth + half * sourceHalfWidth;
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        context.globalAlpha = alpha;
+        context.imageSmoothingEnabled = true;
+        context.drawImage(
+          image,
+          sourceX,
+          0,
+          sourceHalfWidth,
+          sourceCapHeight,
+          -width / 2,
+          -height / 2,
+          width,
+          capHeight,
+        );
+        let destinationY = -height / 2 + capHeight;
+        const middleEndY = height / 2 - capHeight;
+        while (destinationY < middleEndY - 0.01) {
+          const tileHeight = Math.min(middleTileHeight, middleEndY - destinationY);
+          const tileSourceHeight = tileHeight / scale;
+          context.drawImage(
+            image,
+            sourceX,
+            sourceCapHeight,
+            sourceHalfWidth,
+            tileSourceHeight,
+            -width / 2,
+            destinationY,
+            width,
+            tileHeight,
+          );
+          destinationY += tileHeight;
+        }
+        context.drawImage(
+          image,
+          sourceX,
+          sourceHeight - sourceCapHeight,
+          sourceHalfWidth,
+          sourceCapHeight,
+          -width / 2,
+          height / 2 - capHeight,
+          width,
+          capHeight,
+        );
+        context.restore();
+      };
+
+      context.save();
+      context.beginPath();
+      context.rect(
+        ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.top,
+        ROOM_GEOMETRY.right - ROOM_GEOMETRY.left,
+        ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top,
+      );
+      context.clip();
+
+      if (state.pattern === "indexLances") {
+        if (state.phase === "telegraph" || state.phase === "indexLances") {
+          const active = state.phase === "indexLances";
+          const duration = active
+            ? FORBIDDEN_INDEXER_LANCE_SECONDS
+            : FORBIDDEN_INDEXER_TELEGRAPH_SECONDS.indexLances;
+          const progress = clamp(1 - state.phaseTimer / duration, 0, 1);
+          const lance = forbiddenIndexerLanceSegment(
+            state.origin,
+            state.anchor,
+            active ? state.strikeIndex : 1,
+          );
+          const centerX = (lance.start.x + lance.end.x) / 2;
+          const centerY = (lance.start.y + lance.end.y) / 2;
+          drawLanceCell(
+            active ? 1 : 0,
+            centerX,
+            centerY,
+            distance(lance.start.x, lance.start.y, lance.end.x, lance.end.y),
+            active ? 168 : 116 + progress * 18,
+            active ? 0.96 : 0.42 + progress * 0.38,
+            lance.angle + Math.PI,
+          );
+        }
+      } else if (state.pattern === "marginPrison") {
+        if (state.phase === "telegraph" || state.phase === "marginPrison") {
+          const active = state.phase === "marginPrison";
+          const progress = active
+            ? clamp(state.phaseElapsed / FORBIDDEN_INDEXER_MARGIN_SECONDS, 0, 1)
+            : 1;
+          const fronts = forbiddenIndexerMarginFronts(
+            {
+              minX: ROOM_GEOMETRY.left,
+              minY: ROOM_GEOMETRY.top,
+              maxX: ROOM_GEOMETRY.right,
+              maxY: ROOM_GEOMETRY.bottom,
+            },
+            state.axis,
+            state.safeCenter,
+            progress,
+            FORBIDDEN_INDEXER_MARGIN_SAFE_HALF_GAP,
+          );
+          const vertical = state.axis === "vertical";
+          const centerX = (ROOM_GEOMETRY.left + ROOM_GEOMETRY.right) / 2;
+          const centerY = (ROOM_GEOMETRY.top + ROOM_GEOMETRY.bottom) / 2;
+          const longSide = vertical
+            ? ROOM_GEOMETRY.bottom - ROOM_GEOMETRY.top + 120
+            : ROOM_GEOMETRY.right - ROOM_GEOMETRY.left + 120;
+          const alpha = active ? 0.88 : 0.5;
+          drawMarginHalf(
+            active ? 3 : 2,
+            0,
+            vertical ? fronts.first : centerX,
+            vertical ? centerY : fronts.first,
+            longSide,
+            alpha,
+            vertical ? 0 : Math.PI / 2,
+          );
+          drawMarginHalf(
+            active ? 3 : 2,
+            1,
+            vertical ? fronts.second : centerX,
+            vertical ? centerY : fronts.second,
+            longSide,
+            alpha,
+            vertical ? 0 : Math.PI / 2,
+          );
+        }
+      } else if (state.phase === "recovery") {
+        const progress = clamp(
+          1 - state.phaseTimer / FORBIDDEN_INDEXER_RECOVERY_SECONDS,
+          0,
+          1,
+        );
+        drawCell(
+          3,
+          1,
+          state.origin.x,
+          state.origin.y,
+          360 + progress * 90,
+          0.58 * (1 - progress),
+        );
+      } else {
+        const telegraph = state.phase === "telegraph";
+        const pulseIndex = Math.min(
+          FORBIDDEN_INDEXER_ECLIPSE_RADII.length - 1,
+          state.pulseIndex,
+        );
+        const duration = telegraph
+          ? FORBIDDEN_INDEXER_TELEGRAPH_SECONDS.eclipseRing
+          : FORBIDDEN_INDEXER_ECLIPSE_PULSE_SECONDS;
+        const progress = clamp(1 - state.phaseTimer / duration, 0, 1);
+        const radius = telegraph
+          ? FORBIDDEN_INDEXER_ECLIPSE_RADII[0]
+          : FORBIDDEN_INDEXER_ECLIPSE_RADII[pulseIndex];
+        const safeAngle = state.safeAngle + pulseIndex * 1.37;
+        drawCell(
+          telegraph ? 0 : progress > 0.76 ? 2 : 1,
+          1,
+          state.origin.x,
+          state.origin.y,
+          radius * 2 + 108 + progress * 24,
+          telegraph ? 0.5 + progress * 0.32 : 0.92,
+          safeAngle - 0.72,
+        );
+      }
+
       context.restore();
       return true;
     };
@@ -9716,6 +10250,8 @@ export default function GameCanvas({
       const player = playerRef.current;
       const world = worldRef.current;
       const images = imagesRef.current;
+      const backingScale = canvasBackingScaleRef.current;
+      context.setTransform(backingScale, 0, 0, backingScale, 0, 0);
       context.clearRect(0, 0, WIDTH, HEIGHT);
       context.fillStyle = "#0a0b0d";
       context.fillRect(0, 0, WIDTH, HEIGHT);
@@ -10012,7 +10548,7 @@ export default function GameCanvas({
       context.fillRect(0, 0, WIDTH, HEIGHT);
       context.restore();
 
-      context.fillStyle = roomVignette;
+      context.fillStyle = getRoomVignette();
       context.fillRect(0, 0, WIDTH, HEIGHT);
 
       const ambientTime = performance.now() / 1000;
@@ -10168,7 +10704,7 @@ export default function GameCanvas({
           }
           context.globalAlpha = clamp((itemReveal - 0.35) / 0.65, 0, 1);
           context.shadowBlur = 5;
-          context.font = `700 ${readableCanvasFontSize(10, 11)}px sans-serif`;
+          context.font = "700 10px sans-serif";
           context.textAlign = "center";
           context.fillStyle = rarity.color;
           const itemDisplayName = formatGearDisplayName(drop.item);
@@ -10240,6 +10776,8 @@ export default function GameCanvas({
           drawPalimpsestPattern(images.palimpsestArchivistPatterns, enemy);
         } else if (enemy.kind === INKBOUND_MAGISTRATE_KIND) {
           drawInkboundMagistratePattern(images.inkboundMagistratePatterns, enemy);
+        } else if (enemy.kind === FORBIDDEN_INDEXER_KIND) {
+          drawForbiddenIndexerPattern(images.forbiddenIndexerPatterns, enemy);
         } else if (enemy.kind === SILENT_LIBRARIAN_KIND) {
           drawSilentLibrarianEchoVfx({
             context,
@@ -10336,6 +10874,8 @@ export default function GameCanvas({
                 ? 192
                 : enemy.kind === INKBOUND_MAGISTRATE_KIND
                   ? 194
+                  : enemy.kind === FORBIDDEN_INDEXER_KIND
+                    ? 196
             : enemy.kind === 6
               ? 112
               : enemy.kind === 7
@@ -10355,6 +10895,8 @@ export default function GameCanvas({
                 ? 272
                 : enemy.kind === INKBOUND_MAGISTRATE_KIND
                   ? 274
+                  : enemy.kind === FORBIDDEN_INDEXER_KIND
+                    ? 276
             : enemy.kind === 6
               ? 192
               : enemy.kind === 7
@@ -10373,6 +10915,8 @@ export default function GameCanvas({
                 ? 244
                 : enemy.kind === INKBOUND_MAGISTRATE_KIND
                   ? 244
+                  : enemy.kind === FORBIDDEN_INDEXER_KIND
+                    ? 248
             : enemy.kind === 6
               ? 144
               : enemy.kind === 7
@@ -10398,7 +10942,8 @@ export default function GameCanvas({
             enemy.kind === 7 ||
             enemy.kind === MARGIN_SEVERER_KIND ||
             enemy.kind === SILENT_LIBRARIAN_KIND ||
-            enemy.kind === INKBOUND_MAGISTRATE_KIND
+            enemy.kind === INKBOUND_MAGISTRATE_KIND ||
+            enemy.kind === FORBIDDEN_INDEXER_KIND
               ? false
               : directionFrame.flipX,
             undefined,
@@ -10425,6 +10970,8 @@ export default function GameCanvas({
                 ? "#662a53"
                 : enemy.kind === INKBOUND_MAGISTRATE_KIND
                   ? "#432925"
+                  : enemy.kind === FORBIDDEN_INDEXER_KIND
+                    ? "#21183d"
               : enemy.kind === 6
                 ? "#a72531"
                 : enemy.kind === 7
@@ -10474,6 +11021,8 @@ export default function GameCanvas({
               ? "#f05f9e"
               : enemy.kind === INKBOUND_MAGISTRATE_KIND
                 ? "#d9894c"
+                : enemy.kind === FORBIDDEN_INDEXER_KIND
+                  ? "#b86cff"
             : enemy.kind === 7
               ? "#63dbe8"
               : enemy.kind === MARGIN_SEVERER_KIND
@@ -10496,8 +11045,8 @@ export default function GameCanvas({
           enemy.kind === SILENT_LIBRARIAN_KIND
         ) {
           context.font = isBossKind(enemy.kind)
-            ? `700 ${readableCanvasFontSize(15, 11)}px serif`
-            : `600 ${readableCanvasFontSize(11, 11)}px sans-serif`;
+            ? "700 15px serif"
+            : "600 11px sans-serif";
           context.textAlign = "center";
           context.fillStyle = "#e8dfc8";
           context.fillText(ENEMY_NAMES[enemy.kind], enemy.x, enemy.y - enemy.radius - 46);
@@ -10752,13 +11301,13 @@ export default function GameCanvas({
         context.fillRect(0, 0, WIDTH, HEIGHT);
         context.globalCompositeOperation = "source-over";
         context.globalAlpha = 1;
-        context.fillStyle = roomVignette;
+        context.fillStyle = getRoomVignette();
         context.fillRect(0, 0, WIDTH, HEIGHT);
         context.restore();
       }
 
       if (!world.roomCleared && world.enemies.length) {
-        context.font = `700 ${readableCanvasFontSize(12, 11)}px sans-serif`;
+        context.font = "700 12px sans-serif";
         context.textAlign = "center";
         context.fillStyle = "rgba(232,223,200,.68)";
         context.fillText(`${world.enemies.length}개의 기억이 문을 붙들고 있다`, WIDTH / 2, HEIGHT - 22);
@@ -10788,7 +11337,6 @@ export default function GameCanvas({
     };
     frame = requestAnimationFrame(loop);
     return () => {
-      canvasResizeObserver.disconnect();
       cancelAnimationFrame(frame);
     };
   }, [
@@ -11184,15 +11732,13 @@ export default function GameCanvas({
       data-equipped-count={EQUIPMENT_SLOTS.filter((slot) => hud.player.equipment[slot]).length}
       data-equipment-power={equippedPower}
       data-boss-kind={hud.world.bossKind ?? "none"}
-      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? hud.world.archivistPattern ?? hud.world.magistratePattern ?? "none"}
-      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? hud.world.archivistPhase ?? hud.world.magistratePhase ?? "none"}
+      data-boss-pattern={hud.world.bossPattern ?? hud.world.binderPattern ?? hud.world.archivistPattern ?? hud.world.magistratePattern ?? hud.world.indexerPattern ?? "none"}
+      data-boss-phase={hud.world.bossPhase ?? hud.world.binderPhase ?? hud.world.archivistPhase ?? hud.world.magistratePhase ?? hud.world.indexerPhase ?? "none"}
       data-proofreader-enemies={hud.world.proofreaderEnemies}
       data-proofreader-windups={hud.world.proofreaderWindups}
     >
       <canvas
         ref={canvasRef}
-        width={WIDTH}
-        height={HEIGHT}
         className="game-canvas"
         onPointerMove={handleAim}
         onPointerDown={handleMoveTarget}
@@ -11297,6 +11843,8 @@ export default function GameCanvas({
                   ? "덧쓴 기록"
                   : hud.world.bossKind === INKBOUND_MAGISTRATE_KIND
                     ? "먹빛 법정"
+                    : hud.world.bossKind === FORBIDDEN_INDEXER_KIND
+                      ? "금단의 색인"
                 : "백지의 권역"}
             </small>
             <strong>
@@ -11340,6 +11888,15 @@ export default function GameCanvas({
                   {INKBOUND_MAGISTRATE_PHASE_LABELS[hud.world.magistratePhase]}
                 </em>
               )}
+            {hud.world.bossKind === FORBIDDEN_INDEXER_KIND &&
+              hud.world.indexerPattern &&
+              hud.world.indexerPhase && (
+                <em>
+                  {FORBIDDEN_INDEXER_PATTERN_LABELS[hud.world.indexerPattern]}
+                  {" · "}
+                  {FORBIDDEN_INDEXER_PHASE_LABELS[hud.world.indexerPhase]}
+                </em>
+              )}
           </div>
           <span>
             <i
@@ -11375,7 +11932,7 @@ export default function GameCanvas({
               <small>{buildTab === "build" ? "현재 기억 조합" : "무진도 전리품 기록"}</small>
               <h3>{buildTab === "build" ? "하린의 20단계 빌드" : `장비고 · ${equippedPower.toLocaleString("ko-KR")}`}</h3>
             </div>
-            <button onClick={() => setBuildPanelOpen(false)} aria-label="패널 닫기">
+            <button type="button" className="build-panel-close" onClick={() => setBuildPanelOpen(false)} aria-label="패널 닫기">
               ×
             </button>
           </header>

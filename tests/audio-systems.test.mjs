@@ -165,6 +165,19 @@ test("the manifest is complete, unique, SSR-safe, and performance bounded", asyn
   assert.match(layout, /<GameAudioProvider>\{children\}<\/GameAudioProvider>/);
   assert.match(provider, /document\.addEventListener\("pointerdown", unlock/);
   assert.match(provider, /document\.addEventListener\("keydown", unlock/);
+  assert.match(provider, /get\("audioDockShowcase"\) === "1"/);
+  assert.match(
+    provider,
+    /LOCAL_ENEMY_VFX_SHOWCASE_MODES = new Set\(\[[\s\S]{0,160}?"forbidden-indexer"/,
+  );
+  assert.match(provider, /localShowcaseBrowserSnapshot\(\) \|\| localAudioDockShowcase/);
+  assert.match(provider, /localShowcaseBypass && !localAudioDockShowcase/);
+  assert.match(provider, /data-audio-showcase=\{localAudioDockShowcase \? "true" : undefined\}/);
+  assert.match(
+    provider,
+    /if \(localAudioDockShowcase\) \{[\s\S]{0,160}?setSettings\(\(current\) => \(\{ \.\.\.current, \.\.\.patch \}\)\);/,
+    "the local audio dock showcase must never initialize or persist the real audio engine",
+  );
   assert.match(provider, /aria-label="배경음악 볼륨"/);
   assert.match(provider, /aria-label="효과음 볼륨"/);
 

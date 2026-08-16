@@ -47,11 +47,17 @@ export type DivineForgeValidationCode =
   | "invalid-material"
   | "insufficient-ash";
 
-export type DivineForgeValidation = {
-  ok: boolean;
-  code: DivineForgeValidationCode;
-  rule: DivineForgeRule | null;
-};
+export type DivineForgeValidation =
+  | {
+      ok: true;
+      code: "ready";
+      rule: DivineForgeRule;
+    }
+  | {
+      ok: false;
+      code: Exclude<DivineForgeValidationCode, "ready">;
+      rule: DivineForgeRule | null;
+    };
 
 export type DivineForgeResult = {
   before: GearItem;
@@ -230,6 +236,9 @@ export function applyDivineForgeTransaction(
       [],
       input.memoryAsh,
     );
+    if (validation.ok) {
+      throw new Error("Divine-forge validation accepted an incomplete material set.");
+    }
     return { ok: false, code: validation.code, validation };
   }
 
@@ -245,7 +254,7 @@ export function applyDivineForgeTransaction(
     materials,
     input.memoryAsh,
   );
-  if (!validation.ok || !validation.rule) {
+  if (!validation.ok) {
     return { ok: false, code: validation.code, validation };
   }
 

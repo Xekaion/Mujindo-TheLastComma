@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "generator": "OpenAI built-in image_gen",
+  "source": "asset-sources/imagegen/audio-dock-medallion-v1-source.png",
+  "keyed": "asset-sources/imagegen/audio-dock-medallion-v1-keyed.png",
+  "output": "public/assets/ui/audio/audio-dock-medallion-v1.png",
+  "referenceImages": [
+    "public/assets/ui/inventory-chrome/resource-counter.png",
+    "public/assets/ui/inventory-controls/close.png",
+    "public/assets/ui/inventory-chrome/primary-button.png"
+  ],
+  "generationPrompt": "Use case: stylized-concept\nAsset type: production game UI asset — bottom-right audio control medallion background\nInput images: Image 1, Image 2, and Image 3 are material and ornament-language references only. Create a new asset; do not copy their symbols, red X, moon crest, or dimensions.\nPrimary request: create one coherent square audio-control medallion authored natively at a 1:1 ratio for a gothic early-2000s ARPG. It will sit at the bottom-right of a fixed 1920x1080 game plane and contain live HTML equalizer bars and the word SOUND, so leave the central 58% width and 62% height dark, quiet, and unobstructed.\nScene/backdrop: perfectly flat solid #00FF00 chroma-key background for later removal; no shadows, gradients, texture, reflection, floor plane, or lighting variation in the green.\nSubject: one centered square-to-round octagonal control plate made from black forged iron, worn dark leather, and restrained antique bronze. Use four small symmetrical corner spurs, a thin double bronze rim, shallow engraved waveform marks around the rim, and one tiny muted amber accent at the bottom. The silhouette must remain compact and square, with no detached pieces.\nStyle/medium: high-detail painted 2D gothic ARPG UI, Diablo-era atmosphere, crisp production-ready bitmap asset, physically coherent metal and leather.\nComposition/framing: full medallion visible, front-facing, centered, even generous green padding on every side, no perspective. Target visible object approximately 720x720 within the canvas.\nLighting/mood: restrained warm bronze edge highlights, sober black center, legible over a dark game scene.\nConstraints: no text, letters, numbers, logos, watermark, speaker pictogram, musical note, red X, giant gemstone, flames, glow bloom, cropped ornament, detached particles, repeated texture seams, or green inside the medallion. The green background must be exactly uniform.",
+  "chromaRemoval": "imagegen/scripts/remove_chroma_key.py --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill",
+  "productionBuilder": "scripts/build_investor_ui_assets_v1.py"
+}

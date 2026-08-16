@@ -100,11 +100,14 @@
 .stats-header::after {
   position: absolute;
   right: 18px;
-  bottom: -2px;
+  bottom: -7px;
   left: 18px;
-  height: 3px;
+  height: 14px;
   content: "";
-  background: url("/assets/ui/inventory-controls/divider.png") center / 100% 100% no-repeat;
+  background:
+    linear-gradient(90deg, rgba(104, 78, 40, 0.08), rgba(204, 165, 88, 0.5)) left center / calc(50% - 27px) 1px no-repeat,
+    linear-gradient(90deg, rgba(204, 165, 88, 0.5), rgba(104, 78, 40, 0.08)) right center / calc(50% - 27px) 1px no-repeat,
+    url("/assets/ui/inventory-controls/divider.png") center / auto 14px no-repeat;
   opacity: 0.7;
   pointer-events: none;
 }

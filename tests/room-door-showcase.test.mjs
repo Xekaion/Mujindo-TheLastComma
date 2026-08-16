@@ -98,7 +98,7 @@ test("room door showcase is local-only and bypasses saves, storage, and hub entr
     "utf8",
   );
   const audioBypass = audioProvider.indexOf(
-    "if (localShowcaseBrowserSnapshot()) return undefined;",
+    "if (localShowcaseBrowserSnapshot() || localAudioDockShowcase) return undefined;",
   );
   const audioInitialization = audioProvider.indexOf("const audio = getGameAudio()");
   assert.ok(audioBypass >= 0 && audioBypass < audioInitialization);

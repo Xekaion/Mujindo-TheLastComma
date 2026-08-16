@@ -4,11 +4,18 @@ import {
   type GearRarity,
 } from "./equipment";
 import {
-  PAPERDOLL_GROUND_ANCHOR_RATIO,
+  PAPERDOLL_ACTIVE_RIG_VERSION,
+  PAPERDOLL_DIRECTION_COUNT,
+  PAPERDOLL_FRAME_COLUMNS,
+  PAPERDOLL_FRAME_HEIGHT,
+  PAPERDOLL_FRAME_WIDTH,
+  PAPERDOLL_GROUND_BASELINE,
+  PAPERDOLL_RIG_MANIFEST,
   normalizePaperdollDirection,
   normalizePaperdollFrame,
   type PaperdollLoadout,
 } from "./character-paperdoll";
+import paperdollRigRuntimeAnchors from "./paperdoll-rig-anchors.runtime.generated.json";
 
 export const EQUIPPED_RARITY_VFX_FRAME_SIZE = 256;
 export const EQUIPPED_RARITY_VFX_FRAME_COUNT = 4;
@@ -18,7 +25,13 @@ export const EQUIPPED_RARITY_VFX_PATHS = {
 } as const;
 
 export type EquippedRarityVfxTier = keyof typeof EQUIPPED_RARITY_VFX_PATHS;
-export type EquippedRarityVfxContext = "combat" | "plaza-local" | "plaza-remote" | "portrait";
+export type EquippedRarityVfxContext =
+  | "combat"
+  | "plaza-local"
+  | "plaza-remote"
+  | "portrait"
+  | "pvp-back"
+  | "pvp-front";
 
 export type EquippedRarityVfxPiece = Readonly<{
   slot: EquipmentSlot;
@@ -65,34 +78,83 @@ const SLOT_PRIORITY: Readonly<Record<EquipmentSlot, number>> = {
   legs: 9,
 };
 
-type DirectionAnchorRow = readonly [
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-  readonly [number, number],
-];
+export type PaperdollRigVisualAnchor = readonly [number, number];
 
-/**
- * Median alpha-centres measured from every registered v2 wearable atlas.
- * Rows follow runtime S,SW,W,NW,N,NE,E,SE, so held and asymmetric pieces stay
- * physically attached instead of merely mirroring a generic front-facing pin.
- */
-const SLOT_DIRECTION_ANCHORS: Readonly<Record<EquipmentSlot, DirectionAnchorRow>> = {
-  helm: [[125, 36], [121, 51], [116, 43], [126, 36], [129, 36], [122, 36], [130, 39], [124, 39]],
-  shoulders: [[115, 71], [142, 82], [124, 79], [121, 70], [126, 70], [126, 72], [126, 74], [122, 76]],
-  armor: [[128, 87], [126, 96], [127, 98], [124, 88], [129, 88], [129, 93], [121, 94], [124, 95]],
-  gloves: [[123, 111], [132, 118], [129, 116], [121, 110], [126, 111], [131, 112], [125, 113], [116, 114]],
-  belt: [[112, 114], [152, 120], [144, 119], [112, 114], [115, 114], [149, 114], [126, 116], [107, 118]],
-  legs: [[114, 132], [129, 138], [131, 144], [124, 132], [128, 134], [134, 137], [127, 142], [123, 136]],
-  boots: [[126, 164], [124, 164], [124, 166], [123, 165], [126, 166], [130, 164], [132, 166], [132, 164]],
-  weapon: [[97, 104], [109, 117], [105, 118], [146, 114], [150, 111], [155, 142], [103, 130], [97, 118]],
-  offhand: [[151, 106], [155, 128], [146, 134], [96, 105], [100, 111], [111, 116], [152, 134], [143, 108]],
-  relic: [[111, 86], [155, 97], [148, 94], [111, 86], [114, 88], [150, 88], [126, 88], [104, 93]],
-};
+export type PaperdollRigRuntimeAnchors = Readonly<{
+  schemaVersion: number;
+  algorithmVersion: string;
+  rigVersion: string;
+  frame: Readonly<{
+    width: number;
+    height: number;
+    columns: number;
+    directionRows: readonly number[];
+    groundBaseline: number;
+    footPivot: readonly [number, number];
+  }>;
+  slots: Readonly<
+    Record<
+      EquipmentSlot,
+      readonly (readonly PaperdollRigVisualAnchor[])[]
+    >
+  >;
+  sourceReportIntegrity: Readonly<{
+    inputSha256: string;
+    geometrySha256: string;
+    payloadSha256: string;
+  }>;
+}>;
+
+/** Compact runtime projection of the full 101-atlas geometry audit. */
+export const PAPERDOLL_RIG_RUNTIME_ANCHORS =
+  paperdollRigRuntimeAnchors as unknown as PaperdollRigRuntimeAnchors;
+
+function assertActivePaperdollRuntimeAnchors(): void {
+  const report = PAPERDOLL_RIG_RUNTIME_ANCHORS;
+  const expected = PAPERDOLL_RIG_MANIFEST.anchorReport;
+  const [footX, footY] = report.frame.footPivot;
+  const sha256Pattern = /^[a-f0-9]{64}$/;
+  if (
+    report.schemaVersion !== expected.schemaVersion ||
+    report.algorithmVersion !== expected.algorithmVersion ||
+    report.rigVersion !== PAPERDOLL_ACTIVE_RIG_VERSION ||
+    report.frame.width !== PAPERDOLL_FRAME_WIDTH ||
+    report.frame.height !== PAPERDOLL_FRAME_HEIGHT ||
+    report.frame.columns !== PAPERDOLL_FRAME_COLUMNS ||
+    report.frame.groundBaseline !== PAPERDOLL_GROUND_BASELINE ||
+    report.frame.directionRows.length !== PAPERDOLL_DIRECTION_COUNT ||
+    report.frame.directionRows.some(
+      (row, index) => row !== PAPERDOLL_RIG_MANIFEST.frame.directionRows[index],
+    ) ||
+    PAPERDOLL_RIG_MANIFEST.slots.length !== EQUIPMENT_SLOTS.length ||
+    PAPERDOLL_RIG_MANIFEST.slots.some(
+      (slot, index) => slot !== EQUIPMENT_SLOTS[index],
+    ) ||
+    Object.keys(report.slots).length !== EQUIPMENT_SLOTS.length ||
+    footX !== PAPERDOLL_FRAME_WIDTH / 2 ||
+    footY !== PAPERDOLL_GROUND_BASELINE ||
+    !sha256Pattern.test(report.sourceReportIntegrity.inputSha256) ||
+    !sha256Pattern.test(report.sourceReportIntegrity.geometrySha256) ||
+    !sha256Pattern.test(report.sourceReportIntegrity.payloadSha256) ||
+    EQUIPMENT_SLOTS.some(
+      (slot) =>
+        report.slots[slot]?.length !== PAPERDOLL_DIRECTION_COUNT ||
+        report.slots[slot].some(
+          (directionCells) =>
+            directionCells.length !== PAPERDOLL_FRAME_COLUMNS ||
+            directionCells.some(
+              (visualAnchor) =>
+                visualAnchor.length !== 2 ||
+                visualAnchor.some((value) => !Number.isFinite(value)),
+            ),
+        ),
+    )
+  ) {
+    throw new Error("active paperdoll runtime anchors are stale or malformed");
+  }
+}
+
+assertActivePaperdollRuntimeAnchors();
 
 const SLOT_SCALE: Readonly<Record<EquipmentSlot, number>> = {
   helm: 0.31,
@@ -112,6 +174,29 @@ const CONTEXT_ALPHA: Readonly<Record<EquippedRarityVfxContext, number>> = {
   "plaza-local": 1,
   "plaza-remote": 1,
   portrait: 1,
+  // A duel can place two fully chase-tier loadouts in the same tight focal
+  // area. Most of their light is therefore painted behind the paperdoll and
+  // only a restrained glint is allowed over the armour silhouette.
+  "pvp-back": 0.32,
+  "pvp-front": 0.08,
+};
+
+const CONTEXT_SCALE: Readonly<Record<EquippedRarityVfxContext, number>> = {
+  combat: 1,
+  "plaza-local": 1,
+  "plaza-remote": 1,
+  portrait: 1,
+  "pvp-back": 0.92,
+  "pvp-front": 0.68,
+};
+
+const CONTEXT_PIECE_LIMIT: Readonly<Record<EquippedRarityVfxContext, number>> = {
+  combat: EQUIPMENT_SLOTS.length,
+  "plaza-local": EQUIPMENT_SLOTS.length,
+  "plaza-remote": EQUIPMENT_SLOTS.length,
+  portrait: EQUIPMENT_SLOTS.length,
+  "pvp-back": 4,
+  "pvp-front": 2,
 };
 
 function vfxTier(rarity: GearRarity): EquippedRarityVfxTier | null {
@@ -144,29 +229,14 @@ export function resolveEquippedRarityVfxPlan(
   };
 }
 
-function directionAnchor(
+export function equippedRarityVfxAnchor(
   slot: EquipmentSlot,
   directionValue: number,
   frameValue: number,
 ): readonly [number, number] {
   const direction = normalizePaperdollDirection(directionValue);
   const frame = normalizePaperdollFrame(frameValue);
-  const [x, y] = SLOT_DIRECTION_ANCHORS[slot][direction];
-  // The body atlas shifts only horizontally between gait poses; these audited
-  // deltas keep shoulder/weapon effects attached to the same painted pixels.
-  const gaitX = (
-    [
-      [0, -2, 1, 0],
-      [-1, 0, 0, 1],
-      [-3, 1, 1, 1],
-      [-2, 2, -3, 2],
-      [-2, 1, -1, 2],
-      [2, -3, 3, -2],
-      [3, -2, 0, -1],
-      [1, -1, 0, 0],
-    ] as const
-  )[direction][frame];
-  return [x + gaitX, y];
+  return PAPERDOLL_RIG_RUNTIME_ANCHORS.slots[slot][direction][frame];
 }
 
 function sourceReady(source: CanvasImageSource | null | undefined): source is CanvasImageSource {
@@ -209,10 +279,12 @@ export function drawEquippedRarityVfx(
     options.height <= 0
   ) return 0;
   const context = options.context ?? "combat";
-  const pieceCount = options.plan.pieces.length;
+  const pieces = options.plan.pieces.slice(0, CONTEXT_PIECE_LIMIT[context]);
+  const pieceCount = pieces.length;
   if (pieceCount === 0) return 0;
-  const originX = options.x - options.width / 2;
-  const originY = options.y - options.height * PAPERDOLL_GROUND_ANCHOR_RATIO;
+  const [footPivotX, footPivotY] = PAPERDOLL_RIG_RUNTIME_ANCHORS.frame.footPivot;
+  const originX = options.x - (footPivotX / PAPERDOLL_FRAME_WIDTH) * options.width;
+  const originY = options.y - (footPivotY / PAPERDOLL_FRAME_HEIGHT) * options.height;
   const alpha = Math.max(0, Math.min(1, options.alpha ?? 1));
   let draws = 0;
 
@@ -223,10 +295,10 @@ export function drawEquippedRarityVfx(
   // galaxy sparks stay luminous against dark armour and dungeon floors.
   canvas.imageSmoothingEnabled = false;
   for (let index = 0; index < pieceCount; index += 1) {
-    const piece = options.plan.pieces[index];
+    const piece = pieces[index];
     const source = options.images[piece.tier];
     if (!sourceReady(source)) continue;
-    const [anchorX, anchorY] = directionAnchor(
+    const [anchorX, anchorY] = equippedRarityVfxAnchor(
       piece.slot,
       options.direction,
       options.frame,
@@ -235,18 +307,23 @@ export function drawEquippedRarityVfx(
       ? 1
       : 0.9 + 0.1 * Math.sin((options.timeMs + SLOT_PRIORITY[piece.slot] * 173) / 210);
     const enhancementBoost = 1 + piece.enhancement * 0.008;
-    const size = options.height * SLOT_SCALE[piece.slot] * pulse * enhancementBoost;
-    const x = originX + (anchorX / 256) * options.width;
-    const y = originY + (anchorY / 192) * options.height;
+    const size =
+      options.height *
+      SLOT_SCALE[piece.slot] *
+      pulse *
+      enhancementBoost *
+      CONTEXT_SCALE[context];
+    const x = originX + (anchorX / PAPERDOLL_FRAME_WIDTH) * options.width;
+    const y = originY + (anchorY / PAPERDOLL_FRAME_HEIGHT) * options.height;
     const sourceFrame = equippedRarityVfxFrame(
       options.timeMs,
       piece.slot,
       options.reducedMotion,
       piece.tier,
     );
-    // Rarity never lowers authored opacity: mythic magenta and cosmic nebula
-    // retain their original color density in every surface. Only an explicit
-    // character-state alpha (death/stale/respawn) may fade the composite.
+    // Expedition, plaza, and portrait surfaces retain authored opacity. PvP
+    // deliberately uses its two-pass context profile so equipment remains the
+    // foreground read even when both players wear ten chase-tier pieces.
     canvas.globalAlpha = alpha * CONTEXT_ALPHA[context];
     canvas.globalCompositeOperation = "screen";
     canvas.drawImage(
