@@ -1,12 +1,9 @@
-"""Audit active weapon/offhand grip contact without penalising hidden cells.
+"""Audit current weapon/offhand pixels against the mannequin hand geometry.
 
-The old audit treated every transparent authoring fragment as a fully visible
-weapon and measured contact against the entire torso.  That produced both
-false failures (a hilt hidden behind Harin) and false passes (a detached blade
-touching a boot).  This audit uses the same side-bounded mannequin hand masks
-as the deterministic alignment pipeline, preserves explicit occlusion labels,
-and compares alpha mass, clipping, body-core and foot-core pollution before
-and after alignment.
+Alignment-report classifications are provenance only: they never exempt a
+non-empty output from contact, clipping, body-core, or foot-core checks.  An
+optional raw-owned baseline is reported for diagnostics, but its alpha mass is
+not expected to match the semantic registered-delta output.
 """
 
 from __future__ import annotations
@@ -30,17 +27,6 @@ from align_paperdoll_held_gear import (
     alpha_mass,
     frame_box,
     hand_masks,
-)
-
-
-OCCLUDED_CLASSIFICATIONS = frozenset(
-    {
-        "occluded-tiny-fragment",
-        "occluded-compact-fragment",
-        "occluded-body-overlay",
-        "occluded-hidden-grip",
-        "occluded-authored-grip",
-    }
 )
 
 
@@ -173,23 +159,17 @@ def main() -> None:
                             else "visible-unclassified"
                         )
                     )
-                    contact_exempt = classification in OCCLUDED_CLASSIFICATIONS
-                    audited_after_grip = (
-                        int(alignment["gripContactPixels"])
-                        if alignment is not None
-                        else int(current["handContactPixels"])
-                    )
+                    # Recompute contact from the exact current PNG.  Report
+                    # labels and report-authored contact numbers are never a
+                    # geometry waiver.
+                    contact_exempt = False
+                    audited_after_grip = int(current["broadHandContactPixels"])
                     audited_before_grip = (
-                        int(alignment["gripContactPixelsBefore"])
-                        if alignment is not None
-                        else int(baseline["handContactPixels"])
+                        int(baseline["broadHandContactPixels"])
                         if baseline is not None
                         else 0
                     )
-                    current_contact_failure = (
-                        not contact_exempt
-                        and audited_after_grip < 3
-                    )
+                    current_contact_failure = audited_after_grip < 3
                     if current_contact_failure:
                         after_contact_failures += 1
                         failures.append(
@@ -200,20 +180,16 @@ def main() -> None:
                         failures.append(f"{key}: empty output cell")
                     if bool(current["edgeRisk"]):
                         failures.append(f"{key}: output touches the cell crop edge")
+                    if int(current["bodyCorePixels"]) > 0:
+                        failures.append(f"{key}: output pollutes body core")
+                    if int(current["footCorePixels"]) > 0:
+                        failures.append(f"{key}: output pollutes foot core")
 
                     comparison: dict[str, object] | None = None
                     if baseline is not None:
-                        baseline_contact_failure = (
-                            not contact_exempt
-                            and audited_before_grip < 3
-                        )
+                        baseline_contact_failure = audited_before_grip < 3
                         before_contact_failures += int(baseline_contact_failure)
                         mass_preserved = current["alphaMass"] == baseline["alphaMass"]
-                        if not mass_preserved:
-                            failures.append(
-                                f"{key}: alpha mass changed "
-                                f"{baseline['alphaMass']}->{current['alphaMass']}"
-                            )
                         body_growth = float(current["bodyCoreRatio"]) - float(
                             baseline["bodyCoreRatio"]
                         )
@@ -224,8 +200,7 @@ def main() -> None:
                         # attachment.  Reject only catastrophic migration into
                         # the lower body, not a shield covering the forearm.
                         if (
-                            not contact_exempt
-                            and int(current["visiblePixels"]) >= 96
+                            int(current["visiblePixels"]) >= 96
                             and float(current["footCoreRatio"]) > 0.48
                             and foot_growth > 0.28
                         ):
@@ -263,13 +238,15 @@ def main() -> None:
         row["comparison"] for row in rows if row["comparison"] is not None
     ]
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "generator": "scripts/audit_paperdoll_held_gear.py",
+        "contract": "current-png-hand-geometry-v2",
         "passed": not failures,
         "summary": {
             "cells": len(rows),
             "contactEligibleCells": len(aligned_rows),
             "occlusionExemptCells": len(rows) - len(aligned_rows),
+            "geometryExemptionsAllowed": False,
             "beforeContactFailures": before_contact_failures
             if args.baseline_layers
             else None,

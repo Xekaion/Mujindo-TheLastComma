@@ -24,15 +24,25 @@ runtime contract or save data.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 from collections import deque
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 from PIL import Image, ImageChops, ImageFilter
 
-from align_paperdoll_held_gear import build as align_held_gear_assets
+from align_paperdoll_held_gear import (
+    build as align_held_gear_assets,
+    clamp as clamp_registration,
+    estimate_registration,
+    safe_offset_range,
+    translate_frame as translate_registered_frame,
+)
+import paperdoll_semantic_held as semantic_held
+import audit_paperdoll_slot_regions as slot_region_audit
 
 
 CELL_WIDTH = 256
@@ -102,10 +112,10 @@ def alpha_geometry(alpha: Image.Image) -> BodyGeometry:
 
 def weapon_is_left(authored_row: int) -> bool:
     # Authored rows: S, SE, E, NW, N, NE, W, SW.
-    # Harin's right (weapon) hand projects to screen-left throughout the
-    # southern half of the turn, including W/SW.  Omitting rows 6/7 made a
-    # weapon migrate into ``offhand`` and disappear for several gait phases.
-    return authored_row in (0, 1, 2, 6, 7)
+    # The fitted source atlases put the weapon on screen-left only for S, SE,
+    # and W.  E and SW were previously reversed, which classified boots and
+    # lower-leg pixels as a weapon while the real blade migrated to offhand.
+    return authored_row in (0, 1, 6)
 
 
 def frame_box(row: int, column: int) -> tuple[int, int, int, int]:
@@ -613,9 +623,145 @@ def restoration_metrics(rendered: Image.Image, target: Image.Image, delta: Image
     }
 
 
-def build_assets(workspace: Path) -> dict[str, object]:
+def near_body_ratio(layer: Image.Image, body: Image.Image, dilation: int = 11) -> float:
+    layer_mask = semantic_held.image_mask(layer, 8)
+    body_near = semantic_held.dilate(semantic_held.image_mask(body, 16), dilation)
+    return float(np.logical_and(layer_mask, body_near).sum() / max(1, layer_mask.sum()))
+
+
+def foot_anchor(body: Image.Image) -> tuple[float, float]:
+    mask = semantic_held.image_mask(body, 16)
+    ys, xs = np.where(mask)
+    if not len(xs):
+        return CELL_WIDTH / 2, CELL_HEIGHT - 1
+    threshold = int(np.quantile(ys, 0.78))
+    yy = np.indices(mask.shape)[0]
+    lower_y, lower_x = np.where(mask & (yy >= threshold))
+    return float(np.median(lower_x)), float(lower_y.max())
+
+
+def weighted_rgba(
+    first: Image.Image,
+    second: Image.Image,
+    first_weight: float,
+) -> Image.Image:
+    """Premultiplied-alpha blend for a last-resort same-row boot phase."""
+
+    a = np.asarray(first, dtype=np.float32) / 255.0
+    b = np.asarray(second, dtype=np.float32) / 255.0
+    weight_a = max(0.0, min(1.0, first_weight))
+    weight_b = 1.0 - weight_a
+    alpha = a[:, :, 3] * weight_a + b[:, :, 3] * weight_b
+    premultiplied = (
+        a[:, :, :3] * a[:, :, 3:4] * weight_a
+        + b[:, :, :3] * b[:, :, 3:4] * weight_b
+    )
+    rgb = np.zeros_like(premultiplied)
+    nonzero = alpha > 1e-6
+    rgb[nonzero] = premultiplied[nonzero] / alpha[nonzero, None]
+    output = np.dstack((rgb, alpha))
+    return Image.fromarray(
+        np.clip(np.rint(output * 255), 0, 255).astype(np.uint8),
+        "RGBA",
+    )
+
+
+def same_row_boot_phase(
+    frames: dict[tuple[int, int], Image.Image],
+    bodies: dict[tuple[int, int], Image.Image],
+    row: int,
+    column: int,
+) -> tuple[Image.Image | None, dict[str, object]]:
+    candidates = [
+        other
+        for other in range(COLUMNS)
+        if other != column
+        and frames[(row, other)].getchannel("A").getbbox() is not None
+    ]
+    if not candidates:
+        return None, {"method": "same-row-unavailable"}
+    left = min(candidates, key=lambda other: ((column - other) % COLUMNS, other))
+    right = min(candidates, key=lambda other: ((other - column) % COLUMNS, other))
+    target_x, target_y = foot_anchor(bodies[(row, column)])
+
+    def registered(source_column: int) -> Image.Image:
+        source_x, source_y = foot_anchor(bodies[(row, source_column)])
+        return translate_registered_frame(
+            frames[(row, source_column)],
+            round(target_x - source_x),
+            round(target_y - source_y),
+        )
+
+    left_frame = registered(left)
+    right_frame = registered(right)
+    if left == right:
+        return left_frame, {"method": "same-row-single-phase", "sources": [left]}
+    left_distance = (column - left) % COLUMNS
+    right_distance = (right - column) % COLUMNS
+    left_weight = right_distance / max(1, left_distance + right_distance)
+    return weighted_rgba(left_frame, right_frame, left_weight), {
+        "method": "same-row-bidirectional-phase",
+        "sources": [left, right],
+        "leftWeight": round(left_weight, 6),
+    }
+
+
+def recover_boot_frames(
+    preregistered: dict[tuple[int, int], Image.Image],
+    exact_fitted: dict[tuple[int, int], Image.Image],
+    bodies: dict[tuple[int, int], Image.Image],
+) -> tuple[dict[tuple[int, int], Image.Image], list[dict[str, object]]]:
+    """Prefer exact-cell fitted boots; never borrow from another direction."""
+
+    output: dict[tuple[int, int], Image.Image] = {}
+    rows: list[dict[str, object]] = []
+    for row in range(ROWS):
+        for column in range(COLUMNS):
+            key = (row, column)
+            candidate = preregistered[key]
+            candidate_ratio = near_body_ratio(candidate, bodies[key])
+            if candidate.getchannel("A").getbbox() is not None and candidate_ratio >= 0.55:
+                output[key] = candidate
+                method = "preregistered"
+            else:
+                exact = exact_fitted[key]
+                exact_ratio = near_body_ratio(exact, bodies[key])
+                if exact.getchannel("A").getbbox() is not None and exact_ratio >= 0.55:
+                    output[key] = exact
+                    method = "exact-current-fitted"
+                else:
+                    interpolated, details = same_row_boot_phase(
+                        exact_fitted,
+                        bodies,
+                        row,
+                        column,
+                    )
+                    output[key] = interpolated or Image.new(
+                        "RGBA",
+                        (CELL_WIDTH, CELL_HEIGHT),
+                        (0, 0, 0, 0),
+                    )
+                    method = str(details["method"])
+            rows.append(
+                {
+                    "row": row,
+                    "column": column,
+                    "method": method,
+                    "candidateNearBodyRatio": candidate_ratio,
+                    "finalNearBodyRatio": near_body_ratio(output[key], bodies[key]),
+                    "finalBounds": list(output[key].getchannel("A").getbbox() or ()),
+                }
+            )
+    return output, rows
+
+
+def build_assets(
+    workspace: Path, *, approve_silhouette_reference: bool = False
+) -> dict[str, object]:
     walk_dir = workspace / "public" / "assets" / "walk"
     output_root = workspace / "public" / "assets" / "paperdoll" / "v1"
+    held_source_root = workspace / "asset-sources" / "paperdoll" / "held-gear-v1"
+    held_original_root = held_source_root / "original"
     mannequin_path = walk_dir / "harin-mannequin-v1.png"
     if not mannequin_path.exists():
         neutral = Image.open(walk_dir / "harin-neutral-walk-v4.png").convert("RGBA")
@@ -625,27 +771,52 @@ def build_assets(workspace: Path) -> dict[str, object]:
         raise ValueError(f"invalid mannequin size: {mannequin_atlas.size}")
 
     frame_metrics: list[dict[str, object]] = []
-    preservation_repairs: list[dict[str, object]] = []
+    registration_rows: list[dict[str, object]] = []
+    boot_recovery_rows: list[dict[str, object]] = []
     for variant_index, (variant_name, filename) in enumerate(VARIANTS):
         profile_path = walk_dir / filename
         profile_atlas = Image.open(profile_path).convert("RGBA")
         if profile_atlas.size != ATLAS_SIZE:
             raise ValueError(f"invalid profile size {profile_path}: {profile_atlas.size}")
         atlases = {slot: Image.new("RGBA", ATLAS_SIZE, (0, 0, 0, 0)) for slot in SLOTS}
+        preregistered_boots: dict[tuple[int, int], Image.Image] = {}
+        exact_boots: dict[tuple[int, int], Image.Image] = {}
+        body_frames: dict[tuple[int, int], Image.Image] = {}
         for row in range(ROWS):
             for column in range(COLUMNS):
-                box = (
-                    column * CELL_WIDTH,
-                    row * CELL_HEIGHT,
-                    (column + 1) * CELL_WIDTH,
-                    (row + 1) * CELL_HEIGHT,
-                )
-                target = cleaned_profile(profile_atlas.crop(box))
+                box = frame_box(row, column)
+                source = profile_atlas.crop(box)
                 mannequin = mannequin_atlas.crop(box)
-                layers, partition_metrics = partition_frame(target, mannequin, row, column)
-                delta = delta_mask(target, mannequin)
+                body_frames[(row, column)] = mannequin
+                requested = estimate_registration(source, mannequin)
+                minimum_x, maximum_x, minimum_y, maximum_y = safe_offset_range(source)
+                applied_x = clamp_registration(
+                    requested.offset_x,
+                    minimum_x,
+                    maximum_x,
+                )
+                applied_y = clamp_registration(
+                    requested.offset_y,
+                    minimum_y,
+                    maximum_y,
+                )
+                registered = translate_registered_frame(source, applied_x, applied_y)
+                if alpha_mass(source) != alpha_mass(registered):
+                    raise ValueError(
+                        f"clamped profile registration clipped {variant_name}@{row},{column}"
+                    )
+                layers, partition_metrics = partition_frame(
+                    registered,
+                    mannequin,
+                    row,
+                    column,
+                )
+                exact_layers, _ = partition_frame(source, mannequin, row, column)
+                preregistered_boots[(row, column)] = layers["boots"]
+                exact_boots[(row, column)] = exact_layers["boots"]
+                delta = delta_mask(cleaned_profile(registered), mannequin)
                 restored = composite_same_family(mannequin, layers)
-                metrics = restoration_metrics(restored, target, delta)
+                metrics = restoration_metrics(restored, registered, delta)
                 frame_metrics.append(
                     {
                         "variant": variant_name,
@@ -655,24 +826,128 @@ def build_assets(workspace: Path) -> dict[str, object]:
                         **metrics,
                     }
                 )
+                registration_rows.append(
+                    {
+                        "variant": variant_name,
+                        "row": row,
+                        "column": column,
+                        "method": requested.method,
+                        "confidence": round(requested.confidence, 6),
+                        "requestedOffset": [requested.offset_x, requested.offset_y],
+                        "appliedOffset": [applied_x, applied_y],
+                        "residualOffset": [
+                            requested.offset_x - applied_x,
+                            requested.offset_y - applied_y,
+                        ],
+                        "clamped": [requested.offset_x, requested.offset_y]
+                        != [applied_x, applied_y],
+                        "alphaMassPreserved": True,
+                    }
+                )
                 for slot, layer in layers.items():
                     atlases[slot].alpha_composite(layer, (column * CELL_WIDTH, row * CELL_HEIGHT))
-        variant_repairs = preserve_slot_frames(
-            atlases,
-            profile_atlas,
-            mannequin_atlas,
+
+        recovered_boots, recovered_rows = recover_boot_frames(
+            preregistered_boots,
+            exact_boots,
+            body_frames,
         )
-        preservation_repairs.extend(
-            {"variant": variant_name, **repair} for repair in variant_repairs
+        boot_recovery_rows.extend(
+            {"variant": variant_name, **row} for row in recovered_rows
         )
+        boots_atlas = Image.new("RGBA", ATLAS_SIZE, (0, 0, 0, 0))
+        for (row, column), boot_frame in recovered_boots.items():
+            boots_atlas.alpha_composite(
+                boot_frame,
+                (column * CELL_WIDTH, row * CELL_HEIGHT),
+            )
+        atlases["boots"] = boots_atlas
+
         for slot, atlas in atlases.items():
             slot_dir = output_root / slot
             slot_dir.mkdir(parents=True, exist_ok=True)
             output_path = slot_dir / f"{variant_index:02d}-{variant_name}.png"
             atlas.save(output_path, optimize=True)
             print(output_path.relative_to(workspace))
+            if slot in ("weapon", "offhand"):
+                original_path = (
+                    held_original_root
+                    / slot
+                    / f"{variant_index:02d}-{variant_name}.png"
+                )
+                original_path.parent.mkdir(parents=True, exist_ok=True)
+                atlas.save(original_path, optimize=True)
 
-    summary = {
+    # Replace only held atlases with the audited semantic alignment.  The raw
+    # direction-correct owned deltas remain hash-bound under asset-sources.
+    alignment_report = align_held_gear_assets(
+        workspace,
+        held_original_root,
+        output_root,
+        held_source_root / "alignment-report.json",
+        held_source_root / "alignment-preview.png",
+    )
+    silhouette_reference_path = (
+        workspace
+        / "asset-sources/paperdoll/paperdoll-slot-silhouette-reference-v2.json"
+    )
+    if approve_silhouette_reference:
+        silhouette_reference = slot_region_audit.write_silhouette_reference(
+            silhouette_reference_path,
+            workspace,
+            output_root,
+            mannequin_path,
+            walk_dir,
+        )
+        silhouette_reference_summary = silhouette_reference["summary"]
+    else:
+        rig_manifest_path = workspace / "app/paperdoll-rig-manifest.json"
+        rig_manifest = json.loads(rig_manifest_path.read_text(encoding="utf-8"))
+        approved_reference_sha256 = str(
+            rig_manifest.get("assetIntegrity", {}).get(
+                "silhouetteReferenceSha256", ""
+            )
+        )
+        reference_cells, reference_failures, reference_metadata = (
+            slot_region_audit.load_silhouette_reference(
+                silhouette_reference_path,
+                workspace,
+                mannequin_path,
+                output_root,
+                walk_dir,
+                approved_reference_sha256 or None,
+            )
+        )
+        if reference_failures:
+            raise ValueError(
+                "silhouette reference approval required: "
+                + "; ".join(reference_failures[:8])
+            )
+        reference_mismatches: list[str] = []
+        for slot in SLOTS:
+            for variant_index, (variant_name, _filename) in enumerate(VARIANTS):
+                atlas_name = f"{variant_index:02d}-{variant_name}.png"
+                atlas = Image.open(output_root / slot / atlas_name).convert("RGBA")
+                for row in range(ROWS):
+                    for column in range(COLUMNS):
+                        cell = f"{slot}/{atlas_name}@{row},{column}"
+                        rgba = np.asarray(atlas.crop(frame_box(row, column)), dtype=np.uint8)
+                        digest = hashlib.sha256(rgba.tobytes()).hexdigest()
+                        if digest != reference_cells[cell]["rgbaSha256"]:
+                            reference_mismatches.append(cell)
+        if reference_mismatches:
+            raise ValueError(
+                "generated cells differ from approved silhouette reference: "
+                + ", ".join(reference_mismatches[:8])
+            )
+        silhouette_reference_summary = {
+            "atlases": reference_metadata["expectedAtlases"],
+            "cells": len(reference_cells),
+            "approved": True,
+            "sha256": reference_metadata["sha256"],
+        }
+
+    summary: dict[str, object] = {
         "frames": len(frame_metrics),
         "atlases": len(SLOTS) * len(VARIANTS),
         "atlas_size": list(ATLAS_SIZE),
@@ -682,7 +957,17 @@ def build_assets(workspace: Path) -> dict[str, object]:
         "mean_silhouette_iou": sum(float(item["silhouette_iou"]) for item in frame_metrics) / len(frame_metrics),
         "max_horizontal_boundary_ratio": max(float(item["straightness"]) for item in frame_metrics),
         "mean_delta_retention": sum(float(item["delta_retention"]) for item in frame_metrics) / len(frame_metrics),
-        "preservation_repairs": len(preservation_repairs),
+        "registrationCells": len(registration_rows),
+        "clampedRegistrationCells": sum(bool(row["clamped"]) for row in registration_rows),
+        "profileAlphaClippedCells": sum(
+            not bool(row["alphaMassPreserved"]) for row in registration_rows
+        ),
+        "bootRecoveryMethods": {
+            method: sum(row["method"] == method for row in boot_recovery_rows)
+            for method in sorted({str(row["method"]) for row in boot_recovery_rows})
+        },
+        "heldAlignment": alignment_report["summary"],
+        "silhouetteReference": silhouette_reference_summary,
         "remaining_empty_frames": sum(
             1
             for slot in SLOTS
@@ -698,23 +983,12 @@ def build_assets(workspace: Path) -> dict[str, object]:
     report = {
         "summary": summary,
         "per_frame": frame_metrics,
-        "preservation_repairs": preservation_repairs,
+        "registrations": registration_rows,
+        "bootRecoveries": boot_recovery_rows,
     }
     report_path = workspace / "tmp" / "paperdoll-layer-metrics.json"
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    # The equipped authoring sheets have variant-specific frame origins.  The
-    # slot partition above intentionally preserves their pixels; finish the v1
-    # build by applying the audited integer-only grip registration so a future
-    # full rebuild cannot silently restore floating weapon/offhand atlases.
-    held_source_root = workspace / "asset-sources/paperdoll/held-gear-v1"
-    align_held_gear_assets(
-        workspace,
-        output_root,
-        output_root,
-        held_source_root / "alignment-report.json",
-        held_source_root / "alignment-preview.png",
-    )
     print(json.dumps(summary, ensure_ascii=False, indent=2))
     print(report_path)
     return report
@@ -723,8 +997,19 @@ def build_assets(workspace: Path) -> dict[str, object]:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--workspace", type=Path, default=Path(__file__).resolve().parents[1])
+    parser.add_argument(
+        "--approve-silhouette-reference",
+        action="store_true",
+        help=(
+            "explicitly replace the checked-in 3,200-cell reference after "
+            "human review; normal builds only verify it"
+        ),
+    )
     arguments = parser.parse_args()
-    build_assets(arguments.workspace.resolve())
+    build_assets(
+        arguments.workspace.resolve(),
+        approve_silhouette_reference=arguments.approve_silhouette_reference,
+    )
 
 
 if __name__ == "__main__":

@@ -6937,6 +6937,64 @@ test("the paperdoll compositor consumes ten registered 32-frame wearable layers 
   );
   assert.equal(paperdoll.paperdollLayerPathsForLoadout(loadout).length, 10);
 
+  const bodyAtlas = {
+    width: paperdoll.PAPERDOLL_BODY_ATLAS_WIDTH,
+    height: paperdoll.PAPERDOLL_BODY_ATLAS_HEIGHT,
+  };
+  const layerAtlas = {
+    width: paperdoll.PAPERDOLL_LAYER_ATLAS_WIDTH,
+    height: paperdoll.PAPERDOLL_LAYER_ATLAS_HEIGHT,
+  };
+  const createDirectContext = (throwingSource = null) => ({
+    globalAlpha: 1,
+    imageSmoothingEnabled: true,
+    save() {},
+    restore() {},
+    translate() {},
+    scale() {},
+    drawImage(source) {
+      if (source === throwingSource) throw new Error("synthetic layer draw failure");
+    },
+  });
+  const fullLayerSources = new Map(
+    paperdoll.paperdollLayerPathsForLoadout(loadout).map((path) => [path, layerAtlas]),
+  );
+  assert.deepEqual(
+    paperdoll.drawPaperdollCharacterDirectReport(createDirectContext(), {
+      bodyAtlas,
+      layerSources: fullLayerSources,
+      loadout,
+      direction: 0,
+      frame: 0,
+      x: 0,
+      y: 0,
+      width: 136,
+      height: 102,
+    }),
+    { drawn: true, complete: true, drawnLayerCount: 10 },
+    "the direct report must count every layer actually drawn to the destination canvas",
+  );
+  const singleWeapon = { weapon: loadout.weapon };
+  const weaponPath = paperdoll.paperdollLayerPathsForLoadout(singleWeapon)[0];
+  assert.deepEqual(
+    paperdoll.drawPaperdollCharacterDirectReport(
+      createDirectContext(layerAtlas),
+      {
+        bodyAtlas,
+        layerSources: new Map([[weaponPath, layerAtlas]]),
+        loadout: singleWeapon,
+        direction: 0,
+        frame: 0,
+        x: 0,
+        y: 0,
+        width: 136,
+        height: 102,
+      },
+    ),
+    { drawn: true, complete: false, drawnLayerCount: 0 },
+    "a failed layer draw may not masquerade as a complete body-only paperdoll",
+  );
+
   const sorted = paperdoll.sortPaperdollPieces(loadout, 6);
   const layerRank = { rear: 0, body: 1, front: 2 };
   const layers = sorted.map((piece) =>
@@ -6989,7 +7047,13 @@ test("all hundred fitted wearable atlases are registered, crop-safe, and indepen
         publicPath,
         new RegExp(`${paperdollRigManifest.layerRoot}/${slot}/`),
       );
-      const relativePath = `public${publicPath}`;
+      const [assetPath, query] = publicPath.split("?");
+      assert.equal(
+        query,
+        `v=${encodeURIComponent(paperdollRigManifest.assetRevision)}`,
+        "every runtime atlas request must be cache-busted by the pinned aggregate revision",
+      );
+      const relativePath = `public${assetPath}`;
       const image = decodeRgbaPng(await readFile(path.join(root, relativePath)), relativePath);
       assert.deepEqual(
         [image.width, image.height],
@@ -7222,8 +7286,13 @@ test("expedition and plaza render independent fitted layers and preserve public 
   );
   assert.match(
     plaza,
-    /paperdollLoadoutFromVisualGear\(\s*normalizedCharacterRef\.current\.appearance\?\.gear,\s*"common",\s*0,\s*normalizedCharacterRef\.current\.appearance\?\.rarities,?\s*\)/,
-    "the selected local character's public gear must request its independent fitted layers",
+    /paperdollLayerPathsForLoadout\(\s*localPaperdollLoadoutRef\.current,?\s*\)/,
+    "the selected local character's canonical equipment must request its independent fitted layers",
+  );
+  assert.doesNotMatch(
+    plaza,
+    /paperdollLoadoutFromVisualGear\(\s*normalizedCharacterRef\.current\.appearance\?\.gear/,
+    "a stale public appearance echo must not replace the selected local equipment",
   );
   assert.doesNotMatch(plaza, /equipment-types-v4\.png/);
 

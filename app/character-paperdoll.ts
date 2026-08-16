@@ -13,6 +13,17 @@ import paperdollRigManifest from "./paperdoll-rig-manifest.json";
 export type PaperdollRigManifest = Readonly<{
   schemaVersion: number;
   version: string;
+  assetRevision: string;
+  assetIntegrity: Readonly<{
+    algorithm: string;
+    atlasCount: number;
+    sourceAggregateSha256: string;
+    bodySha256: string;
+    silhouetteReferencePath: string;
+    silhouetteReferenceSha256: string;
+    warningAllowlistPath: string;
+    warningAllowlistSha256: string;
+  }>;
   bodyPath: string;
   layerRoot: string;
   frame: Readonly<{
@@ -27,6 +38,10 @@ export type PaperdollRigManifest = Readonly<{
     height: number;
   }>;
   slots: readonly EquipmentSlot[];
+  qaCompositeBuilds: readonly Readonly<{
+    label: string;
+    variants: readonly number[];
+  }>[];
   anchorReport: Readonly<{
     auditPath: string;
     runtimePath: string;
@@ -41,6 +56,7 @@ export type PaperdollRigManifest = Readonly<{
 export const PAPERDOLL_RIG_MANIFEST =
   paperdollRigManifest as PaperdollRigManifest;
 export const PAPERDOLL_ACTIVE_RIG_VERSION = PAPERDOLL_RIG_MANIFEST.version;
+export const PAPERDOLL_ASSET_REVISION = PAPERDOLL_RIG_MANIFEST.assetRevision;
 export const PAPERDOLL_FRAME_WIDTH = PAPERDOLL_RIG_MANIFEST.frame.width;
 export const PAPERDOLL_FRAME_HEIGHT = PAPERDOLL_RIG_MANIFEST.frame.height;
 export const PAPERDOLL_FRAME_COLUMNS = PAPERDOLL_RIG_MANIFEST.frame.columns;
@@ -130,9 +146,10 @@ type ResolvedPaperdollLayer = Readonly<{
   path: string;
   source: CanvasImageSource | null | undefined;
 }>;
-type PaperdollFrameRenderResult = Readonly<{
+export type PaperdollFrameRenderResult = Readonly<{
   drawn: boolean;
   complete: boolean;
+  drawnLayerCount: number;
 }>;
 
 const EQUIPMENT_SLOT_SET = new Set<string>(EQUIPMENT_SLOTS);
@@ -157,7 +174,7 @@ function createLayerPathList(slot: EquipmentSlot): readonly string[] {
   return Object.freeze(
     PAPERDOLL_VARIANT_NAMES.map(
       (name, variant) =>
-        `${PAPERDOLL_LAYER_ROOT}/${slot}/${String(variant).padStart(2, "0")}-${name}.png`,
+        `${PAPERDOLL_LAYER_ROOT}/${slot}/${String(variant).padStart(2, "0")}-${name}.png?v=${encodeURIComponent(PAPERDOLL_ASSET_REVISION)}`,
     ),
   );
 }
@@ -332,8 +349,9 @@ export function resolvePaperdollLayer(
   directionValue: number,
 ): PaperdollLayer {
   const direction = normalizePaperdollDirection(directionValue);
-  const backFacing = direction === 3 || direction === 4 || direction === 5;
-  if (slot === "relic") return backFacing ? "rear" : "front";
+  // Authored relic pixels are already the registered exterior/back ornament.
+  // Drawing them behind the opaque mannequin erases 29/30 NW/N/NE groups.
+  if (slot === "relic") return "front";
   if (slot === "weapon") {
     return direction >= 2 && direction <= 5 ? "rear" : "front";
   }
@@ -574,10 +592,11 @@ function drawPaperdollFrameContents(
   frame: PaperdollFrame,
 ): PaperdollFrameRenderResult {
   if (!isPaperdollBodyAtlasReady(bodyAtlas)) {
-    return { drawn: false, complete: false };
+    return { drawn: false, complete: false, drawnLayerCount: 0 };
   }
   const cell = paperdollFrameCell(direction, frame);
   let complete = true;
+  let drawnLayerCount = 0;
 
   const drawPass = (pass: PaperdollLayer) => {
     for (const layer of layers) {
@@ -588,6 +607,7 @@ function drawPaperdollFrameContents(
       }
       try {
         drawRegisteredAtlasFrame(context, layer.source, cell);
+        drawnLayerCount += 1;
       } catch {
         complete = false;
       }
@@ -598,11 +618,11 @@ function drawPaperdollFrameContents(
   try {
     drawRegisteredAtlasFrame(context, bodyAtlas, cell);
   } catch {
-    return { drawn: false, complete: false };
+    return { drawn: false, complete: false, drawnLayerCount };
   }
   drawPass("body");
   drawPass("front");
-  return { drawn: true, complete };
+  return { drawn: true, complete, drawnLayerCount };
 }
 
 function frameCacheKey(
@@ -770,10 +790,10 @@ export type DrawPaperdollCharacterDirectOptions = Omit<
  * canvas. This deliberately bypasses the shared composite-frame LRU so a busy
  * plaza never creates and immediately evicts one OffscreenCanvas per player.
  */
-export function drawPaperdollCharacterDirect(
+export function drawPaperdollCharacterDirectReport(
   context: CanvasRenderingContext2D,
   options: DrawPaperdollCharacterDirectOptions,
-): boolean {
+): PaperdollFrameRenderResult {
   if (
     !Number.isFinite(options.x) ||
     !Number.isFinite(options.y) ||
@@ -781,7 +801,7 @@ export function drawPaperdollCharacterDirect(
     !Number.isFinite(options.height) ||
     options.width <= 0 ||
     options.height <= 0
-  ) return false;
+  ) return { drawn: false, complete: false, drawnLayerCount: 0 };
 
   const direction = normalizePaperdollDirection(options.direction);
   const frame = normalizePaperdollFrame(options.frame);
@@ -812,7 +832,14 @@ export function drawPaperdollCharacterDirect(
     frame,
   );
   context.restore();
-  return result.drawn;
+  return result;
+}
+
+export function drawPaperdollCharacterDirect(
+  context: CanvasRenderingContext2D,
+  options: DrawPaperdollCharacterDirectOptions,
+): boolean {
+  return drawPaperdollCharacterDirectReport(context, options).drawn;
 }
 
 export function clearPaperdollCaches(): void {

@@ -1109,11 +1109,11 @@ export default function GameEntryFlow({
           dungeonFloor: self?.dungeonFloor ?? dungeonFloor,
           saveSlot: selection.slot,
           appearance: {
-            spriteKey: self?.appearance.spriteKey ?? hubAppearance.spriteKey,
+            spriteKey: hubAppearance.spriteKey,
             equipped: hubAppearance.spriteKey === "harin-equipped",
-            palette: self?.appearance.palette ?? hubAppearance.palette,
-            gear: self?.appearance.gear ?? hubAppearance.gear,
-            rarities: self?.appearance.rarities ?? hubAppearance.rarities,
+            palette: hubAppearance.palette,
+            gear: hubAppearance.gear,
+            rarities: hubAppearance.rarities,
           },
         }}
         equipment={equipment}

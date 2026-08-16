@@ -146,6 +146,53 @@ test("PlazaHub uses the generated map, authoritative intent, and accessible cont
   );
 });
 
+test("the local plaza paperdoll renders canonical equipment immediately", async () => {
+  const [source, entryFlow] = await Promise.all([
+    readFile(path.join(root, "app/PlazaHub.tsx"), "utf8"),
+    readFile(path.join(root, "app/GameEntryFlow.tsx"), "utf8"),
+  ]);
+  assert.match(source, /paperdollLoadoutFromEquipment/);
+  assert.match(
+    source,
+    /equipment !== null[\s\S]{0,180}?paperdollLoadoutFromEquipment\(equipment\)/,
+    "an explicitly empty loadout must also clear stale public appearance gear",
+  );
+  assert.match(
+    source,
+    /useLayoutEffect\(\(\) => \{\s*localPaperdollLoadoutRef\.current = localPaperdollLoadout/,
+    "the render loop must see the committed equipment before the next paint",
+  );
+  assert.match(
+    source,
+    /paperdollLayerPathsForLoadout\(\s*localPaperdollLoadoutRef\.current/,
+    "asset reconciliation must follow the canonical local loadout",
+  );
+  assert.match(
+    source,
+    /loadout:\s*localPaperdollLoadoutRef\.current,[\s\S]{0,80}?local:\s*true/,
+    "the local draw plan must not wait for a hub appearance echo",
+  );
+  assert.match(
+    source,
+    /player\.loadout \?\?[\s\S]{0,120}?paperdollLoadoutFromVisualGear/,
+    "remote actors may still use their privacy-safe public appearance",
+  );
+  assert.match(
+    source,
+    /!appearanceDrawn \|\| \(!player\.local && !player\.rarities\)/,
+    "canonical local rarity and enhancement VFX must not depend on a server appearance echo",
+  );
+  const localPlazaBlock = entryFlow.match(
+    /characterId:\s*self\?\.characterId[\s\S]{0,1000}?equipment=\{equipment\}/,
+  );
+  assert.ok(localPlazaBlock, "GameEntryFlow must pass the selected save into PlazaHub");
+  assert.doesNotMatch(
+    localPlazaBlock[0],
+    /self\?\.appearance/,
+    "stale server appearance must never override the selected local save",
+  );
+});
+
 test("PlazaHub supports keyboard and touch dash with every equipped power VFX", async () => {
   const source = await readFile(path.join(root, "app/PlazaHub.tsx"), "utf8");
   assert.match(source, /key === " " && !event\.repeat/);

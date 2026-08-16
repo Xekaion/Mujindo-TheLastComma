@@ -14,26 +14,38 @@ const pngSize = (bytes, label) => {
   return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
 };
 
-test("active v1 held gear is rebuilt from preserved originals with rigid integer offsets", async () => {
-  const [alignment, audit, generator] = await Promise.all([
+test("active v1 held gear is rebuilt from registered source deltas with semantic hand gates", async () => {
+  const [alignment, audit, generator, semantic] = await Promise.all([
     readFile(path.join(root, sourceRoot, "alignment-report.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, sourceRoot, "audit-report.json"), "utf8").then(JSON.parse),
     readFile(path.join(root, "scripts/align_paperdoll_held_gear.py"), "utf8"),
+    readFile(path.join(root, "scripts/paperdoll_semantic_held.py"), "utf8"),
   ]);
 
-  assert.equal(alignment.schemaVersion, 1);
+  assert.equal(alignment.schemaVersion, 2);
   assert.equal(alignment.generator, "scripts/align_paperdoll_held_gear.py");
-  assert.equal(alignment.contract, "integer-rigid-translate-only");
+  assert.equal(alignment.contract, "registered-delta-hand-connected-v2");
   assert.equal(alignment.summary.cells, 640);
   assert.equal(alignment.summary.atlases, 20);
-  assert.equal(alignment.summary.alphaMassPreservedCells, 640);
   assert.equal(alignment.summary.emptyCells, 0);
   assert.equal(alignment.summary.clippedCells, 0);
-  assert.ok(alignment.summary.classifications["aligned-visible"] >= 500);
-  assert.equal(alignment.summary.classifications["unresolved-visible"] ?? 0, 0);
+  assert.equal(alignment.summary.bodyCorePixels, 0);
+  assert.equal(alignment.summary.footCorePixels, 0);
+  assert.equal(alignment.summary.contactMisses, 0);
+  assert.equal(alignment.summary.paddingTwoFailures, 0);
+  assert.equal(alignment.summary.registeredProfileCells, 320);
+  assert.equal(alignment.summary.registeredProfileClippedCells, 0);
+  assert.deepEqual(alignment.summary.classifications, { "aligned-visible": 640 });
+  assert.deepEqual(alignment.summary.resolutionMethods, {
+    "owned-delta-padding-replacement": 5,
+    "registered-full-delta": 633,
+    "same-row-nearest-gait-phase": 2,
+  });
   assert.match(generator, /shared red-hood landmark/);
-  assert.match(generator, /integer rigid translation/);
-  assert.match(generator, /alphaMassBefore/);
+  assert.match(generator, /registered_delta_alpha/);
+  assert.match(generator, /semantic_component_filter/);
+  assert.match(semantic, /passes_strict/);
+  assert.match(semantic, /recover_same_row_phase/);
   assert.doesNotMatch(generator, /Image\.Transform/);
 
   assert.equal(Object.keys(alignment.inputs).length, 20);
@@ -54,9 +66,13 @@ test("active v1 held gear is rebuilt from preserved originals with rigid integer
   }
 
   for (const cell of alignment.perCell) {
-    assert.equal(cell.alphaMassPreserved, true, `${cell.cell} lost authored alpha`);
+    assert.equal(cell.classification, "aligned-visible");
     assert.equal(cell.clipped, false, `${cell.cell} clipped at its atlas edge`);
     assert.ok(cell.visiblePixels > 0, `${cell.cell} became empty`);
+    assert.ok(cell.handContactPixels >= 3, `${cell.cell} misses its authored hand`);
+    assert.equal(cell.bodyCorePixels, 0, `${cell.cell} pollutes body core`);
+    assert.equal(cell.footCorePixels, 0, `${cell.cell} pollutes foot core`);
+    assert.equal(cell.paddingTwoPass, true, `${cell.cell} lost its 2px gutter`);
     assert.ok(cell.finalOffset.every(Number.isInteger), `${cell.cell} used a non-integer transform`);
     assert.ok(cell.refinementOffset.every(Number.isInteger), `${cell.cell} used a non-integer refinement`);
     assert.ok(cell.bounds[0] >= 2 && cell.bounds[1] >= 2, `${cell.cell} lost its leading gutter`);
@@ -64,15 +80,18 @@ test("active v1 held gear is rebuilt from preserved originals with rigid integer
   }
 
   assert.equal(audit.passed, true);
+  assert.equal(audit.schemaVersion, 2);
+  assert.equal(audit.contract, "current-png-hand-geometry-v2");
   assert.equal(audit.summary.cells, 640);
-  assert.ok(audit.summary.contactEligibleCells >= 500);
-  assert.ok(audit.summary.occlusionExemptCells >= 100);
-  assert.ok(audit.summary.beforeContactFailures >= 450);
+  assert.equal(audit.summary.contactEligibleCells, 640);
+  assert.equal(audit.summary.occlusionExemptCells, 0);
+  assert.equal(audit.summary.geometryExemptionsAllowed, false);
+  assert.equal(audit.summary.beforeContactFailures, 52);
   assert.equal(audit.summary.afterContactFailures, 0);
   assert.equal(audit.summary.emptyCells, 0);
   assert.equal(audit.summary.edgeRiskCells, 0);
-  assert.equal(audit.summary.alphaMassPreservedCells, 640);
-  assert.ok(audit.summary.worstFootCoreRatioGrowth <= 0.25);
+  assert.equal(audit.summary.afterBodyCorePixels, 0);
+  assert.equal(audit.summary.afterFootCorePixels, 0);
 });
 
 test("held-gear alignment preview covers every variant, direction and gait phase", async () => {

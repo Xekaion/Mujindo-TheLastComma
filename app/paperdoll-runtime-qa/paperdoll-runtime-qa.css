@@ -1,0 +1,152 @@
+.paperdoll-runtime-qa {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #050607;
+}
+
+.paperdoll-runtime-qa > .plaza-hub {
+  position: absolute;
+  inset: 0;
+}
+
+.paperdoll-runtime-qa__controls {
+  position: absolute;
+  z-index: 30;
+  top: 108px;
+  right: 30px;
+  width: 306px;
+  padding: 14px;
+  border: 1px solid rgba(211, 174, 105, 0.72);
+  border-radius: 8px;
+  color: #eee5d3;
+  background: linear-gradient(145deg, rgba(20, 18, 18, 0.96), rgba(7, 9, 11, 0.94));
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.56);
+  font: 700 12px/1.35 ui-monospace, "Cascadia Mono", monospace;
+}
+
+.paperdoll-runtime-qa__controls header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3px 12px;
+  margin-bottom: 12px;
+}
+
+.paperdoll-runtime-qa__controls header small {
+  grid-column: 1 / -1;
+  color: #b9955b;
+  letter-spacing: 0.12em;
+}
+
+.paperdoll-runtime-qa__controls header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff5df;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paperdoll-runtime-qa__controls header span {
+  color: #80e1d4;
+  white-space: nowrap;
+}
+
+.paperdoll-runtime-qa__selectors {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.paperdoll-runtime-qa__autorun {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.paperdoll-runtime-qa__autorun output {
+  grid-column: 1 / -1;
+  min-height: 22px;
+  padding: 4px 7px;
+  border: 1px solid rgba(92, 183, 171, 0.38);
+  border-radius: 4px;
+  color: #80e1d4;
+  background: rgba(22, 57, 54, 0.32);
+  text-transform: uppercase;
+}
+
+.paperdoll-runtime-qa__controls label {
+  display: grid;
+  gap: 4px;
+  color: #bdb29d;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.paperdoll-runtime-qa__controls select,
+.paperdoll-runtime-qa__controls input,
+.paperdoll-runtime-qa__controls button {
+  min-height: 32px;
+  border: 1px solid rgba(177, 146, 91, 0.54);
+  border-radius: 4px;
+  color: #f4ead7;
+  background: #171718;
+  font: inherit;
+}
+
+.paperdoll-runtime-qa__controls select,
+.paperdoll-runtime-qa__controls input {
+  width: 100%;
+  padding: 5px 7px;
+}
+
+.paperdoll-runtime-qa__controls button {
+  padding: 5px 10px;
+  cursor: pointer;
+}
+
+.paperdoll-runtime-qa__controls button:hover,
+.paperdoll-runtime-qa__controls button:focus-visible {
+  border-color: #f0c777;
+  color: #fff7e7;
+  background: #2b241b;
+}
+
+.paperdoll-runtime-qa__controls button:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.paperdoll-runtime-qa__navigation {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.paperdoll-runtime-qa__navigation form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px;
+  align-items: end;
+}
+
+.paperdoll-runtime-qa__controls > p {
+  margin: 10px 0 0;
+  overflow: hidden;
+  color: #a69b89;
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .paperdoll-runtime-qa__controls {
+    top: auto;
+    right: 10px;
+    bottom: 10px;
+    left: 10px;
+    width: auto;
+  }
+}

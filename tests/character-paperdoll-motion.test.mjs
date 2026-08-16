@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
@@ -11,6 +12,11 @@ const rigManifest = JSON.parse(
 );
 const frameWidth = rigManifest.frame.width;
 const frameHeight = rigManifest.frame.height;
+
+const sha256 = (payload) => createHash("sha256").update(payload).digest("hex");
+const sha256Lines = (records) => sha256(
+  records.map(([name, digest]) => `${name}:${digest}\n`).join(""),
+);
 
 async function importTypeScriptModule(relativePath) {
   const source = await readFile(path.join(root, relativePath), "utf8");
@@ -119,6 +125,78 @@ test("the active rig's north and south contact poses alternate", async () => {
   }
 });
 
+test("runtime paperdoll revision and provenance pins match exact production bytes", async () => {
+  assert.equal(
+    rigManifest.assetIntegrity.algorithm,
+    "relative-path-sha256-lines-v1",
+  );
+  const atlasRecords = await Promise.all(
+    rigManifest.slots.flatMap((slot) =>
+      rigManifest.variantNames.map(async (name, variant) => {
+        const filename = `${String(variant).padStart(2, "0")}-${name}.png`;
+        const relative = `${slot}/${filename}`;
+        const bytes = await readFile(
+          path.join(root, "public/assets/paperdoll/v1", relative),
+        );
+        return [relative, sha256(bytes)];
+      }),
+    ),
+  );
+  atlasRecords.sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+  assert.equal(atlasRecords.length, 100);
+  assert.equal(rigManifest.assetIntegrity.atlasCount, atlasRecords.length);
+  assert.equal(sha256Lines(atlasRecords), rigManifest.assetRevision);
+
+  const bodyBytes = await readFile(
+    path.join(root, "public", rigManifest.bodyPath.replace(/^\/+/, "")),
+  );
+  assert.equal(sha256(bodyBytes), rigManifest.assetIntegrity.bodySha256);
+  const sourceProfiles = [
+    "harin-equipped-iron-v1.png",
+    "harin-equipped-frost-v2.png",
+    "harin-equipped-jade-v1.png",
+    "harin-equipped-blood-v1.png",
+    "harin-equipped-arcane-v1.png",
+    "harin-equipped-waraxe-v1.png",
+    "harin-equipped-celestial-v1.png",
+    "harin-equipped-void-v1.png",
+    "harin-equipped-sealed-v1.png",
+    "harin-equipped-cosmic-v1.png",
+  ];
+  const sourceRecords = [["body/harin-mannequin-v1.png", sha256(bodyBytes)]];
+  for (const filename of sourceProfiles) {
+    const bytes = await readFile(path.join(root, "public/assets/walk", filename));
+    sourceRecords.push([`profile/${filename}`, sha256(bytes)]);
+  }
+  assert.equal(
+    sha256Lines(sourceRecords),
+    rigManifest.assetIntegrity.sourceAggregateSha256,
+  );
+
+  const [reference, allowlist, runtime, fixture] = await Promise.all([
+    readFile(path.join(root, rigManifest.assetIntegrity.silhouetteReferencePath)),
+    readFile(path.join(root, rigManifest.assetIntegrity.warningAllowlistPath)),
+    readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
+    readFile(path.join(root, "tests/fixtures/paperdoll-visual-qa.html"), "utf8"),
+  ]);
+  assert.equal(
+    sha256(reference),
+    rigManifest.assetIntegrity.silhouetteReferenceSha256,
+  );
+  assert.equal(
+    sha256(allowlist),
+    rigManifest.assetIntegrity.warningAllowlistSha256,
+  );
+  assert.match(
+    runtime,
+    /\.png\?v=\$\{encodeURIComponent\(PAPERDOLL_ASSET_REVISION\)\}/,
+  );
+  assert.match(
+    fixture,
+    /\.png\?v=\$\{encodeURIComponent\(rig\.assetRevision\)\}/,
+  );
+});
+
 test("expedition, plaza, and PVP share one corrected player scale", async () => {
   const [paperdoll, expedition, plaza, pvp] = await Promise.all([
     readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
@@ -163,10 +241,89 @@ test("static and local paperdoll QA consume the active runtime rig manifest", as
   assert.equal(rigManifest.version, "v1");
   assert.equal(rigManifest.bodyPath, "/assets/walk/harin-mannequin-v1.png");
   assert.equal(rigManifest.layerRoot, "/assets/paperdoll/v1");
+
+  const setupStart = fixture.indexOf("const slots = ");
+  const setupEnd = fixture.indexOf("const images = ", setupStart);
+  assert.ok(setupStart >= 0 && setupEnd > setupStart, "fixture QA matrix setup is missing");
+  const evaluateFixtureMatrix = Function(
+    "rig",
+    `"use strict";\n${fixture.slice(setupStart, setupEnd)}\nreturn { slots, drawOrder, variants, facings, builds };`,
+  );
+  const fixtureMatrix = evaluateFixtureMatrix(rigManifest);
+  assert.deepEqual(fixtureMatrix.slots, rigManifest.slots);
+  assert.deepEqual(fixtureMatrix.variants, rigManifest.variantNames);
+  assert.equal(fixtureMatrix.facings.length, rigManifest.frame.directionRows.length);
+  assert.equal(fixtureMatrix.facings.length, 8);
+  assert.equal(rigManifest.frame.columns, 4);
+
+  const expectedIndividualItems =
+    rigManifest.slots.length * rigManifest.variantNames.length;
+  const individualBuilds = fixtureMatrix.builds.slice(1, expectedIndividualItems + 1);
+  assert.equal(expectedIndividualItems, 100);
+  assert.equal(individualBuilds.length, 100);
+  assert.equal(new Set(individualBuilds.map(([label]) => label)).size, 100);
+  for (const [itemIndex, [label, loadout]] of individualBuilds.entries()) {
+    const expectedSlot = Math.floor(itemIndex / rigManifest.variantNames.length);
+    const expectedVariant = itemIndex % rigManifest.variantNames.length;
+    assert.equal(
+      label,
+      `${fixtureMatrix.slots[expectedSlot]}/${String(expectedVariant).padStart(2, "0")}-${rigManifest.variantNames[expectedVariant]}`,
+    );
+    assert.deepEqual(
+      loadout.flatMap((variant, slot) => variant === null ? [] : [[slot, variant]]),
+      [[expectedSlot, expectedVariant]],
+      `${label} must equip only its named piece`,
+    );
+  }
+  assert.equal(
+    individualBuilds.length * fixtureMatrix.facings.length * rigManifest.frame.columns,
+    3_200,
+  );
+  assert.deepEqual(
+    fixtureMatrix.builds.slice(expectedIndividualItems + 1),
+    rigManifest.qaCompositeBuilds.map((build) => [build.label, build.variants]),
+    "browser full/mixed loadouts must use the canonical slot-to-variant matrix",
+  );
+
   assert.match(fixture, /const rig = __PAPERDOLL_RIG_MANIFEST__;/);
   assert.match(fixture, /imageFor\(rig\.bodyPath\)/);
   assert.match(fixture, /`\$\{rig\.layerRoot\}\/\$\{slot\}/);
+  assert.match(fixture, /for \(const \[label, authoredRow, direction\] of facings\)/);
+  assert.match(fixture, /frame = \(frame \+ 1\) % rig\.frame\.columns/);
+  assert.match(fixture, /document\.body\.dataset\.qaItems = "100"/);
+  assert.match(fixture, /document\.body\.dataset\.qaCells = "3200"/);
   assert.doesNotMatch(fixture, /harin-mannequin-v[25]|paperdoll\/v[25]/);
+
+  const rendererSlotsBlock = renderer.match(/^SLOTS = \(([^)]*)\)/m);
+  assert.ok(rendererSlotsBlock, "static renderer slot declaration is missing");
+  const rendererSlots = [...rendererSlotsBlock[1].matchAll(/"([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.deepEqual(rendererSlots, rigManifest.slots);
+  assert.equal(rendererSlots.length * rigManifest.variantNames.length, 100);
+  const rendererDrawOrderBlock = renderer.match(/^DRAW_ORDER = \(([^)]*)\)/m);
+  assert.ok(rendererDrawOrderBlock, "static renderer draw order is missing");
+  const rendererDrawOrder = [...rendererDrawOrderBlock[1].matchAll(/"([^"]+)"/g)]
+    .map((match) => match[1]);
+  assert.deepEqual(rendererDrawOrder, fixtureMatrix.drawOrder);
+  assert.match(renderer, /RIG_MANIFEST\["qaCompositeBuilds"\]/);
+  const individualRendererStart = renderer.indexOf("def render_all_individual_equipment(");
+  const individualRendererEnd = renderer.indexOf("\ndef main()", individualRendererStart);
+  assert.ok(
+    individualRendererStart >= 0 && individualRendererEnd > individualRendererStart,
+    "individual-equipment renderer is missing",
+  );
+  const individualRenderer = renderer.slice(individualRendererStart, individualRendererEnd);
+  assert.match(individualRenderer, /item_count = len\(SLOTS\) \* len\(NAMES\)/);
+  assert.match(individualRenderer, /for slot in SLOTS:\s+for variant, variant_name in enumerate\(NAMES\):/);
+  assert.match(individualRenderer, /for phase in PHASES:\s+for runtime_direction, authored_row in enumerate\(\s*RUNTIME_TO_AUTHORED_DIRECTION\s*\):/);
+  assert.match(individualRenderer, /expected_cells_per_item = len\(RUNTIME_TO_AUTHORED_DIRECTION\) \* len\(PHASES\)/);
+  assert.match(individualRenderer, /"cells": expected_cells_per_item/);
+  assert.match(individualRenderer, /"visible_cells": visible_cells/);
+  assert.match(individualRenderer, /"passed": visible_cells == expected_cells_per_item/);
+  assert.match(individualRenderer, /"passed": not failed_items/);
+  assert.match(individualRenderer, /if failed_items:\s+raise RuntimeError/);
+  assert.match(individualRenderer, /"rendered_cells": item_count\s*\* len\(RUNTIME_TO_AUTHORED_DIRECTION\)\s*\* len\(PHASES\)/);
+  assert.match(renderer, /render_all_individual_equipment\(\s*mannequin,\s*layers,\s*layer_root,\s*individual_output,\s*version,\s*\)/);
   assert.match(renderer, /paperdoll-rig-manifest\.json/);
   assert.match(renderer, /version = args\.version or active_version/);
   assert.doesNotMatch(renderer, /default=["']v[25]["']/);

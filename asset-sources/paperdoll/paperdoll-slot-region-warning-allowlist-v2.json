@@ -1,0 +1,144 @@
+{
+  "schemaVersion": 1,
+  "contract": "paperdoll-slot-region-warning-allowlist-v2",
+  "algorithmVersion": "paperdoll-slot-region-v2",
+  "generator": "scripts/audit_paperdoll_slot_regions.py",
+  "bodySha256": "9c62e1efe23325158af8362d2ac0291451afc28640b640ee3e45346d331a8705",
+  "entries": [
+    {
+      "scope": "candidate",
+      "cell": "helm/08-sealed.png@7,2",
+      "warning": "slot-region-fringe-growth",
+      "atlas": "helm/08-sealed.png",
+      "atlasSha256": "4fe901316a8b896a97777c06e78bc43e52f70ed55e1c3521fbf73a5c4274eced",
+      "sourceProfile": "harin-equipped-sealed-v1.png",
+      "sourceProfileSha256": "8dca0ba9faca5029d41b9a403fcb8bc4079f86ed02a0b58223ef9cca588e3a96"
+    },
+    {
+      "scope": "candidate",
+      "cell": "helm/08-sealed.png@7,3",
+      "warning": "slot-region-fringe-growth",
+      "atlas": "helm/08-sealed.png",
+      "atlasSha256": "4fe901316a8b896a97777c06e78bc43e52f70ed55e1c3521fbf73a5c4274eced",
+      "sourceProfile": "harin-equipped-sealed-v1.png",
+      "sourceProfileSha256": "8dca0ba9faca5029d41b9a403fcb8bc4079f86ed02a0b58223ef9cca588e3a96"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@2,2",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@3,3",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@5,0",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@5,1",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@5,2",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@5,3",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@7,0",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/00-iron.png@7,3",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/00-iron.png",
+      "atlasSha256": "d257ed30ba6db15d853edf881be983fe36ff5307d065c9398d21c75a1d7229c6",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/01-frost.png@7,0",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/01-frost.png",
+      "atlasSha256": "b6f0a63f2d65aeabeb66751da1d07c3c5ade8185e70dca38f33b9c912c9a12a5",
+      "sourceProfile": "harin-equipped-frost-v2.png",
+      "sourceProfileSha256": "1aa4e0d7bd02d36982f76716a3c77e4af6c5ad2799116328212e45add7ead028"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/07-void.png@2,2",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/07-void.png",
+      "atlasSha256": "966d7d9757393b4d3e5ae610be20ebd1f3626428b68ae040f617bc197ea20040",
+      "sourceProfile": "harin-equipped-void-v1.png",
+      "sourceProfileSha256": "f60bdd3a9b6050d4c3c61cb0ec4a2b7af95e7d3be57fa6db13146080804115c0"
+    },
+    {
+      "scope": "candidate",
+      "cell": "relic/08-sealed.png@7,3",
+      "warning": "undersized-or-detached-silhouette",
+      "atlas": "relic/08-sealed.png",
+      "atlasSha256": "3b51765dae546ad2afa5e4390f2c62f244f4170f473fcf7ada576c71172e1cc3",
+      "sourceProfile": "harin-equipped-sealed-v1.png",
+      "sourceProfileSha256": "8dca0ba9faca5029d41b9a403fcb8bc4079f86ed02a0b58223ef9cca588e3a96"
+    },
+    {
+      "scope": "candidate",
+      "cell": "weapon/00-iron.png@7,2",
+      "warning": "fragmented-silhouette",
+      "atlas": "weapon/00-iron.png",
+      "atlasSha256": "316a95f6e3a5329377ff5f43796b3d2e6d26bcb3bfd83cbb9e44bd8f5268a94f",
+      "sourceProfile": "harin-equipped-iron-v1.png",
+      "sourceProfileSha256": "e59a594e90cfe6a416b190e168709fc422c891954de9e0a6dc5aeb1200cac942"
+    },
+    {
+      "scope": "candidate",
+      "cell": "weapon/05-waraxe.png@1,0",
+      "warning": "detached-speckle-risk",
+      "atlas": "weapon/05-waraxe.png",
+      "atlasSha256": "a7ffcbc8a8dc3b5f519a5ed85ec2cf855ea28077f81e0680f11c96f973787603",
+      "sourceProfile": "harin-equipped-waraxe-v1.png",
+      "sourceProfileSha256": "f4d03e5d08b11834972c7b4fe1b9da561960833a6bec4998167c230e54abb9f0"
+    }
+  ]
+}

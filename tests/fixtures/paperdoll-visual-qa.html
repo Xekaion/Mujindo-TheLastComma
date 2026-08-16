@@ -35,27 +35,33 @@
     <script>
       const origin = "__PAPERDOLL_APP_ORIGIN__";
       const rig = __PAPERDOLL_RIG_MANIFEST__;
-      const slots = ["relic", "offhand", "weapon", "legs", "boots", "armor", "belt", "shoulders", "gloves", "helm"];
+      const slots = rig.slots;
+      const drawOrder = ["relic", "offhand", "weapon", "legs", "boots", "armor", "belt", "shoulders", "gloves", "helm"];
       const variants = rig.variantNames;
       const directionLabels = ["S", "SW", "W", "NW", "N", "NE", "E", "SE"];
       const facings = rig.frame.directionRows.map((authoredRow, direction) => [
         directionLabels[direction], authoredRow, direction,
       ]);
       const builds = [
-        ["본체", null],
-        ["철제 동일 세트", slots.map(() => 0)],
-        ["우주 동일 세트", slots.map(() => 9)],
-        ["10외형 혼합 A", slots.map((_, index) => index)],
-        ["10외형 혼합 B", slots.map((_, index) => 9 - index)],
+        ["BODY / NO EQUIPMENT", null],
+        ...slots.flatMap((activeSlot, activeIndex) =>
+          variants.map((variantName, variant) => [
+            `${activeSlot}/${String(variant).padStart(2, "0")}-${variantName}`,
+            slots.map((_, slotIndex) => slotIndex === activeIndex ? variant : null),
+          ]),
+        ),
+        ...rig.qaCompositeBuilds.map((build) => [build.label, build.variants]),
       ];
       const images = new Map();
       const renderTargets = [];
       const root = document.querySelector("#profiles");
       let failureCount = 0;
 
+      document.title = "Paperdoll QA — 100 items × 8 directions × 4 phases";
+      document.querySelector("h1").textContent = "장비 100개 단독 착용 · 3,200셀 실렌더 검수";
       document.querySelector("#rig-summary").textContent =
-        `${rig.version} · 공통 본체 + 장비 레이어 100개 · ${rig.frame.directionRows.length}방향 · ` +
-        `방향별 ${rig.frame.columns}걸음 · 바닥선 ${rig.frame.groundBaseline}/${rig.frame.height}`;
+        `${rig.version} · 단독 장비 100개 × ${rig.frame.directionRows.length}방향 × ` +
+        `${rig.frame.columns}걸음 = 3,200셀 · 바닥선 ${rig.frame.groundBaseline}/${rig.frame.height}`;
 
       function imageFor(path) {
         if (images.has(path)) return images.get(path);
@@ -67,14 +73,13 @@
         return image;
       }
       function layerPass(slot, direction) {
-        const backFacing = direction === 3 || direction === 4 || direction === 5;
-        if (slot === "relic") return backFacing ? "rear" : "front";
+        if (slot === "relic") return "front";
         if (slot === "weapon") return direction >= 2 && direction <= 5 ? "rear" : "front";
         if (slot === "offhand") return direction >= 4 && direction <= 7 ? "rear" : "front";
         return "body";
       }
       function layerPath(slot, variant) {
-        return `${rig.layerRoot}/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png`;
+        return `${rig.layerRoot}/${slot}/${String(variant).padStart(2, "0")}-${variants[variant]}.png?v=${encodeURIComponent(rig.assetRevision)}`;
       }
 
       for (const [name, loadout] of builds) {
@@ -94,11 +99,14 @@
           caption.textContent = label;
           figure.append(canvas, caption);
           grid.append(figure);
-          const layers = loadout === null ? [] : slots.map((slot, index) => ({
-            slot,
-            image: imageFor(layerPath(slot, loadout[index])),
-            pass: layerPass(slot, direction),
-          }));
+          const layers = loadout === null ? [] : drawOrder.flatMap((slot) => {
+            const variant = loadout[slots.indexOf(slot)];
+            return variant === null ? [] : [{
+              slot,
+              image: imageFor(layerPath(slot, variant)),
+              pass: layerPass(slot, direction),
+            }];
+          });
           renderTargets.push({ article, canvas, row: authoredRow, layers });
         }
       }
@@ -155,7 +163,15 @@
             image.naturalWidth === rig.frame.width * rig.frame.columns &&
             image.naturalHeight === rig.frame.height * rig.frame.directionRows.length,
         ).length;
-        document.querySelector("#status").textContent = `FRAME ${frame} · ${ready}/${images.size} 에셋 · 오류 ${failureCount} · 대기 ${missing}`;
+        document.querySelector("#status").textContent =
+          `100 ITEMS · 3,200 CELLS · FRAME ${frame} · ` +
+          `${ready}/${images.size} ASSETS · ERR ${failureCount} · WAIT ${missing}`;
+        document.body.dataset.qaItems = "100";
+        document.body.dataset.qaCells = "3200";
+        document.body.dataset.qaErrors = String(failureCount);
+        document.body.dataset.qaReady = String(
+          failureCount === 0 && missing === 0 && ready === images.size,
+        );
         frame = (frame + 1) % rig.frame.columns;
       }
       draw();

@@ -3,6 +3,7 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -33,15 +34,25 @@ import {
   settleCharacterWalkCycle,
 } from "./character-motion";
 import {
+  PAPERDOLL_BODY_ATLAS_HEIGHT,
+  PAPERDOLL_BODY_ATLAS_WIDTH,
   PAPERDOLL_BODY_PATH,
+  PAPERDOLL_GROUND_ANCHOR_RATIO,
   PAPERDOLL_WORLD_RENDER_HEIGHT,
   PAPERDOLL_WORLD_RENDER_WIDTH,
-  drawPaperdollCharacterDirect,
+  drawPaperdollCharacterDirectReport,
+  isPaperdollBodyAtlasReady,
   paperdollLayerPathsForLoadout,
+  paperdollLoadoutFromEquipment,
   paperdollLoadoutFromVisualGear,
   paperdollVisualCenterY,
+  resolvePaperdollLayerInfo,
 } from "./character-paperdoll";
 import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
+import {
+  countPaperdollAlphaPixels,
+  countPaperdollChangedPixels,
+} from "./paperdoll-runtime-pixels";
 import {
   EQUIPPED_RARITY_VFX_PATHS,
   drawEquippedRarityVfx,
@@ -81,7 +92,7 @@ import {
   MAX_PLAZA_BACKING_SCALE,
   canvasBackingDimensions,
 } from "./canvas-performance";
-import type { EquipmentLoadout } from "./equipment";
+import { EQUIPMENT_SLOTS, type EquipmentLoadout } from "./equipment";
 import {
   PLAZA_DASH_DURATION_SECONDS,
   PLAZA_PHANTOM_ACTIVATION_SECONDS,
@@ -174,6 +185,13 @@ export type PlazaConnectionState =
   | "online"
   | "reconnecting";
 
+/** Localhost visual QA override. It changes rendering only, never movement. */
+export type PlazaPaperdollQaPose = Readonly<{
+  key: string;
+  direction: HubFacing;
+  frame: 0 | 1 | 2 | 3;
+}>;
+
 export type PlazaHubProps = {
   character: PlazaCharacterIdentity;
   /** Local-only loadout. It is never copied into the public hub profile. */
@@ -185,6 +203,7 @@ export type PlazaHubProps = {
   localAuthoritativeMoving?: boolean;
   connectionState?: PlazaConnectionState;
   paused?: boolean;
+  paperdollQaPose?: PlazaPaperdollQaPose;
   onMoveIntent?: (intent: PlazaMoveIntent) => void;
   onDashIntent?: () => void;
   onPortalActivate?: (portal: PlazaPortalDefinition) => void;
@@ -203,8 +222,11 @@ type DrawPlayer = {
   facing: number;
   moving: boolean;
   walkCycle: number;
+  frameOverride?: number;
   gear: HubAppearance["gear"] | undefined;
   rarities: HubAppearance["rarities"] | undefined;
+  /** Canonical local loadout; remote actors fall back to public visual fields. */
+  loadout?: ReturnType<typeof paperdollLoadoutFromVisualGear>;
   local: boolean;
   stale: boolean;
 };
@@ -760,18 +782,150 @@ type PlazaPlayerDrawPlan = Readonly<{
 function createPlazaPlayerDrawPlan(player: DrawPlayer): PlazaPlayerDrawPlan {
   return {
     alpha: player.stale ? 0.44 : 1,
-    frame: characterRenderFrameIndex(
-      player.facing,
-      player.walkCycle,
-      player.moving,
+    frame:
+      player.frameOverride ??
+      characterRenderFrameIndex(
+        player.facing,
+        player.walkCycle,
+        player.moving,
+      ),
+    loadout:
+      player.loadout ??
+      paperdollLoadoutFromVisualGear(
+        player.gear,
+        "common",
+        0,
+        player.rarities,
+      ),
+  };
+}
+
+/**
+ * Rebuild the QA identity from the canonical loadout that the renderer is
+ * actually about to draw.  Never echo the requested QA key: doing so would
+ * let a stale or mismatched loadout satisfy the browser sweep.
+ */
+function paperdollQaRenderedKey(
+  plan: PlazaPlayerDrawPlan,
+  direction: number,
+): string | null {
+  const pieces = EQUIPMENT_SLOTS.flatMap((slot) => {
+    const piece = plan.loadout[slot];
+    return piece ? [piece] : [];
+  });
+  if (pieces.length === 1) {
+    const [piece] = pieces;
+    return `${piece.slot}/${String(piece.variant).padStart(2, "0")}/${direction}/${plan.frame}`;
+  }
+  if (pieces.length === EQUIPMENT_SLOTS.length) {
+    const variants = pieces
+      .map((piece) => String(piece.variant).padStart(2, "0"))
+      .join("-");
+    return `full/${variants}/${direction}/${plan.frame}`;
+  }
+  return null;
+}
+
+type PaperdollQaProbeCanvases = Readonly<{
+  blankBodyAtlas: HTMLCanvasElement;
+  layerDestination: HTMLCanvasElement;
+  bodyBaseline: HTMLCanvasElement;
+  compositeDestination: HTMLCanvasElement;
+}>;
+
+type PaperdollQaDestinationRender = Readonly<{
+  complete: boolean;
+  pixels: Uint8ClampedArray;
+}>;
+
+const EMPTY_PAPERDOLL_QA_PIXELS = new Uint8ClampedArray(0);
+
+function createPaperdollQaCanvas(width: number, height: number) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  return canvas;
+}
+
+function createPaperdollQaProbeCanvases(): PaperdollQaProbeCanvases {
+  return {
+    // The direct renderer requires a registered body atlas. Keeping this atlas
+    // transparent makes rear-pass equipment measurable without the mannequin
+    // legitimately occluding it.
+    blankBodyAtlas: createPaperdollQaCanvas(
+      PAPERDOLL_BODY_ATLAS_WIDTH,
+      PAPERDOLL_BODY_ATLAS_HEIGHT,
     ),
-    loadout: paperdollLoadoutFromVisualGear(
-      player.gear,
-      "common",
-      0,
-      player.rarities,
+    layerDestination: createPaperdollQaCanvas(
+      PAPERDOLL_WORLD_RENDER_WIDTH,
+      PAPERDOLL_WORLD_RENDER_HEIGHT,
+    ),
+    bodyBaseline: createPaperdollQaCanvas(
+      PAPERDOLL_WORLD_RENDER_WIDTH,
+      PAPERDOLL_WORLD_RENDER_HEIGHT,
+    ),
+    compositeDestination: createPaperdollQaCanvas(
+      PAPERDOLL_WORLD_RENDER_WIDTH,
+      PAPERDOLL_WORLD_RENDER_HEIGHT,
     ),
   };
+}
+
+function resetPaperdollQaDestination(
+  canvas: HTMLCanvasElement,
+): CanvasRenderingContext2D | null {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  context.setTransform(1, 0, 0, 1, 0, 0);
+  context.globalAlpha = 1;
+  context.globalCompositeOperation = "source-over";
+  context.imageSmoothingEnabled = false;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  return context;
+}
+
+function renderPaperdollQaDestination(
+  destination: HTMLCanvasElement,
+  bodyAtlas: CanvasImageSource,
+  layerSources: ReadonlyMap<string, HTMLImageElement>,
+  loadout: unknown,
+  direction: number,
+  frame: number,
+  expectedLayerCount: number,
+): PaperdollQaDestinationRender {
+  const context = resetPaperdollQaDestination(destination);
+  if (!context) {
+    return { complete: false, pixels: EMPTY_PAPERDOLL_QA_PIXELS };
+  }
+  try {
+    const result = drawPaperdollCharacterDirectReport(context, {
+      bodyAtlas,
+      layerSources,
+      loadout,
+      direction,
+      frame,
+      x: PAPERDOLL_WORLD_RENDER_WIDTH / 2,
+      y: PAPERDOLL_WORLD_RENDER_HEIGHT * PAPERDOLL_GROUND_ANCHOR_RATIO,
+      width: PAPERDOLL_WORLD_RENDER_WIDTH,
+      height: PAPERDOLL_WORLD_RENDER_HEIGHT,
+      alpha: 1,
+    });
+    const pixels = context.getImageData(
+      0,
+      0,
+      PAPERDOLL_WORLD_RENDER_WIDTH,
+      PAPERDOLL_WORLD_RENDER_HEIGHT,
+    ).data;
+    return {
+      complete:
+        result.drawn &&
+        result.complete &&
+        result.drawnLayerCount === expectedLayerCount,
+      pixels,
+    };
+  } catch {
+    return { complete: false, pixels: EMPTY_PAPERDOLL_QA_PIXELS };
+  }
 }
 
 function drawPlazaPlayerShadow(
@@ -803,10 +957,9 @@ function drawPlazaPlayerPaperdoll(
   bodyImage: HTMLImageElement | undefined,
   layerSources: ReadonlyMap<string, HTMLImageElement>,
 ) {
-  const appearanceDrawn = Boolean(
-    bodyImage?.complete &&
-      bodyImage.naturalWidth > 0 &&
-      drawPaperdollCharacterDirect(context, {
+  const result =
+    bodyImage?.complete && bodyImage.naturalWidth > 0
+      ? drawPaperdollCharacterDirectReport(context, {
         bodyAtlas: bodyImage,
         layerSources,
         loadout: plan.loadout,
@@ -817,9 +970,9 @@ function drawPlazaPlayerPaperdoll(
         width: PAPERDOLL_WORLD_RENDER_WIDTH,
         height: PAPERDOLL_WORLD_RENDER_HEIGHT,
         alpha: plan.alpha,
-      }),
-  );
-  if (!appearanceDrawn) {
+      })
+      : { drawn: false, complete: false, drawnLayerCount: 0 };
+  if (!result.drawn) {
     context.save();
     context.globalAlpha = plan.alpha;
     context.fillStyle = player.local ? "#9b3f43" : "#3b6973";
@@ -828,7 +981,7 @@ function drawPlazaPlayerPaperdoll(
     context.fill();
     context.restore();
   }
-  return appearanceDrawn;
+  return result;
 }
 
 function drawPlazaPlayerEquippedVfx(
@@ -842,7 +995,7 @@ function drawPlazaPlayerEquippedVfx(
   // Coarse remote players intentionally carry no rarity map. That avoids both
   // hidden rarity disclosure and needless plan allocation for the other 29
   // visible players; only the local actor and two detailed remotes reach VFX.
-  if (!appearanceDrawn || !player.rarities) return;
+  if (!appearanceDrawn || (!player.local && !player.rarities)) return;
   drawEquippedRarityVfx(context, {
     plan: resolveEquippedRarityVfxPlan(plan.loadout),
     images: rarityVfxImages,
@@ -927,6 +1080,7 @@ export default function PlazaHub({
   localAuthoritativeMoving = false,
   connectionState = "offline",
   paused = false,
+  paperdollQaPose,
   onMoveIntent,
   onDashIntent,
   onPortalActivate,
@@ -966,6 +1120,10 @@ export default function PlazaHub({
   const [paperdollImageStore] = useState(createBrowserPaperdollImageStore);
   const paperdollImagesRef = useRef(paperdollImageStore);
   const paperdollPathSignatureRef = useRef("");
+  const paperdollQaPoseRef = useRef(paperdollQaPose);
+  const paperdollQaProbeCanvasesRef = useRef<PaperdollQaProbeCanvases | null>(
+    null,
+  );
   const rarityVfxImagesRef = useRef<
     Partial<Record<EquippedRarityVfxTier, HTMLImageElement>>
   >({});
@@ -1004,6 +1162,19 @@ export default function PlazaHub({
   const characterPalette = character.appearance?.palette;
   const characterGear = character.appearance?.gear;
   const characterRarities = character.appearance?.rarities;
+  const localPaperdollLoadout = useMemo(
+    () =>
+      equipment !== null
+        ? paperdollLoadoutFromEquipment(equipment)
+        : paperdollLoadoutFromVisualGear(
+            characterGear,
+            "common",
+            0,
+            characterRarities,
+          ),
+    [characterGear, characterRarities, equipment],
+  );
+  const localPaperdollLoadoutRef = useRef(localPaperdollLoadout);
 
   const normalizedCharacter = useMemo(
     () => ({
@@ -1043,6 +1214,53 @@ export default function PlazaHub({
   useEffect(() => {
     normalizedCharacterRef.current = normalizedCharacter;
   }, [normalizedCharacter]);
+
+  useLayoutEffect(() => {
+    localPaperdollLoadoutRef.current = localPaperdollLoadout;
+    const paperdollImages = paperdollImagesRef.current;
+    const immediatePaths = new Set<string>(paperdollImages.keys());
+    immediatePaths.add(PAPERDOLL_BODY_PATH);
+    for (const path of paperdollLayerPathsForLoadout(localPaperdollLoadout)) {
+      immediatePaths.add(path);
+    }
+    // Request newly equipped local layers in this commit, not on the next
+    // 120 ms remote-visibility maintenance tick.  The next maintenance pass
+    // removes any paths that only belonged to the previous local loadout.
+    paperdollImages.reconcile(immediatePaths);
+    paperdollPathSignatureRef.current = "";
+  }, [localPaperdollLoadout]);
+
+  useLayoutEffect(() => {
+    paperdollQaPoseRef.current = paperdollQaPose;
+    const root = rootRef.current;
+    if (!root) return;
+    if (!paperdollQaPose) {
+      paperdollQaProbeCanvasesRef.current = null;
+      root.removeAttribute("data-paperdoll-qa-expected-key");
+      root.removeAttribute("data-paperdoll-qa-rendered-key");
+      root.removeAttribute("data-paperdoll-qa-ready");
+      root.removeAttribute("data-paperdoll-qa-direction");
+      root.removeAttribute("data-paperdoll-qa-frame");
+      root.removeAttribute("data-paperdoll-qa-expected-layer-count");
+      root.removeAttribute(
+        "data-paperdoll-qa-destination-verified-layer-count",
+      );
+      root.removeAttribute("data-paperdoll-qa-destination-alpha-pixel-count");
+      root.removeAttribute("data-paperdoll-qa-body-comparison-complete");
+      root.removeAttribute("data-paperdoll-qa-body-diff-pixel-count");
+      return;
+    }
+    root.dataset.paperdollQaExpectedKey = paperdollQaPose.key;
+    root.dataset.paperdollQaReady = "false";
+    root.dataset.paperdollQaDirection = String(paperdollQaPose.direction);
+    root.dataset.paperdollQaFrame = String(paperdollQaPose.frame);
+    root.removeAttribute("data-paperdoll-qa-rendered-key");
+    root.removeAttribute("data-paperdoll-qa-expected-layer-count");
+    root.removeAttribute("data-paperdoll-qa-destination-verified-layer-count");
+    root.removeAttribute("data-paperdoll-qa-destination-alpha-pixel-count");
+    root.removeAttribute("data-paperdoll-qa-body-comparison-complete");
+    root.removeAttribute("data-paperdoll-qa-body-diff-pixel-count");
+  }, [paperdollQaPose]);
 
   useEffect(() => {
     mobilityProfileRef.current = mobilityProfile;
@@ -1477,12 +1695,7 @@ export default function PlazaHub({
 
       const requiredLayerPaths = new Set<string>([PAPERDOLL_BODY_PATH]);
       for (const path of paperdollLayerPathsForLoadout(
-        paperdollLoadoutFromVisualGear(
-          normalizedCharacterRef.current.appearance?.gear,
-          "common",
-          0,
-          normalizedCharacterRef.current.appearance?.rarities,
-        ),
+        localPaperdollLoadoutRef.current,
       )) requiredLayerPaths.add(path);
       for (const player of renderableRemotePlayers.slice(
         0,
@@ -1924,31 +2137,145 @@ export default function PlazaHub({
         };
       });
       const localCharacter = normalizedCharacterRef.current;
+      const localQaPose = paperdollQaPoseRef.current;
       players.push({
         key: localCharacter.characterId,
         displayName: localCharacter.displayName,
         level: localCharacter.level,
         x: positionRef.current.x,
         y: positionRef.current.y,
-        facing: facingRef.current,
+        facing: localQaPose?.direction ?? facingRef.current,
         moving: movingRef.current,
         walkCycle: walkCycleRef.current,
+        frameOverride: localQaPose?.frame,
         gear: localCharacter.appearance?.gear,
         rarities: localCharacter.appearance?.rarities,
+        loadout: localPaperdollLoadoutRef.current,
         local: true,
         stale: false,
       });
       players.sort((left, right) => left.y - right.y || Number(left.local) - Number(right.local));
       for (const player of players) {
         const drawPlan = createPlazaPlayerDrawPlan(player);
+        const bodyImage = paperdollImages.get(PAPERDOLL_BODY_PATH);
+        const layerSources = paperdollImages.imageMap();
         drawPlazaPlayerShadow(context, player);
-        const appearanceDrawn = drawPlazaPlayerPaperdoll(
+        const appearanceDrawResult = drawPlazaPlayerPaperdoll(
           context,
           player,
           drawPlan,
-          paperdollImages.get(PAPERDOLL_BODY_PATH),
-          paperdollImages.imageMap(),
+          bodyImage,
+          layerSources,
         );
+        const appearanceDrawn = appearanceDrawResult.drawn;
+        if (player.local && localQaPose) {
+          const resolvedLayers = resolvePaperdollLayerInfo(
+            drawPlan.loadout,
+            player.facing,
+            layerSources,
+          );
+          const expectedLayerCount = paperdollLayerPathsForLoadout(
+            drawPlan.loadout,
+          ).length;
+          let probeCanvases = paperdollQaProbeCanvasesRef.current;
+          if (!probeCanvases) {
+            probeCanvases = createPaperdollQaProbeCanvases();
+            paperdollQaProbeCanvasesRef.current = probeCanvases;
+          }
+          let destinationVerifiedLayerCount = 0;
+          let destinationAlphaPixelCount = 0;
+          for (const layer of resolvedLayers) {
+            const piece = drawPlan.loadout[layer.slot];
+            if (!piece) continue;
+            const destinationRender = renderPaperdollQaDestination(
+              probeCanvases.layerDestination,
+              probeCanvases.blankBodyAtlas,
+              layerSources,
+              { [layer.slot]: piece },
+              player.facing,
+              drawPlan.frame,
+              1,
+            );
+            if (!destinationRender.complete) continue;
+            const alphaPixelCount = countPaperdollAlphaPixels(
+              destinationRender.pixels,
+            );
+            if (alphaPixelCount <= 0) continue;
+            destinationVerifiedLayerCount += 1;
+            destinationAlphaPixelCount += alphaPixelCount;
+          }
+          let bodyComparisonComplete = false;
+          let bodyDiffPixelCount = 0;
+          if (bodyImage) {
+            const bodyBaseline = renderPaperdollQaDestination(
+              probeCanvases.bodyBaseline,
+              bodyImage,
+              layerSources,
+              {},
+              player.facing,
+              drawPlan.frame,
+              0,
+            );
+            const compositeDestination = renderPaperdollQaDestination(
+              probeCanvases.compositeDestination,
+              bodyImage,
+              layerSources,
+              drawPlan.loadout,
+              player.facing,
+              drawPlan.frame,
+              expectedLayerCount,
+            );
+            if (bodyBaseline.complete && compositeDestination.complete) {
+              bodyDiffPixelCount = countPaperdollChangedPixels(
+                bodyBaseline.pixels,
+                compositeDestination.pixels,
+              );
+              bodyComparisonComplete = true;
+            }
+          }
+          const renderedKey = paperdollQaRenderedKey(
+            drawPlan,
+            player.facing,
+          );
+          const qaReady = Boolean(
+            appearanceDrawn &&
+              appearanceDrawResult.complete &&
+              appearanceDrawResult.drawnLayerCount === expectedLayerCount &&
+              renderedKey === localQaPose.key &&
+              isPaperdollBodyAtlasReady(bodyImage) &&
+              expectedLayerCount > 0 &&
+              destinationVerifiedLayerCount === expectedLayerCount &&
+              destinationAlphaPixelCount > 0 &&
+              bodyComparisonComplete &&
+              bodyDiffPixelCount > 0 &&
+              resolvedLayers.length === expectedLayerCount &&
+              resolvedLayers.every((layer) => layer.ready),
+          );
+          const root = rootRef.current;
+          if (
+            root?.dataset.paperdollQaExpectedKey === localQaPose.key
+          ) {
+            root.dataset.paperdollQaExpectedLayerCount = String(expectedLayerCount);
+            root.dataset.paperdollQaDestinationVerifiedLayerCount = String(
+              destinationVerifiedLayerCount,
+            );
+            root.dataset.paperdollQaDestinationAlphaPixelCount = String(
+              destinationAlphaPixelCount,
+            );
+            root.dataset.paperdollQaBodyComparisonComplete = String(
+              bodyComparisonComplete,
+            );
+            root.dataset.paperdollQaBodyDiffPixelCount = String(
+              bodyDiffPixelCount,
+            );
+            root.dataset.paperdollQaReady = String(qaReady);
+            if (qaReady && renderedKey) {
+              root.dataset.paperdollQaRenderedKey = renderedKey;
+            } else {
+              root.removeAttribute("data-paperdoll-qa-rendered-key");
+            }
+          }
+        }
         drawPlazaPlayerEquippedVfx(
           context,
           player,
@@ -2101,6 +2428,7 @@ export default function PlazaHub({
       <canvas
         ref={canvasRef}
         className="plaza-hub-canvas"
+        data-paperdoll-qa-canvas={paperdollQaPose ? "true" : undefined}
         tabIndex={0}
         aria-label="무진도 공동 광장. WASD 또는 방향키로 이동하고 Space로 회피하며 E 또는 Enter로 가까운 빛나는 벽면 문을 이용합니다. F는 가까운 기록자를 확인합니다. 바닥이나 문을 누르면 이동하고, 터치로 다른 플레이어를 누르거나 마우스로 우클릭하면 캐릭터 정보를 확인합니다."
         onPointerDown={handleCanvasPointer}

@@ -1,6 +1,17 @@
 {
   "schemaVersion": 1,
   "version": "v1",
+  "assetRevision": "9e03641a32e1e620611e78a4a26cf682fb9ca1e9e73a793bc0ff2751cea8a92a",
+  "assetIntegrity": {
+    "algorithm": "relative-path-sha256-lines-v1",
+    "atlasCount": 100,
+    "sourceAggregateSha256": "bd8bd90e752a3b86d59700c65939798c77dcee83251394f0970c313c35954b07",
+    "bodySha256": "9c62e1efe23325158af8362d2ac0291451afc28640b640ee3e45346d331a8705",
+    "silhouetteReferencePath": "asset-sources/paperdoll/paperdoll-slot-silhouette-reference-v2.json",
+    "silhouetteReferenceSha256": "09a8fa9c50f80ca1b41700923f9115f1e211ea54cd62f89ecf38931d3a0ceef5",
+    "warningAllowlistPath": "asset-sources/paperdoll/paperdoll-slot-region-warning-allowlist-v2.json",
+    "warningAllowlistSha256": "6d9385ff4f305b760a2b4bdf58acf7104a8130a663ff3c6e1702bbf31f1ee998"
+  },
   "bodyPath": "/assets/walk/harin-mannequin-v1.png",
   "layerRoot": "/assets/paperdoll/v1",
   "frame": {
@@ -25,6 +36,13 @@
     "legs",
     "boots",
     "relic"
+  ],
+  "qaCompositeBuilds": [
+    { "label": "same-iron", "variants": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0] },
+    { "label": "same-cosmic", "variants": [9, 9, 9, 9, 9, 9, 9, 9, 9, 9] },
+    { "label": "mixed-ascending", "variants": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    { "label": "mixed-descending", "variants": [9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
+    { "label": "mixed-alternating", "variants": [9, 0, 8, 1, 7, 2, 6, 3, 5, 4] }
   ],
   "anchorReport": {
     "auditPath": "paperdoll-rig-anchors.generated.json",

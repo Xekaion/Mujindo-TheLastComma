@@ -1,23 +1,16 @@
-"""Rigidly register Harin's authored held-item layers to the active v1 hands.
+"""Rebuild Harin's held layers from registered fitted-profile deltas.
 
-The original ``weapon`` and ``offhand`` atlases were partitioned from ten
-fully-equipped source sheets.  Those source avatars do not share the neutral
-mannequin's per-frame origin, so otherwise valid swords and shields can float
-several pixels away from Harin while walking.  This tool corrects only that
-registration error:
+The fitted source profiles do not share the neutral mannequin's per-frame
+origin.  This tool first registers each complete source frame through its
+shared red-hood landmark, then extracts weapon/offhand colour delta connected
+to the correct hand.  A clean owned-delta candidate may replace the primary
+only when it satisfies the same strict semantic gate, and a missing gait phase
+may be recovered only from the nearest phase in the same authored direction.
 
-* a shared red-hood landmark estimates each source-frame/body translation;
-* old fitted-profile alpha identifies the authored grip edge;
-* active mannequin alpha provides a side- and anatomy-bounded hand target;
-* every variant silhouette receives one integer rigid translation per cell;
-* no scaling, rotation, interpolation, repainting, or alpha synthesis occurs.
-
-Tiny/fully occluded authoring fragments are recorded explicitly and are not
-forced onto an arbitrary torso pixel.  Every visible source pixel must survive
-the translation, and a build fails on clipping, an empty cell, or alpha-mass
-change.  Keep the unregistered atlases under
-``asset-sources/paperdoll/held-gear-v1/original`` so the production assets can
-be rebuilt repeatedly without applying the translation twice.
+Every output cell is recomputed and must be non-empty, hand-connected, clear of
+body/foot core, and surrounded by two transparent pixels.  The preserved raw
+owned atlases under ``asset-sources/paperdoll/held-gear-v1/original`` and every
+current output/profile are SHA-256-bound in the generated report.
 """
 
 from __future__ import annotations
@@ -32,6 +25,8 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
+import paperdoll_semantic_held as semantic_held
+
 
 CELL_W, CELL_H = 256, 192
 ROWS, COLS = 8, 4
@@ -39,6 +34,8 @@ ATLAS_SIZE = (CELL_W * COLS, CELL_H * ROWS)
 VISIBLE_ALPHA = 8
 BODY_ALPHA = 16
 HELD_SLOTS = ("weapon", "offhand")
+SEMANTIC_REPORT_SCHEMA = 2
+SEMANTIC_REPORT_CONTRACT = "registered-delta-hand-connected-v2"
 VARIANTS = (
     ("00-iron.png", "harin-equipped-iron-v1.png"),
     ("01-frost.png", "harin-equipped-frost-v2.png"),
@@ -211,7 +208,10 @@ def estimate_registration(source_profile: Image.Image, body: Image.Image) -> Reg
 
 def weapon_is_left(authored_row: int) -> bool:
     # Authored rows: S, SE, E, NW, N, NE, W, SW.
-    return authored_row in (0, 1, 2, 6, 7)
+    # Verified against all fitted source profiles: E and SW place the blade
+    # on screen-right.  Treating those rows as left swaps weapon/offhand and
+    # makes foot armour look like a held item.
+    return authored_row in (0, 1, 6)
 
 
 def expected_left(slot: str, authored_row: int) -> bool:
@@ -705,6 +705,16 @@ def build(
     report_path: Path,
     preview_path: Path,
 ) -> dict[str, object]:
+    """Build hash-bound semantic held layers from preserved owned deltas.
+
+    The input atlases are the direction-correct raw ownership result produced
+    after clamped full-profile registration.  The primary candidate uses the
+    complete registered outfit delta so occluded grips are not lost; an owned-
+    delta candidate replaces only cells that violate the two-pixel gutter.
+    Truly empty cells borrow only another gait phase from the same authored
+    row.  No cross-direction fallback is permitted.
+    """
+
     body_path = workspace / "public/assets/walk/harin-mannequin-v1.png"
     walk_root = workspace / "public/assets/walk"
     body_atlas = Image.open(body_path).convert("RGBA")
@@ -716,8 +726,9 @@ def build(
     input_records: dict[str, dict[str, object]] = {}
     source_records: dict[str, dict[str, object]] = {}
     cells: list[dict[str, object]] = []
-    hand_mask_cache = {
-        (slot, row, column): hand_masks(
+    registrations_report: list[dict[str, object]] = []
+    semantic_mask_cache = {
+        (slot, row, column): semantic_held.semantic_masks(
             body_atlas.crop(frame_box(row, column)),
             slot,
             row,
@@ -736,14 +747,8 @@ def build(
         profile_atlas = Image.open(profile_path).convert("RGBA")
         if profile_atlas.size != ATLAS_SIZE:
             raise ValueError(f"source profile has invalid size: {profile_path}")
-        registrations = {
-            (row, column): estimate_registration(
-                profile_atlas.crop(frame_box(row, column)),
-                body_atlas.crop(frame_box(row, column)),
-            )
-            for row in range(ROWS)
-            for column in range(COLS)
-        }
+
+        variant_inputs: dict[str, Image.Image] = {}
         for slot in HELD_SLOTS:
             input_path = input_layers / slot / atlas_name
             atlas = Image.open(input_path).convert("RGBA")
@@ -756,35 +761,219 @@ def build(
                 else str(input_path),
                 "sha256": sha256(input_path),
             }
+            variant_inputs[slot] = atlas
+
+        bodies = {
+            (row, column): body_atlas.crop(frame_box(row, column))
+            for row in range(ROWS)
+            for column in range(COLS)
+        }
+        frames: dict[str, dict[tuple[int, int], Image.Image]] = {
+            slot: {} for slot in HELD_SLOTS
+        }
+        records: dict[tuple[str, int, int], dict[str, object]] = {}
+
+        for row in range(ROWS):
+            for column in range(COLS):
+                box = frame_box(row, column)
+                source_profile = profile_atlas.crop(box)
+                body_frame = bodies[(row, column)]
+                requested = estimate_registration(source_profile, body_frame)
+                minimum_x, maximum_x, minimum_y, maximum_y = safe_offset_range(
+                    source_profile
+                )
+                applied_x = clamp(requested.offset_x, minimum_x, maximum_x)
+                applied_y = clamp(requested.offset_y, minimum_y, maximum_y)
+                registered_profile = translate_frame(
+                    source_profile,
+                    applied_x,
+                    applied_y,
+                )
+                source_alpha = alpha_mass(source_profile)
+                registered_alpha = alpha_mass(registered_profile)
+                if source_alpha != registered_alpha:
+                    raise ValueError(
+                        f"clamped registration changed profile alpha: "
+                        f"{profile_name}@{row},{column} {source_alpha}->{registered_alpha}"
+                    )
+                residual_x = requested.offset_x - applied_x
+                residual_y = requested.offset_y - applied_y
+                full_delta_alpha = semantic_held.registered_delta_alpha(
+                    registered_profile,
+                    body_frame,
+                )
+                registrations_report.append(
+                    {
+                        "profile": profile_name,
+                        "variant": atlas_name[3:-4],
+                        "row": row,
+                        "column": column,
+                        "method": requested.method,
+                        "confidence": round(requested.confidence, 6),
+                        "requestedOffset": [requested.offset_x, requested.offset_y],
+                        "appliedOffset": [applied_x, applied_y],
+                        "residualOffset": [residual_x, residual_y],
+                        "clamped": [requested.offset_x, requested.offset_y]
+                        != [applied_x, applied_y],
+                        "alphaMassPreserved": True,
+                    }
+                )
+
+                for slot in HELD_SLOTS:
+                    masks = semantic_mask_cache[(slot, row, column)]
+                    raw_owned = variant_inputs[slot].crop(box)
+
+                    primary_seed = semantic_held.preliminary_held_layer(
+                        registered_profile,
+                        full_delta_alpha,
+                        masks,
+                    )
+                    primary_aligned, primary_alignment = (
+                        semantic_held.locally_align_held(
+                            primary_seed,
+                            masks,
+                            residual_x,
+                            residual_y,
+                        )
+                    )
+                    primary, primary_components = (
+                        semantic_held.semantic_component_filter(
+                            primary_aligned,
+                            masks,
+                        )
+                    )
+
+                    owned_aligned, owned_alignment = semantic_held.locally_align_held(
+                        raw_owned,
+                        masks,
+                        residual_x,
+                        residual_y,
+                    )
+                    owned, owned_components = semantic_held.semantic_component_filter(
+                        owned_aligned,
+                        masks,
+                    )
+
+                    chosen = primary
+                    resolution_method = "registered-full-delta"
+                    chosen_alignment = primary_alignment
+                    if (
+                        not semantic_held.passes_strict(primary, masks)
+                        and semantic_held.passes_strict(owned, masks)
+                    ):
+                        chosen = owned
+                        resolution_method = "owned-delta-padding-replacement"
+                        chosen_alignment = owned_alignment
+                    frames[slot][(row, column)] = chosen
+                    records[(slot, row, column)] = {
+                        "cell": f"{slot}/{atlas_name}@{row},{column}",
+                        "slot": slot,
+                        "variant": atlas_name[3:-4],
+                        "row": row,
+                        "column": column,
+                        "classification": "aligned-visible",
+                        "resolutionMethod": resolution_method,
+                        "registration": {
+                            "method": requested.method,
+                            "confidence": round(requested.confidence, 6),
+                            "requestedOffset": [requested.offset_x, requested.offset_y],
+                            "appliedProfileOffset": [applied_x, applied_y],
+                            "residualOffset": [residual_x, residual_y],
+                        },
+                        "alignment": chosen_alignment,
+                        "primary": {
+                            key: value
+                            for key, value in primary_components.items()
+                            if key != "componentRows"
+                        },
+                        "owned": {
+                            key: value
+                            for key, value in owned_components.items()
+                            if key != "componentRows"
+                        },
+                        "sourceVisiblePixels": int(
+                            image_mask(raw_owned, VISIBLE_ALPHA).sum()
+                        ),
+                        "sourceAlphaMass": alpha_mass(raw_owned),
+                    }
+
+        # Resolve any source-occluded primary cell from a gait phase in this
+        # exact authored direction.  Repaired phases may serve their opposite
+        # neighbour, matching the audited deterministic candidate build.
+        for slot in HELD_SLOTS:
+            for row in range(ROWS):
+                for column in range(COLS):
+                    masks = semantic_mask_cache[(slot, row, column)]
+                    current = frames[slot][(row, column)]
+                    if semantic_held.passes_strict(current, masks):
+                        continue
+                    if current.getchannel("A").getbbox() is None:
+                        recovered, recovery = semantic_held.recover_same_row_phase(
+                            frames[slot],
+                            bodies,
+                            slot,
+                            row,
+                            column,
+                        )
+                        frames[slot][(row, column)] = recovered
+                        records[(slot, row, column)]["resolutionMethod"] = recovery[
+                            "method"
+                        ]
+                        records[(slot, row, column)]["phaseRecovery"] = {
+                            key: value for key, value in recovery.items() if key != "metrics"
+                        }
+                    else:
+                        padded, padded_metrics = semantic_held.padded_candidate(
+                            current,
+                            masks,
+                        )
+                        if padded is None or padded_metrics is None:
+                            raise ValueError(
+                                f"semantic held cell cannot satisfy strict gate: "
+                                f"{slot}/{atlas_name}@{row},{column}"
+                            )
+                        frames[slot][(row, column)] = padded
+                        records[(slot, row, column)]["resolutionMethod"] = (
+                            "same-cell-padding-refine"
+                        )
+
+        for slot in HELD_SLOTS:
             aligned_atlas = Image.new("RGBA", ATLAS_SIZE, (0, 0, 0, 0))
             for row in range(ROWS):
                 for column in range(COLS):
-                    box = frame_box(row, column)
-                    source_frame = atlas.crop(box)
-                    source_profile = profile_atlas.crop(box)
-                    body_frame = body_atlas.crop(box)
-                    aligned_frame, metrics = align_frame(
-                        source_frame,
-                        source_profile,
-                        body_frame,
-                        slot,
-                        row,
-                        registrations[(row, column)],
-                        hand_mask_cache[(slot, row, column)],
-                    )
-                    aligned_atlas.alpha_composite(
-                        aligned_frame,
-                        (column * CELL_W, row * CELL_H),
-                    )
-                    cells.append(
+                    final = frames[slot][(row, column)]
+                    masks = semantic_mask_cache[(slot, row, column)]
+                    metrics = semantic_held.layer_metrics(final, masks)
+                    if not semantic_held.passes_strict(final, masks):
+                        raise ValueError(
+                            f"semantic held strict gate failed: "
+                            f"{slot}/{atlas_name}@{row},{column} {metrics}"
+                        )
+                    record = records[(slot, row, column)]
+                    alignment = record["alignment"]
+                    assert isinstance(alignment, dict)
+                    residual = alignment.get("residualOffset", [0, 0])
+                    local = alignment.get("localOffset", [0, 0])
+                    record.update(
                         {
-                            "cell": f"{slot}/{atlas_name}@{row},{column}",
-                            "slot": slot,
-                            "variant": atlas_name[3:-4],
-                            "row": row,
-                            "column": column,
                             **metrics,
+                            "gripContactPixels": metrics["handContactPixels"],
+                            "alphaMassBefore": record["sourceAlphaMass"],
+                            "alphaMassAfter": metrics["alphaMass"],
+                            "alphaMassPreserved": record["sourceAlphaMass"]
+                            == metrics["alphaMass"],
+                            "refinementOffset": list(local),
+                            "finalOffset": [
+                                int(residual[0]) + int(local[0]),
+                                int(residual[1]) + int(local[1]),
+                            ],
+                            "clipped": False,
                         }
+                    )
+                    cells.append(record)
+                    aligned_atlas.alpha_composite(
+                        final,
+                        (column * CELL_W, row * CELL_H),
                     )
             output_atlases[(slot, atlas_name)] = aligned_atlas
 
@@ -811,14 +1000,15 @@ def build(
         classification = str(cell["classification"])
         classifications[classification] = classifications.get(classification, 0) + 1
     report: dict[str, object] = {
-        "schemaVersion": 1,
+        "schemaVersion": SEMANTIC_REPORT_SCHEMA,
         "generator": "scripts/align_paperdoll_held_gear.py",
-        "contract": "integer-rigid-translate-only",
+        "contract": SEMANTIC_REPORT_CONTRACT,
         "body": {
             "path": str(body_path.relative_to(workspace)).replace("\\", "/"),
             "sha256": sha256(body_path),
         },
         "sourceProfiles": source_records,
+        "registrations": registrations_report,
         "inputs": input_records,
         "outputs": output_records,
         "preview": str(preview_path.relative_to(workspace)).replace("\\", "/")
@@ -834,13 +1024,27 @@ def build(
             "refinedCells": sum(
                 1 for cell in cells if cell["refinementOffset"] != [0, 0]
             ),
-            "alphaMassPreservedCells": sum(
-                1 for cell in cells if cell["alphaMassPreserved"]
-            ),
             "emptyCells": sum(1 for cell in cells if int(cell["visiblePixels"]) == 0),
             "clippedCells": sum(1 for cell in cells if cell["clipped"]),
             "bodyCorePixels": sum(int(cell["bodyCorePixels"]) for cell in cells),
             "footCorePixels": sum(int(cell["footCorePixels"]) for cell in cells),
+            "contactMisses": sum(
+                int(cell["handContactPixels"]) < 3 for cell in cells
+            ),
+            "paddingTwoFailures": sum(
+                not bool(cell["paddingTwoPass"]) for cell in cells
+            ),
+            "resolutionMethods": {
+                method: sum(cell["resolutionMethod"] == method for cell in cells)
+                for method in sorted(
+                    {str(cell["resolutionMethod"]) for cell in cells}
+                )
+            },
+            "registeredProfileCells": len(registrations_report),
+            "registeredProfileClippedCells": sum(
+                not bool(cell["alphaMassPreserved"])
+                for cell in registrations_report
+            ),
         },
         "perCell": cells,
     }
@@ -851,10 +1055,16 @@ def build(
     )
     summary = report["summary"]
     assert isinstance(summary, dict)
-    if summary["emptyCells"] or summary["clippedCells"]:
+    if (
+        summary["emptyCells"]
+        or summary["clippedCells"]
+        or summary["bodyCorePixels"]
+        or summary["footCorePixels"]
+        or summary["contactMisses"]
+        or summary["paddingTwoFailures"]
+        or summary["registeredProfileClippedCells"]
+    ):
         raise ValueError(f"held alignment integrity failed: {summary}")
-    if summary["alphaMassPreservedCells"] != len(cells):
-        raise ValueError(f"held alignment changed alpha mass: {summary}")
     return report
 
 
