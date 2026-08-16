@@ -412,12 +412,18 @@ test("runtime renders one complete map frame and uses only same-map clips at sea
 test("production assets omit retired standalone door overlays and superseded equipment atlases", async () => {
   const retiredPaths = [
     "public/assets/effects/room-doors-v2",
+    "public/assets/effects/room-doors-v3",
+    "public/assets/environment-tile-atlas.png",
     "public/assets/equipment/equipment-types.png",
     "public/assets/equipment/equipment-types-v2.png",
     "public/assets/equipment/equipment-types-v3.png",
     "public/assets/equipment/equipment-icons.png",
+    "public/assets/paperdoll/v2",
+    "public/assets/paperdoll/v5",
     "public/assets/ui/rarity-frames-v2.png",
     "public/assets/walk/proofreader-walk.png",
+    "public/assets/walk/withered-walk.png",
+    "public/assets/walk/harin-equipped-v3.png",
     "public/assets/effects/equipped-rarity-aura-source-v1.png",
     "public/assets/effects/room-portcullis-source-v1.png",
     "public/assets/characters-sprite-atlas-chroma.png",

@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[1]
 MAPS = ROOT / "public" / "assets" / "maps"
-DOORS = ROOT / "public" / "assets" / "effects" / "room-doors-v3"
+DOORS = ROOT / "asset-sources" / "legacy-arpg" / "room-doors-v3-retired"
 OUTPUT = ROOT / "tmp" / "door-qa"
 SIDES = ("north", "east", "south", "west")
 CROPS = {
