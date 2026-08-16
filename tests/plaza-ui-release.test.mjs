@@ -228,6 +228,19 @@ test("PlazaHub preloads distinct UI and world-space portal art with a cold-load 
     ),
     `${assetCollection.name} must be traversed by an Image-based preload effect`,
   );
+  const portalPreloadScope = preloadScopes.find(
+    (scope) => scope.includes(assetCollection.name) && scope.includes(worldAssetCollection.name),
+  );
+  assert.match(
+    portalPreloadScope,
+    /images\.get\(path\)\s*===\s*image[\s\S]*?images\.delete\(path\)/,
+    "an old StrictMode image error must not delete a newer scene image",
+  );
+  assert.match(
+    portalPreloadScope,
+    /removeEventListener\(\s*["']error["']\s*,\s*handleImageError\s*\)/,
+    "scene image cleanup must detach the owned error handler before clearing src",
+  );
 
   const drawPortal = namedFunction(sourceFile, "drawPortal");
   assert.ok(drawPortal?.body, "the portal renderer must remain an explicit drawPortal function");

@@ -1295,7 +1295,9 @@ export default function PlazaHub({
 
   useEffect(() => {
     const images = sceneImagesRef.current;
-    const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
+    const ownedImages: Array<
+      readonly [string, HTMLImageElement, () => void]
+    > = [];
     const sceneAssetPaths = new Set([
       PLAZA_MAP_PATH,
       ...Object.values(PLAZA_PORTAL_ART_PATHS),
@@ -1306,16 +1308,18 @@ export default function PlazaHub({
       const image = new Image();
       image.decoding = "async";
       image.fetchPriority = path === PLAZA_MAP_PATH ? "high" : "auto";
-      image.addEventListener("error", () => images.delete(path), {
-        once: true,
-      });
+      const handleImageError = () => {
+        if (images.get(path) === image) images.delete(path);
+      };
+      image.addEventListener("error", handleImageError, { once: true });
       image.src = path;
       images.set(path, image);
-      ownedImages.push([path, image]);
+      ownedImages.push([path, image, handleImageError]);
     }
     return () => {
-      for (const [path, image] of ownedImages) {
+      for (const [path, image, handleImageError] of ownedImages) {
         if (images.get(path) === image) images.delete(path);
+        image.removeEventListener("error", handleImageError);
         image.onload = null;
         image.onerror = null;
         image.removeAttribute("src");
