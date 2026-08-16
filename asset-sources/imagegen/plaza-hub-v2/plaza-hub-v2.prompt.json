@@ -1,0 +1,196 @@
+{
+  "schemaVersion": 1,
+  "asset": "plaza-hub-v2",
+  "assetVersion": 2,
+  "date": "2026-08-17",
+  "useCase": "stylized-concept",
+  "workflow": {
+    "generator": "OpenAI built-in image_gen",
+    "tool": "image_gen.imagegen",
+    "mode": "generate",
+    "callCount": 5,
+    "execution": "one independent built-in generation call per asset, with the same two reference images supplied to every call",
+    "transparencyStrategy": "flat #00FF00 chroma-key generation followed by local green-screen removal",
+    "notes": "The built-in generator returned 1254x1254 RGB PNGs. Each selected chroma-key source was resized first, then converted to an alpha PNG with the installed ImageGen chroma-removal helper. No CLI image model or model-native transparency was used."
+  },
+  "referenceImages": [
+    {
+      "id": "current-plaza-capture",
+      "kind": "conversation-attachment",
+      "locator": "C:/Users/49ka1/AppData/Local/Temp/codex-clipboard-544eda25-2d62-4113-b56a-185d0101fed0.png",
+      "role": "current gameplay composition, existing plaza UI density, portal placement, and overall gothic ARPG style reference; not an edit target",
+      "sha256": "61315544a1e671c5d0c539300f3c108ec48343c4e87fee1338703b830854b139",
+      "bytes": 3936154,
+      "size": [1946, 1208],
+      "mode": "RGB",
+      "versionControl": "external conversation input; the capture-time local path is not durable, so SHA-256 and image metadata are the canonical identity"
+    },
+    {
+      "id": "clean-plaza-environment",
+      "kind": "project-reference",
+      "path": "public/assets/maps/memory-plaza-v1.png",
+      "role": "clean plaza architecture, black-stone and aged-metal materials, banner language, lighting, and isometric game-camera context; not an edit target",
+      "sha256": "74b992c2b110672ffc8480f360d1b105bf30cc210e830b8dc3d15396ff1084ea",
+      "bytes": 3124613,
+      "size": [1672, 941],
+      "mode": "RGB"
+    }
+  ],
+  "promptAssembly": {
+    "rule": "For each built-in generation call, concatenate commonPrompt, then the matching requestPrompt. Supply both reference images in the order listed above.",
+    "commonPrompt": "Use case: stylized-concept\nAsset type: production 2D game asset for the shared plaza of a dark gothic action RPG\nInput images: Image 1 is the current gameplay/UI/style reference. Use it only to understand the live scene, UI density, portal placement, and early-2000s gothic ARPG art direction. Image 2 is the clean plaza environment/material/camera reference. Use it only for black-stone architecture, aged metal, banners, warm practical lighting, and the way large props read in the isometric plaza. Create a new isolated asset; do not reproduce characters, nameplates, menus, labels, or the reference images' complete composition.\nScene/backdrop: perfectly flat, uniform solid #00FF00 chroma-key background for later removal. No gradient, texture, floor plane, horizon, reflection, cast shadow, contact shadow, fog, or lighting variation in the green. Do not use #00FF00 in the asset.\nStyle/medium: polished hand-painted 2D dark-fantasy ARPG production art; blackened carved stone, forged iron, restrained aged bronze and antique gold, believable wear, crisp silhouettes, and dense detail that remains readable after downscaling. Match the game's solemn occult sanctuary rather than a clean modern UI or cartoon style.\nComposition/framing: exactly one centered, front-facing asset on a square canvas, fully visible with generous even chroma-key padding on every side. Keep the silhouette symmetric and suitable for compositing over the plaza canvas or DOM UI.\nLighting/mood: restrained warm edge light and localized magical emissive light only; deep blacks, strong value separation, no global bloom washing out the materials.\nConstraints: no text, letters, numbers, labels, logos, watermark, characters, creatures, detached debris, extra props outside the requested asset, cropped edges, perspective tilt, premade game branding, or decorative scene background. Preserve a clean continuous green moat around the entire visible silhouette.",
+    "requests": [
+      {
+        "id": "sanctum-frame-v2",
+        "role": "frame",
+        "requestPrompt": "Primary request: create one large square gothic sanctuary HUD frame with an enormous calm rectangular opening in the center for live HTML content. Build the frame from layered blackened iron and carved dark stone with thin aged-bronze rims, compact beveled corner armor, small ember-red gems near the corners, restrained occult engraving, a narrow pointed sanctuary crest centered at the top, and a smaller matching point centered at the bottom. Add two slim, dark crimson hanging-cloth insets low on the side pillars, integrated into the frame rather than floating. The central opening must occupy most of the canvas and remain completely unobstructed green so it becomes transparent. Keep all ornament inside a consistent frame thickness and make the four sides visually continuous for border-image or full-frame rendering. Avoid text, skulls, giant wings, oversized gemstones, bright fire, thick columns that consume the content area, broken corners, and any object inside the center opening."
+      },
+      {
+        "id": "portal-expedition-v2",
+        "role": "expedition",
+        "requestPrompt": "Primary request: create one monumental expedition portal for the north side of the plaza. Use a tall pointed black-stone arch reinforced with forged iron and thin aged-gold runic trim, a restrained spear-like crown, symmetrical side buttresses, dark crimson expedition banners, chains, and two small brazier pedestals. Inside the opening, render a deep crimson-red magical rift with a warm ivory core and controlled ember specks. The silhouette must feel dangerous, aspirational, and suitable for THE ENDLESS EXPEDITION, using the runtime identity colors #DE5662 and #FFD7A2 without text. Keep the lower threshold readable and the complete portal isolated; no surrounding wall, floor, player, signage, floating title, or green contamination inside the stonework."
+      },
+      {
+        "id": "portal-duel-v2",
+        "role": "duel",
+        "requestPrompt": "Primary request: create one severe ritual duel portal. Use a tall pointed blackened-steel and dark-stone arch with cold silver edges, aggressive symmetric spires, an amethyst rune crest, and two monumental vertical sword ornaments integrated into the side towers. Inside the opening, render a dense violet-black energy veil with a bright amethyst core and restrained branching arcane filaments. The silhouette must communicate competitive MEMORY DUEL combat, discipline, and lethal symmetry, using the runtime identity colors #8D5CFF and #D6C2FF without text. Keep every sword and spire attached to the structure and the full base visible; no combatants, shields, arena scene, blood, lettering, floating UI, surrounding floor, or cropped blades."
+      },
+      {
+        "id": "portal-exchange-v2",
+        "role": "exchange",
+        "requestPrompt": "Primary request: create one dignified memory-exchange portal. Use a tall dark-masonry arch with aged-brass trim, restrained civic-gothic towers, a balanced-scales crest at the crown, fine chain motifs, green wax-seal or coin details, two closed ledger books on symmetric stone desks, and small antique vessels integrated at the lower sides. Inside the opening, render a deep teal crystalline rift with a soft warm-white core and subtle geometric currents. The silhouette must communicate a trustworthy occult market and MEMORY EXCHANGE, using the runtime identity colors #42D8C5 and #D1FFF4 without text. Keep trade symbols decorative and secondary; no loose coins, price labels, shopkeeper, stalls, readable book text, modern banking imagery, surrounding floor, or cropped props."
+      },
+      {
+        "id": "portal-caravan-v2",
+        "role": "caravan",
+        "requestPrompt": "Primary request: create one inviting but still solemn memory-caravan portal. Use a tall black-stone travel arch with aged-bronze and antique-gold edging, a compass-rose crest, compact side spires, dark burgundy travel pennants, chains, and warm hanging lanterns. Integrate a small, orderly cluster of expedition luggage at the lower sides: closed reinforced chests, one leather pack, and rolled supplies, all attached visually to the portal base and never blocking the doorway. Inside the opening, render a luminous amber-gold rift with a warm ivory core and controlled swirling light. The silhouette must communicate supplies, account services, and MEMORY CARAVAN travel, using the runtime identity colors #E8AD48 and #FFF0BB without text. No merchant, wagon, horse, scattered loot, labels, readable compass letters, surrounding floor, or cropped luggage."
+      }
+    ]
+  },
+  "postProcessing": {
+    "order": [
+      "resize selected RGB chroma-key source",
+      "remove green chroma key and write final RGBA PNG"
+    ],
+    "resize": {
+      "library": "sharp",
+      "kernel": "lanczos3",
+      "fit": "fill",
+      "sourceSize": [1254, 1254],
+      "targets": {
+        "sanctum-frame-v2": [1024, 1024],
+        "portal-expedition-v2": [768, 768],
+        "portal-duel-v2": [768, 768],
+        "portal-exchange-v2": [768, 768],
+        "portal-caravan-v2": [768, 768]
+      },
+      "png": {
+        "compressionLevel": 9,
+        "adaptiveFiltering": true
+      },
+      "equivalentOperation": "sharp(input).resize({ width, height, fit: 'fill', kernel: 'lanczos3' }).png({ compressionLevel: 9, adaptiveFiltering: true })"
+    },
+    "chromaRemoval": {
+      "helper": "${CODEX_HOME}/skills/.system/imagegen/scripts/remove_chroma_key.py",
+      "arguments": [
+        "--auto-key",
+        "border",
+        "--soft-matte",
+        "--transparent-threshold",
+        "12",
+        "--opaque-threshold",
+        "220",
+        "--despill"
+      ],
+      "equivalentCommand": "python ${CODEX_HOME}/skills/.system/imagegen/scripts/remove_chroma_key.py --input <resized-rgb-keyed.png> --out <production-output.png> --auto-key border --soft-matte --transparent-threshold 12 --opaque-threshold 220 --despill",
+      "intermediatePolicy": "resized RGB intermediates were temporary and are intentionally not version-controlled"
+    }
+  },
+  "files": [
+    {
+      "id": "sanctum-frame-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/sanctum-frame-v2-keyed.png",
+        "sha256": "f0640a95774faa597face94c3b483b968b38d061f7373d6a4c09f0640aae2dcd",
+        "bytes": 1565467,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/ui/plaza-hub/sanctum-frame-v2.png",
+        "sha256": "a0fe2bea134fe0f7fdf2c2dc861562ea9259317dff8b656808a1e8dc7062c444",
+        "bytes": 645020,
+        "size": [1024, 1024],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-expedition-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-expedition-v2-keyed.png",
+        "sha256": "bc6b877fa901d19d3163d5bc9b087c92a3e6d2eff474cd3adfb15c3c59d27520",
+        "bytes": 1992106,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-expedition-v2.png",
+        "sha256": "237bb6a9cd6d5ae6fc4c4f1432714ee10132583267bd4adaa7477b10dbdea8db",
+        "bytes": 679412,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-duel-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-duel-v2-keyed.png",
+        "sha256": "bf35fff1b166ac34d06aeb98e99bb31ba67fe985d4f3220c6d124802f06e15d9",
+        "bytes": 2231628,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-duel-v2.png",
+        "sha256": "6bbb1ac3051cec57193b463a873b9f46e0ef9388e05189f704ae5c88c05e36bb",
+        "bytes": 771262,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-exchange-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-exchange-v2-keyed.png",
+        "sha256": "08df325696c2dc92e373a1f3ea1788e8c44c74e7eee189b0daee9bb824511986",
+        "bytes": 1932477,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-exchange-v2.png",
+        "sha256": "cff76ec78fafcdef7402313e6b37482aaaaaa49cabb60ea86f1a559c7a642d07",
+        "bytes": 639161,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    },
+    {
+      "id": "portal-caravan-v2",
+      "source": {
+        "path": "asset-sources/imagegen/plaza-hub-v2/portal-caravan-v2-keyed.png",
+        "sha256": "b95f02c303567de9e7c8196792ac6e6fd248f930071578ffe859f069f3160c1e",
+        "bytes": 2019396,
+        "size": [1254, 1254],
+        "mode": "RGB"
+      },
+      "output": {
+        "path": "public/assets/plaza/portal-caravan-v2.png",
+        "sha256": "875051410e90affa1a16d82a78bcf249f76804ae07029c061419a5a101571a4e",
+        "bytes": 670274,
+        "size": [768, 768],
+        "mode": "RGBA"
+      }
+    }
+  ]
+}

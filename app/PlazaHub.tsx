@@ -94,6 +94,12 @@ const LOCAL_HARD_SNAP_DISTANCE = 240;
 const REMOTE_SETTLE_DISTANCE = 0.75;
 const PORTAL_PULSE_SECONDS = 2.4;
 const PLAZA_MAP_PATH = "/assets/maps/memory-plaza-v1.png";
+export const PLAZA_PORTAL_ART_PATHS: Readonly<Record<PlazaPortalId, string>> = {
+  expedition: "/assets/plaza/portal-expedition-v2.png",
+  duel: "/assets/plaza/portal-duel-v2.png",
+  exchange: "/assets/plaza/portal-exchange-v2.png",
+  caravan: "/assets/plaza/portal-caravan-v2.png",
+};
 export const PLAZA_PLAYER_GROUND_OFFSET_Y = 8;
 export const PLAZA_PLAYER_SHADOW_CENTER_OFFSET_Y = 18;
 export const PLAZA_PLAYER_SHADOW_RADIUS_Y = 12;
@@ -520,70 +526,138 @@ function drawStall(
   context.restore();
 }
 
+function plazaPortalArtLayout(portal: PlazaPortalDefinition) {
+  if (portal.id === "expedition") {
+    return { x: portal.x, y: portal.y + 40, width: 330, height: 330 };
+  }
+  if (portal.id === "duel") {
+    return { x: portal.x + 42, y: portal.y, width: 310, height: 310 };
+  }
+  if (portal.id === "exchange") {
+    return { x: portal.x - 42, y: portal.y, width: 310, height: 310 };
+  }
+  return { x: portal.x, y: portal.y - 34, width: 326, height: 326 };
+}
+
+function plazaPortalLabelPoint(portal: PlazaPortalDefinition): PlazaPoint {
+  if (portal.id === "expedition") return { x: portal.x, y: portal.y + 205 };
+  if (portal.id === "duel") return { x: portal.x + 158, y: portal.y - 118 };
+  if (portal.id === "exchange") return { x: portal.x - 158, y: portal.y - 118 };
+  return { x: portal.x, y: portal.y - 210 };
+}
+
+function drawPortalGuidance(
+  context: CanvasRenderingContext2D,
+  portal: PlazaPortalDefinition,
+  player: PlazaPoint,
+  time: number,
+  nearby: boolean,
+  reducedMotion: boolean,
+) {
+  const approach = { x: portal.approachX, y: portal.approachY };
+  const pulse = reducedMotion ? 0.72 : 0.58 + Math.sin(time * 3.4) * 0.14;
+  context.save();
+  context.globalCompositeOperation = "lighter";
+  context.lineCap = "round";
+
+  if (!nearby) {
+    const route = context.createLinearGradient(player.x, player.y, approach.x, approach.y);
+    route.addColorStop(0, `${portal.hue}00`);
+    route.addColorStop(0.2, `${portal.hue}45`);
+    route.addColorStop(1, `${portal.accent}c7`);
+    context.strokeStyle = route;
+    context.lineWidth = 4;
+    context.setLineDash([3, 20]);
+    context.lineDashOffset = reducedMotion ? 0 : -time * 54;
+    context.beginPath();
+    context.moveTo(player.x, player.y + 20);
+    context.lineTo(approach.x, approach.y);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  context.translate(approach.x, approach.y + 18);
+  context.strokeStyle = portal.accent;
+  context.globalAlpha = pulse;
+  context.shadowColor = portal.hue;
+  context.shadowBlur = nearby ? 24 : 14;
+  context.lineWidth = nearby ? 4 : 2;
+  context.beginPath();
+  context.ellipse(0, 0, nearby ? 70 : 54, nearby ? 31 : 24, 0, 0, Math.PI * 2);
+  context.stroke();
+  context.globalAlpha *= 0.55;
+  context.beginPath();
+  context.ellipse(0, 0, nearby ? 47 : 34, nearby ? 20 : 15, 0, 0, Math.PI * 2);
+  context.stroke();
+  context.restore();
+}
+
 function drawPortal(
   context: CanvasRenderingContext2D,
   portal: PlazaPortalDefinition,
   time: number,
   selected: boolean,
+  nearby: boolean,
+  artwork: HTMLImageElement | undefined,
+  reducedMotion: boolean,
 ) {
-  const phase = (time % PORTAL_PULSE_SECONDS) / PORTAL_PULSE_SECONDS;
+  const animatedTime = reducedMotion ? 0 : time;
+  const phase = (animatedTime % PORTAL_PULSE_SECONDS) / PORTAL_PULSE_SECONDS;
   const pulse = 0.5 + Math.sin(phase * Math.PI * 2) * 0.5;
-  const horizontal = portal.id === "duel" || portal.id === "exchange";
+  const layout = plazaPortalArtLayout(portal);
   context.save();
-  context.translate(portal.x, portal.y);
-  if (horizontal) context.rotate(Math.PI / 2);
+  context.translate(layout.x, layout.y);
 
-  context.fillStyle = "rgba(0, 0, 0, .46)";
+  context.fillStyle = "rgba(0, 0, 0, .52)";
   context.beginPath();
-  context.ellipse(0, 96, 110, 34, 0, 0, Math.PI * 2);
+  context.ellipse(0, layout.height * 0.37, layout.width * 0.32, layout.height * 0.085, 0, 0, Math.PI * 2);
   context.fill();
 
-  context.shadowColor = portal.hue;
-  context.shadowBlur = 18 + pulse * 28 + (selected ? 18 : 0);
-  context.strokeStyle = portal.hue;
-  context.lineWidth = selected ? 11 : 8;
-  context.beginPath();
-  context.moveTo(-78, 86);
-  context.lineTo(-78, -34);
-  context.quadraticCurveTo(-78, -128, 0, -142);
-  context.quadraticCurveTo(78, -128, 78, -34);
-  context.lineTo(78, 86);
-  context.stroke();
-
-  const rift = context.createRadialGradient(0, -32, 8, 0, -32, 98);
-  rift.addColorStop(0, `${portal.accent}e8`);
-  rift.addColorStop(0.18, `${portal.hue}a8`);
-  rift.addColorStop(0.65, `${portal.hue}28`);
+  const rift = context.createRadialGradient(0, 6, 4, 0, 6, layout.width * 0.42);
+  rift.addColorStop(0, `${portal.accent}${nearby ? "b8" : "80"}`);
+  rift.addColorStop(0.28, `${portal.hue}${selected ? "70" : "34"}`);
   rift.addColorStop(1, "rgba(4, 4, 8, 0)");
   context.fillStyle = rift;
   context.beginPath();
-  context.ellipse(0, -24, 75 + pulse * 5, 111 + pulse * 8, 0, 0, Math.PI * 2);
+  context.ellipse(0, 6, layout.width * (0.34 + pulse * 0.018), layout.height * 0.42, 0, 0, Math.PI * 2);
   context.fill();
 
-  context.rotate(time * 0.38 * (portal.id === "duel" ? -1 : 1));
-  context.strokeStyle = portal.accent;
-  context.globalAlpha = 0.42 + pulse * 0.34;
-  context.lineWidth = 2;
-  context.setLineDash([8, 12]);
-  context.beginPath();
-  context.arc(0, -24, 56, 0, Math.PI * 2);
-  context.stroke();
-  context.setLineDash([]);
+  if (artwork?.complete && artwork.naturalWidth > 0 && artwork.naturalHeight > 0) {
+    context.shadowColor = portal.hue;
+    context.shadowBlur = selected ? 16 + pulse * 14 : 5;
+    context.globalAlpha = selected ? 0.98 : 0.9;
+    context.drawImage(
+      artwork,
+      -layout.width / 2,
+      -layout.height / 2,
+      layout.width,
+      layout.height,
+    );
+  }
   context.restore();
 
+  const label = plazaPortalLabelPoint(portal);
   context.save();
   context.textAlign = "center";
   context.shadowColor = "#000";
-  context.shadowBlur = 9;
+  context.shadowBlur = 12;
+  context.globalAlpha = selected ? 1 : 0.86;
   context.fillStyle = "#f2ead8";
-  context.font = "700 25px serif";
-  const labelX = horizontal ? portal.x + (portal.id === "duel" ? 22 : -22) : portal.x;
-  const labelY = horizontal ? portal.y - 164 : portal.y + (portal.id === "caravan" ? -182 : 178);
-  context.fillText(portal.name, labelX, labelY);
+  context.font = "700 24px 'Noto Serif KR', Georgia, serif";
+  context.fillText(portal.name, label.x, label.y);
+  const titleWidth = Math.min(132, context.measureText(portal.name).width + 46);
+  context.strokeStyle = `${portal.hue}${selected ? "a8" : "5c"}`;
+  context.lineWidth = 1;
+  context.beginPath();
+  context.moveTo(label.x - titleWidth, label.y - 7);
+  context.lineTo(label.x - titleWidth * 0.52, label.y - 7);
+  context.moveTo(label.x + titleWidth * 0.52, label.y - 7);
+  context.lineTo(label.x + titleWidth, label.y - 7);
+  context.stroke();
   context.fillStyle = portal.accent;
-  context.font = "600 10px sans-serif";
-  context.letterSpacing = "1.8px";
-  context.fillText(portal.englishName, labelX, labelY + 19);
+  context.font = "700 10px Pretendard, sans-serif";
+  context.letterSpacing = "1.6px";
+  context.fillText(selected ? (nearby ? "GATE READY" : "GUIDANCE ACTIVE") : portal.englishName, label.x, label.y + 20);
   context.restore();
 }
 
@@ -758,6 +832,20 @@ function connectionLabel(state: PlazaConnectionState) {
   return "로컬 광장";
 }
 
+function connectionEyebrow(state: PlazaConnectionState) {
+  if (state === "online") return "SANCTUM ONLINE";
+  if (state === "connecting") return "OPENING CHANNEL";
+  if (state === "reconnecting") return "RESTORING CHANNEL";
+  return "LOCAL SANCTUM";
+}
+
+function portalActionLabel(id: PlazaPortalId) {
+  if (id === "expedition") return "원정으로 진입";
+  if (id === "duel") return "결투장 입장";
+  if (id === "exchange") return "거래소 열기";
+  return "기억상단 살펴보기";
+}
+
 export default function PlazaHub({
   character,
   equipment = null,
@@ -821,6 +909,7 @@ export default function PlazaHub({
   const lastSentIntentRef = useRef<Omit<PlazaMoveIntent, "sequence"> | null>(null);
   const nearPortalIdRef = useRef<PlazaPortalId | null>(null);
   const guidedPortalIdRef = useRef<PlazaPortalId | null>(null);
+  const reducedMotionRef = useRef(false);
   const onMoveIntentRef = useRef(onMoveIntent);
   const onDashIntentRef = useRef(onDashIntent);
   const onPlayerInspectRef = useRef(onPlayerInspect);
@@ -917,6 +1006,16 @@ export default function PlazaHub({
       moveHandler({ moveX: 0, moveY: 0, facing, sequence: sequenceRef.current });
     }
   }, [paused]);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => {
+      reducedMotionRef.current = preference.matches;
+    };
+    syncPreference();
+    preference.addEventListener("change", syncPreference);
+    return () => preference.removeEventListener("change", syncPreference);
+  }, []);
 
   const visibleRemotePlayers = useMemo(() => {
     const seen = new Set<string>();
@@ -1059,7 +1158,7 @@ export default function PlazaHub({
   useEffect(() => {
     const images = sceneImagesRef.current;
     const ownedImages: Array<readonly [string, HTMLImageElement]> = [];
-    for (const path of [PLAZA_MAP_PATH]) {
+    for (const path of [PLAZA_MAP_PATH, ...Object.values(PLAZA_PORTAL_ART_PATHS)]) {
       if (images.has(path)) continue;
       const image = new Image();
       image.decoding = "async";
@@ -1155,6 +1254,12 @@ export default function PlazaHub({
       if ((key === "e" || key === "enter") && !event.repeat) {
         event.preventDefault();
         activateNearbyPortal();
+      }
+      if (key === "escape" && guidedPortalIdRef.current && !event.repeat) {
+        event.preventDefault();
+        pointerTargetRef.current = null;
+        setGuidedPortalId(null);
+        setNotice("포탈 길 안내를 취소했습니다.");
       }
       const portal = PLAZA_PORTALS.find((entry) => entry.hotkey === key);
       if (portal && !event.repeat) {
@@ -1580,12 +1685,27 @@ export default function PlazaHub({
         drawPlazaDecor(context, time);
         drawCentralSigil(context, time);
       }
+      const focusedPortalId = nearPortalIdRef.current ?? guidedPortalIdRef.current;
+      const focusedPortal = focusedPortalId ? plazaPortalById(focusedPortalId) : null;
+      if (focusedPortal) {
+        drawPortalGuidance(
+          context,
+          focusedPortal,
+          positionRef.current,
+          time,
+          nearPortalIdRef.current === focusedPortal.id,
+          reducedMotionRef.current,
+        );
+      }
       for (const portal of PLAZA_PORTALS) {
         drawPortal(
           context,
           portal,
           time,
-          portal.id === (nearPortalIdRef.current ?? guidedPortalIdRef.current),
+          portal.id === focusedPortalId,
+          portal.id === nearPortalIdRef.current,
+          sceneImagesRef.current.get(PLAZA_PORTAL_ART_PATHS[portal.id]),
+          reducedMotionRef.current,
         );
       }
 
@@ -1836,84 +1956,136 @@ export default function PlazaHub({
 
       <header className="plaza-hub-header" aria-label="현재 광장 정보">
         <div className="plaza-hub-title">
-          <small>MUJINDO SHARED SANCTUM</small>
-          <strong>망각의 교차광장</strong>
-          <span>끊어진 기억들이 다시 만나는 공동 성역</span>
+          <span className="plaza-location-crest" aria-hidden="true">
+            <i />
+          </span>
+          <div>
+            <small lang="en">MUJINDO SHARED SANCTUM</small>
+            <strong>망각의 교차광장</strong>
+            <span>끊어진 기억들이 다시 만나는 공동 성역</span>
+          </div>
         </div>
         <div className="plaza-hub-presence">
           <span className="plaza-hub-presence-dot" aria-hidden="true" />
           <div>
+            <small lang="en">{connectionEyebrow(connectionState)}</small>
             <strong>{connectionLabel(connectionState)}</strong>
-            <small>{Math.max(1, Math.floor(onlineCount))}명의 기록자 · 채널 01</small>
+            <span>CH 01 · {Math.max(1, Math.floor(onlineCount))}명</span>
           </div>
         </div>
       </header>
 
       <section className="plaza-character-plate" aria-label="선택한 캐릭터">
-        <small>RECORD 0{normalizedCharacter.saveSlot}</small>
-        <strong>{normalizedCharacter.displayName}</strong>
-        <span>LV.{normalizedCharacter.level}</span>
-        {onSelfInspect ? (
-          <button type="button" onClick={onSelfInspect}>
-            캐릭터 정보
-          </button>
-        ) : null}
-        {onInventoryOpen ? (
-          <button
-            type="button"
-            onClick={onInventoryOpen}
-            aria-keyshortcuts="I"
-          >
-            장비 확인 · I
-          </button>
-        ) : null}
-        {onExitToCharacterSelect ? (
-          <button type="button" onClick={onExitToCharacterSelect}>
-            캐릭터 변경
-          </button>
-        ) : null}
+        <span className="plaza-character-seal" aria-hidden="true">
+          {normalizedCharacter.saveSlot}
+        </span>
+        <div className="plaza-character-identity">
+          <small lang="en">RECORD 0{normalizedCharacter.saveSlot}</small>
+          <strong>{normalizedCharacter.displayName}</strong>
+          <span>
+            <b>LV.{normalizedCharacter.level}</b>
+            <i>최고 {normalizedCharacter.dungeonFloor}층</i>
+          </span>
+        </div>
+        <div className="plaza-character-actions">
+          {onSelfInspect ? (
+            <button type="button" onClick={onSelfInspect} aria-label="캐릭터 정보 열기">
+              <span aria-hidden="true">✦</span>
+              <small>기록</small>
+            </button>
+          ) : null}
+          {onInventoryOpen ? (
+            <button
+              type="button"
+              onClick={onInventoryOpen}
+              aria-keyshortcuts="I"
+              aria-label="장비 확인"
+            >
+              <span aria-hidden="true">◇</span>
+              <small>장비</small>
+              <kbd>I</kbd>
+            </button>
+          ) : null}
+          {onExitToCharacterSelect ? (
+            <button type="button" onClick={onExitToCharacterSelect} aria-label="캐릭터 변경">
+              <span aria-hidden="true">↶</span>
+              <small>변경</small>
+            </button>
+          ) : null}
+        </div>
       </section>
 
       <nav className="plaza-portal-directory" aria-label="광장 포탈 안내">
-        <div>
-          <small>PORTAL DIRECTORY</small>
-          <strong>이동할 포탈</strong>
+        <div className="plaza-portal-directory__heading">
+          <span aria-hidden="true" />
+          <small lang="en">MEMORY COMPASS</small>
+          <strong>갈림길을 선택하십시오</strong>
+          <span aria-hidden="true" />
         </div>
         {PLAZA_PORTALS.map((portal) => (
           <button
             type="button"
             key={portal.id}
             className={guidedPortalId === portal.id || nearPortalId === portal.id ? "is-active" : ""}
-            style={{ "--portal-color": portal.hue } as React.CSSProperties}
+            data-portal-id={portal.id}
+            style={
+              {
+                "--portal-color": portal.hue,
+                "--portal-art": `url("${PLAZA_PORTAL_ART_PATHS[portal.id]}")`,
+              } as React.CSSProperties
+            }
             onClick={() => guideToPortal(portal)}
-            aria-label={`${portal.name} 포탈 앞으로 이동`}
+            aria-label={`${portal.name} 포탈 길 안내`}
+            aria-keyshortcuts={portal.hotkey}
+            aria-pressed={guidedPortalId === portal.id || nearPortalId === portal.id}
           >
-            <kbd>{portal.hotkey}</kbd>
-            <span>
+            <span className="plaza-gate-art" aria-hidden="true" />
+            <span className="plaza-gate-copy">
+              <small lang="en">{portal.englishName}</small>
               <strong>{portal.name}</strong>
-              <small>{portal.englishName}</small>
+              <em>
+                {nearPortalId === portal.id
+                  ? "공명 완료"
+                  : guidedPortalId === portal.id
+                    ? "길 안내 중"
+                    : "길 안내"}
+              </em>
             </span>
+            <kbd>{portal.hotkey}</kbd>
           </button>
         ))}
       </nav>
 
-      <div className="plaza-hub-notice" role="status" aria-live="polite">
-        <span aria-hidden="true">◆</span>
-        {notice}
+      <div key={notice} className="plaza-hub-notice" role="status" aria-live="polite">
+        <span aria-hidden="true">✦</span>
+        <p>{notice}</p>
       </div>
 
       {nearPortal ? (
         <section
           className="plaza-portal-prompt"
-          style={{ "--portal-color": nearPortal.hue } as React.CSSProperties}
+          data-portal-id={nearPortal.id}
+          style={
+            {
+              "--portal-color": nearPortal.hue,
+              "--portal-art": `url("${PLAZA_PORTAL_ART_PATHS[nearPortal.id]}")`,
+            } as React.CSSProperties
+          }
           aria-label={`${nearPortal.name} 포탈`}
         >
-          <small>{nearPortal.englishName}</small>
-          <strong>{nearPortal.name}</strong>
-          <p>{nearPortal.description}</p>
-          <button type="button" onClick={() => activatePortal(nearPortal)}>
+          <span className="plaza-portal-prompt__art" aria-hidden="true" />
+          <div className="plaza-portal-prompt__copy">
+            <small lang="en">GATE RESONANCE · {nearPortal.englishName}</small>
+            <strong>{nearPortal.name}</strong>
+            <p>{nearPortal.description}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => activatePortal(nearPortal)}
+            aria-keyshortcuts="E Enter"
+          >
             <kbd>E</kbd>
-            포탈 이용
+            <span>{portalActionLabel(nearPortal.id)}</span>
           </button>
         </section>
       ) : null}
@@ -1963,13 +2135,19 @@ export default function PlazaHub({
         >
           ▶
         </button>
-        <button type="button" className="is-action" onClick={activateNearbyPortal}>
+        <button
+          type="button"
+          className="is-action"
+          onClick={activateNearbyPortal}
+          aria-label="가까운 포탈 이용"
+        >
           포탈
         </button>
         <button
           type="button"
           className="is-dash"
           aria-label="회피 대시"
+          aria-keyshortcuts="Space"
           onPointerDown={(event) => {
             event.preventDefault();
             queueDash();
@@ -1979,8 +2157,11 @@ export default function PlazaHub({
         </button>
       </div>
 
-      <p className="plaza-control-hint">
-        WASD / 방향키 이동 · <kbd>Space</kbd> 회피 · <kbd>I</kbd> 장비 확인 · <kbd>E</kbd> 포탈 이용 · 숫자 1–4 포탈 안내
+      <p className="plaza-control-hint" aria-label="조작 안내">
+        <span><kbd>WASD</kbd> 이동</span>
+        <span><kbd>Space</kbd> 회피</span>
+        <span><kbd>E</kbd> 포탈</span>
+        <span><kbd>1—4</kbd> 길 안내</span>
       </p>
     </main>
   );
