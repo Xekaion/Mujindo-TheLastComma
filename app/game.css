@@ -2769,32 +2769,6 @@ button.map-cell {
   }
 }
 
-/* Keep the full backpack from running hundreds of decorative sprite/filter
-   animations at once. Every card retains its authored first frame; only the
-   item being inspected or selected advances the effect atlases. */
-.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  > .inventory-screen-rarity-spectacle,
-.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  > .inventory-screen-rarity-aura,
-.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  > .inventory-screen-rarity-spectacle,
-.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  > .inventory-screen-rarity-aura,
-.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles::before,
-.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles::after,
-.inventory-screen-grid-item:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles > i,
-.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles::before,
-.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles::after,
-.inventory-screen-equipment-card:not(:hover):not(:focus-visible):not(.inventory-screen-item--selected)
-  .inventory-screen-rarity-sparkles > i {
-  animation-play-state: paused;
-}
-
 /* Divine forge inventory chamber V1 -----------------------------------
    The forge owns a centered, fixed-action chamber so the existing paper
    doll, enhancement workbench, and backpack never lose usable height. */
@@ -3640,7 +3614,10 @@ button.map-cell {
 /* All-rarity authored spectacle V4 --------------------------------------
    This transparent effect sits above the dark slot plate, below the item icon
    and fixed rarity frame. Its changing flames, wings, circles, and
-   constellations must never become the structural slot border. */
+   constellations must never become the structural slot border. The common
+   through epic and cosmic sheets paint at most 352px inside each 384px cell,
+   so -4.545% normalizes that paint to the square slot. Legendary and mythic
+   paint 320px and use -10% below. */
 .inventory-screen-rarity-spectacle {
   --inventory-rarity-spectacle-image: none;
   --inventory-rarity-spectacle-duration: 4.8s;
@@ -3652,7 +3629,7 @@ button.map-cell {
   --inventory-rarity-spectacle-saturation: 1;
   position: absolute;
   z-index: 1;
-  inset: -20%;
+  inset: -4.545%;
   display: block;
   overflow: visible;
   background-image: var(--inventory-rarity-spectacle-image);
@@ -3667,6 +3644,7 @@ button.map-cell {
   pointer-events: none;
   transform: translateZ(0);
   animation: inventory-rarity-spectacle-frames-v4 var(--inventory-rarity-spectacle-duration) steps(1, end) infinite;
+  animation-play-state: running;
 }
 
 .inventory-screen-rarity-spectacle--common {
@@ -3727,7 +3705,7 @@ button.map-cell {
   --inventory-rarity-spectacle-glow: 9px;
   --inventory-rarity-spectacle-brightness: 1.08;
   --inventory-rarity-spectacle-saturation: 1.18;
-  inset: -27%;
+  inset: -10%;
 }
 
 .inventory-screen-rarity-spectacle--mythic {
@@ -3739,7 +3717,7 @@ button.map-cell {
   --inventory-rarity-spectacle-glow: 11px;
   --inventory-rarity-spectacle-brightness: 1.1;
   --inventory-rarity-spectacle-saturation: 1.22;
-  inset: -29%;
+  inset: -10%;
 }
 
 .inventory-screen-rarity-spectacle--cosmic {
@@ -3751,7 +3729,6 @@ button.map-cell {
   --inventory-rarity-spectacle-glow: 13px;
   --inventory-rarity-spectacle-brightness: 1.12;
   --inventory-rarity-spectacle-saturation: 1.26;
-  inset: -31%;
 }
 
 .inventory-screen-grid-item:hover > .inventory-screen-rarity-spectacle,
@@ -10607,6 +10584,7 @@ button.equipment-slot-card:hover {
     radial-gradient(circle at 82% 54%, currentColor 0 0.9px, transparent 1.8px),
     radial-gradient(circle at 93% 27%, currentColor 0 0.7px, transparent 1.6px);
   animation: inventory-rarity-dust-drift 4.2s ease-in-out infinite;
+  animation-play-state: running;
 }
 
 .inventory-screen-rarity-sparkles::after {
@@ -10619,6 +10597,7 @@ button.equipment-slot-card:hover {
     radial-gradient(circle at 76% 87%, currentColor 0 1px, transparent 2px),
     radial-gradient(circle at 91% 70%, currentColor 0 0.8px, transparent 1.8px);
   animation: inventory-rarity-dust-drift-reverse 3.6s ease-in-out infinite;
+  animation-play-state: running;
 }
 
 .inventory-screen-rarity-sparkles > i {
@@ -10635,6 +10614,7 @@ button.equipment-slot-card:hover {
     0 0 var(--inventory-sparkle-glow) currentColor;
   will-change: opacity, transform;
   animation: inventory-rarity-star-twinkle var(--inventory-sparkle-duration) ease-in-out infinite;
+  animation-play-state: running;
 }
 
 .inventory-screen-rarity-sparkles > i::before,
@@ -11809,6 +11789,7 @@ button.equipment-slot-card:hover {
   pointer-events: none;
   transform: none;
   animation: inventory-rarity-aura-frames-v3 var(--inventory-rarity-aura-duration) steps(1, end) infinite;
+  animation-play-state: running;
   will-change: background-position, opacity;
 }
 

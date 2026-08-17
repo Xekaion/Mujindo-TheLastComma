@@ -8352,7 +8352,7 @@ test("rare and higher inventory gear uses authored animated border assets plus s
   }
   assert.match(
     auraCss,
-    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*1;[\s\S]{0,120}?inset:\s*-10%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,220}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,500}?animation:\s*inventory-rarity-aura-frames-v3/,
+    /\.inventory-screen-rarity-aura\s*\{[\s\S]{0,760}?z-index:\s*1;[\s\S]{0,120}?inset:\s*-10%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,220}?opacity:\s*var\(--inventory-rarity-aura-opacity\);[\s\S]{0,500}?animation:\s*inventory-rarity-aura-frames-v3[\s\S]{0,180}?animation-play-state:\s*running/,
     "the generated animation must stay above the base plate, below the icon, and animate while idle",
   );
   assert.match(
@@ -8483,8 +8483,23 @@ test("all eight inventory rarities use authored spectacle atlases without changi
   );
   assert.match(
     spectacleCss,
-    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*1;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4/,
+    /\.inventory-screen-rarity-spectacle\s*\{[\s\S]{0,640}?z-index:\s*1;[\s\S]{0,300}?inset:\s*-4\.545%;[\s\S]{0,300}?background-size:\s*400%\s+200%;[\s\S]{0,520}?animation:\s*inventory-rarity-spectacle-frames-v4[\s\S]{0,180}?animation-play-state:\s*running/,
     "the spectacle must animate above the base plate and below the item icon and fixed frame",
+  );
+  assert.match(
+    spectacleCss,
+    /\.inventory-screen-rarity-spectacle--legendary\s*\{[^}]*inset:\s*-10%;[\s\S]{0,220}?\.inventory-screen-rarity-spectacle--mythic\s*\{[^}]*inset:\s*-10%;/,
+    "legendary and mythic 320px paint bounds must fit the 384px atlas cell to the square slot",
+  );
+  assert.doesNotMatch(
+    spectacleCss,
+    /\.inventory-screen-rarity-spectacle--(?:legendary|mythic|cosmic)\s*\{[^}]*inset:\s*-(?:2[1-9]|3\d)%/,
+    "no animated rarity frame may expand beyond the square item slot",
+  );
+  assert.doesNotMatch(
+    css,
+    /inventory-screen-(?:grid-item|equipment-card):not\(:hover\)[\s\S]{0,1200}?animation-play-state:\s*paused/,
+    "idle inventory cards must keep animating without hover, focus, or selection",
   );
   assert.match(spectacleCss, /\.inventory-screen-grid-cell--salvage-mode \.inventory-screen-rarity-spectacle\s*\{[^}]*visibility:\s*visible;[^}]*animation-play-state:\s*running;/);
   assert.match(game, /loot-toast-icon-stage[\s\S]{0,260}?inventory-screen-rarity-spectacle--\$\{lootNotice\.rarity\}[\s\S]{0,180}?<GearIcon item=\{lootNotice\}/);
