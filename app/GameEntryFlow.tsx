@@ -144,6 +144,7 @@ const LOCAL_LOOT_VFX_SHOWCASE_MODES: readonly LocalLootVfxShowcaseMode[] = [
   "legendary",
   "mythic",
   "cosmic",
+  "crop-icons",
   "all",
 ];
 const LOCAL_PLAZA_SKILL_SHOWCASE_EQUIPMENT =

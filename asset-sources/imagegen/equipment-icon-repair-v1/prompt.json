@@ -1,0 +1,53 @@
+{
+  "version": 1,
+  "generator": "OpenAI built-in image_gen",
+  "useCase": "precise-object-edit",
+  "assetType": "gothic action-RPG equipment atlas icon repair",
+  "runtimeAtlas": "public/assets/equipment/equipment-types-v4.png",
+  "requests": [
+    {
+      "id": "oath-shield-draft",
+      "editTarget": "asset-sources/imagegen/equipment-icon-repair-v1/source-oath-shield-v1.png",
+      "output": "asset-sources/imagegen/equipment-icon-repair-v1/generated-oath-shield-chroma-v1.png",
+      "prompt": "Restore only the missing lower portion beneath the oath shield's unnatural horizontal cutoff. Continue the existing shield body into a complete gothic lower rim with a short centered tapered point. Keep the exact visible metal filigree, purple leather, gemstone, lighting, paint texture, perspective, scale, center, angle, and early-2000s Diablo-like 2D rendered style. Use a perfectly flat solid #00ff00 chroma-key background with no shadow, texture, gradient, floor, reflection, text, logo, watermark, extra objects, cropped edges, or glow aura."
+    },
+    {
+      "id": "oath-shield-refined",
+      "editTargets": [
+        "asset-sources/imagegen/equipment-icon-repair-v1/source-oath-shield-v1.png",
+        "asset-sources/imagegen/equipment-icon-repair-v1/generated-oath-shield-chroma-v1.png"
+      ],
+      "output": "asset-sources/imagegen/equipment-icon-repair-v1/generated-oath-shield-refined-chroma-v1.png",
+      "transparentOutput": "asset-sources/imagegen/equipment-icon-repair-v1/repaired-oath-shield-refined-v1.png",
+      "prompt": "Preserve the original broad shield proportions, angle, top edge, side silhouette, purple paneling, silver filigree, and central gemstone. Repair only the flat-cut lower edge with a short complete gothic lower rim and a small centered tapered point, adding about 12-15 percent to the original visible height without making it tall or narrow. Keep the early-2000s Diablo-like painted texture and exact palette. Use a perfectly flat solid #00ff00 chroma-key background with no shadow, texture, gradient, floor, reflection, text, logo, watermark, extra objects, cropped edges, or glow."
+    },
+    {
+      "id": "memory-gloves-final",
+      "editTarget": "asset-sources/imagegen/equipment-icon-repair-v1/source-memory-gloves-v1.png",
+      "output": "asset-sources/imagegen/equipment-icon-repair-v1/generated-memory-gloves-chroma-v1.png",
+      "transparentOutput": "asset-sources/imagegen/equipment-icon-repair-v1/repaired-memory-gloves-v1.png",
+      "prompt": "Restore only the missing lower fingertips beneath the memory-weaver gauntlets' unnatural horizontal cutoff. Continue each finger plate into complete separate articulated fingertips with natural rounded or subtly pointed ends. Preserve the exact teal enamel, dark steel, silver filigree, cuffs, highlights, pair orientation, scale, spacing, angle, and early-2000s Diablo-like 2D rendered style. Use a perfectly flat solid #00ff00 chroma-key background with no shadow, texture, gradient, floor, reflection, text, logo, watermark, extra objects, cropped edges, merged hands, or glow aura."
+    }
+  ],
+  "backgroundRemoval": {
+    "helper": "C:/Users/49ka1/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ]
+  },
+  "composition": {
+    "builder": "scripts/build_equipment_icon_repairs_v1.py",
+    "changedCells": [
+      { "displayName": "심홍 맹세방패", "iconIndex": 41, "column": 1, "row": 4 },
+      { "displayName": "각인된 기억직조 장갑", "iconIndex": 25, "column": 5, "row": 2 }
+    ],
+    "unchangedCells": 98
+  }
+}

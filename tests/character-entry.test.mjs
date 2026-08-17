@@ -205,6 +205,8 @@ test("localhost loot VFX QA bypasses slot hydration and remains memory-only", as
     canvas,
     /export type LocalLootVfxShowcaseMode =[\s\S]{0,240}?\| "common"[\s\S]{0,240}?\| "cosmic"[\s\S]{0,60}?\| "all";/,
   );
+  assert.match(canvas, /\| "crop-icons"/);
+  assert.match(flow, /LOCAL_LOOT_VFX_SHOWCASE_MODES[\s\S]{0,300}?"crop-icons"/);
   assert.match(page, /query\.enemyVfxShowcase !== undefined \|\| query\.lootVfxShowcase !== undefined/);
   assert.match(page, /localVfxShowcaseRequested=\{localVfxShowcaseRequested\}/);
   assert.match(

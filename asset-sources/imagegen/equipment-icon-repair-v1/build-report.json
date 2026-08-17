@@ -1,0 +1,72 @@
+{
+  "version": 1,
+  "builder": "scripts/build_equipment_icon_repairs_v1.py",
+  "generator": "OpenAI built-in image_gen",
+  "baselineAtlasSha256": "a1748ab0315ea40219aff021cd21c71a53bcafb900eaf1363fff6a1071a2099b",
+  "acceptedInputAtlasSha256": [
+    "8bd249f94471b957c4a6e0c87a77c237599df7d0326c50786af7bcc8e114bf96",
+    "a1748ab0315ea40219aff021cd21c71a53bcafb900eaf1363fff6a1071a2099b"
+  ],
+  "inputValidation": "full-file SHA-256 before decode",
+  "outputAtlas": "public/assets/equipment/equipment-types-v4.png",
+  "outputAtlasSha256": "8bd249f94471b957c4a6e0c87a77c237599df7d0326c50786af7bcc8e114bf96",
+  "unchangedCellCount": 98,
+  "repairs": [
+    {
+      "key": "oath-shield",
+      "displayName": "심홍 맹세방패",
+      "atlasCell": {
+        "column": 1,
+        "row": 4,
+        "size": [
+          280,
+          280
+        ]
+      },
+      "source": "asset-sources/imagegen/equipment-icon-repair-v1/repaired-oath-shield-refined-v1.png",
+      "sourceSha256": "1abda9693c1e7718083c8c3d830bc2a6ae20390a1b20d5decb2434d67c7d2aed",
+      "sourceBox": [
+        259,
+        87,
+        1014,
+        1106
+      ],
+      "targetBox": [
+        31,
+        28,
+        249,
+        252
+      ],
+      "originalCellRgbaSha256": "329de4514bfef7f3c44b3fefca70677e42d96176745ab86eba427cd6ee70c41a",
+      "outputCellRgbaSha256": "b413874f5d35517c4ad279ea83facefc513bcffe41517bed621a207837187d92"
+    },
+    {
+      "key": "memory-gloves",
+      "displayName": "각인된 기억직조 장갑",
+      "atlasCell": {
+        "column": 5,
+        "row": 2,
+        "size": [
+          280,
+          280
+        ]
+      },
+      "source": "asset-sources/imagegen/equipment-icon-repair-v1/repaired-memory-gloves-v1.png",
+      "sourceSha256": "12b258d560132f03c23e56e62ad45d9b6664b6de2a0a63d68180a063053c5daa",
+      "sourceBox": [
+        140,
+        184,
+        1109,
+        1131
+      ],
+      "targetBox": [
+        28,
+        28,
+        252,
+        252
+      ],
+      "originalCellRgbaSha256": "7b7666d107739b67bcc0246253c52369bf9d20bd308f7c1f57b8aaf404902274",
+      "outputCellRgbaSha256": "0adc14adc96de0d513c0d3667a6b7760007dcd71af5be738c4435d1f3e26b896"
+    }
+  ]
+}

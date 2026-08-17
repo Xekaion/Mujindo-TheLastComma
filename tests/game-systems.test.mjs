@@ -3384,6 +3384,126 @@ test("the v4 equipment atlas centers every cell and removes cross-row source fra
   assert.equal(countGreenChromaPixels(image), 0, `${relativePath} retains green spill`);
 });
 
+test("the oath shield and memory-weaver gloves finish with tapered lower silhouettes", async () => {
+  const equipment = await importTypeScriptModule("app/equipment.ts");
+  const relativePath = "public/assets/equipment/equipment-types-v4.png";
+  const atlasBytes = await readFile(path.join(root, relativePath));
+  const image = decodeRgbaPng(atlasBytes, relativePath);
+  const report = JSON.parse(
+    await readFile(
+      path.join(root, "asset-sources/imagegen/equipment-icon-repair-v1/build-report.json"),
+      "utf8",
+    ),
+  );
+  const builderSource = await readFile(
+    path.join(root, "scripts/build_equipment_icon_repairs_v1.py"),
+    "utf8",
+  );
+  const cases = [
+    {
+      label: "심홍 맹세방패",
+      slot: "offhand",
+      baseName: "심홍 맹세방패",
+      baseRow: 4,
+      column: 1,
+      row: 4,
+      iconIndex: 41,
+      seed: "local-loot-crop-shield-14",
+      rarity: "common",
+      originalHash: "329de4514bfef7f3c44b3fefca70677e42d96176745ab86eba427cd6ee70c41a",
+      outputHash: "b413874f5d35517c4ad279ea83facefc513bcffe41517bed621a207837187d92",
+    },
+    {
+      label: "각인된 기억직조 장갑",
+      slot: "gloves",
+      baseName: "기억직조 장갑",
+      baseRow: 2,
+      column: 5,
+      row: 2,
+      iconIndex: 25,
+      seed: "local-loot-crop-gloves-0",
+      rarity: "magic",
+      originalHash: "7b7666d107739b67bcc0246253c52369bf9d20bd308f7c1f57b8aaf404902274",
+      outputHash: "0adc14adc96de0d513c0d3667a6b7760007dcd71af5be738c4435d1f3e26b896",
+    },
+  ];
+
+  assert.equal(report.builder, "scripts/build_equipment_icon_repairs_v1.py");
+  assert.equal(report.generator, "OpenAI built-in image_gen");
+  assert.equal(report.unchangedCellCount, 98);
+  assert.equal(report.inputValidation, "full-file SHA-256 before decode");
+  assert.deepEqual(report.acceptedInputAtlasSha256.toSorted(), [
+    report.baselineAtlasSha256,
+    report.outputAtlasSha256,
+  ].toSorted());
+  assert.equal(
+    report.outputAtlasSha256,
+    createHash("sha256").update(atlasBytes).digest("hex"),
+    "the provenance report must describe the shipped atlas bytes",
+  );
+  const inputHashValidation = builderSource.indexOf(
+    "input_atlas_sha256 = sha256_file(atlas_path)",
+  );
+  const atlasDecode = builderSource.indexOf('atlas = Image.open(atlas_path).convert("RGBA")');
+  const outputHashValidation = builderSource.indexOf(
+    "output_atlas_sha256 = sha256_file(temporary_path)",
+  );
+  const atlasReplacement = builderSource.indexOf("temporary_path.replace(atlas_path)");
+  assert.ok(
+    inputHashValidation >= 0 &&
+      inputHashValidation < atlasDecode &&
+      outputHashValidation > atlasDecode &&
+      outputHashValidation < atlasReplacement,
+    "the repair builder must reject full-atlas drift before decode and verify output before replace",
+  );
+
+  for (const repair of cases) {
+    assert.equal(equipment.GEAR_BASE_NAMES[repair.slot][repair.baseRow], repair.baseName);
+    assert.equal(equipment.gearIconIndex(repair.slot, repair.baseName), repair.iconIndex);
+    assert.deepEqual(equipment.gearIconCell(repair.iconIndex), {
+      column: repair.column,
+      row: repair.row,
+    });
+    const showcaseItem = equipment.rollGear(repair.seed, {
+      level: 1,
+      slot: repair.slot,
+      rarity: repair.rarity,
+    });
+    assert.equal(showcaseItem.baseName, repair.baseName);
+    assert.equal(showcaseItem.iconIndex, repair.iconIndex);
+    assert.equal(equipment.formatGearDisplayName(showcaseItem), repair.label);
+
+    const cell = rgbaCellBuffer(image, repair.column, repair.row, 10, 10, repair.label);
+    const cellHash = createHash("sha256").update(cell).digest("hex");
+    assert.notEqual(cellHash, repair.originalHash, `${repair.label} regressed to the cropped source`);
+    assert.equal(cellHash, repair.outputHash, `${repair.label} repair pixels drifted`);
+
+    const rowWidths = [];
+    for (let y = 0; y < 280; y += 1) {
+      let width = 0;
+      for (let x = 0; x < 280; x += 1) {
+        if (cell[(y * 280 + x) * 4 + 3] >= 42) width += 1;
+      }
+      rowWidths.push(width);
+    }
+    let finalRow = rowWidths.length - 1;
+    while (finalRow >= 0 && rowWidths[finalRow] === 0) finalRow -= 1;
+    const maximumRowWidth = Math.max(...rowWidths);
+    const terminalRows = rowWidths.slice(finalRow - 5, finalRow + 1);
+    assert.ok(finalRow >= 245, `${repair.label} no longer reaches its authored lower point`);
+    assert.ok(
+      rowWidths[finalRow] <= maximumRowWidth * 0.08,
+      `${repair.label} ends in a wide horizontal cutoff instead of a point`,
+    );
+    for (let index = 1; index < terminalRows.length; index += 1) {
+      assert.ok(
+        terminalRows[index] <= terminalRows[index - 1],
+        `${repair.label} lower silhouette does not taper continuously`,
+      );
+    }
+  }
+});
+
 test("equipment exposes one hundred base-name icons in a ten-column by ten-row atlas", async () => {
   const equipment = await importTypeScriptModule("app/equipment.ts");
 
@@ -6256,9 +6376,37 @@ test("enemy bodies, teleports, summons, and death loot stay on the walkable room
       arrivalEffect < arrivalShot,
     "ordinary teleport must apply its radius-safe target before VFX and firing",
   );
-  assert.match(
-    source,
-    /const safePosition = safeWalkableFloorPoint\([\s\S]{0,180}?GEAR_DROP_WALL_CLEARANCE[\s\S]{0,320}?x: safePosition\.x,[\s\S]{0,80}?y: safePosition\.y[\s\S]{0,220}?spawnLootAwakening\(safePosition\.x, safePosition\.y, rarity, false\)/,
+  const localShowcaseStart = source.indexOf(
+    "for (const [index, rarity] of lootVfxShowcaseRarities.entries())",
+  );
+  const localShowcaseEnd = source.indexOf(
+    "const spawnLocalEnemyVfxShowcase",
+    localShowcaseStart,
+  );
+  const localShowcaseBlock = source.slice(localShowcaseStart, localShowcaseEnd);
+  const localSafePosition = localShowcaseBlock.indexOf(
+    "const safePosition = safeWalkableFloorPoint(",
+  );
+  const localWallClearance = localShowcaseBlock.indexOf(
+    "GEAR_DROP_WALL_CLEARANCE",
+    localSafePosition,
+  );
+  const localDropPush = localShowcaseBlock.indexOf("world.gearDrops.push({", localWallClearance);
+  const localDropX = localShowcaseBlock.indexOf("x: safePosition.x,", localDropPush);
+  const localDropY = localShowcaseBlock.indexOf("y: safePosition.y,", localDropX);
+  const localAwakening = localShowcaseBlock.indexOf(
+    "spawnLootAwakening(safePosition.x, safePosition.y, rarity, false)",
+    localDropY,
+  );
+  assert.ok(
+    localShowcaseStart >= 0 &&
+      localShowcaseEnd > localShowcaseStart &&
+      localSafePosition >= 0 &&
+      localSafePosition < localWallClearance &&
+      localWallClearance < localDropPush &&
+      localDropPush < localDropX &&
+      localDropX < localDropY &&
+      localDropY < localAwakening,
     "the local VFX showcase must preserve the same GearDrop invariant",
   );
 });
@@ -9924,6 +10072,7 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
     "an explicit memory-only prop must win, and the query fallback must stay local",
   );
   assert.match(source, /lootVfxShowcaseMode === "all"\s*\? EQUIPMENT_RARITIES/);
+  assert.match(source, /lootVfxShowcaseMode === "crop-icons"/);
   assert.match(
     source,
     /const localDeathUiShowcase\s*=\s*isLocalVfxShowcase\s*&&\s*isLocalRarityShowcaseHost\(\)\s*&&[\s\S]{0,120}?get\("deathUiShowcase"\) === "1"/,
@@ -9940,6 +10089,8 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
     entrySource,
     /const LOCAL_LOOT_VFX_SHOWCASE_MODES:[\s\S]{0,280}?"common"[\s\S]{0,280}?"cosmic"[\s\S]{0,60}?"all"/,
   );
+  assert.match(entrySource, /"crop-icons"/);
+  assert.match(audioProvider, /LOCAL_LOOT_VFX_SHOWCASE_MODES[\s\S]{0,260}?"crop-icons"/);
   assert.match(entrySource, /const requestedLootMode = search\.get\("lootVfxShowcase"\);/);
   assert.match(
     entrySource,
@@ -9985,9 +10136,19 @@ test("the field-loot showcase is localhost-only, memory-only, and uses productio
   assert.match(showcase[0], /lootVfxShowcaseSpawnedRef\.current/);
   assert.match(showcase[0], /modeRef\.current !== "playing"/);
   assert.match(
-    showcase[0],
-    /const item = rollGear\(`local-loot-vfx-\$\{rarity\}`,[\s\S]{0,160}?rarity,/,
+    source,
+    /const item = cropIconSpec[\s\S]{0,420}?: rollGear\(`local-loot-vfx-\$\{rarity\}`,[\s\S]{0,160}?rarity,/,
     "showcase items must be produced by the real gear roller with a forced rarity",
+  );
+  assert.match(
+    source,
+    /local-loot-crop-shield-14[\s\S]{0,180}?rarity: "common"[\s\S]{0,180}?slot: "offhand"/,
+    "the crop QA route must spawn the exact oath-shield cell",
+  );
+  assert.match(
+    source,
+    /local-loot-crop-gloves-0[\s\S]{0,180}?rarity: "magic"[\s\S]{0,180}?slot: "gloves"/,
+    "the crop QA route must spawn the exact memory-gloves cell",
   );
   assert.match(
     showcase[0],

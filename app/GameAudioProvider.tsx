@@ -46,6 +46,7 @@ const LOCAL_LOOT_VFX_SHOWCASE_MODES = new Set([
   "legendary",
   "mythic",
   "cosmic",
+  "crop-icons",
   "all",
 ]);
 const LOCAL_ENEMY_VFX_SHOWCASE_MODES = new Set([

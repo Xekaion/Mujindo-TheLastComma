@@ -2461,6 +2461,7 @@ export type LocalLootVfxShowcaseMode =
   | "legendary"
   | "mythic"
   | "cosmic"
+  | "crop-icons"
   | "all";
 
 export default function GameCanvas({
@@ -5133,12 +5134,27 @@ export default function GameCanvas({
     const requestedLootVfxRarity = EQUIPMENT_RARITIES.find(
       (rarity) => rarity === lootVfxShowcaseMode,
     );
+    const lootIconCropShowcaseSpecs = [
+      {
+        seed: "local-loot-crop-shield-14",
+        rarity: "common",
+        slot: "offhand",
+      },
+      {
+        seed: "local-loot-crop-gloves-0",
+        rarity: "magic",
+        slot: "gloves",
+      },
+    ] as const;
+    const isLootIconCropShowcase = lootVfxShowcaseMode === "crop-icons";
     const lootVfxShowcaseRarities =
-      lootVfxShowcaseMode === "all"
-        ? EQUIPMENT_RARITIES
-        : requestedLootVfxRarity
-          ? [requestedLootVfxRarity]
-          : [];
+      isLootIconCropShowcase
+        ? lootIconCropShowcaseSpecs.map(({ rarity }) => rarity)
+        : lootVfxShowcaseMode === "all"
+          ? EQUIPMENT_RARITIES
+          : requestedLootVfxRarity
+            ? [requestedLootVfxRarity]
+            : [];
     const enemyVfxShowcaseMode =
       localEnemyVfxShowcase ??
       (isLocalRarityShowcaseHost()
@@ -5420,6 +5436,10 @@ export default function GameCanvas({
         { x: 780, y: 500 },
         { x: 1060, y: 500 },
       ];
+      const cropIconShowcasePositions = [
+        { x: WIDTH / 2 - 170, y: HEIGHT / 2 + 70 },
+        { x: WIDTH / 2 + 170, y: HEIGHT / 2 + 70 },
+      ];
       const world = worldRef.current;
       world.enemies = [];
       world.projectiles = [];
@@ -5434,18 +5454,29 @@ export default function GameCanvas({
       }
       for (const [index, rarity] of lootVfxShowcaseRarities.entries()) {
         const position =
-          lootVfxShowcaseRarities.length === 1
-            ? { x: WIDTH / 2, y: HEIGHT / 2 + 70 }
-            : showcasePositions[index];
+          isLootIconCropShowcase
+            ? cropIconShowcasePositions[index]
+            : lootVfxShowcaseRarities.length === 1
+              ? { x: WIDTH / 2, y: HEIGHT / 2 + 70 }
+              : showcasePositions[index];
         const safePosition = safeWalkableFloorPoint(
           position.x,
           position.y,
           GEAR_DROP_WALL_CLEARANCE,
         );
-        const item = rollGear(`local-loot-vfx-${rarity}`, {
-          level: Math.max(1, playerRef.current.level),
-          rarity,
-        });
+        const cropIconSpec = isLootIconCropShowcase
+          ? lootIconCropShowcaseSpecs[index]
+          : undefined;
+        const item = cropIconSpec
+          ? rollGear(cropIconSpec.seed, {
+              level: 1,
+              slot: cropIconSpec.slot,
+              rarity: cropIconSpec.rarity,
+            })
+          : rollGear(`local-loot-vfx-${rarity}`, {
+              level: Math.max(1, playerRef.current.level),
+              rarity,
+            });
         world.gearDrops.push({
           id: idRef.current++,
           x: safePosition.x,
