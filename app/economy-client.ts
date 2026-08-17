@@ -11,6 +11,7 @@ import {
   computeEconomyCommandHash,
   type EconomyCommandDraft,
 } from "./economy-protocol";
+import type { GearAffixStat, LegendaryPowerId } from "./equipment";
 
 export const ECONOMY_POLL_INTERVAL_MS = 5_000;
 
@@ -42,6 +43,21 @@ export const MARKET_SLOTS = [
 
 export type MarketSlot = (typeof MARKET_SLOTS)[number];
 
+// Keep the transport decoder runtime-independent from the equipment module.
+// This list mirrors the canonical network allowlist while the type-only import
+// above is erased from browser/test bundles.
+const MARKET_GEAR_AFFIX_STATS = new Set<string>([
+  "damagePercent", "attackSpeedPercent", "projectileSpeedPercent", "maxHpFlat",
+  "damageReductionPercent", "moveSpeedPercent", "dashCooldownPercent",
+  "pickupRadiusPercent", "xpGainPercent", "critChancePercent", "critDamagePercent",
+  "projectileSizePercent", "eliteDamagePercent", "lifeOnHitFlat", "gearFindPercent",
+  "projectileCountFlat", "pierceFlat", "projectileLifetimePercent",
+  "homingStrengthFlat", "hpRegenPerSecondFlat", "roomClearHealFlat",
+  "roomEntryShieldFlat", "dashSpeedPercent", "bossDamagePercent",
+  "executeDamagePercent", "cosmicFinalDamagePercent", "cosmicAegisPercent",
+  "cosmicActionSpeedPercent",
+]);
+
 export type WalletBalance = {
   available: number;
   escrow: number;
@@ -59,6 +75,7 @@ export type EconomyAccount = {
   steamId: string | null;
   steamLinked: boolean;
   gameOwned: boolean;
+  steamOwnershipFresh: boolean;
   restricted: boolean;
   restrictionReason: string | null;
   sanctionCode: string | null;
@@ -75,10 +92,21 @@ export type MarketVaultItem = {
   slot: MarketSlot;
   level: number;
   enhancement: number;
+  legendaryPowerId: LegendaryPowerId | null;
+  enhancementRanks: number[];
+  divineForgeRerolls: number;
   powerScore: number;
   qualityScore: number;
   iconIndex: number;
-  affixes: Array<{ label: string; value: string }>;
+  affixes: Array<{
+    stat: GearAffixStat;
+    /** Canonical rolled magnitude before option-specific enhancement ranks. */
+    value: number;
+    /** Canonical position inside the level-adjusted roll range. */
+    rollPercent: number;
+    /** Fully formatted base-roll label retained for legacy/read-only clients. */
+    label: string;
+  }>;
   tradeState: "available" | "listed" | "escrow" | "locked";
   lockedUntil: string | null;
   version: number;
@@ -121,6 +149,18 @@ export type GoldTrade = {
   executedAt: string;
 };
 
+export type MarketAuctionTrade = {
+  tradeId: string;
+  item: MarketVaultItem;
+  priceAsh: number;
+  executedAt: string;
+};
+
+export type MarketAccountAuctionTrade = MarketAuctionTrade & {
+  role: "buyer" | "seller";
+  counterpartName: string;
+};
+
 export type EconomyAuditEntry = {
   id: string;
   category: string;
@@ -141,6 +181,9 @@ export type EconomySnapshot = {
   vaultItems: MarketVaultItem[];
   importedCharacterItemIds: string[];
   listings: MarketListing[];
+  myListings: MarketListing[];
+  auctionTrades: MarketAuctionTrade[];
+  myAuctionTrades: MarketAccountAuctionTrade[];
   goldExchange: {
     bestBid: number | null;
     bestAsk: number | null;
@@ -205,17 +248,25 @@ export type EconomyCommand =
 export type EconomyClientOptions = {
   signal?: AbortSignal;
   demoUser?: "A" | "B" | null;
+  idempotencyKey?: string;
 };
 
 export class EconomyClientError extends Error {
   readonly status: number;
   readonly code: string;
+  readonly retryable: boolean;
 
-  constructor(message: string, status = 0, code = "ECONOMY_REQUEST_FAILED") {
+  constructor(
+    message: string,
+    status = 0,
+    code = "ECONOMY_REQUEST_FAILED",
+    retryable = false,
+  ) {
     super(message);
     this.name = "EconomyClientError";
     this.status = status;
     this.code = code;
+    this.retryable = retryable;
   }
 }
 
@@ -234,6 +285,7 @@ const EMPTY_SNAPSHOT: EconomySnapshot = {
     steamId: null,
     steamLinked: false,
     gameOwned: false,
+    steamOwnershipFresh: false,
     restricted: false,
     restrictionReason: null,
     sanctionCode: null,
@@ -244,6 +296,9 @@ const EMPTY_SNAPSHOT: EconomySnapshot = {
   vaultItems: [],
   importedCharacterItemIds: [],
   listings: [],
+  myListings: [],
+  auctionTrades: [],
+  myAuctionTrades: [],
   goldExchange: {
     bestBid: null,
     bestAsk: null,
@@ -301,6 +356,7 @@ async function readJson(response: Response): Promise<unknown> {
         : typeof record?.code === "string"
           ? record.code
           : "ECONOMY_REQUEST_FAILED",
+      error?.retryable === true,
     );
   }
   return record?.ok === true && Object.prototype.hasOwnProperty.call(record, "data")
@@ -398,7 +454,18 @@ export async function sendEconomyCommand(
   snapshot: Pick<EconomySnapshot, "csrfToken" | "revision">,
   options: EconomyClientOptions = {},
 ): Promise<EconomySnapshot> {
-  const idempotencyKey = createEconomyIdempotencyKey(command.action);
+  if (
+    command.action === "list_item" &&
+    "characterItem" in command &&
+    !isLocalEconomySandbox()
+  ) {
+    throw new EconomyClientError(
+      "캐릭터 가방 장비는 거래 금고로 이전된 뒤에만 등록할 수 있습니다.",
+      403,
+      "SECURE_INVENTORY_REQUIRED",
+    );
+  }
+  const idempotencyKey = options.idempotencyKey ?? createEconomyIdempotencyKey(command.action);
   const draft = {
     protocolVersion: ECONOMY_PROTOCOL_VERSION,
     idempotencyKey,
@@ -419,8 +486,11 @@ export async function sendEconomyCommand(
     body: JSON.stringify({ ...draft, requestHash }),
     signal: options.signal,
   });
-  await readJson(response);
-  return fetchEconomySnapshot(options);
+  const payload = await readJson(response);
+  const record = asRecord(payload);
+  return record?.snapshot
+    ? normalizeEconomySnapshot(record.snapshot)
+    : fetchEconomySnapshot(options);
 }
 
 export async function initializeSteamGoldPurchase(
@@ -428,7 +498,7 @@ export async function initializeSteamGoldPurchase(
   snapshot: Pick<EconomySnapshot, "csrfToken" | "revision">,
   options: EconomyClientOptions = {},
 ): Promise<{ redirectUrl: string | null; snapshot: EconomySnapshot | null }> {
-  const idempotencyKey = createEconomyIdempotencyKey("steam-topup");
+  const idempotencyKey = options.idempotencyKey ?? createEconomyIdempotencyKey("steam-topup");
   const draft = { productSku: packId, idempotencyKey };
   const requestHash = await computeCanonicalRequestHash(draft);
   const response = await fetch("/api/economy/payments/steam/init", {
@@ -457,7 +527,7 @@ export async function finalizeSteamGoldPurchase(
   paymentOrderId: string,
   options: EconomyClientOptions = {},
 ): Promise<EconomySnapshot> {
-  const idempotencyKey = createEconomyIdempotencyKey("steam-finalize");
+  const idempotencyKey = options.idempotencyKey ?? `steam-finalize:${paymentOrderId}`;
   const draft = { paymentOrderId, idempotencyKey };
   const requestHash = await computeCanonicalRequestHash(draft);
   const response = await fetch("/api/economy/payments/steam/finalize", {
@@ -474,8 +544,11 @@ export async function finalizeSteamGoldPurchase(
     body: JSON.stringify({ ...draft, requestHash }),
     signal: options.signal,
   });
-  await readJson(response);
-  return fetchEconomySnapshot(options);
+  const payload = await readJson(response);
+  const record = asRecord(payload);
+  return record?.snapshot
+    ? normalizeEconomySnapshot(record.snapshot)
+    : fetchEconomySnapshot(options);
 }
 
 export function steamLinkUrl(returnTo = "/market"): string {
@@ -507,6 +580,9 @@ export function normalizeEconomySnapshot(payload: unknown): EconomySnapshot {
         ? source.inventory
         : [];
   const listingsSource = Array.isArray(source.listings) ? source.listings : [];
+  const myListingsSource = Array.isArray(source.myListings) ? source.myListings : [];
+  const auctionTradesSource = Array.isArray(source.auctionTrades) ? source.auctionTrades : [];
+  const myAuctionTradesSource = Array.isArray(source.myAuctionTrades) ? source.myAuctionTrades : [];
   return {
     revision: positiveInteger(source.revision, 0),
     serverTime: timestampString(source.serverTime),
@@ -520,6 +596,7 @@ export function normalizeEconomySnapshot(payload: unknown): EconomySnapshot {
       steamId: nullableString(account?.steamId),
       steamLinked: booleanValue(account?.steamLinked, isLocalEconomySandbox()),
       gameOwned: booleanValue(account?.gameOwned ?? account?.ownsGame, isLocalEconomySandbox()),
+      steamOwnershipFresh: booleanValue(account?.steamOwnershipFresh, isLocalEconomySandbox()),
       restricted: booleanValue(account?.restricted ?? account?.sanctioned, account?.status !== undefined && account.status !== "active"),
       restrictionReason: nullableString(account?.restrictionReason) ?? nullableString(arrayValue(source.sanctions)[0] && asRecord(arrayValue(source.sanctions)[0])?.reason),
       sanctionCode: nullableString(account?.sanctionCode) ?? nullableString(arrayValue(source.sanctions)[0] && asRecord(arrayValue(source.sanctions)[0])?.scope),
@@ -536,6 +613,16 @@ export function normalizeEconomySnapshot(payload: unknown): EconomySnapshot {
         typeof itemId === "string" && itemId.length >= 1 && itemId.length <= 128,
     ),
     listings: listingsSource.map(normalizeListing).filter((item): item is MarketListing => item !== null),
+    myListings: myListingsSource
+      .map(normalizeListing)
+      .filter((item): item is MarketListing => item !== null)
+      .map((listing) => ({ ...listing, mine: true })),
+    auctionTrades: auctionTradesSource
+      .map(normalizeAuctionTrade)
+      .filter((trade): trade is MarketAuctionTrade => trade !== null),
+    myAuctionTrades: myAuctionTradesSource
+      .map(normalizeAccountAuctionTrade)
+      .filter((trade): trade is MarketAccountAuctionTrade => trade !== null),
     goldExchange: {
       bestBid: nullableNumber(exchange?.bestBid),
       bestAsk: nullableNumber(exchange?.bestAsk),
@@ -598,15 +685,34 @@ function normalizeVaultItem(value: unknown): MarketVaultItem | null {
     slot,
     level: positiveInteger(item.level ?? item.itemLevel, 1),
     enhancement: positiveInteger(item.enhancement ?? data?.enhancement, 0),
+    legendaryPowerId:
+      typeof (item.legendaryPowerId ?? data?.legendaryPowerId) === "string"
+        ? (item.legendaryPowerId ?? data?.legendaryPowerId) as LegendaryPowerId
+        : null,
+    enhancementRanks: arrayValue(item.enhancementRanks ?? data?.enhancementRanks)
+      .filter((rank): rank is number => Number.isSafeInteger(rank) && Number(rank) >= 0)
+      .map((rank) => Number(rank)),
+    divineForgeRerolls: positiveInteger(item.divineForgeRerolls ?? data?.divineForgeRerolls, 0),
     powerScore: positiveInteger(item.powerScore ?? data?.powerScore, 0),
     qualityScore: positiveInteger(item.qualityScore ?? data?.qualityScore, 0),
     iconIndex: positiveInteger(item.iconIndex ?? data?.iconIndex, 0),
-    affixes: arrayValue(item.affixes ?? data?.affixes).map((affix) => {
+    affixes: arrayValue(item.affixes ?? data?.affixes).flatMap((affix) => {
       const affixRecord = asRecord(affix);
-      return {
-        label: stringValue(affixRecord?.label ?? affixRecord?.stat, "옵션"),
-        value: stringValue(affixRecord?.formattedValue ?? affixRecord?.value, ""),
-      };
+      const stat = affixRecord?.stat;
+      const value = Number(affixRecord?.value);
+      if (
+        typeof stat !== "string" ||
+        !MARKET_GEAR_AFFIX_STATS.has(stat) ||
+        !Number.isFinite(value)
+      ) {
+        return [];
+      }
+      return [{
+        stat: stat as GearAffixStat,
+        label: stringValue(affixRecord?.label, stat),
+        value,
+        rollPercent: positiveInteger(affixRecord?.rollPercent, 1),
+      }];
     }),
     tradeState:
       item.tradeable === false || item.state === "equipped"
@@ -675,6 +781,31 @@ function normalizeTrade(value: unknown): GoldTrade | null {
     priceAshPerGold: positiveInteger(record.priceAshPerGold ?? record.price, 0),
     goldAmount: positiveInteger(record.goldAmount ?? record.amount, 0),
     executedAt: stringValue(record.executedAt ?? record.createdAt, new Date(0).toISOString()),
+  };
+}
+
+function normalizeAuctionTrade(value: unknown): MarketAuctionTrade | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const tradeId = stringValue(record.tradeId ?? record.id, "");
+  const item = normalizeVaultItem(record.item ?? record.vaultItem);
+  if (!tradeId || !item) return null;
+  return {
+    tradeId,
+    item,
+    priceAsh: positiveInteger(record.priceAsh ?? record.price, 0),
+    executedAt: timestampString(record.executedAt ?? record.createdAt),
+  };
+}
+
+function normalizeAccountAuctionTrade(value: unknown): MarketAccountAuctionTrade | null {
+  const record = asRecord(value);
+  const trade = normalizeAuctionTrade(value);
+  if (!record || !trade || (record.role !== "buyer" && record.role !== "seller")) return null;
+  return {
+    ...trade,
+    role: record.role,
+    counterpartName: stringValue(record.counterpartName, "익명의 방랑자"),
   };
 }
 

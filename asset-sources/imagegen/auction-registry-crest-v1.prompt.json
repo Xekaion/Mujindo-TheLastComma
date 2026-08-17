@@ -1,0 +1,8 @@
+{
+  "mode": "generate",
+  "tool": "image_gen",
+  "generatedAt": "2026-08-17",
+  "source": "asset-sources/imagegen/auction-registry-crest-v1-source.png",
+  "output": "public/assets/ui/market/auction-registry-crest-v1.png",
+  "prompt": "Generate one original isolated game UI crest for the Mujindo memory auction registry. Subject: a compact symmetrical emblem combining a sealed black ledger, one slender antique brass quill, and two balanced teal memory-crystal shards. The silhouette should feel like an official auction registry seal without using scales of justice, coins, crowns, letters, or any recognizable franchise symbol. Blackened steel, aged brass, smoky jade patina, tiny pale ash glints. Front-facing, centered, crisp icon readability at 96px. Composition: square canvas, emblem fills about 72% with generous padding. No cast shadow outside the emblem. Background: perfectly flat solid chroma-key green #00ff00 across every background pixel. No gradient, texture, lighting variation, floor, reflection, halo, smoke, or shadow in the green background. Do not use green #00ff00 anywhere inside the emblem. Output intent: production game UI crest to be background-removed and placed in a dark auction-house navigation header. Hard constraints: no text, no letters, no numbers, no logos, no MapleStory visual identity, no extra objects, no border frame."
+}

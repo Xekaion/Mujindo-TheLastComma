@@ -21,9 +21,9 @@
   z-index: -2;
   inset: 0;
   background:
-    linear-gradient(rgba(4, 7, 9, 0.84), rgba(4, 7, 9, 0.96)),
-    url("/assets/menu-title-background.png") center / cover no-repeat;
-  filter: saturate(0.55) contrast(1.08);
+    linear-gradient(rgba(2, 5, 7, 0.48), rgba(2, 5, 7, 0.78)),
+    url("/assets/ui/market/auction-hall-backdrop-v1.webp") center / cover no-repeat;
+  filter: saturate(0.72) contrast(1.06);
 }
 
 .market-backdrop::before,
@@ -102,18 +102,12 @@
 
 .market-brand { display: flex; align-items: center; gap: 12px; }
 .market-brand-seal {
-  display: grid;
-  width: 42px;
-  height: 42px;
-  place-items: center;
-  border: 1px solid #b98a40;
-  color: #eed188;
-  background: radial-gradient(circle, #432d12, #0c0d0d 70%);
-  font: 600 19px/1 Georgia, "Noto Serif KR", serif;
-  transform: rotate(45deg);
-  box-shadow: 0 0 22px rgba(205, 154, 65, 0.13), inset 0 0 14px rgba(224, 170, 75, 0.13);
+  display: block;
+  width: 52px;
+  height: 52px;
+  background: url("/assets/ui/market/auction-registry-crest-v1.png") center / contain no-repeat;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.72));
 }
-.market-brand-seal::first-letter { transform: rotate(-45deg); }
 .market-brand > div { display: grid; gap: 2px; text-align: center; }
 .market-brand small { color: #967d50; font-size: 8px; font-weight: 900; letter-spacing: 0.28em; }
 .market-brand strong { color: #efe2c4; font: 500 22px/1.15 Georgia, "Noto Serif KR", serif; letter-spacing: 0.1em; }
@@ -127,15 +121,14 @@
 
 .market-account-bar {
   display: grid;
-  grid-template-columns: minmax(230px, 1.05fr) minmax(280px, 1fr) minmax(280px, 1fr) auto;
+  grid-template-columns: minmax(230px, 1.05fr) minmax(280px, 1fr) minmax(280px, 1fr);
   gap: 10px;
   width: min(1540px, calc(100% - 32px));
   margin: 18px auto 10px;
 }
 
 .market-account-identity,
-.market-balance,
-.market-demo-switch {
+.market-balance {
   min-height: 82px;
   border: 1px solid rgba(191, 157, 88, 0.18);
   background: linear-gradient(115deg, rgba(17, 21, 23, 0.96), rgba(7, 10, 12, 0.94));
@@ -162,12 +155,6 @@
 .market-balance dt { color: #69716e; font-size: 7px; }
 .market-balance dd { margin: 0; color: #9b9485; font-size: 9px; font-weight: 800; font-variant-numeric: tabular-nums; }
 
-.market-demo-switch { display: grid; align-content: center; gap: 8px; padding: 10px; }
-.market-demo-switch small { color: #b3834d; font-size: 7px; font-weight: 900; letter-spacing: 0.15em; }
-.market-demo-switch > div { display: flex; gap: 4px; }
-.market-demo-switch button { min-height: 28px; border: 1px solid rgba(206, 166, 87, 0.23); color: #8e8370; background: #090b0c; font-size: 8px; font-weight: 800; cursor: pointer; }
-.market-demo-switch button.is-active { border-color: #d4a955; color: #f1d895; background: rgba(90, 60, 18, 0.48); }
-
 .market-launch-gate {
   display: grid;
   grid-template-columns: 34px minmax(0, 1fr) auto;
@@ -188,6 +175,7 @@
 .market-launch-gate.is-ready small { color: #5ba993; }
 .market-launch-gate strong { color: #e7d7b3; font: 600 12px/1.3 Georgia, "Noto Serif KR", serif; }
 .market-launch-gate p { margin: 0; color: #8e8779; font-size: 9px; }
+.market-launch-gate a { width: max-content; margin-top: 5px; padding: 7px 11px; border: 1px solid rgba(95, 197, 171, 0.42); color: #a8e5d6; background: #102d27; font-weight: 800; text-decoration: none; }
 .market-launch-gate > b { padding: 6px 9px; border: 1px solid rgba(211, 158, 75, 0.35); color: #dbb872; background: rgba(70, 47, 18, 0.47); font-size: 7px; letter-spacing: 0.14em; }
 
 .market-notice { display: grid; grid-template-columns: 22px minmax(0, 1fr) 25px; align-items: center; gap: 8px; width: min(1540px, calc(100% - 32px)); min-height: 38px; margin: 0 auto 10px; padding: 5px 8px 5px 11px; border: 1px solid rgba(104, 189, 169, 0.23); color: #9fc7bd; background: rgba(11, 28, 27, 0.78); font-size: 9px; }
@@ -196,6 +184,12 @@
 .market-notice button { border: 0; color: currentColor; background: transparent; cursor: pointer; }
 .market-notice--success { border-color: rgba(92, 207, 168, 0.28); color: #7fd7b9; }
 .market-notice--error { border-color: rgba(224, 82, 92, 0.34); color: #ed9299; background: rgba(51, 15, 20, 0.84); }
+.market-steam-error { grid-template-columns: 22px minmax(0, 1fr) auto; }
+.market-steam-error a { padding: 7px 11px; border: 1px solid rgba(237, 146, 153, 0.38); color: #ffd0d3; background: rgba(91, 29, 35, 0.72); font-weight: 800; text-decoration: none; }
+.market-payment-retry { display: flex; align-items: center; justify-content: space-between; gap: 18px; width: min(1540px, calc(100% - 32px)); min-height: 58px; margin: 0 auto 10px; padding: 9px 13px; border: 1px solid rgba(215, 168, 77, 0.34); color: #d7c49c; background: rgba(48, 33, 13, 0.88); }
+.market-payment-retry p { display: grid; gap: 3px; margin: 0; }
+.market-payment-retry span { color: #94866d; }
+.market-payment-retry button { min-width: 170px; min-height: 42px; border: 1px solid rgba(220, 177, 87, 0.42); color: #f0d595; background: linear-gradient(#4a3515, #21170c); font-weight: 800; cursor: pointer; }
 
 .market-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: min(1540px, calc(100% - 32px)); margin: 0 auto; border: 1px solid rgba(194, 156, 79, 0.22); border-bottom: 0; background: rgba(6, 9, 11, 0.94); }
 .market-tabs button { position: relative; display: grid; gap: 3px; min-height: 60px; align-content: center; border: 0; border-right: 1px solid rgba(194, 156, 79, 0.14); color: #817867; background: transparent; cursor: pointer; transition: 150ms ease; }
@@ -215,33 +209,94 @@
 .market-panel-heading h1 { margin: 0; color: #f0e1c1; font: 500 clamp(22px, 2.5cqw, 32px)/1.15 Georgia, "Noto Serif KR", serif; letter-spacing: 0.04em; }
 .market-panel-heading p { max-width: 650px; margin: 0; color: #7d7b73; font-size: 9px; line-height: 1.65; text-align: right; }
 
-.market-filters { display: grid; grid-template-columns: minmax(220px, 1.7fr) repeat(3, minmax(130px, 0.7fr)); gap: 7px; margin-bottom: 12px; }
-.market-filters label, .market-sell-form label, .market-order-entry label { display: grid; gap: 5px; }
-.market-filters label > span, .market-sell-form label > span, .market-order-entry label > span { color: #8e8068; font-size: 7px; font-weight: 800; letter-spacing: 0.08em; }
-.market-filters input, .market-filters select, .market-sell-form input, .market-order-entry input { width: 100%; min-height: 38px; border: 1px solid rgba(198, 160, 84, 0.2); border-radius: 0; color: #e7dcc4; background: rgba(4, 7, 9, 0.88); font-size: 10px; }
-.market-filters input, .market-sell-form input { padding: 0 12px; }
-.market-filters select { padding: 0 30px 0 10px; }
+.market-auction-window { position: relative; min-height: 720px; padding: 12px; overflow: hidden; background: linear-gradient(150deg, rgba(11, 15, 17, 0.97), rgba(3, 6, 8, 0.985)); }
+.market-auction-window::before { position: absolute; inset: 0; border: 1px solid rgba(218, 177, 91, 0.12); content: ""; pointer-events: none; }
+.market-auction-heading { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; align-items: center; gap: 18px; min-height: 102px; padding: 10px 18px; border: 1px solid rgba(191, 151, 74, 0.2); border-bottom: 0; background: radial-gradient(circle at 5% 50%, rgba(44, 121, 112, 0.12), transparent 22%), linear-gradient(90deg, rgba(16, 23, 24, 0.96), rgba(7, 10, 12, 0.96)); }
+.market-auction-crest { display: block; width: 74px; height: 74px; background: url("/assets/ui/market/auction-registry-crest-v1.png") center / contain no-repeat; filter: drop-shadow(0 6px 13px rgba(0, 0, 0, 0.72)); }
+.market-auction-heading > div { min-width: 0; }
+.market-auction-heading small, .market-workspace-heading small, .market-auction-search header small { color: #9d7b43; font-size: 10px; font-weight: 900; letter-spacing: 0.22em; }
+.market-auction-heading h1 { margin: 3px 0 4px; color: #f1dfb9; font: 600 clamp(24px, 2.3cqw, 34px)/1.15 Georgia, "Noto Serif KR", serif; letter-spacing: 0.05em; }
+.market-auction-heading p, .market-workspace-heading p, .market-auction-search header p { margin: 0; color: #858176; font-size: 12px; line-height: 1.5; }
+.market-auction-heading dl { display: grid; grid-template-columns: repeat(3, minmax(74px, 1fr)); margin: 0; border: 1px solid rgba(192, 154, 79, 0.16); }
+.market-auction-heading dl > div { display: grid; min-height: 58px; align-content: center; gap: 3px; padding: 8px 13px; border-right: 1px solid rgba(192, 154, 79, 0.12); text-align: center; }
+.market-auction-heading dl > div:last-child { border-right: 0; }
+.market-auction-heading dt { color: #6f6a5e; font-size: 10px; }
+.market-auction-heading dd { margin: 0; color: #ddbd73; font: 700 16px/1 Georgia, serif; }
+
+.market-auction-tabs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid rgba(195, 156, 78, 0.24); background: rgba(4, 7, 9, 0.96); }
+.market-auction-tabs button { position: relative; display: grid; min-height: 58px; align-content: center; gap: 3px; border: 0; border-right: 1px solid rgba(195, 156, 78, 0.13); color: #827968; background: transparent; cursor: pointer; }
+.market-auction-tabs button:last-child { border-right: 0; }
+.market-auction-tabs button::after { position: absolute; right: 18%; bottom: -1px; left: 18%; height: 2px; content: ""; background: #d9ae55; opacity: 0; transform: scaleX(0.3); transition: 150ms ease; }
+.market-auction-tabs button small { color: #5f5a51; font-size: 9px; font-weight: 900; letter-spacing: 0.15em; }
+.market-auction-tabs button strong { font: 700 12px/1.2 Georgia, "Noto Serif KR", serif; }
+.market-auction-tabs button > b { position: absolute; top: 8px; right: 12px; display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 50%; color: #201608; background: #d9ae55; font-size: 9px; }
+.market-auction-tabs button:hover { color: #d0c1a2; background: rgba(202, 158, 70, 0.045); }
+.market-auction-tabs button.is-active { color: #f0dba9; background: linear-gradient(rgba(125, 83, 28, 0.24), rgba(14, 16, 16, 0.3)); }
+.market-auction-tabs button.is-active small { color: #b58c47; }
+.market-auction-tabs button.is-active::after { opacity: 1; transform: scaleX(1); box-shadow: 0 0 12px rgba(217, 174, 85, 0.58); }
+
+.market-auction-workspace { min-height: 570px; border: 1px solid rgba(195, 156, 78, 0.2); border-top: 0; background: rgba(3, 6, 8, 0.78); }
+.market-search-workspace { display: grid; grid-template-columns: minmax(230px, 275px) minmax(0, 1fr); }
+.market-auction-search { display: grid; grid-auto-rows: max-content; align-content: start; gap: 13px; padding: 18px; border-right: 1px solid rgba(195, 156, 78, 0.18); background: linear-gradient(165deg, rgba(17, 20, 20, 0.98), rgba(6, 9, 10, 0.97)); }
+.market-auction-search header { padding-bottom: 13px; border-bottom: 1px solid rgba(195, 156, 78, 0.13); }
+.market-auction-search h2 { margin: 3px 0 6px; color: #e6d5b2; font: 600 18px/1.25 Georgia, "Noto Serif KR", serif; }
+.market-auction-search label, .market-sell-toolbar label, .market-sell-form label, .market-order-entry label { display: grid; gap: 5px; }
+.market-auction-search label > span, .market-sell-toolbar label > span, .market-sell-form label > span, .market-order-entry label > span { color: #8e8068; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; }
+.market-auction-search input, .market-auction-search select, .market-sell-toolbar select, .market-sell-form input, .market-order-entry input { width: 100%; min-height: 42px; border: 1px solid rgba(198, 160, 84, 0.22); border-radius: 0; color: #e7dcc4; background: rgba(3, 6, 8, 0.9); font-size: 11px; }
+.market-auction-search input, .market-sell-form input { padding: 0 12px; }
+.market-auction-search select, .market-sell-toolbar select { padding: 0 30px 0 10px; }
 .market-search { position: relative; }
 .market-search input { padding-right: 34px; }
 .market-search i { position: absolute; right: 12px; bottom: 10px; color: #8a744c; font-size: 17px; font-style: normal; }
+.market-filter-actions { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 7px; margin-top: 2px; }
+.market-filter-actions button, .market-selection-actions button, .market-sell-form button, .market-price-table article > button, .market-cancel-selected, .market-order-entry form > button, .market-pack-grid button, .market-search-error button, .market-fatal button, .market-fatal a { min-height: 39px; border: 1px solid rgba(101, 198, 180, 0.32); color: #a5ded3; background: linear-gradient(#173b35, #091513); font-size: 11px; font-weight: 800; cursor: pointer; transition: 130ms ease; }
+.market-filter-actions button:first-child, .market-selection-actions button:first-child { border-color: rgba(190, 157, 90, 0.22); color: #a39a88; background: #0d1011; }
+.market-filter-actions button:hover:not(:disabled), .market-selection-actions button:hover:not(:disabled), .market-sell-form button:hover:not(:disabled), .market-price-table article > button:hover:not(:disabled), .market-order-entry form > button:hover:not(:disabled), .market-pack-grid button:hover:not(:disabled) { border-color: #7dd8c5; color: #d9fff7; filter: brightness(1.15); }
+.market-filter-note { margin: 0; color: #65635e; font-size: 10px; line-height: 1.55; }
 
-.market-auction-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 12px; }
-.market-listings { min-width: 0; border: 1px solid rgba(180, 149, 86, 0.13); background: rgba(3, 6, 8, 0.48); }
-.market-listings > header { display: grid; grid-template-columns: minmax(330px, 2.2fr) minmax(105px, 0.8fr) minmax(105px, 0.8fr) minmax(115px, 0.85fr) 78px; gap: 10px; align-items: center; min-height: 33px; padding: 0 10px; color: #726a5d; background: rgba(184, 148, 78, 0.045); font-size: 7px; font-weight: 800; }
-.market-listing { position: relative; display: grid; grid-template-columns: minmax(330px, 2.2fr) minmax(105px, 0.8fr) minmax(105px, 0.8fr) minmax(115px, 0.85fr) 78px; gap: 10px; align-items: center; min-height: 82px; padding: 8px 10px; border-top: 1px solid rgba(190, 157, 90, 0.11); transition: 130ms ease; }
+.market-search-results { display: grid; grid-template-rows: auto minmax(320px, 1fr) auto; min-width: 0; min-height: 570px; padding: 15px; }
+.market-workspace-heading { display: flex; align-items: end; justify-content: space-between; gap: 22px; min-height: 52px; padding: 0 2px 12px; border-bottom: 1px solid rgba(195, 156, 78, 0.13); }
+.market-workspace-heading h2 { margin: 3px 0 0; color: #e8d7b4; font: 600 18px/1.25 Georgia, "Noto Serif KR", serif; }
+.market-workspace-heading > span { color: #779d94; font-size: 10px; font-weight: 800; }
+.market-workspace-heading > p { max-width: 680px; text-align: right; }
+.market-listings { min-width: 0; overflow: auto; border: 1px solid rgba(180, 149, 86, 0.13); background: rgba(3, 6, 8, 0.48); scrollbar-width: thin; scrollbar-color: #725a31 #080a0b; }
+.market-listings > header { position: sticky; z-index: 2; top: 0; display: grid; grid-template-columns: minmax(330px, 2fr) minmax(110px, 0.55fr) minmax(115px, 0.6fr) minmax(130px, 0.65fr); gap: 10px; align-items: center; min-height: 36px; padding: 0 12px; color: #756e61; background: #0b0e0f; font-size: 10px; font-weight: 800; }
+.market-listing { position: relative; display: grid; grid-template-columns: minmax(330px, 2fr) minmax(110px, 0.55fr) minmax(115px, 0.6fr) minmax(130px, 0.65fr); width: 100%; gap: 10px; align-items: center; min-height: 84px; padding: 8px 12px; border: 0; border-top: 1px solid rgba(190, 157, 90, 0.11); color: #bdb39f; background: transparent; text-align: left; cursor: pointer; transition: 130ms ease; }
 .market-listing::before { position: absolute; top: 12px; bottom: 12px; left: 0; width: 2px; content: ""; background: var(--rarity-color); opacity: 0.75; box-shadow: 0 0 10px var(--rarity-color); }
-.market-listing:hover { background: rgba(204, 165, 88, 0.035); }
+.market-listing:hover { background: rgba(204, 165, 88, 0.045); }
+.market-listing.is-selected { background: linear-gradient(90deg, color-mix(in srgb, var(--rarity-color) 10%, transparent), rgba(111, 79, 31, 0.08)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--rarity-color) 36%, transparent); }
 .market-listing-item { display: grid; grid-template-columns: 61px minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
 .market-listing-item > div, .market-listing-seller, .market-listing-time, .market-listing-price { display: grid; gap: 3px; min-width: 0; }
-.market-listing small { color: #766f62; font-size: 7px; }
-.market-listing-item strong { overflow: hidden; color: var(--rarity-color); font: 600 11px/1.3 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
-.market-listing-item span, .market-listing-seller span, .market-listing-time span, .market-listing-price span { overflow: hidden; color: #716e67; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
-.market-listing-seller strong, .market-listing-time strong { overflow: hidden; color: #c7bda7; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.market-listing-price strong { color: #93d8cc; font: 700 13px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
+.market-listing small { color: #766f62; font-size: 10px; }
+.market-listing-item strong { overflow: hidden; color: var(--rarity-color); font: 600 12px/1.3 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-listing-item span, .market-listing-seller span, .market-listing-time span, .market-listing-price span { overflow: hidden; color: #716e67; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.market-listing-seller strong, .market-listing-time strong { overflow: hidden; color: #c7bda7; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.market-listing-price strong { color: #93d8cc; font: 700 14px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
 .market-listing-price strong i { margin-right: 4px; color: #64c7b7; font-style: normal; }
-.market-listing > button, .market-sell-form button, .market-order-entry form > button, .market-pack-grid button, .market-fatal button { min-height: 34px; border: 1px solid rgba(101, 198, 180, 0.34); color: #a5ded3; background: linear-gradient(#173b35, #091513); font-size: 8px; font-weight: 800; cursor: pointer; transition: 130ms ease; }
-.market-listing > button:hover:not(:disabled), .market-sell-form button:hover:not(:disabled), .market-order-entry form > button:hover:not(:disabled), .market-pack-grid button:hover:not(:disabled) { border-color: #7dd8c5; color: #d9fff7; filter: brightness(1.15); }
-.market-listing > button.is-cancel { border-color: rgba(190, 119, 99, 0.3); color: #d5a090; background: #241310; }
+.market-selection-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 14px; min-height: 86px; padding: 11px 13px; border: 1px solid rgba(193, 155, 78, 0.18); border-top: 0; background: linear-gradient(90deg, rgba(12, 16, 17, 0.98), rgba(7, 10, 11, 0.98)); }
+.market-selection-bar.has-selection { grid-template-columns: 58px minmax(170px, 0.8fr) minmax(300px, 1.35fr) auto; }
+.market-selection-bar > div:not(.market-selection-actions) { display: grid; gap: 3px; min-width: 0; }
+.market-selection-bar small { color: #716a5e; font-size: 10px; }
+.market-selection-bar strong { overflow: hidden; color: #dfcfaa; font: 600 12px/1.3 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-selection-bar span { color: #769e94; font-size: 10px; }
+.market-selection-actions { display: grid; grid-template-columns: repeat(2, minmax(105px, 1fr)); gap: 7px; }
+.market-selection-actions button.is-active { border-color: rgba(215, 174, 86, 0.44); color: #e3c477; background: rgba(72, 49, 16, 0.58); }
+.market-selection-actions button.is-cancel, .market-cancel-selected { border-color: rgba(190, 119, 99, 0.34); color: #d5a090; background: #241310; }
+.market-item-details { display: grid; grid-template-columns: repeat(4, minmax(70px, 1fr)); gap: 4px 10px; min-width: 0; margin: 0; padding: 7px 10px; border: 1px solid rgba(190, 153, 79, 0.13); background: rgba(3, 6, 8, 0.55); }
+.market-item-details > div { display: grid; grid-template-columns: auto 1fr; gap: 5px; min-width: 0; }
+.market-item-details dt { color: #706a5e; }
+.market-item-details dd { min-width: 0; margin: 0; overflow: hidden; color: #c5b58f; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.market-item-details-affixes, .market-item-details-power { grid-column: 1 / -1; }
+.market-item-details-affixes dd, .market-item-details-power dd { overflow: visible; text-overflow: clip; white-space: normal; }
+.market-item-details-affixes dd { color: #83bbae; line-height: 1.55; }
+.market-item-details-power dd { display: grid; gap: 2px; color: #d0b66f; line-height: 1.5; }
+.market-item-details-power dd strong { overflow: visible; color: #e2c57c; font: inherit; text-overflow: clip; white-space: normal; }
+.market-item-details-power dd span { color: #a59a80; line-height: 1.5; }
+.market-search-error { display: grid; min-height: 210px; place-items: center; align-content: center; gap: 7px; padding: 24px; color: #c98d91; background: linear-gradient(145deg, rgba(65, 18, 24, 0.42), rgba(8, 10, 11, 0.82)); text-align: center; }
+.market-search-error > span { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid #dc737b; border-radius: 50%; color: #f39aa0; }
+.market-search-error strong { color: #efc3c5; font: 600 16px/1.35 Georgia, "Noto Serif KR", serif; }
+.market-search-error p { max-width: 420px; margin: 0; color: #a98786; line-height: 1.55; }
+.market-search-error button { min-width: 140px; margin-top: 5px; }
 .market-screen button:disabled { opacity: 0.34; cursor: not-allowed; filter: grayscale(0.45); }
 
 .market-item-icon { --rarity-color: #c7c2b5; position: relative; display: grid; width: 82px; height: 82px; flex: 0 0 auto; place-items: center; overflow: visible; border: 1px solid color-mix(in srgb, var(--rarity-color) 58%, #111 42%); background: radial-gradient(circle, color-mix(in srgb, var(--rarity-color) 13%, transparent), rgba(3, 5, 7, 0.94) 70%); box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.72), 0 0 12px color-mix(in srgb, var(--rarity-color) 16%, transparent); }
@@ -254,30 +309,96 @@
 .market-item-icon.is-compact .market-item-enhancement { top: 2px; right: 2px; min-width: 17px; padding: 2px 3px; font-size: 8px; }
 .market-item-icon--legendary, .market-item-icon--mythic, .market-item-icon--cosmic { box-shadow: inset 0 0 17px rgba(0, 0, 0, 0.7), 0 0 15px color-mix(in srgb, var(--rarity-color) 35%, transparent); }
 
-.market-vault { display: grid; grid-template-rows: auto auto minmax(150px, 1fr) auto; max-height: 660px; padding: 12px; border: 1px solid rgba(194, 156, 79, 0.18); background: linear-gradient(150deg, rgba(22, 20, 16, 0.79), rgba(4, 7, 9, 0.96)); }
-.market-vault > header, .market-orderbook > header, .market-my-orders > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(197, 158, 80, 0.14); }
-.market-vault h2, .market-orderbook h2, .market-order-entry h2, .market-my-orders h2, .market-trade-tape h2, .market-verification h2, .market-security-status h2, .market-security-rules h2, .market-audit h2 { margin: 2px 0 0; color: #e7d7b4; font: 600 15px/1.25 Georgia, "Noto Serif KR", serif; }
-.market-vault header b, .market-my-orders header b { display: grid; min-width: 29px; height: 29px; place-items: center; border: 1px solid rgba(205, 164, 82, 0.28); color: #e0b964; background: rgba(77, 50, 14, 0.37); font-size: 10px; }
+.market-orderbook > header, .market-my-orders > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 10px; border-bottom: 1px solid rgba(197, 158, 80, 0.14); }
+.market-orderbook h2, .market-order-entry h2, .market-my-orders h2, .market-trade-tape h2, .market-verification h2, .market-security-status h2, .market-security-rules h2, .market-audit h2 { margin: 2px 0 0; color: #e7d7b4; font: 600 15px/1.25 Georgia, "Noto Serif KR", serif; }
+.market-my-orders header b { display: grid; min-width: 29px; height: 29px; place-items: center; border: 1px solid rgba(205, 164, 82, 0.28); color: #e0b964; background: rgba(77, 50, 14, 0.37); font-size: 10px; }
 .market-local-warning { display: grid; grid-template-columns: 23px minmax(0, 1fr); gap: 8px; margin: 10px 0; padding: 8px; border: 1px solid rgba(219, 112, 74, 0.25); color: #b68c79; background: rgba(57, 22, 15, 0.35); }
 .market-local-warning > span { display: grid; width: 21px; height: 21px; place-items: center; border: 1px solid #c06e4f; border-radius: 50%; font-size: 8px; }
-.market-local-warning p { margin: 0; font-size: 7px; line-height: 1.55; }
-.market-local-warning strong { display: block; margin-bottom: 2px; color: #d99a79; font-size: 8px; }
-.market-vault-list { min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #5c492b #080a0b; }
-.market-vault-list > button { display: grid; grid-template-columns: 49px minmax(0, 1fr) auto; width: 100%; align-items: center; gap: 8px; min-height: 62px; padding: 6px; border: 1px solid transparent; border-bottom-color: rgba(191, 155, 84, 0.1); color: #bdb39f; background: transparent; text-align: left; cursor: pointer; }
+.market-local-warning p { margin: 0; font-size: 11px; line-height: 1.55; }
+.market-local-warning strong { display: block; margin-bottom: 2px; color: #d99a79; font-size: 11px; }
+
+.market-sell-workspace, .market-price-workspace, .market-favorites-workspace, .market-complete-workspace { padding: 16px; }
+.market-sell-toolbar { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin: 11px 0; }
+.market-sell-toolbar > div { display: flex; flex-wrap: wrap; gap: 5px; }
+.market-sell-toolbar button { min-height: 36px; padding: 0 14px; border: 1px solid rgba(188, 151, 78, 0.19); color: #887f70; background: #090c0d; font-size: 11px; font-weight: 800; cursor: pointer; }
+.market-sell-toolbar button.is-active { border-color: rgba(98, 198, 176, 0.44); color: #a9e3d7; background: rgba(18, 64, 55, 0.48); }
+.market-sell-toolbar label { width: min(220px, 100%); }
+.market-vault-list { display: grid; grid-template-columns: repeat(3, minmax(250px, 1fr)); gap: 7px; max-height: 330px; min-height: 160px; padding: 8px; overflow-y: auto; border: 1px solid rgba(190, 153, 79, 0.16); background: rgba(3, 6, 8, 0.63); scrollbar-width: thin; scrollbar-color: #5c492b #080a0b; }
+.market-vault-list > button { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; width: 100%; align-items: center; gap: 9px; min-height: 88px; padding: 9px; border: 1px solid rgba(191, 155, 84, 0.12); color: #bdb39f; background: linear-gradient(135deg, rgba(16, 19, 20, 0.96), rgba(5, 8, 9, 0.96)); text-align: left; cursor: pointer; }
 .market-vault-list > button.is-selected { border-color: color-mix(in srgb, var(--rarity-color) 52%, #756038); background: color-mix(in srgb, var(--rarity-color) 7%, rgba(12, 15, 16, 0.94)); }
-.market-vault-list .market-item-icon { width: 45px; height: 45px; }
+.market-vault-list .market-item-icon { width: 54px; height: 54px; }
 .market-vault-list > button > span { display: grid; gap: 2px; min-width: 0; }
-.market-vault-list small { color: #716d64; font-size: 7px; }
-.market-vault-list strong { overflow: hidden; color: var(--rarity-color); font: 600 9px/1.25 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
-.market-vault-list em { color: #7f7a6f; font-size: 7px; font-style: normal; }
+.market-vault-list small { overflow: hidden; color: #716d64; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.market-vault-list strong { overflow: hidden; color: var(--rarity-color); font: 600 11px/1.25 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-vault-list em { color: #7f7a6f; font-size: 10px; font-style: normal; }
 .market-vault-list > button > i { color: #7f6b46; font-size: 18px; font-style: normal; }
-.market-sell-form { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid rgba(198, 160, 83, 0.15); }
-.market-sell-form button { min-height: 38px; }
+.market-sell-form { display: grid; grid-template-columns: minmax(310px, 1fr) minmax(210px, 0.42fr) minmax(150px, 0.25fr); align-items: end; gap: 10px; margin-top: 10px; padding: 11px; border: 1px solid rgba(198, 160, 83, 0.17); background: linear-gradient(90deg, rgba(13, 17, 18, 0.98), rgba(6, 9, 10, 0.98)); }
+.market-sell-selection { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 10px; min-width: 0; }
+.market-sell-selection > span { display: grid; gap: 3px; min-width: 0; }
+.market-sell-selection small { color: #756d5f; font-size: 10px; }
+.market-sell-selection strong { overflow: hidden; color: #d9c7a2; font: 600 12px/1.3 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-sell-selection em { color: #77998f; font-size: 10px; font-style: normal; }
+.market-sell-form button { min-height: 42px; }
+.market-active-listings { margin-top: 16px; }
+.market-active-listings .market-workspace-heading { margin-bottom: 8px; }
+.market-active-listings .market-listings { max-height: 260px; }
+.market-cancel-selected { display: block; min-width: 180px; margin: 9px 0 0 auto; }
+
+.market-price-workspace, .market-favorites-workspace, .market-complete-workspace { display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 12px; }
+.market-price-workspace { grid-template-rows: auto minmax(300px, 1fr) auto; }
+.market-price-table { min-height: 430px; max-height: 590px; overflow: auto; border: 1px solid rgba(190, 153, 79, 0.16); background: rgba(3, 6, 8, 0.63); }
+.market-price-table > header, .market-price-table > article { display: grid; grid-template-columns: minmax(320px, 1.5fr) 0.35fr 0.6fr 0.6fr 0.6fr 90px; align-items: center; gap: 10px; }
+.market-price-table > header { position: sticky; z-index: 2; top: 0; min-height: 37px; padding: 0 11px; color: #756e61; background: #0b0e0f; font-size: 10px; font-weight: 800; }
+.market-price-table > article { min-height: 82px; padding: 9px 11px; border-top: 1px solid rgba(190, 157, 90, 0.11); color: #b3aa98; }
+.market-price-table article > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
+.market-price-table article > div > span { display: grid; gap: 2px; min-width: 0; }
+.market-price-table small, .market-price-table em { overflow: hidden; color: #716d64; font-size: 10px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.market-price-table article > div strong { overflow: hidden; color: var(--rarity-color); font: 600 12px/1.25 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-price-table article > b { color: #a69c88; font-size: 11px; }
+.market-price-table article > strong { color: #88d4c5; font: 700 13px/1 Georgia, serif; }
+.market-price-table article > span { color: #bbaa85; font: 700 11px/1 Georgia, serif; }
+.market-price-table article > button { min-height: 34px; }
+.market-auction-trades { display: grid; gap: 9px; }
+.market-auction-trades .market-workspace-heading { min-height: 60px; }
+.market-auction-trade-list { max-height: 310px; overflow: auto; border: 1px solid rgba(190, 153, 79, 0.16); background: rgba(3, 6, 8, 0.63); }
+.market-auction-trade-list > article { display: grid; grid-template-columns: minmax(320px, 1.4fr) minmax(290px, 1fr) minmax(130px, 0.45fr) 110px; align-items: center; gap: 12px; min-height: 88px; padding: 10px 12px; border-top: 1px solid rgba(190, 157, 90, 0.11); }
+.market-auction-trade-list > article:first-child { border-top: 0; }
+.market-auction-trade-list article > div { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 9px; min-width: 0; }
+.market-auction-trade-list article > div > span { display: grid; gap: 2px; min-width: 0; }
+.market-auction-trade-list small, .market-auction-trade-list em { overflow: hidden; color: #716d64; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
+.market-auction-trade-list article > div strong { overflow: hidden; color: var(--rarity-color); font: 600 14px/1.3 Georgia, "Noto Serif KR", serif; text-overflow: ellipsis; white-space: nowrap; }
+.market-auction-trade-list dl { display: grid; grid-template-columns: repeat(3, minmax(72px, 1fr)); gap: 6px; margin: 0; }
+.market-auction-trade-list dl > div { display: grid; grid-template-columns: 1fr; gap: 2px; padding: 6px; border: 1px solid rgba(190, 153, 79, 0.1); text-align: center; }
+.market-auction-trade-list dd { margin: 0; color: #c7b68e; font-weight: 800; }
+.market-auction-trade-list article > strong { color: #83d2c3; font: 700 16px/1 Georgia, serif; }
+.market-auction-trade-list time { color: #8e8677; text-align: right; }
+.market-favorites-workspace { grid-template-rows: auto minmax(360px, 1fr) auto; }
+.market-favorites-workspace .market-listings { max-height: 570px; }
+.market-favorite-actions { border-top: 1px solid rgba(193, 155, 78, 0.18); }
+.market-complete-summary { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid rgba(190, 153, 79, 0.16); }
+.market-complete-summary > div { display: grid; min-height: 82px; align-content: center; gap: 3px; padding: 12px 18px; border-right: 1px solid rgba(190, 153, 79, 0.12); }
+.market-complete-summary > div:last-child { border-right: 0; }
+.market-complete-summary small { color: #746d61; font-size: 10px; }
+.market-complete-summary strong { color: #d8bb76; font: 700 22px/1 Georgia, serif; }
+.market-complete-summary span { color: #6e9189; font-size: 10px; }
+.market-complete-list { min-height: 330px; max-height: 500px; overflow: auto; border: 1px solid rgba(190, 153, 79, 0.16); background: rgba(3, 6, 8, 0.63); }
+.market-complete-list > article { display: grid; grid-template-columns: 30px minmax(0, 1fr) 120px 86px; align-items: center; gap: 12px; min-height: 76px; padding: 10px 13px; border-bottom: 1px solid rgba(190, 157, 90, 0.1); }
+.market-complete-list > article > span { display: grid; width: 26px; height: 26px; place-items: center; border: 1px solid rgba(91, 194, 169, 0.38); border-radius: 50%; color: #73cdb7; }
+.market-complete-list article > div { display: grid; gap: 2px; }
+.market-complete-list small { color: #6f6a60; font-size: 9px; letter-spacing: 0.1em; }
+.market-complete-list strong { color: #d2c09b; font: 600 12px/1.3 Georgia, "Noto Serif KR", serif; }
+.market-complete-list p { margin: 0; color: #77746d; font-size: 10px; }
+.market-complete-list time { color: #8e8677; font-size: 10px; }
+.market-complete-list b { color: #6fbaaa; font-size: 10px; }
 
 .market-empty-state { display: grid; min-height: 130px; place-items: center; align-content: center; gap: 6px; padding: 20px; color: #655f54; text-align: center; }
 .market-empty-state > span { color: #6d5936; font-size: 21px; }
 .market-empty-state strong { color: #a49881; font: 600 11px/1.4 Georgia, "Noto Serif KR", serif; }
 .market-empty-state p { max-width: 340px; margin: 0; font-size: 8px; line-height: 1.5; }
+.market-favorites-unresolved { display: grid; min-height: 210px; place-items: center; align-content: center; gap: 8px; padding: 18px; }
+.market-favorites-unresolved .market-empty-state { min-height: 0; padding: 0; }
+.market-favorites-unresolved > div { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.market-favorites-unresolved > div > button { min-width: 160px; min-height: 42px; border: 1px solid rgba(101, 198, 180, 0.32); color: #a5ded3; background: linear-gradient(#173b35, #091513); font-weight: 800; cursor: pointer; }
 
 .market-ticker { display: grid; grid-template-columns: 1.5fr repeat(3, 1fr); margin-bottom: 12px; border: 1px solid rgba(198, 159, 80, 0.18); background: rgba(3, 6, 8, 0.66); }
 .market-ticker > div { display: grid; gap: 4px; min-height: 82px; align-content: center; padding: 12px 17px; border-right: 1px solid rgba(198, 159, 80, 0.12); }
@@ -367,12 +488,6 @@
 .market-charge-policy > div { padding: 12px; border: 1px solid rgba(186, 148, 74, 0.14); background: rgba(5, 8, 10, 0.55); }
 .market-charge-policy strong { color: #c7ad74; font: 600 10px/1.3 Georgia, "Noto Serif KR", serif; }
 .market-charge-policy p { margin: 6px 0 0; color: #6f6c64; font-size: 7px; line-height: 1.55; }
-.market-sandbox-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 9px; margin-top: 10px; padding: 13px 15px; border: 1px dashed rgba(224, 164, 67, 0.45); background: rgba(63, 40, 10, 0.22); }
-.market-sandbox-tools small { color: #bc8441; font-size: 7px; font-weight: 900; letter-spacing: 0.16em; }
-.market-sandbox-tools h2 { margin: 2px 0; color: #d9bb7b; font: 600 13px/1.3 Georgia, serif; }
-.market-sandbox-tools p { margin: 0; color: #797267; font-size: 7px; }
-.market-sandbox-tools button { min-height: 33px; border: 1px solid rgba(218, 165, 75, 0.3); color: #dbb976; background: #251a0a; font-size: 8px; cursor: pointer; }
-
 .market-sanction { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 13px; margin-bottom: 12px; padding: 13px; border: 1px solid rgba(234, 72, 83, 0.54); background: linear-gradient(90deg, rgba(101, 20, 29, 0.48), rgba(19, 9, 12, 0.76)); box-shadow: 0 0 28px rgba(202, 49, 61, 0.09); }
 .market-sanction > span { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #ed6a75; border-radius: 50%; color: #ff9aa1; }
 .market-sanction > div { display: grid; gap: 2px; }
@@ -402,22 +517,17 @@
 .market-security-rules strong { color: #c6b585; font-size: 9px; }
 .market-security-rules span { color: #6c6962; font-size: 7px; line-height: 1.5; }
 .market-audit > div { margin-top: 12px; }
-.market-audit article { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 50px; border-top: 1px solid rgba(190, 153, 78, 0.1); }
+.market-audit article { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; min-height: 58px; border-top: 1px solid rgba(190, 153, 78, 0.1); }
 .market-audit article > span { color: #6fb6a3; font-size: 6px; font-weight: 900; letter-spacing: 0.08em; }
 .market-audit article p { display: grid; gap: 2px; margin: 0; }
 .market-audit article strong { color: #bcb19d; font-size: 8px; }
 .market-audit article small { color: #67655f; font-size: 7px; }
-.market-audit code { max-width: 85px; overflow: hidden; color: #665f51; font-size: 6px; text-overflow: ellipsis; }
-.market-legal-review { display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 11px; margin-top: 10px; padding: 11px 13px; border: 1px solid rgba(206, 159, 73, 0.22); background: rgba(65, 43, 13, 0.18); }
-.market-legal-review > span { display: grid; width: 30px; height: 30px; place-items: center; border: 1px solid #9c7840; color: #c9a55e; }
-.market-legal-review p { margin: 0; color: #837866; font-size: 8px; line-height: 1.55; }
-.market-legal-review strong { display: block; margin-bottom: 2px; color: #d0b574; font-size: 9px; }
 
 .market-loading, .market-fatal { display: grid; width: min(540px, calc(100% - 32px)); min-height: 260px; place-items: center; align-content: center; gap: 10px; margin: 12cqh auto; border: 1px solid rgba(204, 165, 85, 0.25); background: rgba(7, 10, 12, 0.94); text-align: center; }
 .market-loading i { width: 46px; height: 46px; border: 1px solid #a68143; border-radius: 50%; border-top-color: #efd185; animation: market-spin 1s linear infinite; }
 .market-loading strong, .market-fatal strong { color: #e4d4b1; font: 500 18px/1.3 Georgia, "Noto Serif KR", serif; }
 .market-loading span, .market-fatal p { margin: 0; color: #787267; font-size: 9px; }
-.market-fatal button { min-width: 140px; margin-top: 7px; }
+.market-fatal button, .market-fatal a { display: grid; min-width: 140px; margin-top: 7px; padding: 0 16px; place-items: center; text-decoration: none; }
 
 .market-confirm-backdrop { position: fixed; z-index: 100; inset: 0; display: grid; place-items: center; padding: 16px; background: rgba(1, 3, 4, 0.82); backdrop-filter: blur(8px); animation: market-fade 130ms ease-out both; }
 .market-confirm { position: relative; width: min(510px, 100%); max-height: calc(100cqh - 32px); padding: 29px 31px 25px; overflow-y: auto; border: 1px solid rgba(218, 175, 88, 0.46); color: #dcd1b9; background: radial-gradient(circle at 50% 0%, rgba(142, 93, 29, 0.22), transparent 35%), linear-gradient(155deg, #18150f, #080a0b 60%, #100c08); box-shadow: 0 28px 90px rgba(0, 0, 0, 0.85), 0 0 40px rgba(184, 124, 36, 0.11); text-align: center; animation: market-modal-in 180ms ease-out both; }
@@ -441,11 +551,15 @@
 
 @container game-viewport (max-width: 1180px) {
   .market-account-bar { grid-template-columns: 1fr 1fr; }
-  .market-demo-switch { min-height: 62px; }
-  .market-auction-layout { grid-template-columns: minmax(0, 1fr) 285px; }
-  .market-listings > header { display: none; }
-  .market-listing { grid-template-columns: minmax(280px, 2fr) minmax(95px, 0.7fr) minmax(110px, 0.8fr) 72px; }
+  .market-auction-heading { grid-template-columns: 72px minmax(0, 1fr); }
+  .market-auction-heading dl { grid-column: 1 / -1; }
+  .market-search-workspace { grid-template-columns: minmax(215px, 245px) minmax(0, 1fr); }
+  .market-listings > header, .market-listing { grid-template-columns: minmax(280px, 2fr) minmax(95px, 0.7fr) minmax(110px, 0.8fr); }
+  .market-listings > header span:nth-child(3) { display: none; }
   .market-listing-time { display: none; }
+  .market-vault-list { grid-template-columns: repeat(2, minmax(250px, 1fr)); }
+  .market-price-table { overflow-x: auto; }
+  .market-price-table > header, .market-price-table > article { min-width: 920px; }
   .market-exchange-layout { grid-template-columns: minmax(340px, 1.1fr) minmax(280px, 0.9fr); grid-template-areas: "book entry" "mine tape"; }
   .market-charge-hero { grid-template-columns: 110px minmax(0, 1fr); }
   .market-charge-hero > dl { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
@@ -470,13 +584,32 @@
   .market-panel { min-height: auto; margin-bottom: 8px; padding: 12px; }
   .market-panel-heading { display: grid; gap: 8px; }
   .market-panel-heading p { text-align: left; }
-  .market-filters { grid-template-columns: 1fr 1fr; }
-  .market-search { grid-column: 1 / -1; }
-  .market-auction-layout { grid-template-columns: 1fr; }
-  .market-vault { max-height: 520px; }
+  .market-auction-window { padding: 7px; }
+  .market-auction-heading { grid-template-columns: 62px minmax(0, 1fr); padding: 9px 11px; }
+  .market-auction-crest { width: 58px; height: 58px; }
+  .market-auction-heading dl { grid-template-columns: repeat(3, 1fr); }
+  .market-auction-tabs button { min-height: 52px; padding: 4px; }
+  .market-auction-tabs button small { display: none; }
+  .market-auction-tabs button strong { font-size: 10px; }
+  .market-search-workspace { grid-template-columns: 1fr; }
+  .market-auction-search { grid-template-columns: 1fr 1fr; border-right: 0; border-bottom: 1px solid rgba(195, 156, 78, 0.18); }
+  .market-auction-search header, .market-auction-search .market-filter-actions, .market-auction-search .market-filter-note { grid-column: 1 / -1; }
+  .market-auction-search .market-search { grid-column: 1 / -1; }
+  .market-search-results { min-height: 520px; padding: 10px; }
+  .market-listings > header { display: none; }
   .market-listing { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; min-height: 92px; }
-  .market-listing-seller, .market-listing-time, .market-listing-price { display: none; }
+  .market-listing-seller, .market-listing-time { display: none; }
   .market-listing-item { grid-template-columns: 55px minmax(0, 1fr); }
+  .market-selection-bar, .market-selection-bar.has-selection { grid-template-columns: 1fr; }
+  .market-selection-bar.has-selection > .market-item-icon { display: none; }
+  .market-vault-list { grid-template-columns: repeat(2, minmax(220px, 1fr)); }
+  .market-sell-form { grid-template-columns: 1fr; }
+  .market-sell-toolbar { align-items: stretch; flex-direction: column; }
+  .market-sell-toolbar label { width: 100%; }
+  .market-workspace-heading { align-items: start; flex-direction: column; }
+  .market-workspace-heading > p { max-width: none; text-align: left; }
+  .market-complete-list > article { grid-template-columns: 30px minmax(0, 1fr) 85px; }
+  .market-complete-list > article > b { display: none; }
   .market-ticker { grid-template-columns: 1fr 1fr; }
   .market-ticker > div:nth-child(2) { border-right: 0; }
   .market-ticker > div:nth-child(-n + 2) { border-bottom: 1px solid rgba(198, 159, 80, 0.12); }
@@ -486,7 +619,6 @@
   .market-charge-hero > dl { grid-column: auto; }
   .market-pack-grid { grid-template-columns: 1fr 1fr; }
   .market-charge-policy { grid-template-columns: 1fr; }
-  .market-sandbox-tools { grid-template-columns: 1fr; }
   .market-security-grid { grid-template-columns: 1fr; grid-template-areas: "verify" "status" "rules" "audit"; }
 }
 
@@ -499,8 +631,21 @@
   .market-balance dl > div { gap: 5px; }
   .market-tabs button strong { font-size: 8px; }
   .market-panel-heading h1 { font-size: 22px; }
-  .market-filters { grid-template-columns: 1fr; }
-  .market-search { grid-column: auto; }
+  .market-auction-heading { grid-template-columns: 48px minmax(0, 1fr); }
+  .market-auction-crest { width: 44px; height: 44px; }
+  .market-auction-heading h1 { font-size: 21px; }
+  .market-auction-heading p, .market-auction-heading dl { display: none; }
+  .market-auction-tabs { display: flex; overflow-x: auto; }
+  .market-auction-tabs button { min-width: 92px; }
+  .market-auction-search { grid-template-columns: 1fr; padding: 13px; }
+  .market-auction-search header, .market-auction-search .market-filter-actions, .market-auction-search .market-filter-note, .market-auction-search .market-search { grid-column: auto; }
+  .market-selection-actions { grid-template-columns: 1fr; }
+  .market-vault-list { grid-template-columns: 1fr; max-height: 420px; }
+  .market-sell-workspace, .market-price-workspace, .market-favorites-workspace, .market-complete-workspace { padding: 10px; }
+  .market-complete-summary { grid-template-columns: 1fr; }
+  .market-complete-summary > div { min-height: 62px; border-right: 0; border-bottom: 1px solid rgba(190, 153, 79, 0.12); }
+  .market-complete-list > article { grid-template-columns: 28px minmax(0, 1fr); }
+  .market-complete-list time { grid-column: 2; }
   .market-listing-item strong { font-size: 9px; }
   .market-pack-grid { grid-template-columns: 1fr; }
   .market-pack-grid article { min-height: 200px; }
@@ -510,19 +655,20 @@
   .market-verification li { grid-template-columns: 28px minmax(0, 1fr); padding: 7px 0; }
   .market-verification li a { grid-column: 2; width: max-content; }
   .market-audit article { grid-template-columns: 58px minmax(0, 1fr); }
-  .market-audit code { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .market-screen *, .market-screen *::before, .market-screen *::after { animation: none !important; transition: none !important; }
 }
 
-/* Readability audit: preserve the dense ledger layout without sub-10px copy. */
+/* Readability audit: the 1920px game canvas is commonly scaled down, so core
+   controls stay at 14-16 design pixels and secondary metadata at 12-13. */
 .market-screen small,
 .market-screen dt,
 .market-screen label > span,
 .market-screen header > span {
   font-size: 10px;
+  font-size: max(10px, 13px);
   line-height: 1.4;
 }
 
@@ -530,23 +676,25 @@
 .market-screen input,
 .market-screen select,
 .market-screen a {
-  font-size: 11px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
 .market-panel-heading p,
+.market-auction-heading p,
+.market-workspace-heading p,
+.market-auction-search header p,
 .market-launch-gate p,
 .market-charge-hero p,
 .market-charge-policy p,
-.market-sandbox-tools p,
 .market-sanction p,
 .market-verification li p,
-.market-legal-review p,
 .market-order-entry > p,
 .market-confirm > p,
+.market-search-error p,
 .market-loading span,
 .market-fatal p {
-  font-size: 12px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
@@ -554,10 +702,10 @@
 .market-account-identity small,
 .market-account-identity > b,
 .market-balance small,
-.market-demo-switch small,
 .market-launch-gate small,
 .market-launch-gate > b,
 .market-tabs button small,
+.market-auction-tabs button small,
 .market-panel-heading small,
 .market-panel header small,
 .market-filters label > span,
@@ -582,20 +730,18 @@
 .market-instant-orders > small,
 .market-my-orders small,
 .market-charge-hero > div small,
-.market-sandbox-tools small,
 .market-sanction small,
 .market-security-status dt,
 .market-audit article > span,
 .market-audit article small,
-.market-audit code,
 .market-confirm > small,
 .market-confirm dt {
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
 .market-notice {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.45;
 }
 
@@ -603,7 +749,7 @@
 .market-local-warning > span,
 .market-verification li > span,
 .market-item-icon.is-compact .market-item-enhancement {
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .market-sync-state,
@@ -624,21 +770,49 @@
 .market-security-status dd,
 .market-security-rules span,
 .market-audit article strong,
-.market-legal-review strong,
 .market-confirm > div button {
-  font-size: 11px;
+  font-size: 13px;
   line-height: 1.45;
 }
 
+.market-filter-note,
+.market-selection-bar span,
+.market-sell-selection em,
+.market-price-table em,
+.market-price-table article > b,
+.market-complete-summary span,
+.market-complete-list small,
+.market-complete-list p,
+.market-complete-list time,
+.market-complete-list b,
+.market-item-details dd,
+.market-pack-grid strong i {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.market-auction-tabs button strong,
+.market-selection-bar strong,
+.market-sell-selection strong,
+.market-price-table article > div strong,
+.market-empty-state strong,
+.market-my-orders strong,
+.market-pack-grid b,
+.market-charge-policy strong,
+.market-confirm dd {
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .market-verification li a {
-  font-size: 11px;
+  font-size: 14px;
 }
 
 .market-tabs button strong,
 .market-listing-item strong,
 .market-verification li strong,
 .market-security-rules strong {
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.35;
 }
 
@@ -652,6 +826,234 @@
 }
 
 .market-confirm-footnote {
-  font-size: 10px !important;
+  font-size: 12px !important;
   line-height: 1.5;
+}
+
+/* The fixed 1920 × 1080 game plane is letterboxed as one picture. Structural
+   breakpoints stay attached to that game container; this runtime density tier
+   only preserves readable type and click targets after the outer transform. */
+.market-screen:is([data-market-density="scaled"], [data-market-density="compact"]) {
+  & button,
+  & input,
+  & select,
+  & a {
+    font-size: 20px;
+  }
+
+  & small,
+  & dt,
+  & time,
+  & em,
+  & label > span,
+  & header > span,
+  .market-filter-note,
+  .market-listing-item span,
+  .market-listing-seller span,
+  .market-listing-time span,
+  .market-listing-price span,
+  .market-selection-bar span,
+  .market-vault-list em,
+  .market-sell-selection em,
+  .market-price-table em,
+  .market-complete-summary span,
+  .market-complete-list p,
+  .market-ticker span,
+  .market-book-side span,
+  .market-book-side em,
+  .market-trade-tape span {
+    font-size: 18px;
+  }
+
+  .market-panel-heading p,
+  .market-brand strong,
+  .market-sync-state,
+  .market-account-identity strong,
+  .market-balance strong,
+  .market-balance dd,
+  .market-tabs button strong,
+  .market-auction-heading p,
+  .market-auction-heading dd,
+  .market-auction-tabs button strong,
+  .market-workspace-heading p,
+  .market-auction-search header p,
+  .market-launch-gate p,
+  .market-local-warning p,
+  .market-empty-state p,
+  .market-search-error p,
+  .market-confirm > p,
+  .market-notice,
+  .market-item-details dd,
+  .market-item-details-power dd span,
+  .market-selection-bar strong,
+  .market-listing-item strong,
+  .market-listing-seller strong,
+  .market-listing-time strong,
+  .market-listing-price strong,
+  .market-vault-list strong,
+  .market-sell-selection strong,
+  .market-price-table article > div strong,
+  .market-complete-list strong,
+  .market-complete-list b,
+  .market-security-status dd,
+  .market-charge-policy p,
+  .market-confirm dd {
+    font-size: 21px;
+  }
+
+  .market-panel-heading h1,
+  .market-auction-heading h1 {
+    font-size: 38px;
+  }
+
+  .market-workspace-heading h2,
+  .market-auction-search h2,
+  .market-panel h2 {
+    font-size: 28px;
+  }
+
+  .market-topbar { min-height: 86px; }
+  .market-tabs button { min-height: 82px; }
+  .market-auction-tabs button { min-height: 78px; }
+  .market-account-identity,
+  .market-balance { min-height: 104px; }
+  .market-auction-heading { min-height: 126px; }
+  .market-auction-search input,
+  .market-auction-search select,
+  .market-sell-toolbar select,
+  .market-sell-form input,
+  .market-order-entry input { min-height: 56px; }
+  .market-filter-actions button,
+  .market-selection-actions button,
+  .market-sell-form button,
+  .market-price-table article > button,
+  .market-cancel-selected,
+  .market-order-entry form > button,
+  .market-pack-grid button,
+  .market-search-error button,
+  .market-favorites-unresolved > div > button,
+  .market-steam-error a,
+  .market-fatal button,
+  .market-fatal a { min-height: 54px; }
+  .market-payment-retry button { min-height: 54px; }
+  .market-listing { min-height: 112px; }
+  .market-vault-list > button { min-height: 116px; }
+  .market-selection-bar { min-height: 112px; }
+
+  .market-auction-tabs button > b,
+  .market-item-enhancement,
+  .market-notice > span,
+  .market-local-warning > span,
+  .market-account-identity > b {
+    font-size: 16px;
+  }
+}
+
+.market-screen[data-market-density="compact"] {
+  & button,
+  & input,
+  & select,
+  & a {
+    font-size: 28px;
+  }
+
+  & small,
+  & dt,
+  & time,
+  & em,
+  & label > span,
+  & header > span,
+  .market-filter-note,
+  .market-listing-item span,
+  .market-listing-seller span,
+  .market-listing-time span,
+  .market-listing-price span,
+  .market-selection-bar span,
+  .market-vault-list em,
+  .market-sell-selection em,
+  .market-price-table em,
+  .market-complete-summary span,
+  .market-complete-list p,
+  .market-ticker span,
+  .market-book-side span,
+  .market-book-side em,
+  .market-trade-tape span {
+    font-size: 24px;
+  }
+
+  .market-panel-heading p,
+  .market-brand strong,
+  .market-sync-state,
+  .market-account-identity strong,
+  .market-balance strong,
+  .market-balance dd,
+  .market-tabs button strong,
+  .market-auction-heading p,
+  .market-auction-heading dd,
+  .market-auction-tabs button strong,
+  .market-workspace-heading p,
+  .market-auction-search header p,
+  .market-launch-gate p,
+  .market-local-warning p,
+  .market-empty-state p,
+  .market-search-error p,
+  .market-confirm > p,
+  .market-notice,
+  .market-item-details dd,
+  .market-item-details-power dd span,
+  .market-selection-bar strong,
+  .market-listing-item strong,
+  .market-listing-seller strong,
+  .market-listing-time strong,
+  .market-listing-price strong,
+  .market-vault-list strong,
+  .market-sell-selection strong,
+  .market-price-table article > div strong,
+  .market-complete-list strong,
+  .market-complete-list b,
+  .market-security-status dd,
+  .market-charge-policy p,
+  .market-confirm dd {
+    font-size: 28px;
+  }
+
+  .market-panel-heading h1,
+  .market-auction-heading h1 { font-size: 48px; }
+  .market-workspace-heading h2,
+  .market-auction-search h2,
+  .market-panel h2 { font-size: 36px; }
+
+  .market-topbar { min-height: 104px; }
+  .market-tabs button { min-height: 96px; }
+  .market-auction-tabs button { min-height: 92px; }
+  .market-account-identity,
+  .market-balance { min-height: 122px; }
+  .market-auction-heading { min-height: 148px; }
+  .market-auction-search input,
+  .market-auction-search select,
+  .market-sell-toolbar select,
+  .market-sell-form input,
+  .market-order-entry input { min-height: 68px; }
+  .market-filter-actions button,
+  .market-selection-actions button,
+  .market-sell-form button,
+  .market-price-table article > button,
+  .market-cancel-selected,
+  .market-order-entry form > button,
+  .market-pack-grid button,
+  .market-search-error button,
+  .market-favorites-unresolved > div > button,
+  .market-steam-error a,
+  .market-fatal button,
+  .market-fatal a { min-height: 66px; }
+  .market-payment-retry button { min-height: 66px; }
+  .market-listing { min-height: 132px; }
+  .market-vault-list > button { min-height: 136px; }
+  .market-selection-bar { min-height: 132px; }
+
+  .market-auction-tabs button > b,
+  .market-item-enhancement,
+  .market-notice > span,
+  .market-local-warning > span,
+  .market-account-identity > b { font-size: 21px; }
 }

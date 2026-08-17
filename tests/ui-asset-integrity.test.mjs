@@ -39,6 +39,8 @@ const uiPromptFiles = [
   "asset-sources/imagegen/inventory-enhancement-button-v1.prompt.json",
   "asset-sources/imagegen/gothic-panel-assets-v2.prompt.json",
   "asset-sources/imagegen/inventory-portrait-mannequin-v1.prompt.json",
+  "asset-sources/imagegen/auction-hall-backdrop-v1.prompt.json",
+  "asset-sources/imagegen/auction-registry-crest-v1.prompt.json",
 ];
 
 function posix(relativePath) {
@@ -289,6 +291,96 @@ test("gothic panel V2 keeps fixed modal geometry and a fill-free modular frame",
     /inventory-chrome\/tooltip-panel\.png/,
     "the retired low-resolution filled panel must not return to runtime",
   );
+});
+
+test("market ImageGen art keeps fixed release geometry, clean alpha, and ratio-safe CSS", async () => {
+  const records = [
+    {
+      prompt: "asset-sources/imagegen/auction-hall-backdrop-v1.prompt.json",
+      source: "asset-sources/imagegen/auction-hall-backdrop-v1-source.png",
+      sourceSha256: "91c10721548bd963b3fb02bac4d0dcc0e6987d6337b671881ed6d77338254d60",
+      output: "public/assets/ui/market/auction-hall-backdrop-v1.webp",
+      outputSha256: "04becdfb3e52fbe175efee949fdf9f9c5c5c89491bd77f825bd40dfe1b4ae6e7",
+    },
+    {
+      prompt: "asset-sources/imagegen/auction-registry-crest-v1.prompt.json",
+      source: "asset-sources/imagegen/auction-registry-crest-v1-source.png",
+      sourceSha256: "ce6fe106e045051bc48bfdb6396693ca1f549a8286053a56e851dbfe78ba7d02",
+      output: "public/assets/ui/market/auction-registry-crest-v1.png",
+      outputSha256: "b73fd346a53ea096f73026c412ab8e92ae9d47c8cd37276db1ad286d19bc10e1",
+    },
+  ];
+
+  for (const record of records) {
+    const prompt = JSON.parse(await readFile(path.join(root, record.prompt), "utf8"));
+    assert.equal(prompt.mode, "generate", `${record.prompt} must retain its original generation mode`);
+    assert.match(prompt.tool, /image_gen/, `${record.prompt} must identify the built-in ImageGen path`);
+    assert.equal(prompt.source, record.source, `${record.prompt} source provenance drifted`);
+    assert.equal(prompt.output, record.output, `${record.prompt} output provenance drifted`);
+    assert.ok(prompt.prompt.length >= 500, `${record.prompt} lost its production generation brief`);
+    assert.equal(sha256(await readProjectFile(record.source)), record.sourceSha256, `${record.source} SHA-256 drifted`);
+    assert.equal(sha256(await readProjectFile(record.output)), record.outputSha256, `${record.output} SHA-256 drifted`);
+  }
+
+  const backdropPrompt = JSON.parse(await readFile(path.join(root, records[0].prompt), "utf8"));
+  assert.equal(backdropPrompt.generationResult.sourceSha256, records[0].sourceSha256);
+  assert.equal(backdropPrompt.productionOutput.sha256, records[0].outputSha256);
+  assert.deepEqual(backdropPrompt.productionOutput.size, [1920, 1080]);
+  assert.equal(backdropPrompt.productionOutput.mode, "RGB");
+  assert.match(backdropPrompt.productionOutput.pipeline, /Lanczos3[\s\S]*cover crop[\s\S]*no stretch/i);
+
+  const backdrop = await sharp(path.join(root, records[0].output), { failOn: "error" }).metadata();
+  assert.deepEqual([backdrop.width, backdrop.height], [1920, 1080]);
+  assert.equal(backdrop.format, "webp");
+  assert.equal(backdrop.channels, 3, "the fullscreen market backdrop must remain opaque RGB");
+  assert.equal(backdrop.hasAlpha, false, "the fullscreen market backdrop must not ship an alpha plane");
+
+  const crest = await sharp(path.join(root, records[1].output), { failOn: "error" })
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  assert.deepEqual([crest.info.width, crest.info.height, crest.info.channels], [384, 384, 4]);
+  let hiddenRgbPixels = 0;
+  let edgeAlphaPixels = 0;
+  let minimumX = crest.info.width;
+  let minimumY = crest.info.height;
+  let maximumX = -1;
+  let maximumY = -1;
+  for (let y = 0; y < crest.info.height; y += 1) {
+    for (let x = 0; x < crest.info.width; x += 1) {
+      const offset = (y * crest.info.width + x) * 4;
+      const alpha = crest.data[offset + 3];
+      if (alpha === 0 && (crest.data[offset] || crest.data[offset + 1] || crest.data[offset + 2])) {
+        hiddenRgbPixels += 1;
+      }
+      if ((x === 0 || y === 0 || x === crest.info.width - 1 || y === crest.info.height - 1) && alpha > 0) {
+        edgeAlphaPixels += 1;
+      }
+      if (alpha > 8) {
+        minimumX = Math.min(minimumX, x);
+        minimumY = Math.min(minimumY, y);
+        maximumX = Math.max(maximumX, x);
+        maximumY = Math.max(maximumY, y);
+      }
+    }
+  }
+  assert.equal(hiddenRgbPixels, 0, "the market crest must zero RGB beneath fully transparent texels");
+  assert.equal(edgeAlphaPixels, 0, "the market crest must not touch any texture edge");
+  assert.ok(maximumX >= minimumX && maximumY >= minimumY, "the market crest is effectively blank");
+  assert.ok(
+    Math.min(minimumX, minimumY, crest.info.width - 1 - maximumX, crest.info.height - 1 - maximumY) >= 4,
+    "the market crest needs a transparent gutter on every side",
+  );
+
+  const marketCss = await readFile(path.join(root, "app", "market", "market.css"), "utf8");
+  const backdropRule = marketCss.match(/\.market-backdrop\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(backdropRule, /auction-hall-backdrop-v1\.webp["']?\)\s+center\s*\/\s*cover\s+no-repeat/);
+  assert.doesNotMatch(backdropRule, /background-size:\s*100%\s+100%|\/\s*100%\s+100%/);
+  for (const selector of ["market-brand-seal", "market-auction-crest"]) {
+    const rule = marketCss.match(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`))?.[1] ?? "";
+    assert.match(rule, /auction-registry-crest-v1\.png["']?\)\s+center\s*\/\s*contain\s+no-repeat/);
+    assert.doesNotMatch(rule, /background-size:\s*100%\s+100%|\/\s*100%\s+100%/);
+  }
 });
 
 test("UI build reports and ImageGen prompts resolve only versioned, hash-locked provenance", async () => {

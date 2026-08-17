@@ -14,6 +14,7 @@ BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_payment_orders p WHERE p.id=NEW.payment_order_id AND p.account_id=NEW.account_id AND p.status='authorized') THEN RAISE(ABORT,'payment_not_finalizable') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.account_id AND a.status='active' AND a.wallet_frozen=0 AND a.steam_ownership_verified=1) THEN RAISE(ABORT,'payment_account_blocked') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','payment','wallet')) THEN RAISE(ABORT,'payment_account_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_wallets w JOIN economy_payment_orders p ON p.id=NEW.payment_order_id WHERE w.account_id=NEW.account_id AND w.gold_available+w.gold_reserved+w.gold_locked+p.gold_amount<=1000000000) THEN RAISE(ABORT,'payment_wallet_capacity') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_payment_finalize_after
@@ -98,8 +99,10 @@ BEFORE INSERT ON economy_commands WHEN NEW.action = 'list_item'
 BEGIN
   SELECT CASE WHEN NEW.item_id IS NULL OR NEW.price_ash NOT BETWEEN 1 AND 1000000000000 OR NEW.expires_at <= NEW.created_at THEN RAISE(ABORT,'invalid_list_item') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.actor_account_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'account_not_trade_eligible') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_identities ident WHERE ident.account_id=NEW.actor_account_id AND ident.ownership_permanent=1 AND (ident.provider='development' OR (ident.provider='steam' AND ident.verified_at>=NEW.created_at-43200000))) THEN RAISE(ABORT,'steam_ownership_stale') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
   SELECT CASE WHEN (SELECT COUNT(*) FROM economy_listings WHERE seller_account_id=NEW.actor_account_id AND status='open')>=200 THEN RAISE(ABORT,'open_listing_limit') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_wallets w WHERE w.account_id=NEW.actor_account_id AND w.ash_available+w.ash_reserved+NEW.price_ash>9000000000000) THEN RAISE(ABORT,'seller_wallet_capacity') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_items i WHERE i.id=NEW.item_id AND i.owner_account_id=NEW.actor_account_id AND i.state='inventory' AND i.tradeable=1 AND i.version=NEW.expected_version) THEN RAISE(ABORT,'item_not_owned_or_version') END;
 END;
 --> statement-breakpoint
@@ -117,11 +120,13 @@ CREATE TRIGGER IF NOT EXISTS economy_buy_listing_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'buy_listing'
 BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.actor_account_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'account_not_trade_eligible') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_items i ON i.id=l.item_id WHERE l.id=NEW.listing_id AND l.status='open' AND l.expires_at>NEW.created_at AND l.version=NEW.expected_version AND l.price_ash=NEW.price_ash AND l.seller_account_id<>NEW.actor_account_id AND i.state='escrow' AND i.owner_account_id=l.seller_account_id) THEN RAISE(ABORT,'listing_unavailable_or_self_trade') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_identities ident WHERE ident.account_id=NEW.actor_account_id AND ident.ownership_permanent=1 AND (ident.provider='development' OR (ident.provider='steam' AND ident.verified_at>=NEW.created_at-43200000))) THEN RAISE(ABORT,'steam_ownership_stale') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_items i ON i.id=l.item_id WHERE l.id=NEW.listing_id AND l.status='open' AND l.expires_at>NEW.created_at AND l.version=NEW.expected_version AND l.price_ash=NEW.price_ash AND l.seller_account_id<>NEW.actor_account_id AND i.state='escrow' AND i.tradeable=1 AND i.owner_account_id=l.seller_account_id) THEN RAISE(ABORT,'listing_unavailable_or_self_trade') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_wallets w JOIN economy_listings l ON l.id=NEW.listing_id WHERE w.account_id=NEW.actor_account_id AND w.ash_available>=l.price_ash) THEN RAISE(ABORT,'insufficient_ash') END;
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_accounts a ON a.id=l.seller_account_id JOIN economy_wallets w ON w.account_id=a.id WHERE l.id=NEW.listing_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0 AND w.ash_available+l.price_ash<=9000000000000) THEN RAISE(ABORT,'seller_ineligible_or_overflow') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_listings l JOIN economy_sanctions s ON s.account_id=l.seller_account_id WHERE l.id=NEW.listing_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'seller_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_accounts a ON a.id=l.seller_account_id WHERE l.id=NEW.listing_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'seller_ineligible') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings l JOIN economy_wallets w ON w.account_id=l.seller_account_id WHERE l.id=NEW.listing_id AND w.ash_available+w.ash_reserved+l.price_ash<=9000000000000) THEN RAISE(ABORT,'seller_wallet_capacity') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_listings l JOIN economy_sanctions s ON s.account_id=l.seller_account_id WHERE l.id=NEW.listing_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','market','wallet')) THEN RAISE(ABORT,'seller_sanctioned') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_buy_listing_after
@@ -145,7 +150,6 @@ CREATE TRIGGER IF NOT EXISTS economy_cancel_listing_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'cancel_listing'
 BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_listings WHERE id=NEW.listing_id AND seller_account_id=NEW.actor_account_id AND status='open' AND version=NEW.expected_version) THEN RAISE(ABORT,'listing_not_owned_or_version') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('market','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_cancel_listing_after
@@ -162,11 +166,14 @@ BEFORE INSERT ON economy_commands WHEN NEW.action = 'place_exchange'
 BEGIN
   SELECT CASE WHEN NEW.side IS NULL OR NEW.gold_amount NOT BETWEEN 1 AND 10000000 OR NEW.price_ash NOT BETWEEN 1 AND 1000000000 OR NEW.gold_amount*NEW.price_ash>9000000000000 THEN RAISE(ABORT,'invalid_exchange_order') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.actor_account_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'account_not_trade_eligible') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_identities ident WHERE ident.account_id=NEW.actor_account_id AND ident.ownership_permanent=1 AND (ident.provider='development' OR (ident.provider='steam' AND ident.verified_at>=NEW.created_at-43200000))) THEN RAISE(ABORT,'steam_ownership_stale') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
   SELECT CASE WHEN (SELECT COUNT(*) FROM economy_exchange_orders WHERE account_id=NEW.actor_account_id AND status IN ('open','partially_filled'))>=100 THEN RAISE(ABORT,'open_exchange_order_limit') END;
   SELECT CASE WHEN NEW.side='buy_gold' AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND ash_available>=NEW.gold_amount*NEW.price_ash) THEN RAISE(ABORT,'insufficient_ash') END;
   SELECT CASE WHEN NEW.side='sell_gold' AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND gold_available>=NEW.gold_amount) THEN RAISE(ABORT,'insufficient_mature_gold') END;
   SELECT CASE WHEN NEW.side='sell_gold' AND (SELECT COALESCE(SUM(remaining),0) FROM economy_gold_lots WHERE account_id=NEW.actor_account_id AND state='available' AND tradeable_at<=NEW.created_at)<NEW.gold_amount THEN RAISE(ABORT,'insufficient_mature_gold_lots') END;
+  SELECT CASE WHEN NEW.side='sell_gold' AND EXISTS(SELECT 1 FROM economy_wallets w WHERE w.account_id=NEW.actor_account_id AND w.ash_available+w.ash_reserved+NEW.gold_amount*NEW.price_ash>9000000000000) THEN RAISE(ABORT,'maker_wallet_capacity') END;
+  SELECT CASE WHEN NEW.side='buy_gold' AND EXISTS(SELECT 1 FROM economy_wallets w WHERE w.account_id=NEW.actor_account_id AND w.gold_available+w.gold_reserved+w.gold_locked+NEW.gold_amount>1000000000) THEN RAISE(ABORT,'maker_wallet_capacity') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_place_exchange_after
@@ -198,12 +205,17 @@ CREATE TRIGGER IF NOT EXISTS economy_fill_exchange_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'fill_exchange'
 BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_accounts a WHERE a.id=NEW.actor_account_id AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'account_not_trade_eligible') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
+  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_identities ident WHERE ident.account_id=NEW.actor_account_id AND ident.ownership_permanent=1 AND (ident.provider='development' OR (ident.provider='steam' AND ident.verified_at>=NEW.created_at-43200000))) THEN RAISE(ABORT,'steam_ownership_stale') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_accounts a ON a.id=o.account_id WHERE o.id=NEW.order_id AND o.account_id<>NEW.actor_account_id AND o.status IN ('open','partially_filled') AND o.version=NEW.expected_version AND o.price_ash_per_gold=NEW.price_ash AND o.gold_remaining>=NEW.gold_amount AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0) THEN RAISE(ABORT,'order_unavailable_or_self_trade') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_sanctions s ON s.account_id=o.account_id WHERE o.id=NEW.order_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('exchange','wallet')) THEN RAISE(ABORT,'maker_sanctioned') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_sanctions s ON s.account_id=o.account_id WHERE o.id=NEW.order_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('login','exchange','wallet')) THEN RAISE(ABORT,'maker_sanctioned') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o WHERE o.id=NEW.order_id AND o.side='sell_gold') AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND ash_available>=NEW.gold_amount*NEW.price_ash) THEN RAISE(ABORT,'insufficient_ash') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o WHERE o.id=NEW.order_id AND o.side='buy_gold') AND NOT EXISTS(SELECT 1 FROM economy_wallets WHERE account_id=NEW.actor_account_id AND gold_available>=NEW.gold_amount) THEN RAISE(ABORT,'insufficient_mature_gold') END;
   SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o WHERE o.id=NEW.order_id AND o.side='buy_gold') AND (SELECT COALESCE(SUM(remaining),0) FROM economy_gold_lots WHERE account_id=NEW.actor_account_id AND state='available' AND tradeable_at<=NEW.created_at)<NEW.gold_amount THEN RAISE(ABORT,'insufficient_mature_gold_lots') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_wallets w ON w.account_id=o.account_id WHERE o.id=NEW.order_id AND o.side='sell_gold' AND w.ash_available+w.ash_reserved+NEW.gold_amount*NEW.price_ash>9000000000000) THEN RAISE(ABORT,'maker_wallet_capacity') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_wallets w ON w.account_id=o.account_id WHERE o.id=NEW.order_id AND o.side='buy_gold' AND w.gold_available+w.gold_reserved+w.gold_locked+NEW.gold_amount>1000000000) THEN RAISE(ABORT,'maker_wallet_capacity') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_wallets w ON w.account_id=NEW.actor_account_id WHERE o.id=NEW.order_id AND o.side='sell_gold' AND w.gold_available+w.gold_reserved+w.gold_locked+NEW.gold_amount>1000000000) THEN RAISE(ABORT,'taker_wallet_capacity') END;
+  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_exchange_orders o JOIN economy_wallets w ON w.account_id=NEW.actor_account_id WHERE o.id=NEW.order_id AND o.side='buy_gold' AND w.ash_available+w.ash_reserved+NEW.gold_amount*NEW.price_ash>9000000000000) THEN RAISE(ABORT,'taker_wallet_capacity') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_fill_exchange_after
@@ -258,7 +270,6 @@ CREATE TRIGGER IF NOT EXISTS economy_cancel_exchange_before
 BEFORE INSERT ON economy_commands WHEN NEW.action = 'cancel_exchange'
 BEGIN
   SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM economy_exchange_orders WHERE id=NEW.order_id AND account_id=NEW.actor_account_id AND status IN ('open','partially_filled') AND version=NEW.expected_version) THEN RAISE(ABORT,'exchange_order_not_owned_or_version') END;
-  SELECT CASE WHEN EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=NEW.actor_account_id AND s.revoked_at IS NULL AND s.starts_at<=NEW.created_at AND (s.expires_at IS NULL OR s.expires_at>NEW.created_at) AND s.scope IN ('exchange','wallet')) THEN RAISE(ABORT,'account_sanctioned') END;
 END;
 --> statement-breakpoint
 CREATE TRIGGER IF NOT EXISTS economy_cancel_exchange_after

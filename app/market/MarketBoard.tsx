@@ -13,7 +13,10 @@ import {
 } from "react";
 import Link from "next/link";
 import {
+  LEGENDARY_POWERS,
+  formatEnhancedGearAffix,
   formatGearDisplayName,
+  getGearImplicitDisplay,
   getGearRequiredLevel,
   normalizeGearEnhancement,
   type GearItem,
@@ -23,8 +26,8 @@ import {
   MARKET_RARITIES,
   MARKET_SLOTS,
   EconomyClientError,
+  createEconomyIdempotencyKey,
   fetchEconomySnapshot,
-  fetchExchangeOrders,
   fetchMarketListings,
   finalizeSteamGoldPurchase,
   formatEconomyAmount,
@@ -40,7 +43,6 @@ import {
   type MarketSearch,
   type MarketSlot,
   type MarketVaultItem,
-  type OrderBookLevel,
 } from "../economy-client";
 import {
   gearItemToEconomyPayload,
@@ -52,8 +54,12 @@ import {
 } from "./character-market";
 
 type MarketTab = "auction" | "gold" | "charge" | "security";
+type AuctionView = "search" | "price" | "favorites" | "sell" | "complete";
+type SellSource = "all" | "character" | "vault";
 type DemoUser = "A" | "B";
+type MarketViewportDensity = "default" | "scaled" | "compact";
 type Notice = { tone: "info" | "success" | "error"; message: string };
+type FatalMarketError = { status: number; code: string };
 type SellCandidate =
   | {
       key: string;
@@ -68,7 +74,7 @@ type SellCandidate =
       saveSlot: 1 | 2 | 3;
     };
 
-type Confirmation =
+type ConfirmationIntent =
   | { kind: "buy"; listing: MarketListing }
   | { kind: "cancel-listing"; listing: MarketListing }
   | { kind: "sell"; candidate: SellCandidate; priceAsh: number }
@@ -80,8 +86,9 @@ type Confirmation =
     }
   | { kind: "fill-order"; order: GoldOrder; goldAmount: number }
   | { kind: "cancel-order"; order: GoldOrder }
-  | { kind: "charge"; packId: string; goldAmount: number; priceKrw: number }
-  | { kind: "sandbox"; currency: "memoryAsh" | "goldBars"; amount: number };
+  | { kind: "charge"; packId: string; goldAmount: number; priceKrw: number };
+
+type Confirmation = ConfirmationIntent & { intentKey: string; serverItemId?: string };
 
 const TABS: ReadonlyArray<{ id: MarketTab; label: string; eyebrow: string }> = [
   { id: "auction", label: "장비 경매장", eyebrow: "EQUIPMENT" },
@@ -89,6 +96,61 @@ const TABS: ReadonlyArray<{ id: MarketTab; label: string; eyebrow: string }> = [
   { id: "charge", label: "금괴 충전", eyebrow: "STEAM WALLET" },
   { id: "security", label: "보안센터", eyebrow: "ACCOUNT GUARD" },
 ];
+
+const AUCTION_VIEWS: ReadonlyArray<{ id: AuctionView; label: string; eyebrow: string }> = [
+  { id: "search", label: "장비 검색", eyebrow: "SEARCH" },
+  { id: "price", label: "시세 조회", eyebrow: "MARKET PRICE" },
+  { id: "favorites", label: "관심 목록", eyebrow: "WATCH LIST" },
+  { id: "sell", label: "판매 등록", eyebrow: "SELL" },
+  { id: "complete", label: "거래 완료", eyebrow: "HISTORY" },
+];
+
+const MARKET_FAVORITES_STORAGE_KEY = "mujindo:market:favorites:v1";
+const MARKET_DESIGN_WIDTH = 1920;
+const MARKET_DESIGN_HEIGHT = 1080;
+const MARKET_SCALED_VIEWPORT_RATIO = 1440 / MARKET_DESIGN_WIDTH;
+const MARKET_COMPACT_VIEWPORT_RATIO = 1100 / MARKET_DESIGN_WIDTH;
+
+function subscribeMarketViewportDensity(onStoreChange: () => void): () => void {
+  const initialFrame = window.requestAnimationFrame(onStoreChange);
+  window.addEventListener("resize", onStoreChange);
+  window.visualViewport?.addEventListener("resize", onStoreChange);
+  return () => {
+    window.cancelAnimationFrame(initialFrame);
+    window.removeEventListener("resize", onStoreChange);
+    window.visualViewport?.removeEventListener("resize", onStoreChange);
+  };
+}
+
+function readMarketViewportDensity(): MarketViewportDensity {
+  const viewportScale = Math.min(
+    window.innerWidth / MARKET_DESIGN_WIDTH,
+    window.innerHeight / MARKET_DESIGN_HEIGHT,
+  );
+  if (viewportScale <= MARKET_COMPACT_VIEWPORT_RATIO) return "compact";
+  if (viewportScale <= MARKET_SCALED_VIEWPORT_RATIO) return "scaled";
+  return "default";
+}
+
+function readServerMarketViewportDensity(): MarketViewportDensity {
+  return "default";
+}
+
+function marketFavoritesStorageKey(ownerKey: string): string {
+  return `${MARKET_FAVORITES_STORAGE_KEY}:${ownerKey}`;
+}
+
+function readMarketFavorites(ownerKey: string): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = JSON.parse(window.localStorage.getItem(marketFavoritesStorageKey(ownerKey)) ?? "[]");
+    return Array.isArray(stored)
+      ? stored.filter((value): value is string => typeof value === "string").slice(0, 10)
+      : [];
+  } catch {
+    return [];
+  }
+}
 
 const MODAL_FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -134,6 +196,20 @@ const SLOT_LABELS: Readonly<Record<MarketSlot, string>> = {
   relic: "유물",
 };
 
+const ORDER_STATUS_LABELS: Readonly<Record<GoldOrder["status"], string>> = {
+  open: "대기 중",
+  partial: "일부 체결",
+  filled: "체결 완료",
+  cancelled: "취소됨",
+};
+
+const TRUST_LABELS: Readonly<Record<EconomySnapshot["account"]["trustTier"], string>> = {
+  unverified: "확인 필요",
+  standard: "일반",
+  trusted: "보호됨",
+  restricted: "거래 제한",
+};
+
 const GOLD_PACKS = [
   { id: "gold-10", gold: 10, priceKrw: 1_100, label: "작은 금고" },
   { id: "gold-55", gold: 55, priceKrw: 5_500, label: "기록자의 금고" },
@@ -154,6 +230,14 @@ function initialTab(): MarketTab {
   return TABS.some((tab) => tab.id === value) ? (value as MarketTab) : "auction";
 }
 
+function initialAuctionView(): AuctionView {
+  if (typeof window === "undefined") return "search";
+  const value = new URLSearchParams(window.location.search).get("view");
+  return AUCTION_VIEWS.some((view) => view.id === value)
+    ? (value as AuctionView)
+    : "search";
+}
+
 function formatDate(value: string | null): string {
   if (!value) return "기록 없음";
   const date = new Date(value);
@@ -168,29 +252,85 @@ function remainingLabel(expiresAt: string): string {
   return hours > 0 ? `${hours}시간 ${minutes}분` : `${Math.max(1, minutes)}분`;
 }
 
-function aggregateBook(orders: GoldOrder[], side: "buy" | "sell"): OrderBookLevel[] {
-  const levels = new Map<number, OrderBookLevel>();
-  for (const order of orders) {
-    if (order.status !== "open" && order.status !== "partial") continue;
-    const current = levels.get(order.priceAshPerGold) ?? {
-      priceAshPerGold: order.priceAshPerGold,
-      goldAmount: 0,
-      orderCount: 0,
-    };
-    current.goldAmount += order.remainingGold;
-    current.orderCount += 1;
-    levels.set(order.priceAshPerGold, current);
+function marketEventLabel(category: string): string {
+  if (category === "list_item") return "판매 등록";
+  if (category === "buy_listing") return "장비 거래 완료";
+  if (category === "cancel_listing") return "등록 취소";
+  if (category === "expire_listing") return "판매 만료";
+  return "거래 기록";
+}
+
+function marketEventDescription(category: string): string {
+  if (category === "list_item") return "장비가 판매 목록에 등록되었습니다.";
+  if (category === "buy_listing") return "장비 소유권과 대금 정산이 반영되었습니다.";
+  if (category === "cancel_listing") return "취소한 장비가 거래 금고로 돌아왔습니다.";
+  if (category === "expire_listing") return "판매 기간이 끝난 장비가 거래 금고로 돌아왔습니다.";
+  return "계정의 거래 상태가 변경되었습니다.";
+}
+
+function accountActivityLabel(category: string): string {
+  if (/login|session/.test(category)) return "계정 로그인";
+  if (/steam|ownership/.test(category)) return "Steam 계정 확인";
+  if (/list_item|buy_listing|cancel_listing|expire_listing/.test(category)) return marketEventLabel(category);
+  if (/payment|charge/.test(category)) return "결제 상태 확인";
+  return "계정 활동";
+}
+
+function accountActivityDescription(category: string): string {
+  if (/login|session/.test(category)) return "새 로그인 또는 접속 상태가 확인되었습니다.";
+  if (/steam|ownership/.test(category)) return "연결된 Steam 계정 상태가 확인되었습니다.";
+  if (/list_item|buy_listing|cancel_listing|expire_listing/.test(category)) return marketEventDescription(category);
+  if (/payment|charge/.test(category)) return "결제 또는 충전 결과가 확인되었습니다.";
+  return "계정 보호와 관련된 상태가 변경되었습니다.";
+}
+
+function marketRequestErrorCopy(
+  error: unknown,
+  area: "snapshot" | "search" | "trade" | "payment",
+): string {
+  if (!(error instanceof EconomyClientError)) {
+    if (area === "search") return "검색 결과를 불러오지 못했습니다. 조건을 유지한 채 다시 검색해 주세요.";
+    if (area === "payment") return "결제 결과를 확인하지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
+    if (area === "trade") return "거래를 마치지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.";
+    return "거래 정보를 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
   }
-  return [...levels.values()].sort((left, right) =>
-    side === "buy"
-      ? right.priceAshPerGold - left.priceAshPerGold
-      : left.priceAshPerGold - right.priceAshPerGold,
-  );
+  if (error.status === 401) return "Steam 계정 연결이 필요합니다.";
+  if (error.status === 429) return "요청이 많습니다. 잠시 기다린 뒤 다시 시도해 주세요.";
+  if (error.code === "SECURE_INVENTORY_REQUIRED") return "거래 금고에서 확인된 장비만 판매할 수 있습니다.";
+  if (error.code === "COUNTERPARTY_CAPACITY_EXCEEDED") return "상대 계정의 보유 한도 때문에 지금은 체결할 수 없습니다.";
+  if (/WALLET_CAPACITY|OVERFLOW/.test(error.code)) return "보유 한도에 도달했습니다. 재화를 정리한 뒤 같은 거래를 다시 확인해 주세요.";
+  if (/INSUFFICIENT|WALLET|BALANCE/.test(error.code)) return "보유 재화가 부족하거나 사용 가능한 잔액이 달라졌습니다.";
+  if (/PRICE|VERSION|UNAVAILABLE|EXPIRED|CONFLICT/.test(error.code) || error.status === 409) {
+    return "가격이나 거래 상태가 바뀌었습니다. 최신 정보를 확인해 다시 시도해 주세요.";
+  }
+  if (error.status === 403) return "현재 계정에서는 이 거래를 이용할 수 없습니다.";
+  if (error.status >= 500 || error.status === 0) return "거래소 연결이 원활하지 않습니다. 잠시 뒤 다시 시도해 주세요.";
+  if (area === "search") return "검색 결과를 불러오지 못했습니다. 조건을 유지한 채 다시 검색해 주세요.";
+  if (area === "payment") return "결제를 확인하지 못했습니다. Steam 결제 내역을 확인한 뒤 다시 시도해 주세요.";
+  return "거래를 마치지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.";
 }
 
 function readDemoUser(): DemoUser {
   if (typeof window === "undefined") return "A";
   return new URLSearchParams(window.location.search).get("demo") === "B" ? "B" : "A";
+}
+
+function readSteamMarketReturnTo(): string {
+  if (typeof window === "undefined") return "/market";
+  const paymentReturn = new URLSearchParams(window.location.search).get("payment_return");
+  if (!paymentReturn) return "/market";
+  const params = new URLSearchParams({ payment_return: paymentReturn });
+  return `/market?${params.toString()}`;
+}
+
+function readSteamLinkError(): string | null {
+  if (typeof window === "undefined") return null;
+  const code = new URLSearchParams(window.location.search).get("steam_error");
+  if (!code) return null;
+  if (code === "STEAM_ALREADY_LINKED") return "이 Steam 계정은 이미 다른 게임 계정에 연결되어 있습니다.";
+  if (code === "STEAM_GAME_OWNERSHIP_REQUIRED" || code === "GAME_NOT_OWNED") return "게임 소유권을 확인할 수 없습니다. Steam 계정을 확인한 뒤 다시 시도해 주세요.";
+  if (/STATE|OPENID|STEAM/.test(code)) return "Steam 계정 확인을 마치지 못했습니다. 안전한 새 연결 요청으로 다시 시도해 주세요.";
+  return "Steam 계정 연결을 마치지 못했습니다. 잠시 뒤 다시 시도해 주세요.";
 }
 
 function ItemIcon({ item, compact = false }: { item: MarketVaultItem; compact?: boolean }) {
@@ -233,12 +373,17 @@ function characterGearView(item: GearItem, saveSlot: 1 | 2 | 3): MarketVaultItem
     slot: item.slot,
     level: item.level,
     enhancement: item.enhancement,
+    legendaryPowerId: item.legendaryPowerId,
+    enhancementRanks: [...item.enhancementRanks],
+    divineForgeRerolls: item.divineForgeRerolls,
     powerScore: item.powerScore,
     qualityScore: item.qualityScore,
     iconIndex: item.iconIndex,
     affixes: item.affixes.map((affix) => ({
+      stat: affix.stat,
       label: affix.label,
-      value: String(affix.value),
+      value: affix.value,
+      rollPercent: affix.rollPercent,
     })),
     tradeState: "available",
     lockedUntil: null,
@@ -278,33 +423,41 @@ function BalanceCard({
 
 function AccountGate({ snapshot, local }: { snapshot: EconomySnapshot; local: boolean }) {
   const { account, capabilities } = snapshot;
+  const needsSteamVerification = !account.restricted && (
+    !account.steamLinked ||
+    !account.gameOwned ||
+    !account.steamOwnershipFresh
+  );
   const ready =
     !account.restricted &&
     capabilities.canTrade &&
     ((account.steamLinked && account.gameOwned) ||
       (local && capabilities.localSandbox));
+  if (ready) return null;
+  const guidance = account.restricted
+    ? "계정 보호를 위해 거래가 잠시 제한되었습니다. 계정 상태에서 이용 가능 여부를 확인해 주세요."
+    : !account.steamLinked
+      ? "Steam 계정을 연결하면 장비 거래를 시작할 수 있습니다."
+      : !account.gameOwned
+        ? "연결한 Steam 계정의 게임 소유권을 확인해 주세요."
+        : !account.steamOwnershipFresh
+          ? "Steam 게임 소유권 확인 시간이 만료되었습니다. 다시 확인하면 거래 준비 상태가 갱신됩니다."
+          : snapshot.featureMode === "read-only"
+            ? "현재 거래소는 읽기 전용입니다. 등록 중인 내 매물과 주문은 판매·교환 화면에서 취소할 수 있습니다."
+            : "현재 장비 거래를 이용할 수 없습니다. 잠시 후 다시 시도해 주세요.";
   return (
     <section
-      className={`market-launch-gate ${ready ? "is-ready" : "is-locked"}`}
-      role={ready ? "status" : "alert"}
-      aria-label="거래소 운영 상태"
+      className="market-launch-gate is-locked"
+      role="alert"
+      aria-label="거래소 이용 안내"
     >
-      <span className="market-launch-gate-icon" aria-hidden="true">{ready ? "◆" : "◇"}</span>
+      <span className="market-launch-gate-icon" aria-hidden="true">◇</span>
       <div>
-        <small>{snapshot.featureMode.toUpperCase()} · {snapshot.paymentMode.toUpperCase()}</small>
-        <strong>{ready ? "서버 원장이 거래를 승인했습니다" : "거래 기능이 잠겨 있습니다"}</strong>
-        <p>
-          {snapshot.launchGateReason ??
-            (account.restricted
-              ? account.restrictionReason ?? "이 계정에는 거래 제한이 적용되어 있습니다."
-              : !account.steamLinked
-                ? "Steam 계정을 연결해야 합니다."
-                : !account.gameOwned
-                  ? "Steam 게임 소유권 확인이 필요합니다."
-                  : "운영자가 실거래 기능을 활성화하기 전까지 조회만 가능합니다.")}
-        </p>
+        <small>거래소 이용 안내</small>
+        <strong>장비 거래를 시작할 수 없습니다</strong>
+        <p>{guidance}</p>
+        {needsSteamVerification && <a href={steamLinkUrl("/market")}>{account.steamLinked ? "Steam 다시 확인" : "Steam으로 시작"}</a>}
       </div>
-      {local && capabilities.localSandbox && <b>LOCAL SANDBOX</b>}
     </section>
   );
 }
@@ -319,10 +472,119 @@ function EmptyState({ title, body }: { title: string; body: string }) {
   );
 }
 
+function MarketSearchErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <div className="market-search-error" role="alert">
+      <span aria-hidden="true">!</span>
+      <strong>검색 결과를 불러오지 못했습니다</strong>
+      <p>{message}</p>
+      <button type="button" onClick={onRetry}>다시 검색</button>
+    </div>
+  );
+}
+
+function MarketItemDetails({ item }: { item: MarketVaultItem }) {
+  const implicit = getGearImplicitDisplay(item);
+  const legendaryPower = item.legendaryPowerId
+    ? LEGENDARY_POWERS[item.legendaryPowerId]
+    : null;
+  const affixLines = item.affixes.map((affix, index) => {
+    const rank = item.enhancementRanks[index + 1] ?? 0;
+    return `${formatEnhancedGearAffix(item, affix)}${rank > 0 ? ` · 강화 ${rank}회` : ""}`;
+  });
+  return (
+    <dl className="market-item-details" aria-label="선택 장비 상세 옵션">
+      <div><dt>강화</dt><dd>+{normalizeGearEnhancement(item.enhancement)}</dd></div>
+      <div><dt>품질</dt><dd>{item.qualityScore}</dd></div>
+      <div><dt>요구 레벨</dt><dd>{getGearRequiredLevel(item)}</dd></div>
+      <div><dt>보스 화력</dt><dd>{formatEconomyAmount(item.powerScore)}</dd></div>
+      <div><dt>신의 대장간</dt><dd>재련 {item.divineForgeRerolls}/3</dd></div>
+      {legendaryPower && (
+        <div className="market-item-details-power">
+          <dt>전설 고유 능력</dt>
+          <dd><strong>{legendaryPower.name}</strong><span>{legendaryPower.description}</span></dd>
+        </div>
+      )}
+      <div className="market-item-details-affixes">
+        <dt>강화 옵션 배분</dt>
+        <dd>{[implicit.totalLabel, ...affixLines].join(" · ")}</dd>
+      </div>
+    </dl>
+  );
+}
+
+function marketItemOptionSummary(item: MarketVaultItem): string {
+  const implicit = getGearImplicitDisplay(item);
+  const legendaryDefinition = item.legendaryPowerId
+    ? LEGENDARY_POWERS[item.legendaryPowerId]
+    : null;
+  const legendaryPower = legendaryDefinition
+    ? `전설 고유: ${legendaryDefinition.name}`
+    : null;
+  const affixes = item.affixes.map((affix, index) => {
+    const rank = item.enhancementRanks[index + 1] ?? 0;
+    return `${formatEnhancedGearAffix(item, affix)}${rank > 0 ? ` (강화 ${rank}회)` : ""}`;
+  });
+  return [
+    legendaryPower,
+    implicit.totalLabel,
+    ...affixes,
+    `신의 대장간 재련 ${item.divineForgeRerolls}/3`,
+  ].filter((line): line is string => Boolean(line)).join(" · ");
+}
+
+function marketItemFingerprint(item: MarketVaultItem): string {
+  const rankedAffixes = item.affixes
+    .map((affix, index) => `${affix.stat}:${affix.value}:q${affix.rollPercent}:r${item.enhancementRanks[index + 1] ?? 0}`)
+    .sort()
+    .join("|");
+  return [
+    item.baseName,
+    item.slot,
+    item.rarity,
+    normalizeGearEnhancement(item.enhancement),
+    item.level,
+    item.qualityScore,
+    item.powerScore,
+    item.legendaryPowerId ?? "none",
+    `implicit:r${item.enhancementRanks[0] ?? 0}`,
+    rankedAffixes,
+    `forge:r${item.divineForgeRerolls}`,
+  ].join("::");
+}
+
+function ListingRow({
+  listing,
+  selected,
+  onSelect,
+}: {
+  listing: MarketListing;
+  selected: boolean;
+  onSelect: (listing: MarketListing) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`market-listing is-${listing.item.rarity} ${selected ? "is-selected" : ""}`}
+      style={{ "--rarity-color": RARITY_COLORS[listing.item.rarity] } as CSSProperties}
+      aria-pressed={selected}
+      onClick={() => onSelect(listing)}
+    >
+      <div className="market-listing-item"><ItemIcon item={listing.item} compact /><div><small>{formatMarketGearLevel(listing.item)} · {SLOT_LABELS[listing.item.slot]}</small><strong>{formatMarketGearName(listing.item)}</strong><span>{RARITY_LABELS[listing.item.rarity]} · 보스 화력 {formatEconomyAmount(listing.item.powerScore)} · 품질 {listing.item.qualityScore}</span></div></div>
+      <div className="market-listing-seller"><small>판매자</small><strong>{listing.sellerName}</strong><span>{listing.mine ? "내 매물" : "거래 가능"}</span></div>
+      <div className="market-listing-time"><small>만료까지</small><strong>{remainingLabel(listing.expiresAt)}</strong><span>{formatDate(listing.listedAt)} 등록</span></div>
+      <div className="market-listing-price"><small>기억의 재</small><strong><i>✦</i>{formatEconomyAmount(listing.priceAsh)}</strong><span>고정가</span></div>
+    </button>
+  );
+}
+
 export default function MarketBoard({ suggestedName }: { suggestedName?: string | null }) {
   const [tab, setTab] = useState<MarketTab>(initialTab);
+  const [auctionView, setAuctionView] = useState<AuctionView>(initialAuctionView);
   const [snapshot, setSnapshot] = useState<EconomySnapshot | null>(null);
   const [listings, setListings] = useState<MarketListing[]>([]);
+  const [marketSearchError, setMarketSearchError] = useState<string | null>(null);
+  const [fatalError, setFatalError] = useState<FatalMarketError | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [working, setWorking] = useState(false);
@@ -333,11 +595,26 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     () => isLocalEconomySandbox(),
     () => false,
   );
-  const [demoUser, setDemoUser] = useState<DemoUser>(readDemoUser);
+  const viewportDensity = useSyncExternalStore(
+    subscribeMarketViewportDensity,
+    readMarketViewportDensity,
+    readServerMarketViewportDensity,
+  );
+  const [demoUser] = useState<DemoUser>(readDemoUser);
+  const [steamReturnTo] = useState(readSteamMarketReturnTo);
+  const [steamLinkError] = useState(readSteamLinkError);
   const [search, setSearch] = useState("");
   const [rarity, setRarity] = useState<MarketRarity | "all">("all");
   const [slot, setSlot] = useState<MarketSlot | "all">("all");
   const [sort, setSort] = useState<NonNullable<MarketSearch["sort"]>>("recent");
+  const [query, setQuery] = useState<MarketSearch>({
+    search: "",
+    rarity: "all",
+    slot: "all",
+    sort: "recent",
+  });
+  const [selectedListingId, setSelectedListingId] = useState<string | null>(null);
+  const [favoriteOverrides, setFavoriteOverrides] = useState<Record<string, string[]>>({});
   const [characterInventory, setCharacterInventory] = useState<CharacterMarketInventory>({
     slot: 1,
     items: [],
@@ -345,20 +622,61 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     invalidCount: 0,
   });
   const [selectedSellCandidateKey, setSelectedSellCandidateKey] = useState<string | null>(null);
+  const [sellSource, setSellSource] = useState<SellSource>("all");
+  const [sellSlot, setSellSlot] = useState<MarketSlot | "all">("all");
   const [sellPrice, setSellPrice] = useState("");
   const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
   const [orderPrice, setOrderPrice] = useState("");
   const [orderAmount, setOrderAmount] = useState("");
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [paymentRetryAvailable, setPaymentRetryAvailable] = useState(false);
+  const [paymentRetryNonce, setPaymentRetryNonce] = useState(0);
   const pollingRef = useRef<AbortController | null>(null);
-  const firstLoadRef = useRef(true);
+  const requestGenerationRef = useRef(0);
+  const workingRef = useRef(false);
   const paymentReturnRef = useRef<string | null>(null);
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const auctionViewRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const confirmationDialogRef = useRef<HTMLElement>(null);
   const confirmationOpenerRef = useRef<HTMLElement | null>(null);
   const pendingFocusRestoreRef = useRef<HTMLElement | null>(null);
+  const favoritesOwnerKey = snapshot?.account.userId ?? (local ? `local-${demoUser}` : "guest");
+  const storedFavoriteListingIds = useMemo(
+    () => readMarketFavorites(favoritesOwnerKey),
+    [favoritesOwnerKey],
+  );
+  const favoriteListingIds = favoriteOverrides[favoritesOwnerKey] ?? storedFavoriteListingIds;
 
-  const query = useMemo<MarketSearch>(() => ({ search, rarity, slot, sort }), [rarity, search, slot, sort]);
+  const beginWorking = useCallback(() => {
+    if (workingRef.current) return false;
+    pollingRef.current?.abort();
+    pollingRef.current = null;
+    requestGenerationRef.current += 1;
+    workingRef.current = true;
+    setWorking(true);
+    return true;
+  }, []);
+
+  const finishWorking = useCallback(() => {
+    workingRef.current = false;
+    setWorking(false);
+  }, []);
+
+  const handleUnauthorized = useCallback((error: unknown) => {
+    if (!(error instanceof EconomyClientError) || error.status !== 401) return false;
+    pollingRef.current?.abort();
+    setConfirmation(null);
+    setSnapshot(null);
+    setListings([]);
+    setSelectedListingId(null);
+    setSelectedSellCandidateKey(null);
+    setMarketSearchError(null);
+    setFatalError({ status: 401, code: error.code });
+    setNotice(null);
+    setLoading(false);
+    setRefreshing(false);
+    return true;
+  }, []);
 
   const syncCharacterInventory = useCallback(() => {
     const activeSlot = resolveCharacterMarketSlot(window.location.search);
@@ -367,69 +685,89 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     return nextInventory;
   }, []);
 
-  const refresh = useCallback(async (quiet = false) => {
+  const refresh = useCallback(async (quiet = false, allowWhileWorking = false) => {
+    if (workingRef.current && !allowWhileWorking) return;
     pollingRef.current?.abort();
     const controller = new AbortController();
     pollingRef.current = controller;
+    const generation = requestGenerationRef.current + 1;
+    requestGenerationRef.current = generation;
     if (!quiet) setRefreshing(true);
     try {
-      const [snapshotResult, listingsResult, ordersResult] = await Promise.allSettled([
+      const [snapshotResult, listingsResult] = await Promise.allSettled([
         fetchEconomySnapshot({ signal: controller.signal, demoUser }),
         fetchMarketListings(query, { signal: controller.signal, demoUser }),
-        fetchExchangeOrders({ signal: controller.signal, demoUser }),
       ]);
+      if (generation !== requestGenerationRef.current) return;
       if (snapshotResult.status === "rejected") throw snapshotResult.reason;
       const nextSnapshot = snapshotResult.value;
-      const nextListings =
-        listingsResult.status === "fulfilled"
-          ? listingsResult.value
-          : nextSnapshot.listings;
-      const exchangeOrders =
-        ordersResult.status === "fulfilled"
-          ? ordersResult.value
-          : nextSnapshot.goldExchange.myOrders;
+      const listingsFailure = listingsResult.status === "rejected"
+        ? listingsResult.reason
+        : null;
+      if (listingsFailure instanceof EconomyClientError && listingsFailure.status === 401) {
+        throw listingsFailure;
+      }
+      const nextListings = listingsResult.status === "fulfilled"
+        ? listingsResult.value
+        : [];
       const reconciliation = reconcileImportedCharacterItems(
         nextSnapshot.importedCharacterItemIds,
       );
       syncCharacterInventory();
-      const ownListingIds = new Set(nextSnapshot.listings.filter((listing) => listing.mine).map((listing) => listing.listingId));
-      const ownOrderIds = new Set(nextSnapshot.goldExchange.myOrders.map((order) => order.orderId));
+      const ownListingIds = new Set(nextSnapshot.myListings.map((listing) => listing.listingId));
       for (const listing of nextListings) listing.mine = ownListingIds.has(listing.listingId);
-      for (const order of exchangeOrders) order.mine = ownOrderIds.has(order.orderId);
-      nextSnapshot.goldExchange.orders = exchangeOrders;
-      nextSnapshot.goldExchange.bids = aggregateBook(exchangeOrders.filter((order) => order.side === "buy"), "buy");
-      nextSnapshot.goldExchange.asks = aggregateBook(exchangeOrders.filter((order) => order.side === "sell"), "sell");
-      nextSnapshot.goldExchange.bestBid = nextSnapshot.goldExchange.bids[0]?.priceAshPerGold ?? null;
-      nextSnapshot.goldExchange.bestAsk = nextSnapshot.goldExchange.asks[0]?.priceAshPerGold ?? null;
       setSnapshot(nextSnapshot);
-      setListings(nextListings.length > 0 || nextSnapshot.listings.length === 0 ? nextListings : nextSnapshot.listings);
+      setFatalError(null);
+      setListings(nextListings);
+      setSelectedListingId((current) => {
+        if (!current) return null;
+        const selectionSource = auctionView === "search"
+          ? nextListings
+          : auctionView === "favorites"
+            ? [...nextSnapshot.listings, ...nextListings]
+            : auctionView === "sell"
+              ? nextSnapshot.myListings
+              : [];
+        return selectionSource.some((listing) => listing.listingId === current) ? current : null;
+      });
+      setMarketSearchError(listingsFailure
+        ? marketRequestErrorCopy(listingsFailure, "search")
+        : null);
       setLastSyncAt(new Date());
-      if (reconciliation.failedSlots.length > 0) {
+      if (listingsFailure) {
+        setNotice({ tone: "error", message: "검색 결과를 갱신하지 못했습니다. 검색 조건은 그대로 유지됩니다." });
+      } else if (reconciliation.failedSlots.length > 0) {
         setNotice({
           tone: "error",
-          message: `서버로 이관된 장비의 로컬 정리가 실패했습니다. 슬롯 ${reconciliation.failedSlots.join(", ")} 저장 공간을 확인해 주세요.`,
+          message: `거래소로 옮긴 장비를 가방에서 정리하지 못했습니다. 캐릭터 슬롯 ${reconciliation.failedSlots.join(", ")}의 저장 공간을 확인해 주세요.`,
         });
       } else if (reconciliation.removedItemIds.length > 0) {
         setNotice({
           tone: "success",
           message: `거래소로 이관된 장비 ${reconciliation.removedItemIds.length}개를 캐릭터 가방에서 안전하게 정리했습니다.`,
         });
-      } else if (firstLoadRef.current) {
-        setNotice({ tone: "info", message: "서버 원장과 캐릭터 가방 동기화를 시작했습니다." });
       }
-      firstLoadRef.current = false;
     } catch (error) {
+      if (generation !== requestGenerationRef.current) return;
       if ((error as Error).name !== "AbortError") {
-        setNotice({
-          tone: "error",
-          message: error instanceof EconomyClientError ? error.message : "거래 서버와 동기화하지 못했습니다.",
-        });
+        if (!handleUnauthorized(error)) {
+          setFatalError({
+            status: error instanceof EconomyClientError ? error.status : 0,
+            code: error instanceof EconomyClientError ? error.code : "ECONOMY_REQUEST_FAILED",
+          });
+          setNotice({
+            tone: "error",
+            message: marketRequestErrorCopy(error, "snapshot"),
+          });
+        }
       }
     } finally {
-      setLoading(false);
-      if (!quiet) setRefreshing(false);
+      if (generation === requestGenerationRef.current) {
+        setLoading(false);
+        if (!quiet) setRefreshing(false);
+      }
     }
-  }, [demoUser, query, syncCharacterInventory]);
+  }, [auctionView, demoUser, handleUnauthorized, query, syncCharacterInventory]);
 
   useEffect(() => {
     const initialSync = window.setTimeout(syncCharacterInventory, 0);
@@ -459,25 +797,39 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     if (!paymentOrderId || paymentReturnRef.current === paymentOrderId) return;
     paymentReturnRef.current = paymentOrderId;
     let clearPaymentReturn = true;
-    setWorking(true);
+    if (!beginWorking()) {
+      paymentReturnRef.current = null;
+      const showRetry = window.setTimeout(() => setPaymentRetryAvailable(true), 0);
+      return () => window.clearTimeout(showRetry);
+    }
     void finalizeSteamGoldPurchase(paymentOrderId, { demoUser })
       .then((nextSnapshot) => {
+        setPaymentRetryAvailable(false);
         setSnapshot(nextSnapshot);
         setLastSyncAt(new Date());
         setNotice({
           tone: "success",
-          message: "Steam 승인 거래를 서버에서 검증했습니다. 금괴는 72시간 보호 잠금 후 거래할 수 있습니다.",
+          message: "금괴 충전이 완료되었습니다. 충전한 금괴는 72시간 뒤부터 교환할 수 있습니다.",
         });
       })
       .catch((error) => {
-        const retryable = error instanceof EconomyClientError && (error.status === 429 || error.status >= 500);
+        if (handleUnauthorized(error)) {
+          clearPaymentReturn = false;
+          return;
+        }
+        const retryable = !(error instanceof EconomyClientError) ||
+          error.retryable ||
+          error.code === "STEAM_OWNERSHIP_STALE" ||
+          error.status === 429 ||
+          error.status >= 500;
         clearPaymentReturn = !retryable;
-        if (retryable) paymentReturnRef.current = null;
+        if (retryable) {
+          paymentReturnRef.current = null;
+          setPaymentRetryAvailable(true);
+        }
         setNotice({
           tone: "error",
-          message: error instanceof EconomyClientError
-            ? `${error.message}${retryable ? " 결제 반환 주소를 유지했습니다. 잠시 뒤 페이지를 새로고침해 다시 검증해 주세요." : ""}`
-            : "Steam 결제 승인 상태를 확인하지 못했습니다.",
+          message: `${marketRequestErrorCopy(error, "payment")}${retryable ? " 결제 내역은 유지되므로 잠시 뒤 다시 확인해 주세요." : ""}`,
         });
       })
       .finally(() => {
@@ -491,9 +843,9 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             `${window.location.pathname}${queryString ? `?${queryString}` : ""}${window.location.hash}`,
           );
         }
-        setWorking(false);
+        finishWorking();
       });
-  }, [demoUser]);
+  }, [beginWorking, demoUser, finishWorking, handleUnauthorized, paymentRetryNonce]);
 
   useEffect(() => {
     if (!confirmation) return;
@@ -510,6 +862,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     const handleDialogKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
+        if (workingRef.current) return;
         setConfirmation(null);
         return;
       }
@@ -561,11 +914,18 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     return () => window.cancelAnimationFrame(restoreFrame);
   }, [confirmation, tab, working]);
 
-  const openConfirmation = useCallback((next: Confirmation) => {
+  const openConfirmation = useCallback((next: ConfirmationIntent) => {
+    if (workingRef.current) return;
     confirmationOpenerRef.current = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    setConfirmation(next);
+    setConfirmation({
+      ...next,
+      intentKey: createEconomyIdempotencyKey(`market-${next.kind}`),
+      serverItemId: next.kind === "sell" && next.candidate.source === "character"
+        ? crypto.randomUUID()
+        : undefined,
+    } as Confirmation);
   }, []);
 
   const changeTab = (next: MarketTab) => {
@@ -594,40 +954,110 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     window.requestAnimationFrame(() => tabRefs.current[nextIndex]?.focus({ preventScroll: true }));
   };
 
-  const switchDemoUser = (next: DemoUser) => {
-    if (!local) return;
-    setDemoUser(next);
-    setSelectedSellCandidateKey(null);
+  const changeAuctionView = (next: AuctionView) => {
+    setAuctionView(next);
+    setConfirmation(null);
+    setSelectedListingId(null);
     const params = new URLSearchParams(window.location.search);
-    params.set("demo", next);
+    params.set("tab", "auction");
+    params.set("view", next);
+    if (local) params.set("demo", demoUser);
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   };
 
-  const executeCommand = useCallback(async (command: EconomyCommand, success: string) => {
-    if (!snapshot) return;
-    setWorking(true);
+  const handleAuctionViewKeyDown = (
+    event: ReactKeyboardEvent<HTMLButtonElement>,
+    currentIndex: number,
+  ) => {
+    let nextIndex: number | null = null;
+    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % AUCTION_VIEWS.length;
+    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + AUCTION_VIEWS.length) % AUCTION_VIEWS.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = AUCTION_VIEWS.length - 1;
+    if (nextIndex === null) return;
+
+    event.preventDefault();
+    changeAuctionView(AUCTION_VIEWS[nextIndex].id);
+    window.requestAnimationFrame(() => auctionViewRefs.current[nextIndex]?.focus({ preventScroll: true }));
+  };
+
+  const applyAuctionSearch = (event: FormEvent) => {
+    event.preventDefault();
+    setQuery({ search: search.trim(), rarity, slot, sort });
+    setSelectedListingId(null);
+  };
+
+  const resetAuctionSearch = () => {
+    setSearch("");
+    setRarity("all");
+    setSlot("all");
+    setSort("recent");
+    setQuery({ search: "", rarity: "all", slot: "all", sort: "recent" });
+    setSelectedListingId(null);
+  };
+
+  const toggleFavorite = (listingId: string) => {
+    const exists = favoriteListingIds.includes(listingId);
+    if (!exists && favoriteListingIds.length >= 10) {
+      setNotice({ tone: "error", message: "관심 매물은 최대 10개까지 보관할 수 있습니다." });
+      return;
+    }
+    const next = exists
+      ? favoriteListingIds.filter((value) => value !== listingId)
+      : [...favoriteListingIds, listingId];
+    setFavoriteOverrides((current) => ({ ...current, [favoritesOwnerKey]: next }));
     try {
-      const next = await sendEconomyCommand(command, snapshot, { demoUser });
+      window.localStorage.setItem(marketFavoritesStorageKey(favoritesOwnerKey), JSON.stringify(next));
+    } catch {
+      setNotice({ tone: "error", message: "관심 목록을 이 브라우저에 저장하지 못했습니다." });
+    }
+  };
+
+  const clearUnresolvedFavorites = () => {
+    const resolvedIds = new Set(favoriteListings.map((listing) => listing.listingId));
+    const next = favoriteListingIds.filter((listingId) => resolvedIds.has(listingId));
+    setFavoriteOverrides((current) => ({ ...current, [favoritesOwnerKey]: next }));
+    try {
+      window.localStorage.setItem(marketFavoritesStorageKey(favoritesOwnerKey), JSON.stringify(next));
+    } catch {
+      setNotice({ tone: "error", message: "관심 목록을 이 브라우저에 저장하지 못했습니다." });
+    }
+  };
+
+  const executeCommand = useCallback(async (
+    command: EconomyCommand,
+    success: string,
+    intentKey: string,
+  ) => {
+    if (!snapshot || !beginWorking()) return;
+    try {
+      const next = await sendEconomyCommand(command, snapshot, { demoUser, idempotencyKey: intentKey });
       setSnapshot(next);
       setNotice({ tone: "success", message: success });
       setConfirmation(null);
       setSelectedSellCandidateKey(null);
       setSellPrice("");
       setOrderAmount("");
-      await refresh(true);
+      await refresh(true, true);
     } catch (error) {
-      setNotice({
-        tone: "error",
-        message: error instanceof EconomyClientError ? error.message : "거래 명령을 완료하지 못했습니다.",
-      });
+      if (!handleUnauthorized(error)) {
+        setNotice({
+          tone: "error",
+          message: marketRequestErrorCopy(error, "trade"),
+        });
+      }
     } finally {
-      setWorking(false);
+      finishWorking();
     }
-  }, [demoUser, refresh, snapshot]);
+  }, [beginWorking, demoUser, finishWorking, handleUnauthorized, refresh, snapshot]);
 
+  const localSandbox = Boolean(local && snapshot?.capabilities.localSandbox);
+  const effectiveSellSource: SellSource = !localSandbox && sellSource === "character"
+    ? "all"
+    : sellSource;
   const sellCandidates = useMemo<SellCandidate[]>(() => {
     const importedIds = new Set(snapshot?.importedCharacterItemIds ?? []);
-    const characterCandidates: SellCandidate[] = characterInventory.items
+    const characterCandidates: SellCandidate[] = (localSandbox ? characterInventory.items : [])
       .filter((item) => !importedIds.has(item.id))
       .map((gear) => {
         const view = characterGearView(gear, characterInventory.slot);
@@ -647,20 +1077,70 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
         view,
       }));
     return [...characterCandidates, ...vaultCandidates];
-  }, [characterInventory, snapshot]);
+  }, [characterInventory, localSandbox, snapshot]);
+  const visibleSellCandidates = useMemo(
+    () => sellCandidates.filter((candidate) =>
+      (effectiveSellSource === "all" || candidate.source === effectiveSellSource) &&
+      (sellSlot === "all" || candidate.view.slot === sellSlot),
+    ),
+    [effectiveSellSource, sellCandidates, sellSlot],
+  );
   const selectedSellCandidate =
-    sellCandidates.find((candidate) => candidate.key === selectedSellCandidateKey) ?? null;
+    visibleSellCandidates.find((candidate) => candidate.key === selectedSellCandidateKey) ?? null;
+  const selectedListing = auctionView === "search"
+    ? listings.find((listing) => listing.listingId === selectedListingId) ?? null
+    : auctionView === "favorites" && favoriteListingIds.includes(selectedListingId ?? "")
+      ? snapshot?.listings.find((listing) => listing.listingId === selectedListingId) ??
+        listings.find((listing) => listing.listingId === selectedListingId) ??
+        null
+      : auctionView === "sell"
+        ? snapshot?.myListings.find((listing) => listing.listingId === selectedListingId) ?? null
+        : null;
+  const favoriteListings = favoriteListingIds
+    .map((listingId) =>
+      snapshot?.listings.find((listing) => listing.listingId === listingId) ??
+      listings.find((listing) => listing.listingId === listingId),
+    )
+    .filter((listing): listing is MarketListing => Boolean(listing));
+  const unresolvedFavoriteCount = favoriteListingIds.length - favoriteListings.length;
+  const ownListings = snapshot?.myListings ?? [];
+  const priceSummaries = useMemo(() => {
+    const groups = new Map<string, MarketListing[]>();
+    for (const listing of listings) {
+      const key = marketItemFingerprint(listing.item);
+      const rows = groups.get(key) ?? [];
+      rows.push(listing);
+      groups.set(key, rows);
+    }
+    return [...groups.values()].map((rows) => {
+      const sortedRows = [...rows].sort((left, right) => left.priceAsh - right.priceAsh);
+      const prices = sortedRows.map((listing) => listing.priceAsh);
+      const middle = Math.floor(prices.length / 2);
+      const median = prices.length % 2 === 0
+        ? Math.round((prices[middle - 1] + prices[middle]) / 2)
+        : prices[middle];
+      return {
+        fingerprint: marketItemFingerprint(sortedRows[0].item),
+        listing: sortedRows[0],
+        count: sortedRows.length,
+        lowest: prices[0],
+        median,
+        average: Math.round(prices.reduce((total, value) => total + value, 0) / prices.length),
+      };
+    }).sort((left, right) => left.lowest - right.lowest);
+  }, [listings]);
   const executeCharacterListing = useCallback(async (
     candidate: Extract<SellCandidate, { source: "character" }>,
     priceAsh: number,
+    intentKey: string,
+    serverItemId: string,
   ) => {
-    if (!snapshot) return;
-    setWorking(true);
+    if (!snapshot || !beginWorking()) return;
     try {
       const next = await sendEconomyCommand(
         {
           action: "list_item",
-          itemId: crypto.randomUUID(),
+          itemId: serverItemId,
           priceAsh,
           expiresInSeconds: 7 * 24 * 60 * 60,
           expectedItemVersion: 0,
@@ -668,7 +1148,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           characterItem: gearItemToEconomyPayload(candidate.gear),
         },
         snapshot,
-        { demoUser },
+        { demoUser, idempotencyKey: intentKey },
       );
       const removal = removeCharacterMarketItem(
         candidate.saveSlot,
@@ -690,13 +1170,19 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
               message: `${formatMarketGearName(candidate.view)}을 캐릭터 가방에서 거래소로 이관해 판매 등록했습니다.`,
             },
       );
-      await refresh(true);
+      await refresh(true, true);
     } catch (error) {
-      await refresh(true);
+      if (handleUnauthorized(error)) return;
+      await refresh(true, true);
       const current = syncCharacterInventory();
       const transferred = !current.items.some(
         (item) => item.id === candidate.gear.id,
       );
+      if (transferred) {
+        setConfirmation(null);
+        setSelectedSellCandidateKey(null);
+        setSellPrice("");
+      }
       setNotice(
         transferred
           ? {
@@ -705,27 +1191,34 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             }
           : {
               tone: "error",
-              message: error instanceof EconomyClientError
-                ? error.message
-                : "캐릭터 장비를 거래소에 등록하지 못했습니다. 가방의 장비는 그대로 보존했습니다.",
+              message: `${marketRequestErrorCopy(error, "trade")} 가방의 장비는 그대로 보존했습니다.`,
             },
       );
     } finally {
-      setWorking(false);
+      finishWorking();
     }
-  }, [demoUser, refresh, snapshot, syncCharacterInventory]);
-  const localSandbox = Boolean(local && snapshot?.capabilities.localSandbox);
+  }, [beginWorking, demoUser, finishWorking, handleUnauthorized, refresh, snapshot, syncCharacterInventory]);
   const accountReady = Boolean(
     snapshot &&
       !snapshot.account.restricted &&
       snapshot.account.steamLinked &&
-      snapshot.account.gameOwned,
+      snapshot.account.gameOwned &&
+      snapshot.account.steamOwnershipFresh,
   );
   const tradeEnabled = Boolean(snapshot?.capabilities.canTrade && (accountReady || localSandbox));
   const goldEnabled = Boolean(snapshot?.capabilities.canUseGoldExchange && (accountReady || localSandbox));
+  const canCancelOwnEscrow = Boolean(snapshot && (snapshot.account.userId || localSandbox));
   const chargeEnabled = Boolean(snapshot?.capabilities.canTopUp && accountReady && snapshot.paymentMode === "steam");
   const orderPriceNumber = Math.max(0, Math.trunc(Number(orderPrice) || 0));
   const orderAmountNumber = Math.max(0, Math.trunc(Number(orderAmount) || 0));
+
+  const activateListing = (listing: MarketListing) => {
+    setSelectedListingId(listing.listingId);
+    if (working || (listing.mine ? !canCancelOwnEscrow : !tradeEnabled)) return;
+    openConfirmation(listing.mine
+      ? { kind: "cancel-listing", listing }
+      : { kind: "buy", listing });
+  };
 
   const openOrderConfirmation = (event: FormEvent) => {
     event.preventDefault();
@@ -745,12 +1238,14 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
         await executeCommand(
           { action: "buy_listing", listingId: confirmation.listing.listingId, expectedListingVersion: confirmation.listing.version, expectedPriceAsh: confirmation.listing.priceAsh },
           `${formatMarketGearName(confirmation.listing.item)} 구매를 완료했습니다.`,
+          confirmation.intentKey,
         );
         return;
       case "cancel-listing":
         await executeCommand(
           { action: "cancel_listing", listingId: confirmation.listing.listingId, expectedListingVersion: confirmation.listing.version },
-          "판매 등록을 취소하고 장비를 서버 금고로 반환했습니다.",
+          "판매 등록을 취소하고 장비를 거래 금고로 돌려보냈습니다.",
+          confirmation.intentKey,
         );
         return;
       case "sell":
@@ -758,12 +1253,15 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           await executeCharacterListing(
             confirmation.candidate,
             confirmation.priceAsh,
+            confirmation.intentKey,
+            confirmation.serverItemId ?? "",
           );
           return;
         }
         await executeCommand(
           { action: "list_item", itemId: confirmation.candidate.view.itemId, priceAsh: confirmation.priceAsh, expiresInSeconds: 7 * 24 * 60 * 60, expectedItemVersion: confirmation.candidate.view.version },
           `${formatMarketGearName(confirmation.candidate.view)} 판매 등록을 완료했습니다.`,
+          confirmation.intentKey,
         );
         return;
       case "order":
@@ -775,12 +1273,14 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             goldAmount: confirmation.goldAmount,
           },
           `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 접수했습니다.`,
+          confirmation.intentKey,
         );
         return;
       case "cancel-order":
         await executeCommand(
           { action: "cancel_exchange", orderId: confirmation.order.orderId, expectedOrderVersion: confirmation.order.version },
           "미체결 주문을 취소하고 보관 재화를 반환했습니다.",
+          confirmation.intentKey,
         );
         return;
       case "fill-order":
@@ -793,26 +1293,23 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             expectedPriceAshPerGold: confirmation.order.priceAshPerGold,
           },
           "금괴 교환 체결을 완료했습니다.",
-        );
-        return;
-      case "sandbox":
-        await executeCommand(
-          { action: "sandbox_topup", currency: confirmation.currency === "memoryAsh" ? "ash" : "gold", amount: confirmation.amount },
-          "로컬 샌드박스 재화를 지급했습니다.",
+          confirmation.intentKey,
         );
         return;
       case "charge": {
-        setWorking(true);
+        if (!beginWorking()) return;
         try {
-          const result = await initializeSteamGoldPurchase(confirmation.packId, snapshot, { demoUser });
+          const result = await initializeSteamGoldPurchase(confirmation.packId, snapshot, { demoUser, idempotencyKey: confirmation.intentKey });
           if (result.snapshot) setSnapshot(result.snapshot);
           if (result.redirectUrl) window.location.assign(result.redirectUrl);
-          else setNotice({ tone: "success", message: "Steam 결제 승인을 요청했습니다." });
+          else setNotice({ tone: "success", message: "Steam 결제창으로 이동합니다." });
           setConfirmation(null);
         } catch (error) {
-          setNotice({ tone: "error", message: error instanceof Error ? error.message : "Steam 결제를 시작하지 못했습니다." });
+          if (!handleUnauthorized(error)) {
+            setNotice({ tone: "error", message: marketRequestErrorCopy(error, "payment") });
+          }
         } finally {
-          setWorking(false);
+          finishWorking();
         }
       }
     }
@@ -821,12 +1318,12 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const confirmationCopy = confirmation ? getConfirmationCopy(confirmation) : null;
 
   return (
-    <main className="market-screen">
+    <main className="market-screen" data-market-density={viewportDensity}>
       <div className="market-backdrop" aria-hidden="true" />
       <header className="market-topbar">
         <Link href="/?town=1" className="market-back-link">← 기억 광장으로</Link>
         <div className="market-brand">
-          <span className="market-brand-seal" aria-hidden="true">記</span>
+          <span className="market-brand-seal" aria-hidden="true" />
           <div>
             <small>MUJINDO SECURE ECONOMY</small>
             <strong>기억 거래소</strong>
@@ -834,17 +1331,23 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
         </div>
         <div className="market-sync-state" data-state={notice?.tone === "error" ? "error" : "online"}>
           <i aria-hidden="true" />
-          <span>{refreshing ? "원장 대조 중" : "서버 원장 연결"}</span>
+          <span>{refreshing ? "매물 갱신 중" : "실시간 갱신"}</span>
           <b>{lastSyncAt ? `${lastSyncAt.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : "대기"}</b>
           <button type="button" onClick={() => void refresh(false)} disabled={refreshing} aria-label="거래소 새로고침">↻</button>
         </div>
       </header>
 
-      {loading && !snapshot ? (
+      {fatalError?.status === 401 ? (
+        <section className="market-fatal market-account-gate" role="alert">
+          <strong>Steam 계정 연결이 필요합니다</strong>
+          <p>{steamLinkError ?? "기억 거래소를 이용하려면 먼저 Steam으로 계정을 확인해 주세요. 연결을 마치면 이 화면으로 돌아옵니다."}</p>
+          <a href={steamLinkUrl(steamReturnTo)}>Steam으로 시작</a>
+        </section>
+      ) : loading && !snapshot ? (
         <section className="market-loading" aria-live="polite">
           <i aria-hidden="true" />
-          <strong>서버 원장을 봉인 해제하는 중</strong>
-          <span>계정, 금고, 매물의 서명을 대조합니다.</span>
+          <strong>기억 거래소를 여는 중</strong>
+          <span>내 장비와 최신 매물을 불러오고 있습니다.</span>
         </section>
       ) : snapshot ? (
         <>
@@ -852,26 +1355,31 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             <div className="market-account-identity">
               <span aria-hidden="true">{snapshot.account.displayName.slice(0, 1)}</span>
               <div>
-                <small>{snapshot.account.steamLinked ? "STEAM VERIFIED" : "STEAM LINK REQUIRED"}</small>
+                <small>{snapshot.account.steamLinked ? "STEAM 연결됨" : "STEAM 연결 필요"}</small>
                 <strong>{snapshot.account.displayName || suggestedName || "미연동 방랑자"}</strong>
               </div>
-              <b data-tier={snapshot.account.trustTier}>{snapshot.account.trustTier}</b>
+              <b data-tier={snapshot.account.trustTier}>{TRUST_LABELS[snapshot.account.trustTier]}</b>
             </div>
             <BalanceCard symbol="✦" label="기억의 재" {...snapshot.wallet.memoryAsh} locked={snapshot.wallet.memoryAsh.locked72h} tone="ash" />
             <BalanceCard symbol="▰" label="금괴" {...snapshot.wallet.goldBars} locked={snapshot.wallet.goldBars.locked72h} tone="gold" />
-            {local && (
-              <div className="market-demo-switch" aria-label="로컬 데모 계정 선택">
-                <small>LOCAL LEDGER</small>
-                <div>
-                  {(["A", "B"] as const).map((user) => (
-                    <button key={user} type="button" className={demoUser === user ? "is-active" : ""} onClick={() => switchDemoUser(user)} aria-pressed={demoUser === user}>유저 {user}</button>
-                  ))}
-                </div>
-              </div>
-            )}
           </section>
 
           <AccountGate snapshot={snapshot} local={local} />
+
+          {steamLinkError && (
+            <div className="market-notice market-notice--error market-steam-error" role="alert">
+              <span>!</span>
+              <p>{steamLinkError}</p>
+              <a href={steamLinkUrl(steamReturnTo)}>Steam 다시 연결</a>
+            </div>
+          )}
+
+          {paymentRetryAvailable && (
+            <div className="market-payment-retry" role="alert">
+              <p><strong>결제 결과를 다시 확인해 주세요</strong><span>승인된 주문 번호를 유지하고 있습니다. 새 결제를 만들지 않고 같은 주문을 다시 확인합니다.</span></p>
+              <button type="button" disabled={working} onClick={() => { paymentReturnRef.current = null; setPaymentRetryAvailable(false); setPaymentRetryNonce((current) => current + 1); }}>결제 다시 확인</button>
+            </div>
+          )}
 
           {notice && (
             <div className={`market-notice market-notice--${notice.tone}`} role={notice.tone === "error" ? "alert" : "status"}>
@@ -903,50 +1411,135 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           </nav>
 
           {tab === "auction" && (
-            <section className="market-panel market-auction" id="market-panel-auction" role="tabpanel" aria-labelledby="market-tab-auction">
-              <div className="market-panel-heading">
-                <div><small>SERVER-SEALED EQUIPMENT</small><h1>장비 경매장</h1></div>
-                <p>캐릭터 가방 장비는 등록과 동시에 서버 금고로 이관됩니다. 구매 즉시 소유권 원장이 원자적으로 이전됩니다.</p>
-              </div>
-              <form className="market-filters" onSubmit={(event) => event.preventDefault()} aria-label="경매장 검색 필터">
-                <label className="market-search"><span>장비 검색</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="장비 이름을 입력하세요" /><i aria-hidden="true">⌕</i></label>
-                <label><span>등급</span><select value={rarity} onChange={(event) => setRarity(event.target.value as MarketRarity | "all")}><option value="all">전체 등급</option>{MARKET_RARITIES.map((value) => <option key={value} value={value}>{RARITY_LABELS[value]}</option>)}</select></label>
-                <label><span>부위</span><select value={slot} onChange={(event) => setSlot(event.target.value as MarketSlot | "all")}><option value="all">전체 부위</option>{MARKET_SLOTS.map((value) => <option key={value} value={value}>{SLOT_LABELS[value]}</option>)}</select></label>
-                <label><span>정렬</span><select value={sort} onChange={(event) => setSort(event.target.value as NonNullable<MarketSearch["sort"]>)}><option value="recent">최근 등록순</option><option value="price-low">낮은 가격순</option><option value="price-high">높은 가격순</option><option value="power">보스 화력순</option><option value="level">레벨순</option></select></label>
-              </form>
-              <div className="market-auction-layout">
-                <section className="market-listings" aria-label="판매 장비 목록">
-                  <header><span>장비 정보</span><span>판매자</span><span>남은 시간</span><span>판매가</span><span>거래</span></header>
-                  {listings.length === 0 ? <EmptyState title="조건에 맞는 매물이 없습니다" body="검색 조건을 바꾸거나 다음 실시간 갱신을 기다려 주세요." /> : listings.map((listing) => (
-                    <article key={listing.listingId} className={`market-listing is-${listing.item.rarity}`} style={{ "--rarity-color": RARITY_COLORS[listing.item.rarity] } as CSSProperties}>
-                      <div className="market-listing-item"><ItemIcon item={listing.item} compact /><div><small>{formatMarketGearLevel(listing.item)} · {SLOT_LABELS[listing.item.slot]}</small><strong>{formatMarketGearName(listing.item)}</strong><span>{RARITY_LABELS[listing.item.rarity]} · 보스 화력 {formatEconomyAmount(listing.item.powerScore)} · 품질 {listing.item.qualityScore}</span></div></div>
-                      <div className="market-listing-seller"><small>판매자</small><strong>{listing.sellerName}</strong><span>{listing.mine ? "내 매물" : "서버 인증"}</span></div>
-                      <div className="market-listing-time"><small>만료까지</small><strong>{remainingLabel(listing.expiresAt)}</strong><span>{formatDate(listing.listedAt)} 등록</span></div>
-                      <div className="market-listing-price"><small>기억의 재</small><strong><i>✦</i>{formatEconomyAmount(listing.priceAsh)}</strong><span>고정가</span></div>
-                      <button type="button" className={listing.mine ? "is-cancel" : "is-buy"} disabled={!tradeEnabled || working} onClick={() => openConfirmation(listing.mine ? { kind: "cancel-listing", listing } : { kind: "buy", listing })}>{listing.mine ? "등록 취소" : "즉시 구매"}</button>
-                    </article>
-                  ))}
+            <section className="market-panel market-auction market-auction-window" id="market-panel-auction" role="tabpanel" aria-labelledby="market-tab-auction">
+              <header className="market-auction-heading">
+                <span className="market-auction-crest" aria-hidden="true" />
+                <div><small>MUJINDO AUCTION REGISTRY</small><h1>기억 장비 옥션</h1><p>검색·시세·관심 목록·판매·완료 기록을 하나의 전면 작업창에서 관리합니다.</p></div>
+                <dl><div><dt>공개 매물</dt><dd>{listings.length}</dd></div><div><dt>내 판매</dt><dd>{ownListings.length}</dd></div><div><dt>관심</dt><dd>{favoriteListingIds.length}/10</dd></div></dl>
+              </header>
+
+              <nav className="market-auction-tabs" role="tablist" aria-label="장비 옥션 작업 메뉴">
+                {AUCTION_VIEWS.map((view, index) => (
+                  <button
+                    key={view.id}
+                    ref={(element) => { auctionViewRefs.current[index] = element; }}
+                    type="button"
+                    role="tab"
+                    id={`market-auction-tab-${view.id}`}
+                    aria-controls={`market-auction-view-${view.id}`}
+                    aria-selected={auctionView === view.id}
+                    tabIndex={auctionView === view.id ? 0 : -1}
+                    className={auctionView === view.id ? "is-active" : ""}
+                    onClick={() => changeAuctionView(view.id)}
+                    onKeyDown={(event) => handleAuctionViewKeyDown(event, index)}
+                  >
+                    <small>{view.eyebrow}</small>
+                    <strong>{view.label}</strong>
+                    {view.id === "favorites" && favoriteListingIds.length > 0 && <b>{favoriteListingIds.length}</b>}
+                  </button>
+                ))}
+              </nav>
+
+              {auctionView === "search" && (
+                <div className="market-auction-workspace market-search-workspace" id="market-auction-view-search" role="tabpanel" aria-labelledby="market-auction-tab-search">
+                  <form className="market-auction-search" onSubmit={applyAuctionSearch} aria-label="장비 상세 검색">
+                    <header><small>ADVANCED SEARCH</small><h2>검색 조건</h2><p>원하는 장비 조건을 고른 뒤 검색을 시작하세요.</p></header>
+                    <label className="market-search"><span>빠른 장비 검색</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="장비 이름" autoComplete="off" /><i aria-hidden="true">⌕</i></label>
+                    <label><span>장비 등급</span><select value={rarity} onChange={(event) => setRarity(event.target.value as MarketRarity | "all")}><option value="all">전체 등급</option>{MARKET_RARITIES.map((value) => <option key={value} value={value}>{RARITY_LABELS[value]}</option>)}</select></label>
+                    <label><span>장비 부위</span><select value={slot} onChange={(event) => setSlot(event.target.value as MarketSlot | "all")}><option value="all">전체 부위</option>{MARKET_SLOTS.map((value) => <option key={value} value={value}>{SLOT_LABELS[value]}</option>)}</select></label>
+                    <label><span>결과 정렬</span><select value={sort} onChange={(event) => setSort(event.target.value as NonNullable<MarketSearch["sort"]>)}><option value="recent">최근 등록순</option><option value="price-low">낮은 가격순</option><option value="price-high">높은 가격순</option><option value="power">보스 화력순</option><option value="level">레벨순</option></select></label>
+                    <div className="market-filter-actions"><button type="button" onClick={resetAuctionSearch}>조건 초기화</button><button type="submit">검색 시작</button></div>
+                    <p className="market-filter-note">매물을 선택하면 아래 상세 영역에서 관심 등록이나 구매를 진행할 수 있습니다.</p>
+                  </form>
+
+                  <section className="market-search-results" aria-labelledby="market-search-results-title" aria-describedby="market-search-status" aria-busy={refreshing}>
+                    <header className="market-workspace-heading"><div><small>LIVE LISTINGS</small><h2 id="market-search-results-title">검색 결과</h2></div><span id="market-search-status" role="status" aria-live="polite">{marketSearchError ? "검색 오류" : `${listings.length}개 · 최대 60개 표본 · ${refreshing ? "갱신 중" : "최신 매물"}`}</span></header>
+                    <div className="market-listings game-scrollbar" aria-label="판매 장비 목록" aria-describedby="market-search-status">
+                      <header><span>장비 정보</span><span>판매자</span><span>남은 시간</span><span>판매가</span></header>
+                      {marketSearchError ? <MarketSearchErrorState message={marketSearchError} onRetry={() => void refresh(false)} /> : listings.length === 0 ? <EmptyState title="조건에 맞는 매물이 없습니다" body="검색 조건을 바꾸거나 잠시 뒤 다시 검색해 주세요." /> : listings.map((listing) => <ListingRow key={listing.listingId} listing={listing} selected={selectedListingId === listing.listingId} onSelect={(next) => setSelectedListingId(next.listingId)} />)}
+                    </div>
+                    <footer className={`market-selection-bar ${selectedListing ? "has-selection" : ""}`}>
+                      {selectedListing ? <><ItemIcon item={selectedListing.item} compact /><div className="market-selection-summary"><small>선택 매물 · {selectedListing.sellerName}</small><strong>{formatMarketGearName(selectedListing.item)}</strong><span>✦ {formatEconomyAmount(selectedListing.priceAsh)} · {remainingLabel(selectedListing.expiresAt)}</span></div><MarketItemDetails item={selectedListing.item} /></> : <div><small>SELECT A LISTING</small><strong>매물을 선택해 상세 거래 명령을 활성화하세요</strong><span>가격과 장비 정보를 확인한 뒤 최종 확인창에서 거래합니다.</span></div>}
+                      <div className="market-selection-actions"><button type="button" disabled={!selectedListing} className={selectedListing && favoriteListingIds.includes(selectedListing.listingId) ? "is-active" : ""} onClick={() => selectedListing && toggleFavorite(selectedListing.listingId)}>{selectedListing && favoriteListingIds.includes(selectedListing.listingId) ? "관심 해제" : "관심 등록"}</button><button type="button" disabled={!selectedListing || working || (selectedListing.mine ? !canCancelOwnEscrow : !tradeEnabled)} className={selectedListing?.mine ? "is-cancel" : "is-primary"} onClick={() => selectedListing && activateListing(selectedListing)}>{selectedListing?.mine ? "등록 취소" : "즉시 구매"}</button></div>
+                    </footer>
+                  </section>
+                </div>
+              )}
+
+              {auctionView === "price" && (
+                <section className="market-auction-workspace market-price-workspace" id="market-auction-view-price" role="tabpanel" aria-labelledby="market-auction-tab-price">
+                  <header className="market-workspace-heading"><div><small>LIVE ASKING PRICES</small><h2>현재 매물 호가</h2></div><p>현재 검색 결과 최대 60개 표본에서 강화·레벨·품질·옵션이 같은 장비끼리만 묶습니다. 실제 체결가는 아래 거래 이력에서 따로 확인합니다.</p></header>
+                  <div className="market-price-table game-scrollbar">
+                    <header><span>장비</span><span>매물</span><span>최저가</span><span>중앙값</span><span>평균가</span><span>연결</span></header>
+                    {marketSearchError ? <MarketSearchErrorState message={marketSearchError} onRetry={() => void refresh(false)} /> : priceSummaries.length === 0 ? <EmptyState title="집계할 매물이 없습니다" body="장비 검색에서 다른 조건으로 매물을 찾아보세요." /> : priceSummaries.map((summary) => (
+                      <article key={summary.fingerprint} style={{ "--rarity-color": RARITY_COLORS[summary.listing.item.rarity] } as CSSProperties}>
+                        <div><ItemIcon item={summary.listing.item} compact /><span><small>{SLOT_LABELS[summary.listing.item.slot]} · {RARITY_LABELS[summary.listing.item.rarity]}</small><strong>{summary.listing.item.baseName}</strong><em title={marketItemOptionSummary(summary.listing.item)}>강화 +{normalizeGearEnhancement(summary.listing.item.enhancement)} · 품질 {summary.listing.item.qualityScore} · 화력 {formatEconomyAmount(summary.listing.item.powerScore)}</em></span></div>
+                        <b>{summary.count}건</b><strong>✦ {formatEconomyAmount(summary.lowest)}</strong><span>✦ {formatEconomyAmount(summary.median)}</span><span>✦ {formatEconomyAmount(summary.average)}</span>
+                        <button type="button" aria-label={`${formatMarketGearName(summary.listing.item)} 최저가 매물 보기`} onClick={() => { changeAuctionView("search"); setSelectedListingId(summary.listing.listingId); }}>최저가 매물</button>
+                      </article>
+                    ))}
+                  </div>
+                  <section className="market-auction-trades" aria-labelledby="market-auction-trades-title">
+                    <header className="market-workspace-heading"><div><small>COMPLETED SALES</small><h2 id="market-auction-trades-title">실제 체결 이력</h2></div><p>판매 희망가와 분리된 최근 실제 거래 가격입니다. 강화·품질·옵션을 함께 비교하세요.</p></header>
+                    <div className="market-auction-trade-list game-scrollbar">
+                      {snapshot.auctionTrades.length === 0 ? <EmptyState title="아직 체결된 장비가 없습니다" body="첫 장비 거래가 완료되면 실제 체결가가 이곳에 표시됩니다." /> : snapshot.auctionTrades.map((trade) => (
+                        <article key={trade.tradeId} style={{ "--rarity-color": RARITY_COLORS[trade.item.rarity] } as CSSProperties}>
+                          <div><ItemIcon item={trade.item} compact /><span><small>{SLOT_LABELS[trade.item.slot]} · {RARITY_LABELS[trade.item.rarity]}</small><strong>{formatMarketGearName(trade.item)}</strong><em>{marketItemOptionSummary(trade.item)}</em></span></div>
+                          <dl><div><dt>강화</dt><dd>+{normalizeGearEnhancement(trade.item.enhancement)}</dd></div><div><dt>품질</dt><dd>{trade.item.qualityScore}</dd></div><div><dt>보스 화력</dt><dd>{formatEconomyAmount(trade.item.powerScore)}</dd></div></dl>
+                          <strong>✦ {formatEconomyAmount(trade.priceAsh)}</strong>
+                          <time dateTime={trade.executedAt}>{formatDate(trade.executedAt)}</time>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
                 </section>
-                <aside className="market-vault" aria-labelledby="market-vault-title">
-                  <header><div><small>CHARACTER BAG · SERVER VAULT</small><h2 id="market-vault-title">판매할 장비</h2></div><b>{sellCandidates.length}</b></header>
-                  <div className="market-local-warning"><span aria-hidden="true">↗</span><p><strong>캐릭터 가방 연동 · 슬롯 {characterInventory.slot}</strong>가방 장비를 등록하면 서버 금고로 안전하게 이관된 뒤 판매됩니다. 서버 등록이 끝난 경우에만 가방에서 제거됩니다.{characterInventory.equippedCount > 0 ? ` 장착 중인 장비 ${characterInventory.equippedCount}개는 먼저 해제해 주세요.` : ""}</p></div>
-                  <div className="market-vault-list">
-                    {sellCandidates.length === 0 ? <EmptyState title="판매 가능한 장비가 없습니다" body="원정에서 획득한 장비를 가방에 보관하거나 장착 장비를 해제하면 이곳에 나타납니다." /> : sellCandidates.map((candidate) => (
-                      <button key={candidate.key} type="button" className={selectedSellCandidateKey === candidate.key ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[candidate.view.rarity] } as CSSProperties} aria-pressed={selectedSellCandidateKey === candidate.key} onClick={() => setSelectedSellCandidateKey(candidate.key)}><ItemIcon item={candidate.view} compact /><span><small>{candidate.source === "character" ? `캐릭터 가방 ${candidate.saveSlot}번` : "서버 금고"} · {formatMarketGearLevel(candidate.view)} · {RARITY_LABELS[candidate.view.rarity]}</small><strong>{formatMarketGearName(candidate.view)}</strong><em>보스 화력 {formatEconomyAmount(candidate.view.powerScore)}</em></span><i aria-hidden="true">›</i></button>
+              )}
+
+              {auctionView === "favorites" && (
+                <section className="market-auction-workspace market-favorites-workspace" id="market-auction-view-favorites" role="tabpanel" aria-labelledby="market-auction-tab-favorites">
+                  <header className="market-workspace-heading"><div><small>WATCH LIST · 10 SLOTS</small><h2>관심 목록</h2></div><p>이 계정의 브라우저에 최대 10개를 보관하며, 서버의 최신 공개 매물 표본에서 확인되는 항목을 보여줍니다.</p></header>
+                  <div className="market-listings game-scrollbar" aria-label="관심 매물 목록">
+                    <header><span>장비 정보</span><span>판매자</span><span>남은 시간</span><span>판매가</span></header>
+                    {favoriteListings.length === 0 ? favoriteListingIds.length > 0 ? <section className="market-favorites-unresolved"><EmptyState title="현재 공개 매물 표본에서 확인할 수 없습니다" body="종료된 것으로 단정하지 않습니다. 매물 다시 확인을 누르거나 장비 검색에서 같은 매물을 찾아 주세요." /><div><button type="button" disabled={refreshing} onClick={() => void refresh(false)}>매물 다시 확인</button></div></section> : <EmptyState title="관심 매물이 없습니다" body="장비 검색에서 매물을 고른 뒤 관심 등록을 눌러 주세요." /> : favoriteListings.map((listing) => <ListingRow key={listing.listingId} listing={listing} selected={selectedListingId === listing.listingId} onSelect={(next) => setSelectedListingId(next.listingId)} />)}
+                  </div>
+                  <footer className="market-selection-bar market-favorite-actions"><div><small>{unresolvedFavoriteCount > 0 ? `현재 표본에서 미확인 ${unresolvedFavoriteCount}개` : "WATCH LIST READY"}</small><strong>{selectedListing ? formatMarketGearName(selectedListing.item) : "거래할 관심 매물을 선택하세요"}</strong><span>{selectedListing ? `✦ ${formatEconomyAmount(selectedListing.priceAsh)}` : "선택한 매물은 중앙 확인창에서 구매합니다."}</span></div><div className="market-selection-actions">{unresolvedFavoriteCount > 0 && <button type="button" onClick={clearUnresolvedFavorites}>미확인 정리</button>}<button type="button" disabled={!selectedListing} onClick={() => selectedListing && toggleFavorite(selectedListing.listingId)}>목록에서 삭제</button><button type="button" className="is-primary" disabled={!tradeEnabled || !selectedListing || selectedListing.mine || working} onClick={() => selectedListing && activateListing(selectedListing)}>즉시 구매</button></div></footer>
+                </section>
+              )}
+
+              {auctionView === "sell" && (
+                <section className="market-auction-workspace market-sell-workspace" id="market-auction-view-sell" role="tabpanel" aria-labelledby="market-auction-tab-sell">
+                  <header className="market-workspace-heading"><div><small>{localSandbox ? "CHARACTER BAG · TRADE VAULT" : "TRADE VAULT"}</small><h2 id="market-vault-title">판매 등록</h2></div><p>판매 전용 작업면입니다. 검색 화면을 가리지 않고 장비 선택부터 등록까지 이곳에서 처리합니다.</p></header>
+                  {localSandbox ? <div className="market-local-warning"><span aria-hidden="true">↗</span><p><strong>캐릭터 가방 · 슬롯 {characterInventory.slot}</strong>등록한 장비는 거래 금고에 보관되며, 판매 등록이 완료된 뒤에만 가방에서 빠집니다.{characterInventory.equippedCount > 0 ? ` 장착 중인 장비 ${characterInventory.equippedCount}개는 먼저 해제해 주세요.` : ""}</p></div> : <div className="market-local-warning is-secure"><span aria-hidden="true">◇</span><p><strong>거래 금고 장비만 등록할 수 있습니다</strong>캐릭터 가방 장비 판매는 안전한 보관 확인 기능이 준비된 뒤 지원됩니다. 지금은 거래 금고에 있는 장비를 선택해 주세요.</p></div>}
+                  <div className="market-sell-toolbar"><div role="group" aria-label="판매 장비 출처"><button type="button" className={effectiveSellSource === "all" ? "is-active" : ""} aria-pressed={effectiveSellSource === "all"} onClick={() => setSellSource("all")}>전체 {sellCandidates.length}</button>{localSandbox && <button type="button" className={effectiveSellSource === "character" ? "is-active" : ""} aria-pressed={effectiveSellSource === "character"} onClick={() => setSellSource("character")}>캐릭터 가방 {sellCandidates.filter((candidate) => candidate.source === "character").length}</button>}<button type="button" className={effectiveSellSource === "vault" ? "is-active" : ""} aria-pressed={effectiveSellSource === "vault"} onClick={() => setSellSource("vault")}>거래 금고 {sellCandidates.filter((candidate) => candidate.source === "vault").length}</button></div><label><span>장비 부위</span><select value={sellSlot} onChange={(event) => setSellSlot(event.target.value as MarketSlot | "all")}><option value="all">전체 부위</option>{MARKET_SLOTS.map((value) => <option key={value} value={value}>{SLOT_LABELS[value]}</option>)}</select></label></div>
+                  <div className="market-vault-list game-scrollbar" aria-label="판매 가능한 장비 보관함">
+                    {visibleSellCandidates.length === 0 ? <EmptyState title="판매 가능한 장비가 없습니다" body={localSandbox ? "원정에서 획득한 장비를 가방에 보관하거나 장착 장비를 해제하면 이곳에 나타납니다." : "거래 금고에 판매 가능한 장비가 들어오면 이곳에 표시됩니다."} /> : visibleSellCandidates.map((candidate) => (
+                      <button key={candidate.key} type="button" className={selectedSellCandidateKey === candidate.key ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[candidate.view.rarity] } as CSSProperties} aria-pressed={selectedSellCandidateKey === candidate.key} onClick={() => setSelectedSellCandidateKey(candidate.key)}><ItemIcon item={candidate.view} compact /><span><small>{candidate.source === "character" ? `캐릭터 가방 ${candidate.saveSlot}번` : "거래 금고"} · {formatMarketGearLevel(candidate.view)} · {RARITY_LABELS[candidate.view.rarity]}</small><strong>{formatMarketGearName(candidate.view)}</strong><em>보스 화력 {formatEconomyAmount(candidate.view.powerScore)}</em></span><i aria-hidden="true">›</i></button>
                     ))}
                   </div>
                   <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedSellCandidate && price > 0 && tradeEnabled) openConfirmation({ kind: "sell", candidate: selectedSellCandidate, priceAsh: price }); }}>
+                    <div className="market-sell-selection">{selectedSellCandidate ? <><ItemIcon item={selectedSellCandidate.view} compact /><span><small>판매 선택 · {selectedSellCandidate.source === "character" ? "캐릭터 가방" : "거래 금고"}</small><strong>{formatMarketGearName(selectedSellCandidate.view)}</strong><em>{RARITY_LABELS[selectedSellCandidate.view.rarity]} · 보스 화력 {formatEconomyAmount(selectedSellCandidate.view.powerScore)}</em></span></> : <span><small>SELECT EQUIPMENT</small><strong>판매할 장비를 먼저 선택하세요</strong><em>선택 후 가격을 입력하면 중앙 확인창이 열립니다.</em></span>}</div>
                     <label><span>판매 희망가 · 기억의 재</span><input type="number" min="1" step="1" inputMode="numeric" value={sellPrice} onChange={(event) => setSellPrice(event.target.value)} placeholder="가격 입력" /></label>
-                    <button type="submit" disabled={!tradeEnabled || !selectedSellCandidate || Number(sellPrice) <= 0 || working}>선택 장비 판매 등록</button>
+                    <button type="submit" disabled={!tradeEnabled || !selectedSellCandidate || Number(sellPrice) <= 0 || working}>판매 등록 확인</button>
                   </form>
-                </aside>
-              </div>
+                  <section className="market-active-listings" aria-labelledby="market-active-listings-title"><header className="market-workspace-heading"><div><small>ACTIVE SALES</small><h2 id="market-active-listings-title">판매 중 목록</h2></div><span>{ownListings.length}개 사용 중</span></header><div className="market-listings">{ownListings.length === 0 ? <EmptyState title="판매 중인 장비가 없습니다" body="위 보관함에서 장비와 가격을 정해 등록해 주세요." /> : ownListings.map((listing) => <ListingRow key={listing.listingId} listing={listing} selected={selectedListingId === listing.listingId} onSelect={(next) => setSelectedListingId(next.listingId)} />)}</div>{ownListings.length > 0 && <button type="button" className="market-cancel-selected" disabled={!canCancelOwnEscrow || !selectedListing?.mine || working} onClick={() => selectedListing?.mine && activateListing(selectedListing)}>선택 매물 등록 취소</button>}</section>
+                </section>
+              )}
+
+              {auctionView === "complete" && (
+                <section className="market-auction-workspace market-complete-workspace" id="market-auction-view-complete" role="tabpanel" aria-labelledby="market-auction-tab-complete">
+                  <header className="market-workspace-heading"><div><small>TRADE HISTORY</small><h2>거래 완료</h2></div><p>구매 장비와 판매 대금은 거래 금고와 지갑에 바로 정산됩니다. 최근 처리 내역을 이곳에서 확인하세요.</p></header>
+                  <div className="market-complete-summary"><div><small>수령 대기</small><strong>0</strong><span>즉시 정산</span></div><div><small>활성 판매</small><strong>{ownListings.length}</strong><span>판매 탭에서 관리</span></div><div><small>최근 거래</small><strong>{snapshot.myAuctionTrades.length}</strong><span>체결 완료</span></div></div>
+                  <div className="market-complete-list game-scrollbar">
+                    {snapshot.myAuctionTrades.length === 0 ? <EmptyState title="완료된 거래 기록이 없습니다" body="장비 구매나 판매가 실제로 체결되면 최근 내역이 이곳에 표시됩니다." /> : snapshot.myAuctionTrades.map((trade) => <article key={trade.tradeId}><span aria-hidden="true">✓</span><div><small>{trade.role === "buyer" ? "구매 완료" : "판매 완료"}</small><strong>{formatMarketGearName(trade.item)}</strong><p>{trade.role === "buyer" ? `${trade.counterpartName}에게서 구매` : `${trade.counterpartName}에게 판매`} · ✦ {formatEconomyAmount(trade.priceAsh)}</p></div><time dateTime={trade.executedAt}>{formatDate(trade.executedAt)}</time><b>{trade.role === "buyer" ? "구매" : "판매"}</b></article>)}
+                  </div>
+                </section>
+              )}
             </section>
           )}
 
           {tab === "gold" && (
             <section className="market-panel market-exchange" id="market-panel-gold" role="tabpanel" aria-labelledby="market-tab-gold">
-              <div className="market-panel-heading"><div><small>PLAYER-TO-PLAYER EXCHANGE</small><h1>금괴 교환소</h1></div><p>유저가 가격과 수량을 지정합니다. 서버는 양쪽 재화를 먼저 보관한 뒤 체결과 정산을 한 원장 트랜잭션으로 처리합니다.</p></div>
+              <div className="market-panel-heading"><div><small>PLAYER-TO-PLAYER EXCHANGE</small><h1>금괴 교환소</h1></div><p>원하는 가격과 수량으로 주문하거나 호가창의 상대 주문을 선택해 즉시 교환하세요. 미체결 주문의 재화는 안전하게 보관됩니다.</p></div>
               <div className="market-ticker">
                 <div><small>최근 체결가</small><strong>{snapshot.goldExchange.lastPrice === null ? "—" : `✦ ${formatEconomyAmount(snapshot.goldExchange.lastPrice)}`}</strong><span>금괴 1개당 기억의 재</span></div>
                 <div><small>최우선 매수</small><strong>{snapshot.goldExchange.bestBid === null ? "—" : formatEconomyAmount(snapshot.goldExchange.bestBid)}</strong><span>BID</span></div>
@@ -955,9 +1548,9 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
               </div>
               <div className="market-exchange-layout">
                 <section className="market-orderbook" aria-labelledby="orderbook-title">
-                  <header><div><small>LIVE ORDER BOOK</small><h2 id="orderbook-title">실시간 호가</h2></div><span>3초 자동 갱신</span></header>
+                  <header><div><small>LIVE ORDER BOOK</small><h2 id="orderbook-title">실시간 호가</h2></div><span>자동 갱신</span></header>
                   <div className="market-orderbook-head"><span>구분</span><span>금괴 1개 가격</span><span>잔량</span><span>주문</span></div>
-                  <div className="market-book-side is-ask"><small>매도 호가</small>{snapshot.goldExchange.asks.length === 0 ? <p>대기 매도 주문 없음</p> : [...snapshot.goldExchange.asks].reverse().slice(0, 8).map((level, index) => <div key={`ask-${level.priceAshPerGold}-${index}`}><b>매도</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(level.goldAmount)}</span><em>{level.orderCount}건</em></div>)}</div>
+                  <div className="market-book-side is-ask"><small>매도 호가</small>{snapshot.goldExchange.asks.length === 0 ? <p>대기 매도 주문 없음</p> : snapshot.goldExchange.asks.slice(0, 8).reverse().map((level, index) => <div key={`ask-${level.priceAshPerGold}-${index}`}><b>매도</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(level.goldAmount)}</span><em>{level.orderCount}건</em></div>)}</div>
                   <div className="market-book-mid"><span>MARKET PRICE</span><strong>{snapshot.goldExchange.lastPrice === null ? "체결 기록 없음" : `✦ ${formatEconomyAmount(snapshot.goldExchange.lastPrice)}`}</strong></div>
                   <div className="market-book-side is-bid"><small>매수 호가</small>{snapshot.goldExchange.bids.length === 0 ? <p>대기 매수 주문 없음</p> : snapshot.goldExchange.bids.slice(0, 8).map((level, index) => <div key={`bid-${level.priceAshPerGold}-${index}`}><b>매수</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(level.goldAmount)}</span><em>{level.orderCount}건</em></div>)}</div>
                 </section>
@@ -994,7 +1587,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
                 <section className="market-my-orders" aria-labelledby="my-orders-title">
                   <header><div><small>OPEN ORDERS</small><h2 id="my-orders-title">내 미체결 주문</h2></div><b>{snapshot.goldExchange.myOrders.filter((order) => order.status === "open" || order.status === "partial").length}</b></header>
-                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {order.status}</small><strong>▰ {formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => openConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
+                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {ORDER_STATUS_LABELS[order.status]}</small><strong>▰ {formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" aria-label={`${order.side === "buy" ? "금괴 매수" : "금괴 매도"} 주문 취소 · 미체결 ${formatEconomyAmount(order.remainingGold)}개`} disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => openConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
                 </section>
 
                 <section className="market-trade-tape" aria-labelledby="trade-tape-title">
@@ -1007,36 +1600,34 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
           {tab === "charge" && (
             <section className="market-panel market-charge" id="market-panel-charge" role="tabpanel" aria-labelledby="market-tab-charge">
-              <div className="market-panel-heading"><div><small>STEAM MICROTRANSACTION</small><h1>금괴 충전</h1></div><p>금괴는 Steam 결제 승인과 서버 영수증 검증이 모두 끝난 뒤에만 지급됩니다.</p></div>
-              <section className="market-charge-hero"><span className="market-gold-stack" aria-hidden="true"><i /><i /><i /></span><div><small>PREMIUM EXCHANGE TOKEN</small><h2>금괴</h2><p>편의 상품과 유저 간 기억의 재 교환에 사용하는 서버 재화입니다. 게임 장비를 직접 판매하지 않습니다.</p></div><dl><div><dt>사용 가능</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.available)}</dd></div><div><dt>72시간 잠금</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.locked72h)}</dd></div></dl></section>
+              <div className="market-panel-heading"><div><small>STEAM WALLET</small><h1>금괴 충전</h1></div><p>Steam 결제를 마치면 금괴가 지급됩니다. 새로 충전한 금괴는 72시간 뒤부터 교환할 수 있습니다.</p></div>
+              <section className="market-charge-hero"><span className="market-gold-stack" aria-hidden="true"><i /><i /><i /></span><div><small>PREMIUM EXCHANGE TOKEN</small><h2>금괴</h2><p>편의 상품 구매와 유저 간 기억의 재 교환에 사용하는 거래 재화입니다. 장비 성능을 직접 판매하지 않습니다.</p></div><dl><div><dt>사용 가능</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.available)}</dd></div><div><dt>72시간 잠금</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.locked72h)}</dd></div></dl></section>
               <div className="market-pack-grid">{GOLD_PACKS.map((pack) => <article key={pack.id}><span aria-hidden="true">▰</span><small>{pack.label}</small><strong>{pack.gold}<i> 금괴</i></strong><b>{pack.priceKrw.toLocaleString("ko-KR")}원</b><button type="button" disabled={!chargeEnabled || working} onClick={() => openConfirmation({ kind: "charge", packId: pack.id, goldAmount: pack.gold, priceKrw: pack.priceKrw })}>{chargeEnabled ? "Steam으로 충전" : "결제 잠김"}</button></article>)}</div>
-              <section className="market-charge-policy"><div><strong>72시간 교환 잠금</strong><p>새로 충전한 금괴는 결제 취소·도난 결제 위험을 검증하는 동안 교환소에서 사용할 수 없습니다. 잠금 해제 시각은 서버 원장이 결정합니다.</p></div><div><strong>서버 영수증 검증</strong><p>클라이언트의 성공 화면만으로 지급하지 않습니다. Steam 서버 콜백과 주문 금액이 일치할 때만 금괴 원장에 반영됩니다.</p></div><div><strong>환불·청약 정보</strong><p>구매 전 Steam 결제창에서 최종 금액과 환불 조건을 확인하세요. 사용 또는 교환된 금괴는 별도 정책이 적용될 수 있습니다.</p></div></section>
-              {localSandbox && <section className="market-sandbox-tools"><div><small>LOCALHOST ONLY</small><h2>경제 샌드박스</h2><p>이 도구는 로컬 개발 환경에서만 보이며 실제 결제나 운영 원장과 연결되지 않습니다.</p></div><button type="button" onClick={() => openConfirmation({ kind: "sandbox", currency: "memoryAsh", amount: 100_000 })}>기억의 재 100,000 지급</button><button type="button" onClick={() => openConfirmation({ kind: "sandbox", currency: "goldBars", amount: 100 })}>금괴 100 지급</button></section>}
+              <section className="market-charge-policy"><div><strong>72시간 교환 잠금</strong><p>새로 충전한 금괴는 결제 보호 기간 동안 교환소에서 사용할 수 없습니다. 남은 시간은 보유 금괴 영역에서 확인할 수 있습니다.</p></div><div><strong>결제 결과 확인</strong><p>Steam 결제가 정상 완료된 주문에만 금괴가 지급됩니다. 문제가 생기면 결제 내역과 함께 다시 확인해 주세요.</p></div><div><strong>환불·청약 정보</strong><p>구매 전 Steam 결제창에서 최종 금액과 환불 조건을 확인하세요. 사용 또는 교환된 금괴는 별도 정책이 적용될 수 있습니다.</p></div></section>
             </section>
           )}
 
           {tab === "security" && (
             <section className="market-panel market-security" id="market-panel-security" role="tabpanel" aria-labelledby="market-tab-security">
-              <div className="market-panel-heading"><div><small>IDENTITY · LEDGER · ENFORCEMENT</small><h1>보안센터</h1></div><p>Steam은 로그인 증명이고, 제재와 자산 소유권은 변하지 않는 내부 사용자 ID와 감사 원장을 기준으로 집행합니다.</p></div>
-              {snapshot.account.restricted && <div className="market-sanction"><span aria-hidden="true">!</span><div><small>ACCOUNT RESTRICTED · {snapshot.account.sanctionCode ?? "REVIEW"}</small><strong>거래 기능이 제한되었습니다</strong><p>{snapshot.account.restrictionReason ?? "보안 검토가 끝날 때까지 모든 경제 명령이 거절됩니다."}</p></div></div>}
+              <div className="market-panel-heading"><div><small>ACCOUNT PROTECTION</small><h1>보안센터</h1></div><p>Steam 연결, 거래 이용 상태, 최근 계정 활동을 한곳에서 확인할 수 있습니다.</p></div>
+              {snapshot.account.restricted && <div className="market-sanction"><span aria-hidden="true">!</span><div><small>ACCOUNT PROTECTION</small><strong>거래 기능이 제한되었습니다</strong><p>계정 보호를 위해 거래가 잠시 중단되었습니다. Steam 계정 상태를 확인한 뒤 다시 이용해 주세요.</p></div></div>}
               <div className="market-security-grid">
-                <section className="market-verification"><header><small>ACCOUNT CHAIN</small><h2>계정 검증</h2></header><ol><li className={snapshot.account.steamLinked ? "is-complete" : ""}><span>1</span><div><strong>Steam 계정 연결</strong><p>{snapshot.account.steamLinked ? `연결됨 · ${snapshot.account.steamId ? `…${snapshot.account.steamId.slice(-6)}` : "서버 티켓 확인"}` : "Steam 로그인 티켓을 서버에서 직접 검증합니다."}</p></div>{!snapshot.account.steamLinked && <a href={steamLinkUrl("/market?tab=security")}>Steam 연결</a>}</li><li className={snapshot.account.gameOwned ? "is-complete" : ""}><span>2</span><div><strong>게임 소유권 확인</strong><p>{snapshot.account.gameOwned ? "소유권 확인 완료" : "연결 계정의 게임 라이선스 확인이 필요합니다."}</p></div></li><li className={snapshot.capabilities.canTrade ? "is-complete" : ""}><span>3</span><div><strong>거래 권한 승인</strong><p>{snapshot.capabilities.canTrade ? "거래 명령 가능" : "운영 게이트 또는 계정 상태로 잠겨 있습니다."}</p></div></li><li className={!snapshot.account.restricted ? "is-complete" : ""}><span>4</span><div><strong>제재 상태 검사</strong><p>{snapshot.account.restricted ? "제한 조치 적용 중" : "활성 제재 없음"}</p></div></li></ol></section>
-                <section className="market-security-status"><header><small>LIVE SECURITY STATE</small><h2>현재 보호 상태</h2></header><dl><div><dt>내부 사용자 ID</dt><dd>{snapshot.account.userId ?? "미발급"}</dd></div><div><dt>활성 세션</dt><dd>{snapshot.security.activeSessions}개</dd></div><div><dt>최근 로그인</dt><dd>{formatDate(snapshot.security.lastLoginAt)}</dd></div><div><dt>Steam 티켓 검증</dt><dd>{formatDate(snapshot.security.lastSteamTicketVerifiedAt)}</dd></div><div><dt>교환 잠금 해제</dt><dd>{formatDate(snapshot.security.withdrawalLockUntil)}</dd></div><div><dt>신뢰 등급</dt><dd>{snapshot.account.trustTier}</dd></div></dl></section>
-                <section className="market-security-rules"><header><small>SERVER AUTHORITY</small><h2>서버 강제 원칙</h2></header><ul><li><strong>클라이언트 잔액 불신</strong><span>가격·잔액·아이템을 요청값으로 인정하지 않고 서버 DB에서 다시 조회합니다.</span></li><li><strong>원자적 이중 정산</strong><span>구매자 차감과 판매자 지급, 아이템 이전을 하나의 트랜잭션으로 완료합니다.</span></li><li><strong>재전송 안전</strong><span>모든 쓰기 명령에 단일 사용 키를 부여해 중복 결제와 이중 체결을 막습니다.</span></li><li><strong>즉시 동결·추적</strong><span>내부 사용자 ID, Steam ID, 요청 ID와 원장 변경을 연결해 조사와 제재에 사용합니다.</span></li></ul></section>
-                <section className="market-audit"><header><small>RECENT AUDIT</small><h2>내 계정 보안 기록</h2></header>{snapshot.security.auditTrail.length === 0 ? <EmptyState title="표시할 보안 기록이 없습니다" body="로그인과 주요 거래가 발생하면 서버 감사 ID가 남습니다." /> : <div>{snapshot.security.auditTrail.slice(0, 8).map((entry) => <article key={entry.id}><span>{entry.category}</span><p><strong>{entry.message}</strong><small>{formatDate(entry.createdAt)}{entry.ipHint ? ` · ${entry.ipHint}` : ""}</small></p><code>{entry.id}</code></article>)}</div>}</section>
+                <section className="market-verification"><header><small>ACCOUNT STATUS</small><h2>계정 상태</h2></header><ol><li className={snapshot.account.steamLinked ? "is-complete" : ""}><span>1</span><div><strong>Steam 계정 연결</strong><p>{snapshot.account.steamLinked ? `연결 완료${snapshot.account.steamId ? ` · …${snapshot.account.steamId.slice(-6)}` : ""}` : "장비 거래를 이용하려면 Steam 계정을 연결해 주세요."}</p></div>{!snapshot.account.steamLinked && <a href={steamLinkUrl("/market?tab=security")}>Steam 연결</a>}</li><li className={snapshot.account.gameOwned && snapshot.account.steamOwnershipFresh ? "is-complete" : ""}><span>2</span><div><strong>게임 소유권</strong><p>{snapshot.account.gameOwned && snapshot.account.steamOwnershipFresh ? "확인 완료" : snapshot.account.gameOwned ? "확인 시간이 만료되었습니다. 다시 확인해 주세요." : "연결한 계정의 게임 소유권을 확인해 주세요."}</p></div>{snapshot.account.steamLinked && !snapshot.account.restricted && (!snapshot.account.gameOwned || !snapshot.account.steamOwnershipFresh) && <a href={steamLinkUrl("/market?tab=security")}>Steam 다시 확인</a>}</li><li className={snapshot.capabilities.canTrade ? "is-complete" : ""}><span>3</span><div><strong>장비 거래</strong><p>{snapshot.capabilities.canTrade ? "이용 가능" : "현재 이용할 수 없습니다."}</p></div></li><li className={!snapshot.account.restricted ? "is-complete" : ""}><span>4</span><div><strong>계정 제한</strong><p>{snapshot.account.restricted ? "거래 제한 적용 중" : "적용된 제한 없음"}</p></div></li></ol></section>
+                <section className="market-security-status"><header><small>LIVE SECURITY STATE</small><h2>현재 보호 상태</h2></header><dl><div><dt>계정 이름</dt><dd>{snapshot.account.displayName}</dd></div><div><dt>Steam 연결</dt><dd>{snapshot.account.steamLinked ? "연결됨" : "연결 필요"}</dd></div><div><dt>최근 로그인</dt><dd>{formatDate(snapshot.security.lastLoginAt)}</dd></div><div><dt>게임 소유권</dt><dd>{snapshot.account.gameOwned && snapshot.account.steamOwnershipFresh ? "확인됨" : snapshot.account.gameOwned ? "재확인 필요" : "확인 필요"}</dd></div><div><dt>교환 잠금 해제</dt><dd>{formatDate(snapshot.security.withdrawalLockUntil)}</dd></div><div><dt>장비 거래</dt><dd>{snapshot.capabilities.canTrade ? "이용 가능" : "이용 제한"}</dd></div></dl></section>
+                <section className="market-security-rules"><header><small>TRADE PROTECTION</small><h2>거래 보호 안내</h2></header><ul><li><strong>잔액 확인</strong><span>구매 직전 가격과 사용 가능한 재화를 다시 확인합니다.</span></li><li><strong>거래 결과 확인</strong><span>장비와 대금이 모두 반영된 거래만 완료 내역에 표시됩니다.</span></li><li><strong>변경 상태 안내</strong><span>가격이나 수량이 달라지면 거래를 멈추고 최신 정보를 보여드립니다.</span></li><li><strong>계정 보호</strong><span>이상 거래가 감지되면 거래를 제한하고 계정 상태를 안내합니다.</span></li></ul></section>
+                <section className="market-audit"><header><small>RECENT ACTIVITY</small><h2>최근 계정 활동</h2></header>{snapshot.security.auditTrail.length === 0 ? <EmptyState title="표시할 활동이 없습니다" body="로그인하거나 장비를 거래하면 최근 내역이 이곳에 표시됩니다." /> : <div>{snapshot.security.auditTrail.slice(0, 8).map((entry) => <article key={entry.id}><span aria-hidden="true">◇</span><p><strong>{accountActivityLabel(entry.category)}</strong><small>{accountActivityDescription(entry.category)} · {formatDate(entry.createdAt)}</small></p></article>)}</div>}</section>
               </div>
-              <div className="market-legal-review"><span aria-hidden="true">§</span><p><strong>한국 정식 출시 전 필수 검토</strong>유료 금괴와 유저 간 재화 교환은 법률·게임물 등급분류·청소년 보호·전자상거래·환불 정책 검토가 끝나기 전에는 운영 모드로 열지 않습니다.</p></div>
             </section>
           )}
         </>
       ) : (
-        <section className="market-fatal" role="alert"><strong>거래 서버에 접속할 수 없습니다</strong><p>잠시 후 다시 시도하거나 기억 광장으로 돌아가 주세요.</p><button type="button" onClick={() => void refresh(false)}>다시 연결</button></section>
+        <section className="market-fatal" role="alert"><strong>거래 정보를 불러올 수 없습니다</strong><p>잠시 후 다시 시도하거나 기억 광장으로 돌아가 주세요.</p><button type="button" onClick={() => void refresh(false)}>다시 시도</button></section>
       )}
 
       {confirmation && confirmationCopy && (
-        <div className="market-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !working) setConfirmation(null); }}>
+        <div className="market-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !workingRef.current) setConfirmation(null); }}>
           <section ref={confirmationDialogRef} className="market-confirm" role="alertdialog" aria-modal="true" aria-labelledby="market-confirm-title" aria-describedby="market-confirm-body" tabIndex={-1}>
-            <span className="market-confirm-sigil" aria-hidden="true">◇</span><small>AUTHORITATIVE LEDGER COMMAND</small><h2 id="market-confirm-title">{confirmationCopy.title}</h2><p id="market-confirm-body">{confirmationCopy.body}</p><dl>{confirmationCopy.rows.map((row) => <div key={row[0]}><dt>{row[0]}</dt><dd>{row[1]}</dd></div>)}</dl><div><button type="button" autoFocus disabled={working} onClick={() => setConfirmation(null)}>취소</button><button type="button" className="is-confirm" disabled={working} onClick={() => void confirmAction()}>{working ? "서버 원장 확인 중…" : confirmationCopy.confirmLabel}</button></div><small className="market-confirm-footnote">최종 가격·소유권·잔액은 서버가 다시 검증합니다. 조건이 달라졌다면 명령은 자동 거절됩니다.</small>
+            <span className="market-confirm-sigil" aria-hidden="true">◇</span><small>TRADE CONFIRMATION</small><h2 id="market-confirm-title">{confirmationCopy.title}</h2><p id="market-confirm-body">{confirmationCopy.body}</p><dl>{confirmationCopy.rows.map((row) => <div key={row[0]}><dt>{row[0]}</dt><dd>{row[1]}</dd></div>)}</dl><div><button type="button" autoFocus disabled={working} onClick={() => { if (!workingRef.current) setConfirmation(null); }}>취소</button><button type="button" className="is-confirm" aria-busy={working} disabled={working} onClick={() => void confirmAction()}>{working ? "처리 중…" : confirmationCopy.confirmLabel}</button></div><small className="market-confirm-footnote">거래 중 가격이나 보유 재화가 달라지면 안전을 위해 자동으로 취소됩니다.</small>
           </section>
         </div>
       )}
@@ -1046,30 +1637,48 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
 function getConfirmationCopy(confirmation: Confirmation): { title: string; body: string; confirmLabel: string; rows: Array<[string, string]> } {
   switch (confirmation.kind) {
-    case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 서버 금고로 이동하고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["장비", `${formatMarketGearLevel(confirmation.listing.item)} · ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
-    case "cancel-listing": return { title: "판매 등록을 취소할까요?", body: "아직 체결되지 않은 매물만 취소할 수 있으며 장비는 서버 금고로 반환됩니다.", confirmLabel: "등록 취소", rows: [["장비", formatMarketGearName(confirmation.listing.item)], ["등록가", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`]] };
+    case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 거래 금고에 보관되고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["받는 위치", "거래 금고"], ["장비", `${formatMarketGearLevel(confirmation.listing.item)} · ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
+    case "cancel-listing": return { title: "판매 등록을 취소할까요?", body: "아직 거래되지 않은 매물만 취소할 수 있으며 장비는 거래 금고로 돌아옵니다.", confirmLabel: "등록 취소", rows: [["장비", formatMarketGearName(confirmation.listing.item)], ["등록가", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["반환 위치", "거래 금고"]] };
     case "sell": {
       const item = confirmation.candidate.view;
       const characterTransfer = confirmation.candidate.source === "character";
       return {
         title: `${formatMarketGearName(item)}을 판매할까요?`,
         body: characterTransfer
-          ? "서버 등록이 완료되면 장비가 캐릭터 가방에서 빠지고 거래 보관 상태로 이동합니다. 실패하면 가방 장비는 그대로 유지됩니다."
-          : "등록되는 순간 장비는 거래 보관 상태가 되며 다른 거래에 사용할 수 없습니다.",
+          ? "판매 등록이 완료되면 장비가 캐릭터 가방에서 빠지고 거래 금고에 보관됩니다. 등록되지 않으면 가방 장비는 그대로 유지됩니다."
+          : "등록되는 순간 장비는 판매 보관 상태가 되며 다른 곳에서 사용할 수 없습니다.",
         confirmLabel: characterTransfer ? "이관 후 판매 등록" : "판매 등록",
         rows: [
-          ["보관 위치", confirmation.candidate.source === "character" ? `캐릭터 가방 ${confirmation.candidate.saveSlot}번` : "서버 금고"],
+          ["현재 위치", confirmation.candidate.source === "character" ? `캐릭터 가방 ${confirmation.candidate.saveSlot}번` : "거래 금고"],
           ["판매 가격", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`],
-          ["착용 조건", formatMarketGearLevel(item)],
-          ["아이템 보스 화력", formatEconomyAmount(item.powerScore)],
-          ["등급", RARITY_LABELS[item.rarity]],
+          ["등록 기간", "7일"],
+          ["거래 수수료", "✦ 0"],
+          ["판매 시 예상 수령", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`],
+          ["만료 시 반환", "거래 금고"],
         ],
       };
     }
-    case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며 상대 주문과 가격이 맞으면 자동 체결됩니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
-    case "fill-order": return { title: "이 호가를 즉시 체결할까요?", body: "서버가 남은 수량과 가격을 다시 확인한 뒤 가능한 수량만 원자적으로 체결합니다.", confirmLabel: "즉시 체결", rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
+    case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며, 상대가 호가창에서 이 주문을 선택해 체결할 때까지 대기합니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
+    case "fill-order": {
+      const buyingGold = confirmation.order.side === "sell";
+      const actionLabel = buyingGold ? "금괴 매수" : "금괴 매도";
+      const ashFlow = buyingGold ? "지출" : "수령";
+      const totalAsh = confirmation.goldAmount * confirmation.order.priceAshPerGold;
+      return {
+        title: `${actionLabel}를 즉시 체결할까요?`,
+        body: buyingGold
+          ? "기억의 재를 지출하고 금괴를 받습니다. 남은 수량과 가격을 다시 확인해 주세요."
+          : "금괴를 넘기고 기억의 재를 수령합니다. 남은 수량과 가격을 다시 확인해 주세요.",
+        confirmLabel: `${actionLabel} 체결`,
+        rows: [
+          ["내 거래", actionLabel],
+          ["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`],
+          ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`],
+          ["총 기억의 재", `${ashFlow} · ✦ ${formatEconomyAmount(totalAsh)}`],
+        ],
+      };
+    }
     case "cancel-order": return { title: "미체결 주문을 취소할까요?", body: "이미 체결된 수량은 되돌릴 수 없으며 미체결분의 거래 보관 재화만 반환됩니다.", confirmLabel: "주문 취소", rows: [["잔여 금괴", `▰ ${formatEconomyAmount(confirmation.order.remainingGold)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
-    case "charge": return { title: `${confirmation.goldAmount} 금괴를 충전할까요?`, body: "Steam 결제창에서 최종 금액을 확인합니다. 서버 영수증 검증 후 지급되며 교환에는 72시간 잠금이 적용됩니다.", confirmLabel: "Steam 결제로 이동", rows: [["충전 금괴", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["결제 예정", `${confirmation.priceKrw.toLocaleString("ko-KR")}원`], ["교환 잠금", "72시간"]] };
-    case "sandbox": return { title: "로컬 샌드박스 재화를 지급할까요?", body: "localhost 데모 원장에만 반영되며 실제 결제·운영 계정과 완전히 분리됩니다.", confirmLabel: "샌드박스 지급", rows: [["재화", confirmation.currency === "memoryAsh" ? "기억의 재" : "금괴"], ["수량", formatEconomyAmount(confirmation.amount)]] };
+    case "charge": return { title: `${confirmation.goldAmount} 금괴를 충전할까요?`, body: "Steam 결제창에서 최종 금액을 확인합니다. 결제가 완료된 주문에만 금괴가 지급되며 교환에는 72시간 잠금이 적용됩니다.", confirmLabel: "Steam 결제로 이동", rows: [["충전 금괴", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["결제 예정", `${confirmation.priceKrw.toLocaleString("ko-KR")}원`], ["교환 잠금", "72시간"]] };
   }
 }

@@ -1,0 +1,22 @@
+{
+  "mode": "generate",
+  "tool": "image_gen.imagegen built-in",
+  "generatedAt": "2026-08-17",
+  "source": "asset-sources/imagegen/auction-hall-backdrop-v1-source.png",
+  "output": "public/assets/ui/market/auction-hall-backdrop-v1.webp",
+  "generationResult": {
+    "nativeSize": [1672, 941],
+    "nativeMode": "RGB",
+    "sourceSha256": "91c10721548bd963b3fb02bac4d0dcc0e6987d6337b671881ed6d77338254d60",
+    "sourceBytes": 1762075
+  },
+  "productionOutput": {
+    "size": [1920, 1080],
+    "mode": "RGB",
+    "format": "webp",
+    "sha256": "04becdfb3e52fbe175efee949fdf9f9c5c5c89491bd77f825bd40dfe1b4ae6e7",
+    "bytes": 105124,
+    "pipeline": "Sharp Lanczos3 center-cover resize to a fixed 1920x1080 canvas; source aspect ratio preserved with cover crop and no stretch; opaque sRGB WebP quality 90"
+  },
+  "prompt": "Create one original production-ready raster background asset for a full-screen Korean dark-fantasy MMORPG auction house interface. Scene/backdrop: a nearly black obsidian auction registry chamber seen straight-on, with aged brass ledger inlays, restrained oxidized-jade patina, faint memory-ash motes, and subtle engraved record lines. Composition: wide 16:9 landscape. Symmetrical ornamental border concentrated at the outer top, left, right, and bottom edges. Keep the entire central 72% of the canvas very dark, calm, low-contrast, and visually empty so HTML tables, filters, Korean labels, and modal dialogs remain highly readable. Corners may contain thin original gothic calligraphy-inspired metalwork, but no recognizable franchise motifs. Materials: realistic worn blackened steel, antique brass, smoked glass, ash dust; elegant and severe, not ornate fantasy concept art. Output intent: shippable repeating-feel website/game UI backdrop layer, not a UI mockup. Hard constraints: absolutely no text, no letters, no numbers, no logos, no characters, no weapons, no item icons, no buttons, no cards, no panels, no interface screenshots, no MapleStory assets or recognizable MapleStory visual identity. No bright focal object. Preserve generous negative space and crisp outer decoration."
+}

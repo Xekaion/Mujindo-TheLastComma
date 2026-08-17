@@ -2,7 +2,7 @@
 
 import economyTriggerSql from "./economy-triggers.sql?raw";
 
-const TRIGGER_VERSION = "secure-market-triggers-v2";
+const TRIGGER_VERSION = "secure-market-triggers-v6";
 const TRIGGER_MARKER_SUBJECT = "system:economy-schema";
 const STATEMENT_BREAKPOINT = "--> statement-breakpoint";
 
@@ -28,13 +28,31 @@ if (new Set(triggerNames).size !== economyTriggerStatements.length) {
  * database-authoritative transaction boundary.
  */
 export async function ensureEconomyTriggers(db: D1Database): Promise<void> {
+  const placeholders = triggerNames.map(() => "?").join(",");
+  const installedTriggerCount = async () => db.prepare(
+    `SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN (${placeholders})`,
+  ).bind(...triggerNames).first<{ count: number }>();
   const installed = await db.prepare(
     `SELECT 1 AS ready FROM economy_rate_limits WHERE subject_key=? AND bucket=? LIMIT 1`,
   ).bind(TRIGGER_MARKER_SUBJECT, TRIGGER_VERSION).first<{ ready: number }>();
-  if (installed?.ready === 1) return;
+  if (installed?.ready === 1) {
+    const verified = await installedTriggerCount();
+    if (Number(verified?.count ?? 0) === triggerNames.length) return;
+  }
 
   const now = Date.now();
   await db.batch([
+    // v5 adds Steam freshness, login-sanction, and receive-capacity checks
+    // while keeping risk-reducing cancellation available to restricted owners.
+    // Recreate every affected trigger so an
+    // existing D1 cannot retain a stale body behind IF NOT EXISTS.
+    db.prepare("DROP TRIGGER IF EXISTS economy_payment_finalize_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_list_item_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_buy_listing_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_place_exchange_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_fill_exchange_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_cancel_listing_before"),
+    db.prepare("DROP TRIGGER IF EXISTS economy_cancel_exchange_before"),
     ...economyTriggerStatements.map((statement) => db.prepare(statement)),
     db.prepare(`INSERT INTO economy_rate_limits(subject_key,bucket,window_started_at,request_count,blocked_until)
       VALUES(?,?,?,0,NULL)
@@ -42,10 +60,7 @@ export async function ensureEconomyTriggers(db: D1Database): Promise<void> {
       .bind(TRIGGER_MARKER_SUBJECT, TRIGGER_VERSION, now),
   ]);
 
-  const placeholders = triggerNames.map(() => "?").join(",");
-  const verified = await db.prepare(
-    `SELECT COUNT(*) AS count FROM sqlite_master WHERE type='trigger' AND name IN (${placeholders})`,
-  ).bind(...triggerNames).first<{ count: number }>();
+  const verified = await installedTriggerCount();
   if (Number(verified?.count ?? 0) !== triggerNames.length) {
     throw new Error("economy_trigger_install_incomplete");
   }

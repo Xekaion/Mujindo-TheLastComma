@@ -85,6 +85,12 @@ const GOLD_HOLD_MS = 72 * 60 * 60 * 1_000;
 const SESSION_TTL_MS = 12 * 60 * 60 * 1_000;
 const STEAM_OWNERSHIP_TTL_MS = SESSION_TTL_MS;
 const MAX_BODY_BYTES = 64 * 1024;
+const PUBLIC_EXCHANGE_SIDE_LIMIT = 60;
+const PRIVATE_EXCHANGE_ORDER_LIMIT = 100;
+const PRIVATE_AUCTION_LISTING_LIMIT = 200;
+const ORDER_BOOK_LEVEL_LIMIT = 20;
+const RECENT_AUCTION_TRADE_LIMIT = 100;
+const PRIVATE_AUCTION_TRADE_LIMIT = 100;
 const DEV_ACCOUNT_IDS = {
   A: "00000000-0000-4000-8000-00000000000a",
   B: "00000000-0000-4000-8000-00000000000b",
@@ -102,18 +108,38 @@ const TERMINAL_PAYMENT_STATUSES = new Set(["failed", "refunded", "chargeback", "
 // chargeback reconciler and tested lot-clawback/debt workflow. Until then,
 // production Steam money can never be enabled by configuration alone.
 const CHARGEBACK_RECONCILIATION_READY = false;
+// A provider-success/local-credit race also needs a durable reservation and
+// terminal reconciliation worker. Keep production payments closed until that
+// workflow is deployed and independently audited.
+const PAYMENT_CREDIT_RECONCILIATION_READY = false;
+// Remote sanctions currently have no named-operator MFA/RBAC control plane or
+// atomic escrow unwind. A config toggle alone must never open live writes.
+const REMOTE_ADMIN_CONTROL_PLANE_READY = false;
 
-function steamPaymentsEnabled(env: EconomyD1Env): boolean {
-  return env.ECONOMY_PAYMENTS_ENABLED === "true" &&
-    (env.STEAM_MICROTXN_SANDBOX === "true" || CHARGEBACK_RECONCILIATION_READY);
+function economyLiveEnabled(env: EconomyD1Env): boolean {
+  return env.ECONOMY_LIVE_ENABLED === "true" && REMOTE_ADMIN_CONTROL_PLANE_READY;
 }
 
-function assertSteamPaymentsEnabled(env: EconomyD1Env): void {
+function steamPaymentsEnabled(env: EconomyD1Env, request: Request): boolean {
+  const localSandbox = env.STEAM_MICROTXN_SANDBOX === "true" &&
+    isLocalHost(new URL(request.url));
+  const productionReady = CHARGEBACK_RECONCILIATION_READY &&
+    PAYMENT_CREDIT_RECONCILIATION_READY && economyLiveEnabled(env);
+  return env.ECONOMY_PAYMENTS_ENABLED === "true" && (localSandbox || productionReady);
+}
+
+function assertSteamPaymentsEnabled(env: EconomyD1Env, request: Request): void {
   if (env.ECONOMY_PAYMENTS_ENABLED !== "true") {
     throw new EconomyProblem(423, "PAYMENTS_CLOSED", "실결제 운영 스위치가 잠겨 있습니다.");
   }
-  if (env.STEAM_MICROTXN_SANDBOX !== "true" && !CHARGEBACK_RECONCILIATION_READY) {
-    throw new EconomyProblem(423, "PAYMENT_RECONCILIATION_NOT_READY", "환불·차지백 대사 체계가 준비되지 않아 실제 결제를 열 수 없습니다.");
+  if (env.STEAM_MICROTXN_SANDBOX === "true" && !isLocalHost(new URL(request.url))) {
+    throw new EconomyProblem(423, "PAYMENT_SANDBOX_HOST_LOCKED", "Steam 시험 결제는 로컬 개발 환경에서만 사용할 수 있습니다.");
+  }
+  if (
+    env.STEAM_MICROTXN_SANDBOX !== "true" &&
+    (!CHARGEBACK_RECONCILIATION_READY || !PAYMENT_CREDIT_RECONCILIATION_READY)
+  ) {
+    throw new EconomyProblem(423, "PAYMENT_RECONCILIATION_NOT_READY", "환불·차지백과 결제 지급 대사 체계가 준비되지 않아 실제 결제를 열 수 없습니다.");
   }
 }
 
@@ -292,15 +318,19 @@ async function ensureDevelopmentAccount(
   const seedGoldLotId = label === "A"
     ? "10000000-0000-4000-8000-00000000a0aa"
     : "10000000-0000-4000-8000-00000000b0bb";
+  const enhancement = label === "A" ? 3 : 1;
   const itemJson = JSON.stringify({
     baseName: label === "A" ? "개발자의 기억검" : "검증자의 성갑",
-    enhancement: label === "A" ? 3 : 1,
+    enhancement,
+    legendaryPowerId: "crescentEcho",
+    enhancementRanks: label === "A" ? [1, 1, 1] : [0, 1, 0],
+    divineForgeRerolls: 0,
     powerScore: label === "A" ? 840 : 610,
     qualityScore: label === "A" ? 91 : 74,
     iconIndex: label === "A" ? 8 : 24,
     affixes: [
-      { label: "공격력 +12.00%", value: "+12.00%" },
-      { label: "치명타 확률 +6.00%", value: "+6.00%" },
+      { stat: "damagePercent", label: "피해 +12%", value: 12, rollPercent: 91 },
+      { stat: "critChancePercent", label: "치명타 확률 +6%", value: 6, rollPercent: 74 },
     ],
   });
   await db.batch([
@@ -321,6 +351,10 @@ async function ensureDevelopmentAccount(
       (id,owner_account_id,state,tradeable,provenance,origin_id,slot,rarity,item_level,display_name,item_json,version,created_at,updated_at)
       VALUES(?,?, 'inventory',1,'development',?,'weapon','legendary',70,?,?,0,?,?)`)
       .bind(itemId, accountId, `dev-${label}-item`, label === "A" ? "개발자의 기억검" : "검증자의 성갑", itemJson, now, now),
+    db.prepare(`UPDATE economy_items SET item_json=?,updated_at=?
+      WHERE id=? AND provenance='development' AND origin_id=?
+        AND json_type(item_json,'$.enhancementRanks') IS NULL`)
+      .bind(itemJson, now, itemId, `dev-${label}-item`),
   ]);
   const account = await accountById(db, accountId);
   if (!account) throw new EconomyProblem(503, "STORAGE_ERROR", "개발 계정을 만들지 못했습니다.", true);
@@ -355,14 +389,45 @@ async function authenticate(
   throw new EconomyProblem(401, "UNAUTHENTICATED", "거래소 로그인이 필요합니다.");
 }
 
-function assertWriteAllowed(request: Request, env: EconomyD1Env, auth: AuthContext): void {
+async function hasLegacyCharacterImportContamination(db: D1Database): Promise<boolean> {
+  const row = await db.prepare(`SELECT 1 AS contaminated FROM economy_items
+    WHERE provenance='server_drop' AND origin_id LIKE 'character:%' LIMIT 1`)
+    .first<{ contaminated: number }>();
+  return row?.contaminated === 1;
+}
+
+async function assertWriteAllowed(
+  request: Request,
+  db: D1Database,
+  env: EconomyD1Env,
+  auth: AuthContext,
+  allowRiskReducingCancellation = false,
+): Promise<void> {
   if (!sameOrigin(request)) throw new EconomyProblem(403, "INVALID_ORIGIN", "동일 출처 요청만 허용됩니다.");
   if (auth.development) return;
-  if (env.ECONOMY_LIVE_ENABLED !== "true") {
-    throw new EconomyProblem(423, "MARKET_CLOSED", "운영 경제 런치 스위치가 잠겨 있습니다.");
-  }
   if (!env.ECONOMY_ACCOUNT_PEPPER) {
     throw new EconomyProblem(503, "SECURITY_CONFIG_MISSING", "운영 계정 보안 키가 구성되지 않았습니다.");
+  }
+  // Authenticated owners must be able to reduce escrow risk even while the
+  // launch gate, a sanction, a wallet freeze, or an inventory audit is active.
+  // Ownership/version remain enforced by the authoritative cancel triggers.
+  if (allowRiskReducingCancellation) return;
+  if (!economyLiveEnabled(env)) {
+    if (env.ECONOMY_LIVE_ENABLED !== "true") {
+      throw new EconomyProblem(423, "MARKET_CLOSED", "운영 경제 런치 스위치가 잠겨 있습니다.");
+    }
+    throw new EconomyProblem(
+      423,
+      "MARKET_CONTROL_PLANE_NOT_READY",
+      "운영 제재·거래 보관 청산·수취 한도 예약 제어면이 준비되지 않아 거래가 잠겨 있습니다.",
+    );
+  }
+  if (await hasLegacyCharacterImportContamination(db)) {
+    throw new EconomyProblem(
+      423,
+      "INVENTORY_AUDIT_REQUIRED",
+      "이전 장비 등록 기록의 소유권 검증이 완료되지 않아 운영 거래가 잠겨 있습니다.",
+    );
   }
   if (
     !auth.account.steam_verified_at ||
@@ -503,6 +568,11 @@ function itemView(row: Record<string, unknown>) {
     slot: String(row.slot),
     level: Number(row.item_level),
     enhancement: Number(data.enhancement ?? 0),
+    legendaryPowerId: typeof data.legendaryPowerId === "string" ? data.legendaryPowerId : null,
+    enhancementRanks: Array.isArray(data.enhancementRanks)
+      ? data.enhancementRanks.filter((rank) => Number.isSafeInteger(rank) && Number(rank) >= 0)
+      : [],
+    divineForgeRerolls: Number(data.divineForgeRerolls ?? 0),
     powerScore: Number(data.powerScore ?? 0),
     qualityScore: Number(data.qualityScore ?? 0),
     iconIndex: Number(data.iconIndex ?? 0),
@@ -537,7 +607,7 @@ function orderView(row: Record<string, unknown>, accountId: string) {
     side: row.side === "buy_gold" ? "buy" : "sell",
     priceAshPerGold: Number(row.price_ash_per_gold),
     goldAmount: Number(row.gold_initial),
-    remainingGold: Number(row.gold_remaining),
+    remainingGold: Number(row.public_gold_remaining ?? row.gold_remaining),
     status: row.status === "partially_filled" ? "partial" : String(row.status),
     mine: row.account_id === accountId,
     createdAt: new Date(Number(row.created_at)).toISOString(),
@@ -545,9 +615,118 @@ function orderView(row: Record<string, unknown>, accountId: string) {
   };
 }
 
-async function queryListings(db: D1Database, query: ItemMarketQuery) {
-  const where = ["l.status='open'", "l.expires_at>?"];
-  const bindings: unknown[] = [Date.now()];
+async function queryExchangeOrdersForSide(
+  db: D1Database,
+  side: "buy_gold" | "sell_gold",
+  limit: number,
+) {
+  const priceDirection = side === "buy_gold" ? "DESC" : "ASC";
+  const now = Date.now();
+  return db.prepare(`SELECT eligible.* FROM (
+      SELECT o.*,
+        CASE WHEN o.side='sell_gold'
+          THEN MIN(o.gold_remaining,MAX(0,CAST((9000000000000-w.ash_available-w.ash_reserved)/o.price_ash_per_gold AS INTEGER)))
+          ELSE MIN(o.gold_remaining,MAX(0,1000000000-w.gold_available-w.gold_reserved-w.gold_locked))
+        END AS public_gold_remaining
+      FROM economy_exchange_orders o
+      JOIN economy_accounts a ON a.id=o.account_id
+      JOIN economy_wallets w ON w.account_id=o.account_id
+      WHERE o.status IN ('open','partially_filled') AND o.side=?
+        AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0
+        AND NOT EXISTS(SELECT 1 FROM economy_sanctions s
+          WHERE s.account_id=o.account_id AND s.revoked_at IS NULL AND s.starts_at<=?
+            AND (s.expires_at IS NULL OR s.expires_at>?) AND s.scope IN ('login','exchange','wallet'))
+    ) eligible
+      WHERE eligible.public_gold_remaining>=1
+      ORDER BY eligible.price_ash_per_gold ${priceDirection},eligible.created_at ASC,eligible.id ASC LIMIT ?`)
+    .bind(side, now, now, limit)
+    .all<Record<string, unknown>>();
+}
+
+async function queryOrderBookLevels(
+  db: D1Database,
+  side: "buy_gold" | "sell_gold",
+) {
+  const priceDirection = side === "buy_gold" ? "DESC" : "ASC";
+  const now = Date.now();
+  return db.prepare(`SELECT eligible.price_ash_per_gold,
+      SUM(eligible.public_gold_remaining) AS gold_amount,
+      COUNT(*) AS order_count
+      FROM (
+        SELECT o.price_ash_per_gold,
+          CASE WHEN o.side='sell_gold'
+            THEN MIN(o.gold_remaining,MAX(0,CAST((9000000000000-w.ash_available-w.ash_reserved)/o.price_ash_per_gold AS INTEGER)))
+            ELSE MIN(o.gold_remaining,MAX(0,1000000000-w.gold_available-w.gold_reserved-w.gold_locked))
+          END AS public_gold_remaining
+        FROM economy_exchange_orders o
+        JOIN economy_accounts a ON a.id=o.account_id
+        JOIN economy_wallets w ON w.account_id=o.account_id
+        WHERE o.status IN ('open','partially_filled') AND o.side=?
+          AND a.status='active' AND a.trade_eligible=1 AND a.steam_ownership_verified=1 AND a.wallet_frozen=0
+          AND NOT EXISTS(SELECT 1 FROM economy_sanctions s
+            WHERE s.account_id=o.account_id AND s.revoked_at IS NULL AND s.starts_at<=?
+              AND (s.expires_at IS NULL OR s.expires_at>?) AND s.scope IN ('login','exchange','wallet'))
+      ) eligible
+      WHERE eligible.public_gold_remaining>=1
+      GROUP BY eligible.price_ash_per_gold
+      ORDER BY eligible.price_ash_per_gold ${priceDirection}
+      LIMIT ?`)
+    .bind(side, now, now, ORDER_BOOK_LEVEL_LIMIT)
+    .all<{ price_ash_per_gold: number; gold_amount: number; order_count: number }>();
+}
+
+function orderBookLevelView(row: {
+  price_ash_per_gold: number;
+  gold_amount: number;
+  order_count: number;
+}) {
+  return {
+    priceAshPerGold: Number(row.price_ash_per_gold),
+    goldAmount: Number(row.gold_amount),
+    orderCount: Number(row.order_count),
+  };
+}
+
+function auctionTradeView(row: Record<string, unknown>) {
+  return {
+    tradeId: String(row.trade_id),
+    item: itemView(row),
+    priceAsh: Number(row.trade_price_ash),
+    executedAt: new Date(Number(row.trade_created_at)).toISOString(),
+  };
+}
+
+function accountAuctionTradeView(row: Record<string, unknown>, accountId: string) {
+  const role = row.buyer_account_id === accountId ? "buyer" : "seller";
+  return {
+    ...auctionTradeView(row),
+    role,
+    counterpartName: String(role === "buyer" ? row.seller_name : row.buyer_name),
+  };
+}
+
+async function queryListings(
+  db: D1Database,
+  query: ItemMarketQuery,
+  includeDevelopmentImports = false,
+) {
+  const where = [
+    "l.status='open'",
+    "l.expires_at>?",
+    "i.state='escrow'",
+    "i.tradeable=1",
+    "a.status='active'",
+    "a.trade_eligible=1",
+    "a.steam_ownership_verified=1",
+    "a.wallet_frozen=0",
+    "NOT EXISTS(SELECT 1 FROM economy_sanctions s WHERE s.account_id=l.seller_account_id AND s.revoked_at IS NULL AND s.starts_at<=? AND (s.expires_at IS NULL OR s.expires_at>?) AND s.scope IN ('login','market','wallet'))",
+    "w.ash_available+w.ash_reserved+l.price_ash<=9000000000000",
+  ];
+  if (!includeDevelopmentImports) {
+    where.push("NOT (i.provenance='server_drop' AND i.origin_id LIKE 'character:%')");
+  }
+  const now = Date.now();
+  const bindings: unknown[] = [now, now, now];
   if (query.search) {
     const escaped = query.search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
     where.push("i.display_name LIKE ? ESCAPE '\\'");
@@ -596,9 +775,26 @@ async function queryListings(db: D1Database, query: ItemMarketQuery) {
       i.id,i.state,i.slot,i.rarity,i.item_level,i.display_name,i.item_json,i.version
       FROM economy_listings l JOIN economy_items i ON i.id=l.item_id
       JOIN economy_accounts a ON a.id=l.seller_account_id
+      JOIN economy_wallets w ON w.account_id=l.seller_account_id
       WHERE ${where.join(" AND ")} ORDER BY ${orderBy[query.sort]} LIMIT ?`,
   ).bind(...bindings).all<Record<string, unknown>>();
   return result.results;
+}
+
+async function queryMyListings(
+  db: D1Database,
+  accountId: string,
+) {
+  return db.prepare(
+    `SELECT l.id AS listing_id,l.seller_account_id,a.display_name AS seller_name,l.price_ash,
+      l.version AS listing_version,l.created_at AS listing_created_at,l.expires_at,
+      i.id,i.state,i.slot,i.rarity,i.item_level,i.display_name,i.item_json,i.version
+      FROM economy_listings l JOIN economy_items i ON i.id=l.item_id
+      JOIN economy_accounts a ON a.id=l.seller_account_id
+      WHERE l.seller_account_id=? AND l.status='open' AND l.expires_at>?
+        AND i.state='escrow' AND i.tradeable=1
+      ORDER BY l.created_at DESC,l.id DESC LIMIT ?`,
+  ).bind(accountId, Date.now(), PRIVATE_AUCTION_LISTING_LIMIT).all<Record<string, unknown>>();
 }
 
 async function buildSnapshot(
@@ -609,53 +805,118 @@ async function buildSnapshot(
 ) {
   await releaseMatureGold(db, auth.account.id);
   await expireAuctionListings(db);
+  const includeDevelopmentImports = auth.development && isLocalHost(new URL(request.url));
   const importedOriginPrefix = `character:${auth.account.id}:`;
-  const [wallet, inventory, listings, orders, fills, sanctions, audit, sessionCount, best, lockedLot, importedCharacterItems] = await Promise.all([
+  const publicTradeImportPredicate = includeDevelopmentImports
+    ? ""
+    : "WHERE NOT (i.provenance='server_drop' AND i.origin_id LIKE 'character:%')";
+  const privateTradeImportPredicate = includeDevelopmentImports
+    ? ""
+    : "AND NOT (i.provenance='server_drop' AND i.origin_id LIKE 'character:%')";
+  const [
+    wallet,
+    inventory,
+    listings,
+    myListings,
+    publicBuyOrders,
+    publicSellOrders,
+    privateOrders,
+    bidLevels,
+    askLevels,
+    fills,
+    auctionTrades,
+    myAuctionTrades,
+    sanctions,
+    audit,
+    sessionCount,
+    lockedLot,
+    importedCharacterItems,
+    legacyCharacterImport,
+  ] = await Promise.all([
     db.prepare(`SELECT * FROM economy_wallets WHERE account_id=?`).bind(auth.account.id).first<WalletRow>(),
     db.prepare(`SELECT * FROM economy_items WHERE owner_account_id=? AND state<>'destroyed' ORDER BY created_at DESC LIMIT 2000`).bind(auth.account.id).all<Record<string, unknown>>(),
-    queryListings(db, { kind: "items", limit: 100, sort: "newest" }),
-    db.prepare(`SELECT * FROM economy_exchange_orders WHERE status IN ('open','partially_filled') ORDER BY created_at DESC LIMIT 200`).all<Record<string, unknown>>(),
+    queryListings(db, { kind: "items", limit: 100, sort: "newest" }, includeDevelopmentImports),
+    queryMyListings(db, auth.account.id),
+    queryExchangeOrdersForSide(db, "buy_gold", PUBLIC_EXCHANGE_SIDE_LIMIT),
+    queryExchangeOrdersForSide(db, "sell_gold", PUBLIC_EXCHANGE_SIDE_LIMIT),
+    db.prepare(`SELECT * FROM economy_exchange_orders
+      WHERE account_id=? AND status IN ('open','partially_filled')
+      ORDER BY created_at DESC,id DESC LIMIT ?`)
+      .bind(auth.account.id, PRIVATE_EXCHANGE_ORDER_LIMIT)
+      .all<Record<string, unknown>>(),
+    queryOrderBookLevels(db, "buy_gold"),
+    queryOrderBookLevels(db, "sell_gold"),
     db.prepare(`SELECT * FROM economy_exchange_fills ORDER BY created_at DESC LIMIT 30`).all<Record<string, unknown>>(),
+    db.prepare(`SELECT t.id AS trade_id,t.price_ash AS trade_price_ash,
+      t.created_at AS trade_created_at,t.seller_account_id,t.buyer_account_id,i.*
+      FROM economy_auction_trades t
+      JOIN economy_items i ON i.id=t.item_id
+      ${publicTradeImportPredicate}
+      ORDER BY t.created_at DESC,t.id DESC LIMIT ?`)
+      .bind(RECENT_AUCTION_TRADE_LIMIT)
+      .all<Record<string, unknown>>(),
+    db.prepare(`SELECT t.id AS trade_id,t.price_ash AS trade_price_ash,
+      t.created_at AS trade_created_at,t.seller_account_id,t.buyer_account_id,
+      seller.display_name AS seller_name,buyer.display_name AS buyer_name,i.*
+      FROM economy_auction_trades t
+      JOIN economy_items i ON i.id=t.item_id
+      JOIN economy_accounts seller ON seller.id=t.seller_account_id
+      JOIN economy_accounts buyer ON buyer.id=t.buyer_account_id
+      WHERE (t.seller_account_id=? OR t.buyer_account_id=?)
+        ${privateTradeImportPredicate}
+      ORDER BY t.created_at DESC,t.id DESC LIMIT ?`)
+      .bind(auth.account.id, auth.account.id, PRIVATE_AUCTION_TRADE_LIMIT)
+      .all<Record<string, unknown>>(),
     db.prepare(`SELECT * FROM economy_sanctions WHERE account_id=? AND revoked_at IS NULL AND starts_at<=? AND (expires_at IS NULL OR expires_at>?) ORDER BY created_at DESC`).bind(auth.account.id, Date.now(), Date.now()).all<Record<string, unknown>>(),
     db.prepare(`SELECT * FROM economy_audit_events WHERE actor_account_id=? OR target_account_id=? ORDER BY created_at DESC LIMIT 20`).bind(auth.account.id, auth.account.id).all<Record<string, unknown>>(),
     db.prepare(`SELECT COUNT(*) AS count FROM economy_sessions WHERE account_id=? AND revoked_at IS NULL AND expires_at>?`).bind(auth.account.id, Date.now()).first<{ count: number }>(),
-    db.prepare(`SELECT MAX(CASE WHEN side='buy_gold' THEN price_ash_per_gold END) AS bid, MIN(CASE WHEN side='sell_gold' THEN price_ash_per_gold END) AS ask FROM economy_exchange_orders WHERE status IN ('open','partially_filled')`).first<{ bid: number | null; ask: number | null }>(),
     db.prepare(`SELECT MIN(tradeable_at) AS tradeable_at FROM economy_gold_lots WHERE account_id=? AND state='locked' AND remaining>0`).bind(auth.account.id).first<{ tradeable_at: number | null }>(),
     db.prepare(`SELECT item_json FROM economy_items
       WHERE provenance='server_drop' AND substr(origin_id,1,?)=?
       ORDER BY created_at DESC LIMIT 2000`)
       .bind(importedOriginPrefix.length, importedOriginPrefix)
       .all<{ item_json: string }>(),
+    db.prepare(`SELECT 1 AS contaminated FROM economy_items
+      WHERE provenance='server_drop' AND origin_id LIKE 'character:%' LIMIT 1`)
+      .first<{ contaminated: number }>(),
   ]);
   if (!wallet) throw new EconomyProblem(503, "WALLET_MISSING", "서버 지갑이 없습니다.", true);
   const local = auth.development && isLocalHost(new URL(request.url));
-  const live = env.ECONOMY_LIVE_ENABLED === "true";
+  const liveRequested = env.ECONOMY_LIVE_ENABLED === "true";
+  const inventoryAuditRequired = legacyCharacterImport?.contaminated === 1;
+  const live = economyLiveEnabled(env) && !inventoryAuditRequired;
   const activeScopes = new Set(sanctions.results.map((sanction) => String(sanction.scope)));
   const hasTradeSanction = ["login", "market", "exchange", "wallet"].some((scope) => activeScopes.has(scope));
   const steamOwnershipFresh = Boolean(
     auth.account.steam_verified_at &&
     auth.account.steam_verified_at >= Date.now() - STEAM_OWNERSHIP_TTL_MS,
   );
+  const accountRestricted = hasTradeSanction ||
+    auth.account.status !== "active" ||
+    auth.account.wallet_frozen === 1;
   const canTrade = !hasTradeSanction && (local || (live && steamOwnershipFresh && auth.account.status === "active" && auth.account.wallet_frozen === 0 && auth.account.steam_ownership_verified === 1 && auth.account.trade_eligible === 1));
   const openListings = listings.map((row) => listingView(row, auth.account.id));
-  const orderViews = orders.results.map((row) => orderView(row, auth.account.id));
-  const aggregateLevels = (side: "buy" | "sell") => {
-    const levels = new Map<number, { priceAshPerGold: number; goldAmount: number; orderCount: number }>();
-    for (const order of orderViews.filter((candidate) => candidate.side === side)) {
-      const previous = levels.get(order.priceAshPerGold) ?? { priceAshPerGold: order.priceAshPerGold, goldAmount: 0, orderCount: 0 };
-      previous.goldAmount += order.remainingGold;
-      previous.orderCount += 1;
-      levels.set(order.priceAshPerGold, previous);
-    }
-    return [...levels.values()].sort((left, right) => side === "buy" ? right.priceAshPerGold-left.priceAshPerGold : left.priceAshPerGold-right.priceAshPerGold).slice(0, 20);
-  };
+  const accountListings = myListings.results.map((row) => listingView(row, auth.account.id));
+  const publicOrderViews = [...publicBuyOrders.results, ...publicSellOrders.results]
+    .map((row) => orderView(row, auth.account.id));
+  const privateOrderViews = privateOrders.results.map((row) => orderView(row, auth.account.id));
+  const bids = bidLevels.results.map(orderBookLevelView);
+  const asks = askLevels.results.map(orderBookLevelView);
   return {
     revision: wallet.version,
     serverTime: new Date().toISOString(),
     csrfToken: null,
     featureMode: local ? "sandbox" : live ? "live" : "read-only",
-    launchGateReason: local || live ? null : "ECONOMY_LIVE_ENABLED 런치 스위치가 잠겨 운영 거래는 읽기 전용입니다.",
-    paymentMode: live && steamPaymentsEnabled(env) && env.STEAM_PUBLISHER_KEY && env.STEAM_APP_ID
+    launchGateReason: local || live
+      ? null
+      : !REMOTE_ADMIN_CONTROL_PLANE_READY
+        ? "운영 제재·거래 보관 청산·수취 한도 예약 제어면이 준비되지 않아 운영 거래는 읽기 전용입니다."
+        : inventoryAuditRequired
+        ? "이전 장비 등록 기록의 소유권 검증이 완료되지 않아 운영 거래가 잠겨 있습니다."
+        : liveRequested
+          ? "운영 거래 준비 상태를 확인할 수 없어 읽기 전용으로 유지합니다."
+          : "ECONOMY_LIVE_ENABLED 런치 스위치가 잠겨 운영 거래는 읽기 전용입니다.",
+    paymentMode: live && steamPaymentsEnabled(env, request) && env.STEAM_PUBLISHER_KEY && env.STEAM_APP_ID
       ? env.STEAM_MICROTXN_SANDBOX === "true" ? "sandbox" : "steam"
       : "disabled",
     account: {
@@ -664,10 +925,17 @@ async function buildSnapshot(
       steamId: auth.steamId,
       steamLinked: Boolean(auth.steamId),
       gameOwned: auth.account.steam_ownership_verified === 1,
-      restricted: hasTradeSanction || auth.account.status !== "active" || auth.account.wallet_frozen === 1,
+      steamOwnershipFresh: local || steamOwnershipFresh,
+      restricted: accountRestricted,
       restrictionReason: sanctions.results[0] ? String(sanctions.results[0].reason) : null,
       sanctionCode: sanctions.results[0] ? String(sanctions.results[0].scope) : null,
-      trustTier: auth.development ? "trusted" : canTrade ? "standard" : "unverified",
+      trustTier: auth.development
+        ? "trusted"
+        : accountRestricted
+          ? "restricted"
+          : auth.steamId && auth.account.steam_ownership_verified === 1 && steamOwnershipFresh
+            ? "standard"
+            : "unverified",
       createdAt: new Date(auth.account.created_at).toISOString(),
     },
     wallet: {
@@ -680,14 +948,17 @@ async function buildSnapshot(
       return item ? [item.id] : [];
     }))],
     listings: openListings,
+    myListings: accountListings,
+    auctionTrades: auctionTrades.results.map(auctionTradeView),
+    myAuctionTrades: myAuctionTrades.results.map((row) => accountAuctionTradeView(row, auth.account.id)),
     goldExchange: {
-      bestBid: best?.bid ?? null,
-      bestAsk: best?.ask ?? null,
+      bestBid: bids[0]?.priceAshPerGold ?? null,
+      bestAsk: asks[0]?.priceAshPerGold ?? null,
       lastPrice: fills.results[0] ? Number(fills.results[0].price_ash_per_gold) : null,
-      bids: aggregateLevels("buy"),
-      asks: aggregateLevels("sell"),
-      myOrders: orderViews.filter((order) => order.mine),
-      orders: orderViews,
+      bids,
+      asks,
+      myOrders: privateOrderViews,
+      orders: publicOrderViews,
       recentTrades: fills.results.map((fill) => ({
         tradeId: String(fill.id),
         priceAshPerGold: Number(fill.price_ash_per_gold),
@@ -710,7 +981,7 @@ async function buildSnapshot(
     },
     capabilities: {
       canTrade,
-      canTopUp: local || (live && steamPaymentsEnabled(env) && Boolean(env.STEAM_PUBLISHER_KEY && env.STEAM_APP_ID)),
+      canTopUp: local || (live && steamPaymentsEnabled(env, request) && Boolean(env.STEAM_PUBLISHER_KEY && env.STEAM_APP_ID)),
       canUseGoldExchange: canTrade,
       localSandbox: local,
     },
@@ -736,7 +1007,6 @@ async function executeCommand(
   env: EconomyD1Env,
   auth: AuthContext,
 ): Promise<Response> {
-  assertWriteAllowed(request, env, auth);
   await enforceRequestRateLimit(request, db, env, "economy-command", auth.development ? 240 : 60, 60_000, 60_000, auth.account.id);
   const parsed = parseEconomyCommand(await readJson(request));
   if (!parsed) throw new EconomyProblem(400, "BAD_REQUEST", "경제 명령 형식이 올바르지 않습니다.");
@@ -744,8 +1014,18 @@ async function executeCommand(
   if (request.headers.get("idempotency-key") !== parsed.idempotencyKey) {
     throw new EconomyProblem(400, "IDEMPOTENCY_HEADER_MISMATCH", "멱등 키 헤더와 본문이 다릅니다.");
   }
+  const riskReducingCancellation = parsed.action === "cancel_listing" ||
+    parsed.action === "cancel_exchange";
+  await assertWriteAllowed(request, db, env, auth, riskReducingCancellation);
   if (parsed.action === "sandbox_topup" && !auth.development) {
     throw new EconomyProblem(403, "SANDBOX_ONLY", "샌드박스 충전은 localhost에서만 허용됩니다.");
+  }
+  if (parsed.action === "list_item" && "characterItem" in parsed && !auth.development) {
+    throw new EconomyProblem(
+      403,
+      "SECURE_INVENTORY_REQUIRED",
+      "캐릭터 가방 장비는 아직 거래소에 등록할 수 없습니다. 거래 금고에 보관된 장비를 선택해 주세요.",
+    );
   }
   await releaseMatureGold(db, auth.account.id);
   const replay = await db.prepare(`SELECT id,request_hash,action,result_ref_id FROM economy_commands WHERE actor_account_id=? AND idempotency_key=? LIMIT 1`)
@@ -854,6 +1134,15 @@ async function executeCommand(
     }
     if (/open_(?:listing|exchange_order)_limit/i.test(message)) throw new EconomyProblem(409, "OPEN_ORDER_LIMIT", "동시에 등록할 수 있는 거래 수를 초과했습니다.");
     if (/insufficient/i.test(message)) throw new EconomyProblem(409, "INSUFFICIENT_FUNDS", "사용 가능한 재화가 부족합니다.");
+    if (
+      (/seller_wallet_capacity/i.test(message) && parsed.action === "buy_listing") ||
+      (/maker_wallet_capacity/i.test(message) && parsed.action === "fill_exchange")
+    ) {
+      throw new EconomyProblem(409, "COUNTERPARTY_CAPACITY_EXCEEDED", "상대 계정의 보유 한도 때문에 지금은 체결할 수 없습니다.");
+    }
+    if (/(?:seller|maker|taker|payment)_wallet_capacity/i.test(message)) {
+      throw new EconomyProblem(409, "WALLET_CAPACITY_EXCEEDED", "보유 한도에 도달했습니다. 재화를 정리한 뒤 다시 시도해 주세요.");
+    }
     if (/(?:seller|maker)_sanctioned/i.test(message)) {
       throw new EconomyProblem(409, "COUNTERPARTY_RESTRICTED", "거래 상대가 제한되어 체결할 수 없습니다.");
     }
@@ -866,7 +1155,8 @@ async function executeCommand(
       throw new EconomyProblem(409, "VERSION_OR_OWNERSHIP_CONFLICT", "자기 거래는 허용되지 않습니다.");
     }
     if (/not_owned|version|unavailable/i.test(message)) throw new EconomyProblem(409, "VERSION_OR_OWNERSHIP_CONFLICT", "소유권·가격·버전이 바뀌었습니다.");
-    if (/trade_eligible/i.test(message)) throw new EconomyProblem(403, "TRADE_NOT_ELIGIBLE", "거래 자격을 확인할 수 없습니다.");
+    if (/steam_ownership_stale/i.test(message)) throw new EconomyProblem(403, "STEAM_OWNERSHIP_STALE", "Steam 소유권을 다시 확인해야 합니다.");
+    if (/seller_ineligible|trade_eligible/i.test(message)) throw new EconomyProblem(403, "TRADE_NOT_ELIGIBLE", "거래 자격을 확인할 수 없습니다.");
     throw error;
   }
   return success({ snapshot: await buildSnapshot(db, env, auth, request), resultRefId: columns.resultRefId }, commandId);
@@ -885,15 +1175,24 @@ async function marketResponse(request: Request, db: D1Database, auth: AuthContex
   if (!query) throw new EconomyProblem(400, "BAD_MARKET_QUERY", "거래소 검색 조건이 올바르지 않습니다.");
   if (query.cursor) throw new EconomyProblem(400, "CURSOR_NOT_SUPPORTED", "이 거래소 버전에서는 커서 조회를 지원하지 않습니다.");
   if (query.kind === "exchange") {
-    const sideSql = query.side === "both" ? "" : " AND side=?";
-    const bindings = query.side === "both" ? [query.limit] : [query.side, query.limit];
-    const rows = await db.prepare(`SELECT * FROM economy_exchange_orders WHERE status IN ('open','partially_filled')${sideSql} ORDER BY CASE WHEN side='buy_gold' THEN price_ash_per_gold END DESC,CASE WHEN side='sell_gold' THEN price_ash_per_gold END ASC,created_at ASC LIMIT ?`).bind(...bindings).all<Record<string, unknown>>();
+    const [buyOrders, sellOrders] = await Promise.all([
+      query.side === "sell_gold"
+        ? Promise.resolve({ results: [] as Record<string, unknown>[] })
+        : queryExchangeOrdersForSide(db, "buy_gold", query.limit),
+      query.side === "buy_gold"
+        ? Promise.resolve({ results: [] as Record<string, unknown>[] })
+        : queryExchangeOrdersForSide(db, "sell_gold", query.limit),
+    ]);
     return success({
-      buyOrders: rows.results.filter((row) => row.side === "buy_gold").map((row) => orderView(row, auth.account.id)),
-      sellOrders: rows.results.filter((row) => row.side === "sell_gold").map((row) => orderView(row, auth.account.id)),
+      buyOrders: buyOrders.results.map((row) => orderView(row, auth.account.id)),
+      sellOrders: sellOrders.results.map((row) => orderView(row, auth.account.id)),
     }, uuid());
   }
-  const rows = await queryListings(db, query);
+  const rows = await queryListings(
+    db,
+    query,
+    auth.development && isLocalHost(url),
+  );
   return success({ listings: rows.map((row) => listingView(row, auth.account.id)) }, uuid());
 }
 
@@ -936,6 +1235,47 @@ async function steamStart(request: Request, db: D1Database, env: EconomyD1Env): 
   openid.searchParams.set("openid.identity", "http://specs.openid.net/auth/2.0/identifier_select");
   openid.searchParams.set("openid.claimed_id", "http://specs.openid.net/auth/2.0/identifier_select");
   return new Response(null, { status: 302, headers: { location: openid.toString(), "set-cookie": setCookie(STEAM_STATE_COOKIE, state, 600), "cache-control": "no-store" } });
+}
+
+function steamNavigationFailureRedirect(request: Request, error: unknown): Response | null {
+  if (request.method !== "GET") return null;
+  let url: URL;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return null;
+  }
+  const route = url.pathname.replace(/\/+$/, "");
+  if (
+    route !== "/api/economy/auth/steam/start" &&
+    route !== "/api/economy/auth/steam/callback"
+  ) return null;
+
+  let redirect = new URL("/market", url.origin);
+  if (route === "/api/economy/auth/steam/start") {
+    const returnToRaw = url.searchParams.get("return_to");
+    if (returnToRaw) {
+      try {
+        const candidate = new URL(returnToRaw, url.origin);
+        if (
+          returnToRaw.startsWith("/") &&
+          !returnToRaw.startsWith("//") &&
+          !/%(?:2f|5c)/i.test(returnToRaw) &&
+          !returnToRaw.includes("\\") &&
+          candidate.origin === url.origin
+        ) redirect = candidate;
+      } catch {
+        // Keep the fixed market fallback for malformed return targets.
+      }
+    }
+  }
+  redirect.searchParams.set(
+    "steam_error",
+    error instanceof EconomyProblem ? error.code : "STEAM_AUTH_UNAVAILABLE",
+  );
+  const headers = new Headers({ location: redirect.toString(), "cache-control": "no-store" });
+  headers.append("set-cookie", setCookie(STEAM_STATE_COOKIE, "", 0));
+  return new Response(null, { status: 302, headers });
 }
 
 async function verifySteamOwnership(env: EconomyD1Env, steamId: string) {
@@ -1056,10 +1396,10 @@ async function steamCallback(request: Request, db: D1Database, env: EconomyD1Env
 }
 
 async function steamPaymentInit(request: Request, db: D1Database, env: EconomyD1Env, auth: AuthContext): Promise<Response> {
-  assertWriteAllowed(request, env, auth);
+  await assertWriteAllowed(request, db, env, auth);
   await enforceRequestRateLimit(request, db, env, "steam-payment-init", 4, 5 * 60_000, 15 * 60_000, auth.account.id);
   await assertNoActiveSanction(db, auth.account.id, ["login", "payment", "wallet"]);
-  assertSteamPaymentsEnabled(env);
+  assertSteamPaymentsEnabled(env, request);
   if (!env.STEAM_PUBLISHER_KEY || !env.STEAM_APP_ID || !auth.steamId) throw new EconomyProblem(503, "STEAM_PAYMENT_NOT_CONFIGURED", "Steam 결제 서버 설정이 없습니다.", true);
   const body = await readJson(request);
   const parsed = parsePaymentCheckoutRequest(body);
@@ -1169,10 +1509,10 @@ async function querySteamTransaction(env: EconomyD1Env, providerOrderId: string)
 }
 
 async function steamPaymentFinalize(request: Request, db: D1Database, env: EconomyD1Env, auth: AuthContext): Promise<Response> {
-  assertWriteAllowed(request, env, auth);
+  await assertWriteAllowed(request, db, env, auth);
   await enforceRequestRateLimit(request, db, env, "steam-payment-finalize", 6, 5 * 60_000, 15 * 60_000, auth.account.id);
   await assertNoActiveSanction(db, auth.account.id, ["login", "payment", "wallet"]);
-  assertSteamPaymentsEnabled(env);
+  assertSteamPaymentsEnabled(env, request);
   if (!env.STEAM_PUBLISHER_KEY || !env.STEAM_APP_ID || !auth.steamId) throw new EconomyProblem(503, "STEAM_PAYMENT_NOT_CONFIGURED", "Steam 결제 서버 설정이 없습니다.", true);
   const body = await readJson(request);
   const parsed = parsePaymentFinalizeRequest(body);
@@ -1188,6 +1528,18 @@ async function steamPaymentFinalize(request: Request, db: D1Database, env: Econo
   const orderStatus = String(order.status ?? "");
   if (TERMINAL_PAYMENT_STATUSES.has(orderStatus)) throw new EconomyProblem(409, "PAYMENT_NOT_FINALIZABLE", "실패하거나 취소·환불된 결제 주문은 확정할 수 없습니다.");
   if (orderStatus !== "created" && orderStatus !== "authorized") throw new EconomyProblem(409, "PAYMENT_NOT_FINALIZABLE", "현재 상태의 결제 주문은 확정할 수 없습니다.");
+  const walletCapacity = await db.prepare(`SELECT 1 AS ready FROM economy_wallets
+      WHERE account_id=? AND gold_available+gold_reserved+gold_locked+?<=1000000000`)
+    .bind(auth.account.id, Number(order.gold_amount))
+    .first<{ ready: number }>();
+  if (!walletCapacity) {
+    throw new EconomyProblem(
+      409,
+      "WALLET_CAPACITY_EXCEEDED",
+      "금괴 보유 한도 때문에 결제를 확정할 수 없습니다. 보유 금괴를 정리한 뒤 같은 주문을 다시 확인해 주세요.",
+      true,
+    );
+  }
 
   const transaction = await querySteamTransaction(env, String(order.provider_order_id));
   const product = PRODUCT_CATALOG[String(order.product_sku) as keyof typeof PRODUCT_CATALOG];
@@ -1226,7 +1578,15 @@ async function steamPaymentFinalize(request: Request, db: D1Database, env: Econo
       await db.prepare(`UPDATE economy_payment_orders SET status=? WHERE id=? AND status IN ('created','authorized')`)
         .bind(terminalStatus, order.id).run();
     }
-    throw new EconomyProblem(409, transaction.status === "Init" ? "STEAM_PAYMENT_NOT_APPROVED" : "PAYMENT_RECONCILIATION_REQUIRED", transaction.status === "Init" ? "Steam에서 결제 승인이 완료되지 않았습니다." : "결제 상태 확인이 필요하여 자동 확정을 중단했습니다.");
+    const paymentStillPending = transaction.status === "Init";
+    throw new EconomyProblem(
+      409,
+      paymentStillPending ? "STEAM_PAYMENT_NOT_APPROVED" : "PAYMENT_RECONCILIATION_REQUIRED",
+      paymentStillPending
+        ? "Steam 결제 승인이 아직 반영되지 않았습니다. 잠시 뒤 같은 주문을 다시 확인해 주세요."
+        : "결제 상태 확인이 필요하여 자동 확정을 중단했습니다.",
+      paymentStillPending,
+    );
   }
   const authorizedAt = Date.now();
   await db.prepare(`UPDATE economy_payment_orders SET status='authorized',authorized_at=COALESCE(authorized_at,?) WHERE id=? AND status IN ('created','authorized')`)
@@ -1246,6 +1606,15 @@ async function steamPaymentFinalize(request: Request, db: D1Database, env: Econo
     const committed = await db.prepare(`SELECT status FROM economy_payment_orders WHERE id=? AND account_id=? LIMIT 1`)
       .bind(parsed.paymentOrderId, auth.account.id).first<{ status: string }>();
     if (committed?.status === "finalized") return success({ paymentOrderId: order.id, holdHours: 72 }, String(order.id), true);
+    const message = error instanceof Error ? error.message : String(error);
+    if (/payment_wallet_capacity/i.test(message)) {
+      throw new EconomyProblem(
+        409,
+        "WALLET_CAPACITY_EXCEEDED",
+        "금괴 보유 한도 때문에 결제를 확정할 수 없습니다. 보유 금괴를 정리한 뒤 같은 주문을 다시 확인해 주세요.",
+        true,
+      );
+    }
     throw error;
   }
   return success({ paymentOrderId: order.id, holdHours: 72 }, String(order.id));
@@ -1340,7 +1709,7 @@ async function adminSanctions(request: Request, db: D1Database, env: EconomyD1En
   return runAdminBatch(statements, { accountId: targetAccountId }, requestId);
 }
 
-async function health(db: D1Database, env: EconomyD1Env): Promise<Response> {
+async function health(request: Request, db: D1Database, env: EconomyD1Env): Promise<Response> {
   const schema = await db.prepare(`SELECT COUNT(*) AS count FROM sqlite_master
     WHERE type='table' AND name IN ('economy_accounts','economy_wallets','economy_items','economy_listings','economy_listing_expiry_commands','economy_ledger')`)
     .first<{ count: number }>();
@@ -1351,13 +1720,18 @@ async function health(db: D1Database, env: EconomyD1Env): Promise<Response> {
     ok: true,
     storage: "d1",
     schema: "secure-market-v1",
-    liveEnabled: env.ECONOMY_LIVE_ENABLED === "true",
-    paymentsEnabled: steamPaymentsEnabled(env),
+    liveRequested: env.ECONOMY_LIVE_ENABLED === "true",
+    liveEnabled: economyLiveEnabled(env),
+    launchGateReason: REMOTE_ADMIN_CONTROL_PLANE_READY
+      ? null
+      : "remote_admin_escrow_unwind_and_receive_capacity_not_ready",
+    paymentsEnabled: steamPaymentsEnabled(env, request),
     paymentsConfigured: Boolean(env.STEAM_PUBLISHER_KEY && env.STEAM_APP_ID),
     securityConfigured: Boolean(env.ECONOMY_ACCOUNT_PEPPER),
     chargebackReconciliationReady: CHARGEBACK_RECONCILIATION_READY,
-    productionPaymentBlocked: !CHARGEBACK_RECONCILIATION_READY,
-    remoteAdminControlPlaneReady: false,
+    paymentCreditReconciliationReady: PAYMENT_CREDIT_RECONCILIATION_READY,
+    productionPaymentBlocked: !CHARGEBACK_RECONCILIATION_READY || !PAYMENT_CREDIT_RECONCILIATION_READY,
+    remoteAdminControlPlaneReady: REMOTE_ADMIN_CONTROL_PLANE_READY,
     legacyUploadAccepted: false,
   });
 }
@@ -1375,9 +1749,39 @@ export async function handleEconomyRequest(request: Request, env: EconomyD1Env):
     await ensureEconomySchema(db, { allowLocalBootstrap: isLocalHost(url) });
     await ensureEconomyTriggers(db);
     const route = url.pathname.replace(/\/+$/, "");
-    if (route === "/api/economy/health") return request.method === "GET" ? await health(db, env) : methodNotAllowed("GET");
+    if (route === "/api/economy/health") return request.method === "GET" ? await health(request, db, env) : methodNotAllowed("GET");
     if (route === "/api/economy/auth/steam/start") return request.method === "GET" ? await steamStart(request, db, env) : methodNotAllowed("GET");
-    if (route === "/api/economy/auth/steam/callback") return request.method === "GET" ? await steamCallback(request, db, env) : methodNotAllowed("GET");
+    if (route === "/api/economy/auth/steam/callback") {
+      if (request.method !== "GET") return methodNotAllowed("GET");
+      try {
+        return await steamCallback(request, db, env);
+      } catch (error) {
+        const returnedState = url.searchParams.get("state");
+        let savedState: { return_to: string } | null = null;
+        try {
+          savedState = returnedState && returnedState.length <= 256
+            ? await db.prepare(`SELECT return_to FROM economy_auth_states WHERE state_hash=? LIMIT 1`)
+                .bind(await sha256(returnedState))
+                .first<{ return_to: string }>()
+            : null;
+        } catch {
+          // The callback still returns the player to a bounded UI error state
+          // when the auth-state lookup itself is unavailable.
+        }
+        let redirect = new URL("/market", url.origin);
+        if (savedState?.return_to) {
+          const candidate = new URL(savedState.return_to, url.origin);
+          if (candidate.origin === url.origin) redirect = candidate;
+        }
+        redirect.searchParams.set(
+          "steam_error",
+          error instanceof EconomyProblem ? error.code : "STEAM_CALLBACK_FAILED",
+        );
+        const headers = new Headers({ location: redirect.toString(), "cache-control": "no-store" });
+        headers.append("set-cookie", setCookie(STEAM_STATE_COOKIE, "", 0));
+        return new Response(null, { status: 302, headers });
+      }
+    }
     if (route === "/api/economy/admin/sanctions") return request.method === "POST" ? await adminSanctions(request, db, env) : methodNotAllowed("POST");
     const auth = await authenticate(request, db);
     if (request.method === "GET" && (route === "/api/economy/snapshot" || route === "/api/economy/market")) {
@@ -1390,6 +1794,8 @@ export async function handleEconomyRequest(request: Request, env: EconomyD1Env):
     if (route === "/api/economy/payments/steam/finalize") return request.method === "POST" ? await steamPaymentFinalize(request, db, env, auth) : methodNotAllowed("POST");
     return json({ ok: false, error: { code: "NOT_FOUND", message: "Unknown economy route.", retryable: false } }, 404);
   } catch (error) {
+    const steamFailureRedirect = steamNavigationFailureRedirect(request, error);
+    if (steamFailureRedirect) return steamFailureRedirect;
     if (error instanceof EconomySchemaMissingError) {
       return json({ ok: false, requestId, error: { code: "ECONOMY_MIGRATION_REQUIRED", message: "secure market migrations are not fully applied.", retryable: false } }, 503);
     }
