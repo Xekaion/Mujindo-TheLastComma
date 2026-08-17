@@ -389,13 +389,30 @@ type CommandEnvelope = {
   requestHash: string;
 };
 
-export type ListItemCommand = CommandEnvelope & {
+export type ListVaultItemCommand = CommandEnvelope & {
   action: "list_item";
   itemId: string;
   priceAsh: number;
   expiresInSeconds: number;
   expectedItemVersion: number;
 };
+
+export type ListCharacterItemCommand = CommandEnvelope & {
+  action: "list_item";
+  /** Client-generated UUID reserved for the new server-vault row. */
+  itemId: string;
+  priceAsh: number;
+  expiresInSeconds: number;
+  /** A character item has not entered the server vault yet. */
+  expectedItemVersion: 0;
+  /** Bounded wire copy; the server validates and rebuilds every derived field. */
+  characterItem: JsonObject;
+  sourceSaveSlot: 1 | 2 | 3;
+};
+
+export type ListItemCommand =
+  | ListVaultItemCommand
+  | ListCharacterItemCommand;
 
 export type BuyListingCommand = CommandEnvelope & {
   action: "buy_listing";
@@ -489,14 +506,22 @@ export function parseEconomyCommand(value: unknown): EconomyCommand | null {
 
   switch (value.action) {
     case "list_item": {
+      const vaultKeys = [
+        ...COMMON_COMMAND_KEYS,
+        "itemId",
+        "priceAsh",
+        "expiresInSeconds",
+        "expectedItemVersion",
+      ];
+      const characterKeys = [
+        ...vaultKeys,
+        "characterItem",
+        "sourceSaveSlot",
+      ];
+      const vaultShape = hasExactKeys(value, vaultKeys);
+      const characterShape = hasExactKeys(value, characterKeys);
       if (
-        !hasExactKeys(value, [
-          ...COMMON_COMMAND_KEYS,
-          "itemId",
-          "priceAsh",
-          "expiresInSeconds",
-          "expectedItemVersion",
-        ]) ||
+        (!vaultShape && !characterShape) ||
         !isUuid(value.itemId) ||
         !isBoundedSafeInteger(value.priceAsh, 1, ECONOMY_MAX_LISTING_PRICE_ASH) ||
         !isBoundedSafeInteger(
@@ -507,6 +532,37 @@ export function parseEconomyCommand(value: unknown): EconomyCommand | null {
         !isBoundedSafeInteger(value.expectedItemVersion, 0, ECONOMY_MAX_VERSION)
       ) {
         return null;
+      }
+      if (characterShape) {
+        const characterItem = normalizeJsonValue(value.characterItem);
+        if (
+          !isRecord(value.characterItem) ||
+          characterItem === undefined ||
+          characterItem === null ||
+          Array.isArray(characterItem) ||
+          typeof characterItem !== "object" ||
+          value.expectedItemVersion !== 0 ||
+          (value.sourceSaveSlot !== 1 &&
+            value.sourceSaveSlot !== 2 &&
+            value.sourceSaveSlot !== 3)
+        ) {
+          return null;
+        }
+        try {
+          canonicalizeJson(characterItem);
+        } catch {
+          return null;
+        }
+        return {
+          ...envelope,
+          action: "list_item",
+          itemId: value.itemId.toLowerCase(),
+          priceAsh: value.priceAsh,
+          expiresInSeconds: value.expiresInSeconds,
+          expectedItemVersion: 0,
+          characterItem: characterItem as JsonObject,
+          sourceSaveSlot: value.sourceSaveSlot,
+        };
       }
       return {
         ...envelope,

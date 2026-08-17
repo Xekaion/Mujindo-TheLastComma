@@ -1,8 +1,9 @@
 /**
  * Browser client for the authoritative economy service.
  *
- * This module deliberately never reads or mutates the local save file. Tradeable
- * gear and both currencies are hydrated exclusively from the server snapshot.
+ * This module never reads or mutates a local save file itself. Character gear
+ * transfers are explicit signed commands; ownership and currencies are still
+ * hydrated exclusively from the server snapshot.
  */
 import {
   ECONOMY_PROTOCOL_VERSION,
@@ -138,6 +139,7 @@ export type EconomySnapshot = {
   account: EconomyAccount;
   wallet: EconomyWallet;
   vaultItems: MarketVaultItem[];
+  importedCharacterItemIds: string[];
   listings: MarketListing[];
   goldExchange: {
     bestBid: number | null;
@@ -173,6 +175,15 @@ export type MarketSearch = {
 
 export type EconomyCommand =
   | { action: "list_item"; itemId: string; priceAsh: number; expiresInSeconds: number; expectedItemVersion: number }
+  | {
+      action: "list_item";
+      itemId: string;
+      priceAsh: number;
+      expiresInSeconds: number;
+      expectedItemVersion: 0;
+      sourceSaveSlot: 1 | 2 | 3;
+      characterItem: Record<string, unknown>;
+    }
   | { action: "buy_listing"; listingId: string; expectedListingVersion: number; expectedPriceAsh: number }
   | { action: "cancel_listing"; listingId: string; expectedListingVersion: number }
   | {
@@ -231,6 +242,7 @@ const EMPTY_SNAPSHOT: EconomySnapshot = {
   },
   wallet: { memoryAsh: { ...EMPTY_BALANCE }, goldBars: { ...EMPTY_BALANCE } },
   vaultItems: [],
+  importedCharacterItemIds: [],
   listings: [],
   goldExchange: {
     bestBid: null,
@@ -519,6 +531,10 @@ export function normalizeEconomySnapshot(payload: unknown): EconomySnapshot {
       goldBars: normalizeBalance(wallet?.goldBars ?? wallet?.gold ?? { available: wallet?.goldAvailable, escrow: wallet?.goldReserved, locked72h: wallet?.goldChargebackHold }),
     },
     vaultItems: vaultSource.map(normalizeVaultItem).filter((item): item is MarketVaultItem => item !== null),
+    importedCharacterItemIds: arrayValue(source.importedCharacterItemIds).filter(
+      (itemId): itemId is string =>
+        typeof itemId === "string" && itemId.length >= 1 && itemId.length <= 128,
+    ),
     listings: listingsSource.map(normalizeListing).filter((item): item is MarketListing => item !== null),
     goldExchange: {
       bestBid: nullableNumber(exchange?.bestBid),

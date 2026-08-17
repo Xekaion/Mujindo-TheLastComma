@@ -16,6 +16,7 @@ import {
   formatGearDisplayName,
   getGearRequiredLevel,
   normalizeGearEnhancement,
+  type GearItem,
 } from "../equipment";
 import {
   ECONOMY_POLL_INTERVAL_MS,
@@ -41,15 +42,36 @@ import {
   type MarketVaultItem,
   type OrderBookLevel,
 } from "../economy-client";
+import {
+  gearItemToEconomyPayload,
+  readCharacterMarketInventory,
+  reconcileImportedCharacterItems,
+  removeCharacterMarketItem,
+  resolveCharacterMarketSlot,
+  type CharacterMarketInventory,
+} from "./character-market";
 
 type MarketTab = "auction" | "gold" | "charge" | "security";
 type DemoUser = "A" | "B";
 type Notice = { tone: "info" | "success" | "error"; message: string };
+type SellCandidate =
+  | {
+      key: string;
+      source: "vault";
+      view: MarketVaultItem;
+    }
+  | {
+      key: string;
+      source: "character";
+      view: MarketVaultItem;
+      gear: GearItem;
+      saveSlot: 1 | 2 | 3;
+    };
 
 type Confirmation =
   | { kind: "buy"; listing: MarketListing }
   | { kind: "cancel-listing"; listing: MarketListing }
-  | { kind: "sell"; item: MarketVaultItem; priceAsh: number }
+  | { kind: "sell"; candidate: SellCandidate; priceAsh: number }
   | {
       kind: "order";
       side: "buy" | "sell";
@@ -201,6 +223,29 @@ function formatMarketGearLevel(item: MarketVaultItem): string {
   return `아이템 레벨 ${item.level} · 착용 필요 레벨 ${getGearRequiredLevel(item)}`;
 }
 
+function characterGearView(item: GearItem, saveSlot: 1 | 2 | 3): MarketVaultItem {
+  return {
+    vaultItemId: `character:${saveSlot}:${item.id}`,
+    itemId: item.id,
+    displayName: item.displayName,
+    baseName: item.baseName,
+    rarity: item.rarity,
+    slot: item.slot,
+    level: item.level,
+    enhancement: item.enhancement,
+    powerScore: item.powerScore,
+    qualityScore: item.qualityScore,
+    iconIndex: item.iconIndex,
+    affixes: item.affixes.map((affix) => ({
+      label: affix.label,
+      value: String(affix.value),
+    })),
+    tradeState: "available",
+    lockedUntil: null,
+    version: 0,
+  };
+}
+
 function BalanceCard({
   symbol,
   label,
@@ -293,7 +338,13 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const [rarity, setRarity] = useState<MarketRarity | "all">("all");
   const [slot, setSlot] = useState<MarketSlot | "all">("all");
   const [sort, setSort] = useState<NonNullable<MarketSearch["sort"]>>("recent");
-  const [selectedVaultItemId, setSelectedVaultItemId] = useState<string | null>(null);
+  const [characterInventory, setCharacterInventory] = useState<CharacterMarketInventory>({
+    slot: 1,
+    items: [],
+    equippedCount: 0,
+    invalidCount: 0,
+  });
+  const [selectedSellCandidateKey, setSelectedSellCandidateKey] = useState<string | null>(null);
   const [sellPrice, setSellPrice] = useState("");
   const [orderSide, setOrderSide] = useState<"buy" | "sell">("buy");
   const [orderPrice, setOrderPrice] = useState("");
@@ -308,6 +359,13 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const pendingFocusRestoreRef = useRef<HTMLElement | null>(null);
 
   const query = useMemo<MarketSearch>(() => ({ search, rarity, slot, sort }), [rarity, search, slot, sort]);
+
+  const syncCharacterInventory = useCallback(() => {
+    const activeSlot = resolveCharacterMarketSlot(window.location.search);
+    const nextInventory = readCharacterMarketInventory(activeSlot);
+    setCharacterInventory(nextInventory);
+    return nextInventory;
+  }, []);
 
   const refresh = useCallback(async (quiet = false) => {
     pollingRef.current?.abort();
@@ -330,6 +388,10 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
         ordersResult.status === "fulfilled"
           ? ordersResult.value
           : nextSnapshot.goldExchange.myOrders;
+      const reconciliation = reconcileImportedCharacterItems(
+        nextSnapshot.importedCharacterItemIds,
+      );
+      syncCharacterInventory();
       const ownListingIds = new Set(nextSnapshot.listings.filter((listing) => listing.mine).map((listing) => listing.listingId));
       const ownOrderIds = new Set(nextSnapshot.goldExchange.myOrders.map((order) => order.orderId));
       for (const listing of nextListings) listing.mine = ownListingIds.has(listing.listingId);
@@ -342,7 +404,19 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
       setSnapshot(nextSnapshot);
       setListings(nextListings.length > 0 || nextSnapshot.listings.length === 0 ? nextListings : nextSnapshot.listings);
       setLastSyncAt(new Date());
-      if (firstLoadRef.current) setNotice({ tone: "info", message: "서버 원장과 실시간 동기화를 시작했습니다." });
+      if (reconciliation.failedSlots.length > 0) {
+        setNotice({
+          tone: "error",
+          message: `서버로 이관된 장비의 로컬 정리가 실패했습니다. 슬롯 ${reconciliation.failedSlots.join(", ")} 저장 공간을 확인해 주세요.`,
+        });
+      } else if (reconciliation.removedItemIds.length > 0) {
+        setNotice({
+          tone: "success",
+          message: `거래소로 이관된 장비 ${reconciliation.removedItemIds.length}개를 캐릭터 가방에서 안전하게 정리했습니다.`,
+        });
+      } else if (firstLoadRef.current) {
+        setNotice({ tone: "info", message: "서버 원장과 캐릭터 가방 동기화를 시작했습니다." });
+      }
       firstLoadRef.current = false;
     } catch (error) {
       if ((error as Error).name !== "AbortError") {
@@ -355,7 +429,17 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
       setLoading(false);
       if (!quiet) setRefreshing(false);
     }
-  }, [demoUser, query]);
+  }, [demoUser, query, syncCharacterInventory]);
+
+  useEffect(() => {
+    const initialSync = window.setTimeout(syncCharacterInventory, 0);
+    const handleStorage = () => syncCharacterInventory();
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      window.clearTimeout(initialSync);
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, [syncCharacterInventory]);
 
   useEffect(() => {
     const initialRefresh = window.setTimeout(() => void refresh(false), 0);
@@ -513,7 +597,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   const switchDemoUser = (next: DemoUser) => {
     if (!local) return;
     setDemoUser(next);
-    setSelectedVaultItemId(null);
+    setSelectedSellCandidateKey(null);
     const params = new URLSearchParams(window.location.search);
     params.set("demo", next);
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
@@ -527,6 +611,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
       setSnapshot(next);
       setNotice({ tone: "success", message: success });
       setConfirmation(null);
+      setSelectedSellCandidateKey(null);
       setSellPrice("");
       setOrderAmount("");
       await refresh(true);
@@ -540,7 +625,95 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
     }
   }, [demoUser, refresh, snapshot]);
 
-  const selectedVaultItem = snapshot?.vaultItems.find((item) => item.vaultItemId === selectedVaultItemId) ?? null;
+  const sellCandidates = useMemo<SellCandidate[]>(() => {
+    const importedIds = new Set(snapshot?.importedCharacterItemIds ?? []);
+    const characterCandidates: SellCandidate[] = characterInventory.items
+      .filter((item) => !importedIds.has(item.id))
+      .map((gear) => {
+        const view = characterGearView(gear, characterInventory.slot);
+        return {
+          key: view.vaultItemId,
+          source: "character",
+          view,
+          gear,
+          saveSlot: characterInventory.slot,
+        };
+      });
+    const vaultCandidates: SellCandidate[] = (snapshot?.vaultItems ?? [])
+      .filter((item) => item.tradeState === "available")
+      .map((view) => ({
+        key: `vault:${view.vaultItemId}`,
+        source: "vault",
+        view,
+      }));
+    return [...characterCandidates, ...vaultCandidates];
+  }, [characterInventory, snapshot]);
+  const selectedSellCandidate =
+    sellCandidates.find((candidate) => candidate.key === selectedSellCandidateKey) ?? null;
+  const executeCharacterListing = useCallback(async (
+    candidate: Extract<SellCandidate, { source: "character" }>,
+    priceAsh: number,
+  ) => {
+    if (!snapshot) return;
+    setWorking(true);
+    try {
+      const next = await sendEconomyCommand(
+        {
+          action: "list_item",
+          itemId: crypto.randomUUID(),
+          priceAsh,
+          expiresInSeconds: 7 * 24 * 60 * 60,
+          expectedItemVersion: 0,
+          sourceSaveSlot: candidate.saveSlot,
+          characterItem: gearItemToEconomyPayload(candidate.gear),
+        },
+        snapshot,
+        { demoUser },
+      );
+      const removal = removeCharacterMarketItem(
+        candidate.saveSlot,
+        candidate.gear.id,
+      );
+      setSnapshot(next);
+      syncCharacterInventory();
+      setConfirmation(null);
+      setSelectedSellCandidateKey(null);
+      setSellPrice("");
+      setNotice(
+        removal === "write-failed" || removal === "save-unavailable"
+          ? {
+              tone: "error",
+              message: "판매 등록은 완료됐지만 캐릭터 가방 저장을 정리하지 못했습니다. 자동 동기화를 다시 시도합니다.",
+            }
+          : {
+              tone: "success",
+              message: `${formatMarketGearName(candidate.view)}을 캐릭터 가방에서 거래소로 이관해 판매 등록했습니다.`,
+            },
+      );
+      await refresh(true);
+    } catch (error) {
+      await refresh(true);
+      const current = syncCharacterInventory();
+      const transferred = !current.items.some(
+        (item) => item.id === candidate.gear.id,
+      );
+      setNotice(
+        transferred
+          ? {
+              tone: "success",
+              message: `${formatMarketGearName(candidate.view)}의 이전 등록을 확인해 캐릭터 가방을 동기화했습니다.`,
+            }
+          : {
+              tone: "error",
+              message: error instanceof EconomyClientError
+                ? error.message
+                : "캐릭터 장비를 거래소에 등록하지 못했습니다. 가방의 장비는 그대로 보존했습니다.",
+            },
+      );
+    } finally {
+      setWorking(false);
+    }
+  }, [demoUser, refresh, snapshot, syncCharacterInventory]);
   const localSandbox = Boolean(local && snapshot?.capabilities.localSandbox);
   const accountReady = Boolean(
     snapshot &&
@@ -581,9 +754,16 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
         );
         return;
       case "sell":
+        if (confirmation.candidate.source === "character") {
+          await executeCharacterListing(
+            confirmation.candidate,
+            confirmation.priceAsh,
+          );
+          return;
+        }
         await executeCommand(
-          { action: "list_item", itemId: confirmation.item.itemId, priceAsh: confirmation.priceAsh, expiresInSeconds: 7 * 24 * 60 * 60, expectedItemVersion: confirmation.item.version },
-          `${formatMarketGearName(confirmation.item)} 판매 등록을 완료했습니다.`,
+          { action: "list_item", itemId: confirmation.candidate.view.itemId, priceAsh: confirmation.priceAsh, expiresInSeconds: 7 * 24 * 60 * 60, expectedItemVersion: confirmation.candidate.view.version },
+          `${formatMarketGearName(confirmation.candidate.view)} 판매 등록을 완료했습니다.`,
         );
         return;
       case "order":
@@ -726,7 +906,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
             <section className="market-panel market-auction" id="market-panel-auction" role="tabpanel" aria-labelledby="market-tab-auction">
               <div className="market-panel-heading">
                 <div><small>SERVER-SEALED EQUIPMENT</small><h1>장비 경매장</h1></div>
-                <p>서버 금고에 귀속된 장비만 등록됩니다. 구매 즉시 소유권 원장이 원자적으로 이전됩니다.</p>
+                <p>캐릭터 가방 장비는 등록과 동시에 서버 금고로 이관됩니다. 구매 즉시 소유권 원장이 원자적으로 이전됩니다.</p>
               </div>
               <form className="market-filters" onSubmit={(event) => event.preventDefault()} aria-label="경매장 검색 필터">
                 <label className="market-search"><span>장비 검색</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="장비 이름을 입력하세요" /><i aria-hidden="true">⌕</i></label>
@@ -748,16 +928,16 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                   ))}
                 </section>
                 <aside className="market-vault" aria-labelledby="market-vault-title">
-                  <header><div><small>SERVER VAULT</small><h2 id="market-vault-title">판매할 장비</h2></div><b>{snapshot.vaultItems.filter((item) => item.tradeState === "available").length}</b></header>
-                  <div className="market-local-warning"><span aria-hidden="true">!</span><p><strong>기존 로컬 자산 거래 불가</strong>로컬 저장 파일·인벤토리·기억의 재는 업로드할 수 없습니다. 서버에서 발급하고 서명한 금고 장비만 거래됩니다.</p></div>
+                  <header><div><small>CHARACTER BAG · SERVER VAULT</small><h2 id="market-vault-title">판매할 장비</h2></div><b>{sellCandidates.length}</b></header>
+                  <div className="market-local-warning"><span aria-hidden="true">↗</span><p><strong>캐릭터 가방 연동 · 슬롯 {characterInventory.slot}</strong>가방 장비를 등록하면 서버 금고로 안전하게 이관된 뒤 판매됩니다. 서버 등록이 끝난 경우에만 가방에서 제거됩니다.{characterInventory.equippedCount > 0 ? ` 장착 중인 장비 ${characterInventory.equippedCount}개는 먼저 해제해 주세요.` : ""}</p></div>
                   <div className="market-vault-list">
-                    {snapshot.vaultItems.filter((item) => item.tradeState === "available").length === 0 ? <EmptyState title="판매 가능한 장비가 없습니다" body="온라인 원정에서 서버 금고 장비를 획득하면 이곳에 나타납니다." /> : snapshot.vaultItems.filter((item) => item.tradeState === "available").map((item) => (
-                      <button key={item.vaultItemId} type="button" className={selectedVaultItemId === item.vaultItemId ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[item.rarity] } as CSSProperties} aria-pressed={selectedVaultItemId === item.vaultItemId} onClick={() => setSelectedVaultItemId(item.vaultItemId)}><ItemIcon item={item} compact /><span><small>{formatMarketGearLevel(item)} · {RARITY_LABELS[item.rarity]}</small><strong>{formatMarketGearName(item)}</strong><em>보스 화력 {formatEconomyAmount(item.powerScore)}</em></span><i aria-hidden="true">›</i></button>
+                    {sellCandidates.length === 0 ? <EmptyState title="판매 가능한 장비가 없습니다" body="원정에서 획득한 장비를 가방에 보관하거나 장착 장비를 해제하면 이곳에 나타납니다." /> : sellCandidates.map((candidate) => (
+                      <button key={candidate.key} type="button" className={selectedSellCandidateKey === candidate.key ? "is-selected" : ""} style={{ "--rarity-color": RARITY_COLORS[candidate.view.rarity] } as CSSProperties} aria-pressed={selectedSellCandidateKey === candidate.key} onClick={() => setSelectedSellCandidateKey(candidate.key)}><ItemIcon item={candidate.view} compact /><span><small>{candidate.source === "character" ? `캐릭터 가방 ${candidate.saveSlot}번` : "서버 금고"} · {formatMarketGearLevel(candidate.view)} · {RARITY_LABELS[candidate.view.rarity]}</small><strong>{formatMarketGearName(candidate.view)}</strong><em>보스 화력 {formatEconomyAmount(candidate.view.powerScore)}</em></span><i aria-hidden="true">›</i></button>
                     ))}
                   </div>
-                  <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedVaultItem && price > 0 && tradeEnabled) openConfirmation({ kind: "sell", item: selectedVaultItem, priceAsh: price }); }}>
+                  <form className="market-sell-form" onSubmit={(event) => { event.preventDefault(); const price = Math.max(0, Math.trunc(Number(sellPrice) || 0)); if (selectedSellCandidate && price > 0 && tradeEnabled) openConfirmation({ kind: "sell", candidate: selectedSellCandidate, priceAsh: price }); }}>
                     <label><span>판매 희망가 · 기억의 재</span><input type="number" min="1" step="1" inputMode="numeric" value={sellPrice} onChange={(event) => setSellPrice(event.target.value)} placeholder="가격 입력" /></label>
-                    <button type="submit" disabled={!tradeEnabled || !selectedVaultItem || Number(sellPrice) <= 0 || working}>선택 장비 판매 등록</button>
+                    <button type="submit" disabled={!tradeEnabled || !selectedSellCandidate || Number(sellPrice) <= 0 || working}>선택 장비 판매 등록</button>
                   </form>
                 </aside>
               </div>
@@ -868,7 +1048,24 @@ function getConfirmationCopy(confirmation: Confirmation): { title: string; body:
   switch (confirmation.kind) {
     case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 서버 금고로 이동하고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["장비", `${formatMarketGearLevel(confirmation.listing.item)} · ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
     case "cancel-listing": return { title: "판매 등록을 취소할까요?", body: "아직 체결되지 않은 매물만 취소할 수 있으며 장비는 서버 금고로 반환됩니다.", confirmLabel: "등록 취소", rows: [["장비", formatMarketGearName(confirmation.listing.item)], ["등록가", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`]] };
-    case "sell": return { title: `${formatMarketGearName(confirmation.item)}을 판매할까요?`, body: "등록되는 순간 장비는 거래 보관 상태가 되며 원정이나 다른 거래에 사용할 수 없습니다.", confirmLabel: "판매 등록", rows: [["판매 가격", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`], ["착용 조건", formatMarketGearLevel(confirmation.item)], ["아이템 보스 화력", formatEconomyAmount(confirmation.item.powerScore)], ["등급", RARITY_LABELS[confirmation.item.rarity]]] };
+    case "sell": {
+      const item = confirmation.candidate.view;
+      const characterTransfer = confirmation.candidate.source === "character";
+      return {
+        title: `${formatMarketGearName(item)}을 판매할까요?`,
+        body: characterTransfer
+          ? "서버 등록이 완료되면 장비가 캐릭터 가방에서 빠지고 거래 보관 상태로 이동합니다. 실패하면 가방 장비는 그대로 유지됩니다."
+          : "등록되는 순간 장비는 거래 보관 상태가 되며 다른 거래에 사용할 수 없습니다.",
+        confirmLabel: characterTransfer ? "이관 후 판매 등록" : "판매 등록",
+        rows: [
+          ["보관 위치", confirmation.candidate.source === "character" ? `캐릭터 가방 ${confirmation.candidate.saveSlot}번` : "서버 금고"],
+          ["판매 가격", `✦ ${formatEconomyAmount(confirmation.priceAsh)}`],
+          ["착용 조건", formatMarketGearLevel(item)],
+          ["아이템 보스 화력", formatEconomyAmount(item.powerScore)],
+          ["등급", RARITY_LABELS[item.rarity]],
+        ],
+      };
+    }
     case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며 상대 주문과 가격이 맞으면 자동 체결됩니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
     case "fill-order": return { title: "이 호가를 즉시 체결할까요?", body: "서버가 남은 수량과 가격을 다시 확인한 뒤 가능한 수량만 원자적으로 체결합니다.", confirmLabel: "즉시 체결", rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
     case "cancel-order": return { title: "미체결 주문을 취소할까요?", body: "이미 체결된 수량은 되돌릴 수 없으며 미체결분의 거래 보관 재화만 반환됩니다.", confirmLabel: "주문 취소", rows: [["잔여 금괴", `▰ ${formatEconomyAmount(confirmation.order.remainingGold)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };

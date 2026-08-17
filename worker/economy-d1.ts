@@ -1,6 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import {
+  canonicalizeJson,
   computeCanonicalRequestHash,
   parseAdminEconomyRequest,
   parseEconomyCommand,
@@ -12,8 +13,10 @@ import {
   verifyEconomyCommandHash,
   type EconomyCommand,
   type ItemMarketQuery,
+  type ListCharacterItemCommand,
   type SteamTransactionItem,
 } from "../app/economy-protocol";
+import { normalizeGearItem, type GearItem } from "../app/equipment";
 import { ensureEconomyTriggers } from "./economy-trigger-installer";
 import {
   EconomySchemaMissingError,
@@ -60,6 +63,14 @@ type CommandRow = {
   request_hash: string;
   action: string;
   result_ref_id: string;
+};
+
+type CharacterItemRow = {
+  id: string;
+  owner_account_id: string;
+  state: string;
+  item_json: string;
+  version: number;
 };
 
 type AuthContext = {
@@ -430,6 +441,57 @@ function parseItemJson(raw: string): Record<string, unknown> {
   }
 }
 
+function characterItemOrigin(accountId: string, item: GearItem): string {
+  return `character:${accountId}:${item.id}`;
+}
+
+function normalizeCharacterItem(command: ListCharacterItemCommand): {
+  item: GearItem;
+  json: string;
+} {
+  const item = normalizeGearItem(command.characterItem);
+  if (!item) {
+    throw new EconomyProblem(
+      400,
+      "INVALID_CHARACTER_ITEM",
+      "판매할 캐릭터 장비 데이터가 올바르지 않습니다.",
+    );
+  }
+  return { item, json: canonicalizeJson(item) };
+}
+
+function assertMatchingCharacterItem(row: CharacterItemRow, canonicalJson: string): void {
+  const stored = normalizeGearItem(parseItemJson(row.item_json));
+  if (!stored || canonicalizeJson(stored) !== canonicalJson) {
+    throw new EconomyProblem(
+      409,
+      "CHARACTER_ITEM_MISMATCH",
+      "이미 거래소에 맡긴 장비와 현재 장비 데이터가 일치하지 않습니다.",
+    );
+  }
+}
+
+async function characterItemByOrigin(
+  db: D1Database,
+  originId: string,
+): Promise<CharacterItemRow | null> {
+  return db.prepare(`SELECT id,owner_account_id,state,item_json,version
+      FROM economy_items WHERE provenance='server_drop' AND origin_id=? LIMIT 1`)
+    .bind(originId)
+    .first<CharacterItemRow>();
+}
+
+async function reconciliationResultRef(
+  db: D1Database,
+  row: CharacterItemRow,
+): Promise<string> {
+  const listing = await db.prepare(`SELECT id FROM economy_listings
+      WHERE item_id=? AND status='open' ORDER BY created_at DESC LIMIT 1`)
+    .bind(row.id)
+    .first<{ id: string }>();
+  return listing?.id ?? row.id;
+}
+
 function itemView(row: Record<string, unknown>) {
   const data = parseItemJson(String(row.item_json ?? "{}"));
   return {
@@ -547,7 +609,8 @@ async function buildSnapshot(
 ) {
   await releaseMatureGold(db, auth.account.id);
   await expireAuctionListings(db);
-  const [wallet, inventory, listings, orders, fills, sanctions, audit, sessionCount, best, lockedLot] = await Promise.all([
+  const importedOriginPrefix = `character:${auth.account.id}:`;
+  const [wallet, inventory, listings, orders, fills, sanctions, audit, sessionCount, best, lockedLot, importedCharacterItems] = await Promise.all([
     db.prepare(`SELECT * FROM economy_wallets WHERE account_id=?`).bind(auth.account.id).first<WalletRow>(),
     db.prepare(`SELECT * FROM economy_items WHERE owner_account_id=? AND state<>'destroyed' ORDER BY created_at DESC LIMIT 2000`).bind(auth.account.id).all<Record<string, unknown>>(),
     queryListings(db, { kind: "items", limit: 100, sort: "newest" }),
@@ -558,6 +621,11 @@ async function buildSnapshot(
     db.prepare(`SELECT COUNT(*) AS count FROM economy_sessions WHERE account_id=? AND revoked_at IS NULL AND expires_at>?`).bind(auth.account.id, Date.now()).first<{ count: number }>(),
     db.prepare(`SELECT MAX(CASE WHEN side='buy_gold' THEN price_ash_per_gold END) AS bid, MIN(CASE WHEN side='sell_gold' THEN price_ash_per_gold END) AS ask FROM economy_exchange_orders WHERE status IN ('open','partially_filled')`).first<{ bid: number | null; ask: number | null }>(),
     db.prepare(`SELECT MIN(tradeable_at) AS tradeable_at FROM economy_gold_lots WHERE account_id=? AND state='locked' AND remaining>0`).bind(auth.account.id).first<{ tradeable_at: number | null }>(),
+    db.prepare(`SELECT item_json FROM economy_items
+      WHERE provenance='server_drop' AND substr(origin_id,1,?)=?
+      ORDER BY created_at DESC LIMIT 2000`)
+      .bind(importedOriginPrefix.length, importedOriginPrefix)
+      .all<{ item_json: string }>(),
   ]);
   if (!wallet) throw new EconomyProblem(503, "WALLET_MISSING", "서버 지갑이 없습니다.", true);
   const local = auth.development && isLocalHost(new URL(request.url));
@@ -607,6 +675,10 @@ async function buildSnapshot(
       goldBars: { available: wallet.gold_available, escrow: wallet.gold_reserved, locked72h: wallet.gold_locked },
     },
     vaultItems: inventory.results.map(itemView),
+    importedCharacterItemIds: [...new Set(importedCharacterItems.results.flatMap((row) => {
+      const item = normalizeGearItem(parseItemJson(row.item_json));
+      return item ? [item.id] : [];
+    }))],
     listings: openListings,
     goldExchange: {
       bestBid: best?.bid ?? null,
@@ -688,11 +760,61 @@ async function executeCommand(
   const now = Date.now();
   const commandId = uuid();
   const columns = commandColumns(parsed, now);
+  const characterCommand = parsed.action === "list_item" && "characterItem" in parsed
+    ? parsed as ListCharacterItemCommand
+    : null;
+  const canonicalCharacter = characterCommand
+    ? normalizeCharacterItem(characterCommand)
+    : null;
+  const characterOrigin = canonicalCharacter
+    ? characterItemOrigin(auth.account.id, canonicalCharacter.item)
+    : null;
+  let existingCharacterRow = characterOrigin
+    ? await characterItemByOrigin(db, characterOrigin)
+    : null;
+  if (existingCharacterRow && canonicalCharacter) {
+    assertMatchingCharacterItem(existingCharacterRow, canonicalCharacter.json);
+    if (
+      existingCharacterRow.owner_account_id !== auth.account.id ||
+      existingCharacterRow.state !== "inventory"
+    ) {
+      const resultRefId = await reconciliationResultRef(db, existingCharacterRow);
+      return success(
+        { snapshot: await buildSnapshot(db, env, auth, request), resultRefId },
+        commandId,
+        true,
+      );
+    }
+    columns.itemId = existingCharacterRow.id;
+    columns.version = existingCharacterRow.version;
+  }
   try {
-    await db.prepare(`INSERT INTO economy_commands
+    const commandInsert = db.prepare(`INSERT INTO economy_commands
       (id,actor_account_id,action,idempotency_key,request_hash,result_ref_id,item_id,listing_id,order_id,side,currency,price_ash,gold_amount,amount,expected_version,expires_at,created_at)
       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
-      .bind(commandId, auth.account.id, parsed.action, parsed.idempotencyKey, parsed.requestHash, columns.resultRefId, columns.itemId, columns.listingId, columns.orderId, columns.side, columns.currency, columns.price, columns.gold, columns.amount, columns.version, columns.expires, now).run();
+      .bind(commandId, auth.account.id, parsed.action, parsed.idempotencyKey, parsed.requestHash, columns.resultRefId, columns.itemId, columns.listingId, columns.orderId, columns.side, columns.currency, columns.price, columns.gold, columns.amount, columns.version, columns.expires, now);
+    if (characterCommand && canonicalCharacter && characterOrigin && !existingCharacterRow) {
+      await db.batch([
+        db.prepare(`INSERT INTO economy_items
+          (id,owner_account_id,state,tradeable,provenance,origin_id,slot,rarity,item_level,display_name,item_json,version,created_at,updated_at)
+          VALUES(?,?,'inventory',1,'server_drop',?,?,?,?,?,?,0,?,?)`)
+          .bind(
+            characterCommand.itemId,
+            auth.account.id,
+            characterOrigin,
+            canonicalCharacter.item.slot,
+            canonicalCharacter.item.rarity,
+            canonicalCharacter.item.level,
+            canonicalCharacter.item.displayName,
+            canonicalCharacter.json,
+            now,
+            now,
+          ),
+        commandInsert,
+      ]);
+    } else {
+      await commandInsert.run();
+    }
   } catch (error) {
     // Identical commands may pass the optimistic pre-read concurrently. The
     // database row is authoritative, so return the winner as an idempotent replay.
@@ -705,7 +827,31 @@ async function executeCommand(
       }
       return success({ snapshot: await buildSnapshot(db, env, auth, request), resultRefId: committed.result_ref_id }, committed.id, true);
     }
+    if (characterOrigin && canonicalCharacter) {
+      existingCharacterRow = await characterItemByOrigin(db, characterOrigin);
+      if (existingCharacterRow) {
+        assertMatchingCharacterItem(existingCharacterRow, canonicalCharacter.json);
+        if (
+          existingCharacterRow.owner_account_id !== auth.account.id ||
+          existingCharacterRow.state !== "inventory"
+        ) {
+          const resultRefId = await reconciliationResultRef(db, existingCharacterRow);
+          return success(
+            { snapshot: await buildSnapshot(db, env, auth, request), resultRefId },
+            commandId,
+            true,
+          );
+        }
+      }
+    }
     const message = error instanceof Error ? error.message : String(error);
+    if (/UNIQUE constraint failed:\s*economy_items\.id/i.test(message)) {
+      throw new EconomyProblem(
+        409,
+        "CHARACTER_ITEM_ID_CONFLICT",
+        "장비 등록 식별자가 이미 사용되었습니다. 다시 시도해 주세요.",
+      );
+    }
     if (/open_(?:listing|exchange_order)_limit/i.test(message)) throw new EconomyProblem(409, "OPEN_ORDER_LIMIT", "동시에 등록할 수 있는 거래 수를 초과했습니다.");
     if (/insufficient/i.test(message)) throw new EconomyProblem(409, "INSUFFICIENT_FUNDS", "사용 가능한 재화가 부족합니다.");
     if (/(?:seller|maker)_sanctioned/i.test(message)) {

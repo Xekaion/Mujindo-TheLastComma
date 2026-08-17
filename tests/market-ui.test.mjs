@@ -2,9 +2,110 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import test from "node:test";
+import ts from "typescript";
 
 const root = process.cwd();
 const readSource = (file) => readFile(path.join(root, file), "utf8");
+
+const asDataModule = (source) =>
+  `data:text/javascript;base64,${Buffer.from(source).toString("base64")}`;
+
+async function importCharacterMarketModules() {
+  const compile = (source, fileName) => ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+    fileName,
+  }).outputText;
+  const [equipmentSource, saveSource, characterSource] = await Promise.all([
+    readSource("app/equipment.ts"),
+    readSource("app/save-slots.ts"),
+    readSource("app/market/character-market.ts"),
+  ]);
+  const equipmentUrl = asDataModule(compile(equipmentSource, "app/equipment.ts"));
+  const saveUrl = asDataModule(compile(saveSource, "app/save-slots.ts"));
+  const characterOutput = compile(characterSource, "app/market/character-market.ts")
+    .replaceAll('"../equipment"', JSON.stringify(equipmentUrl))
+    .replaceAll('"../save-slots"', JSON.stringify(saveUrl));
+  return Promise.all([
+    import(equipmentUrl),
+    import(saveUrl),
+    import(asDataModule(characterOutput)),
+  ]);
+}
+
+class MemoryStorage {
+  values = new Map();
+  getItem(key) { return this.values.get(key) ?? null; }
+  setItem(key, value) { this.values.set(key, String(value)); }
+  removeItem(key) { this.values.delete(key); }
+}
+
+test("character market adapter reads the selected bag and removes only server-imported gear", async () => {
+  const [equipment, saveSlots, characterMarket] = await importCharacterMarketModules();
+  const storage = new MemoryStorage();
+  const bagItem = equipment.rollGear("market-bag-item", {
+    level: 70,
+    slot: "weapon",
+    rarity: "legendary",
+  });
+  const equippedItem = equipment.rollGear("market-equipped-item", {
+    level: 70,
+    slot: "helm",
+    rarity: "epic",
+  });
+  const makeSave = (inventory) => ({
+    savedAt: 1,
+    player: {
+      level: 90,
+      augments: {},
+      inventory,
+      equipment: { weapon: null, helm: equippedItem },
+    },
+  });
+
+  storage.setItem(saveSlots.ACTIVE_SAVE_SLOT_KEY, "2");
+  storage.setItem(
+    saveSlots.saveSlotKey(2),
+    JSON.stringify(makeSave([bagItem, bagItem, { id: "broken" }])),
+  );
+  assert.equal(characterMarket.resolveCharacterMarketSlot("?slot=2", storage), 2);
+  assert.equal(characterMarket.resolveCharacterMarketSlot("?slot=99", storage), 2);
+
+  const inventory = characterMarket.readCharacterMarketInventory(2, storage);
+  assert.deepEqual(inventory.items.map((item) => item.id), [bagItem.id]);
+  assert.equal(inventory.equippedCount, 1);
+  assert.equal(inventory.invalidCount, 2);
+  assert.equal(
+    characterMarket.removeCharacterMarketItem(2, "gear-not-present", storage),
+    "missing",
+  );
+  assert.equal(
+    characterMarket.removeCharacterMarketItem(2, bagItem.id, storage),
+    "removed",
+  );
+  assert.equal(
+    characterMarket.readCharacterMarketInventory(2, storage).items.length,
+    0,
+  );
+
+  storage.setItem(saveSlots.saveSlotKey(1), JSON.stringify(makeSave([bagItem])));
+  storage.setItem(saveSlots.saveSlotKey(2), JSON.stringify(makeSave([bagItem])));
+  storage.setItem(
+    saveSlots.saveSlotKey(3),
+    JSON.stringify({
+      ...makeSave([]),
+      player: { ...makeSave([]).player, equipment: { weapon: bagItem } },
+    }),
+  );
+  const reconciliation = characterMarket.reconcileImportedCharacterItems(
+    [bagItem.id],
+    storage,
+  );
+  assert.deepEqual(reconciliation.removedItemIds, [bagItem.id]);
+  assert.deepEqual(reconciliation.failedSlots, []);
+  assert.equal(characterMarket.readCharacterMarketInventory(1, storage).items.length, 0);
+  assert.equal(characterMarket.readCharacterMarketInventory(2, storage).items.length, 0);
+  assert.equal(saveSlots.readSaveSlot(3, storage).player.equipment.weapon, null);
+});
 
 test("memory market exposes all four server-backed economy surfaces", async () => {
   const [page, board, css] = await Promise.all([
@@ -126,7 +227,7 @@ test("market equipment names show enhancement without mutating trade commands", 
   );
   assert.match(
     board,
-    /market-vault-list[\s\S]{0,1200}?formatMarketGearName\(item\)/,
+    /market-vault-list[\s\S]{0,1600}?formatMarketGearName\(candidate\.view\)/,
     "vault rows must use the same display-only name formatter",
   );
   assert.match(
@@ -141,12 +242,12 @@ test("market equipment names show enhancement without mutating trade commands", 
   );
   assert.match(
     board,
-    /<ItemIcon item=\{item\} compact \/>[\s\S]{0,250}?formatMarketGearName\(item\)/,
-    "sale vault entries must show enhancement on both the icon and the item name",
+    /<ItemIcon item=\{candidate\.view\} compact \/>[\s\S]{0,400}?formatMarketGearName\(candidate\.view\)/,
+    "character-bag and vault sale entries must show enhancement on both the icon and the item name",
   );
   assert.match(
     board,
-    /\{ action: "list_item", itemId: confirmation\.item\.itemId, priceAsh: confirmation\.priceAsh,[\s\S]{0,180}?expectedItemVersion: confirmation\.item\.version \}/,
+    /\{ action: "list_item", itemId: confirmation\.candidate\.view\.itemId, priceAsh: confirmation\.priceAsh,[\s\S]{0,180}?expectedItemVersion: confirmation\.candidate\.view\.version \}/,
     "listing writes must remain ID/version based instead of persisting a formatted name",
   );
   assert.doesNotMatch(
@@ -156,17 +257,37 @@ test("market equipment names show enhancement without mutating trade commands", 
   );
 });
 
-test("trade UI never offers local save uploads and gates live writes", async () => {
-  const [client, board] = await Promise.all([
+test("trade UI atomically transfers active character inventory and gates live writes", async () => {
+  const [client, board, characterMarket, protocol, worker] = await Promise.all([
     readSource("app/economy-client.ts"),
     readSource("app/market/MarketBoard.tsx"),
+    readSource("app/market/character-market.ts"),
+    readSource("app/economy-protocol.ts"),
+    readSource("worker/economy-d1.ts"),
   ]);
 
-  assert.match(client, /never reads or mutates the local save file/i);
+  assert.match(client, /never reads or mutates a local save file itself/i);
   assert.doesNotMatch(client, /localStorage|readSaveSlot|readActiveSaveSlot/);
-  assert.doesNotMatch(board, /readSaveSlot|readActiveSaveSlot|upload/i);
-  assert.match(board, /기존 로컬 자산 거래 불가/);
-  assert.match(board, /서버에서 발급하고 서명한 금고 장비만 거래/);
+  assert.match(characterMarket, /resolveCharacterMarketSlot/);
+  assert.match(characterMarket, /new URLSearchParams\(search\)\.get\("slot"\)/);
+  assert.match(characterMarket, /readActiveSaveSlot\(storage\)/);
+  assert.match(characterMarket, /readSaveSlot\(slot, storage\)/);
+  assert.match(characterMarket, /normalizeGearItem\(value\)/);
+  assert.match(characterMarket, /writeSaveSlot\(/);
+  assert.match(characterMarket, /reconcileImportedCharacterItems/);
+  assert.match(characterMarket, /SAVE_SLOT_IDS/);
+  assert.match(board, /source: "character"/);
+  assert.match(board, /characterItem: gearItemToEconomyPayload\(candidate\.gear\)/);
+  assert.match(board, /sourceSaveSlot: candidate\.saveSlot/);
+  assert.match(board, /removeCharacterMarketItem\([\s\S]{0,120}?candidate\.gear\.id/);
+  assert.match(board, /reconcileImportedCharacterItems\([\s\S]{0,100}?nextSnapshot\.importedCharacterItemIds/);
+  assert.match(board, /실패하면 가방 장비는 그대로 유지/);
+  assert.match(board, /장착 중인 장비[\s\S]{0,100}?먼저 해제/);
+  assert.match(protocol, /export type ListCharacterItemCommand/);
+  assert.match(protocol, /value\.expectedItemVersion !== 0/);
+  assert.match(worker, /normalizeGearItem\(command\.characterItem\)/);
+  assert.match(worker, /await db\.batch\(\[[\s\S]{0,900}?INSERT INTO economy_items[\s\S]{0,900}?commandInsert/);
+  assert.match(worker, /importedCharacterItemIds/);
   assert.match(board, /snapshot\.account\.steamLinked/);
   assert.match(board, /snapshot\.account\.gameOwned/);
   assert.match(board, /snapshot\.account\.restricted/);

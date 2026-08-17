@@ -165,6 +165,69 @@ test("economy protocol rejects mass assignment, floats, overflow, and hash repla
   assert.equal(protocol.parseEconomyCommand({ ...base, requestHash, goldAmount: 10_000_001 }), null);
   assert.equal(await protocol.verifyEconomyCommandHash({ ...base, requestHash, goldAmount: 11 }), false);
 
+  const characterItem = {
+    id: "gear-character-market-contract",
+    slot: "weapon",
+    rarity: "rare",
+    level: 42,
+    baseName: "contract blade",
+    affixes: [{ stat: "attackPowerFlat", value: 7, rollPercent: 55 }],
+  };
+  const characterList = {
+    protocolVersion: 1,
+    action: "list_item",
+    idempotencyKey: "list-character:0000000000000001",
+    itemId: UUID.item1,
+    priceAsh: 4_200,
+    expiresInSeconds: 3_600,
+    expectedItemVersion: 0,
+    characterItem,
+    sourceSaveSlot: 2,
+  };
+  const characterHash = await protocol.computeEconomyCommandHash(characterList);
+  const parsedCharacterList = protocol.parseEconomyCommand({
+    ...characterList,
+    requestHash: characterHash,
+  });
+  assert.ok(parsedCharacterList);
+  assert.equal(await protocol.verifyEconomyCommandHash(parsedCharacterList), true);
+  assert.equal(protocol.parseEconomyCommand({
+    ...characterList,
+    requestHash: characterHash,
+    expectedItemVersion: 1,
+  }), null);
+  assert.equal(protocol.parseEconomyCommand({
+    ...characterList,
+    requestHash: characterHash,
+    sourceSaveSlot: 4,
+  }), null);
+  assert.equal(protocol.parseEconomyCommand({
+    ...characterList,
+    requestHash: characterHash,
+    characterItem: [characterItem],
+  }), null);
+  assert.equal(protocol.parseEconomyCommand({
+    ...characterList,
+    requestHash: characterHash,
+    ownerAccountId: UUID.b,
+  }), null);
+  assert.equal(await protocol.verifyEconomyCommandHash({
+    ...parsedCharacterList,
+    characterItem: { ...characterItem, level: 43 },
+  }), false);
+
+  const vaultList = {
+    protocolVersion: 1,
+    action: "list_item",
+    idempotencyKey: "list-vault:000000000000000001",
+    itemId: UUID.item2,
+    priceAsh: 2_100,
+    expiresInSeconds: 3_600,
+    expectedItemVersion: 7,
+  };
+  const vaultHash = await protocol.computeEconomyCommandHash(vaultList);
+  assert.ok(protocol.parseEconomyCommand({ ...vaultList, requestHash: vaultHash }));
+
   assert.deepEqual(protocol.parseMarketQuery({
     kind: "items",
     limit: 40,
@@ -543,7 +606,7 @@ test("admin audit idempotency is immutable and rejects duplicate operator reques
   assert.throws(() => db.prepare(`UPDATE economy_audit_events SET action='tampered' WHERE id=?`).run(uuidLike(41)), /immutable_audit/);
 });
 
-test("worker gates live writes, strips spoofed headers, and exposes no local-save upload", async () => {
+test("worker gates live writes, atomically imports one canonical character item, and exposes no arbitrary save upload", async () => {
   const [worker, entry, client] = await Promise.all([
     source("worker/economy-d1.ts"),
     source("worker/index.ts"),
@@ -575,6 +638,22 @@ test("worker gates live writes, strips spoofed headers, and exposes no local-sav
   assert.match(worker, /\? await executeCommand\(request, db, env, auth\)/);
   assert.doesNotMatch(worker, /route\.endsWith/);
   assert.match(worker, /sellerUserId: mine \? accountId : ""/);
+  assert.match(worker, /normalizeGearItem\(command\.characterItem\)/);
+  assert.match(worker, /return `character:\$\{accountId\}:\$\{item\.id\}`/);
+  assert.match(worker, /"CHARACTER_ITEM_MISMATCH"/);
+  assert.match(worker, /importedCharacterItemIds/);
+  assert.match(worker, /WHERE provenance='server_drop' AND substr\(origin_id,1,\?\)=\?/);
+  const characterBatch = worker.indexOf("if (characterCommand && canonicalCharacter && characterOrigin && !existingCharacterRow)");
+  const characterItemInsert = worker.indexOf("INSERT INTO economy_items", characterBatch);
+  const characterCommandInsert = worker.indexOf("commandInsert", characterItemInsert);
+  const characterBatchEnd = worker.indexOf("]);", characterCommandInsert);
+  assert.ok(
+    characterBatch >= 0 &&
+      characterItemInsert > characterBatch &&
+      characterCommandInsert > characterItemInsert &&
+      characterBatchEnd > characterCommandInsert,
+    "character item and list command must commit in the same D1 batch",
+  );
   assert.match(worker, /assertNoActiveSanction\(db, auth\.account\.id, \["login", "payment", "wallet"\]\)/);
   assert.match(worker, /QueryTxn\/v3/);
   assert.match(worker, /steamTransactionDisposition\(transaction\.status\)/);
@@ -595,7 +674,7 @@ test("worker gates live writes, strips spoofed headers, and exposes no local-sav
   assert.match(worker, /"economy-read", auth\.development \? 600 : 120/);
   assert.doesNotMatch(worker, /resolveSitesAccount|oai-authenticated-user-email/);
   assert.match(worker, /x-mujindo-internal-dev-user/);
-  assert.doesNotMatch(worker, /localStorage|save-slots|upload_save|import_inventory/i);
+  assert.doesNotMatch(worker, /localStorage|from ["']\.\.\/app\/save-slots|upload_save|import_inventory/i);
   assert.match(entry, /headers\.delete\("x-mujindo-player-name"\)/);
   assert.match(entry, /headers\.delete\("x-mujindo-dev-user"\)/);
   assert.match(entry, /headers\.delete\("x-mujindo-internal-dev-user"\)/);
