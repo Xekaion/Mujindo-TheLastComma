@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- versioned game UI sprites must bypass runtime image optimization */
+
 import {
   useCallback,
   useEffect,
@@ -10,6 +12,7 @@ import {
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
 } from "react";
 import Link from "next/link";
 import {
@@ -106,6 +109,8 @@ const AUCTION_VIEWS: ReadonlyArray<{ id: AuctionView; label: string; eyebrow: st
 ];
 
 const MARKET_FAVORITES_STORAGE_KEY = "mujindo:market:favorites:v1";
+const MARKET_GOLD_INGOT_STACK_SRC = "/assets/ui/market/gold-ingot-stack-v1.png";
+const MARKET_GOLD_INGOT_TOKEN_SRC = "/assets/ui/market/gold-ingot-token-v1.png";
 const MARKET_DESIGN_WIDTH = 1920;
 const MARKET_DESIGN_HEIGHT = 1080;
 const MARKET_SCALED_VIEWPORT_RATIO = 1440 / MARKET_DESIGN_WIDTH;
@@ -399,7 +404,7 @@ function BalanceCard({
   locked,
   tone,
 }: {
-  symbol: string;
+  symbol?: string;
   label: string;
   available: number;
   escrow: number;
@@ -408,7 +413,9 @@ function BalanceCard({
 }) {
   return (
     <article className={`market-balance market-balance--${tone}`}>
-      <span className="market-balance-symbol" aria-hidden="true">{symbol}</span>
+      <span className="market-balance-symbol" aria-hidden="true">
+        {tone === "gold" ? <GoldIngotIcon className="market-balance-gold-icon" /> : symbol}
+      </span>
       <div>
         <small>{label} · 사용 가능</small>
         <strong>{formatEconomyAmount(available)}</strong>
@@ -418,6 +425,27 @@ function BalanceCard({
         <div><dt>72시간 잠금</dt><dd>{formatEconomyAmount(locked)}</dd></div>
       </dl>
     </article>
+  );
+}
+
+function GoldIngotIcon({ className = "market-gold-icon" }: { className?: string }) {
+  return (
+    <img
+      className={className}
+      src={MARKET_GOLD_INGOT_TOKEN_SRC}
+      alt=""
+      aria-hidden="true"
+      draggable={false}
+    />
+  );
+}
+
+function GoldAmount({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <span className={`market-gold-amount${className ? ` ${className}` : ""}`}>
+      <GoldIngotIcon />
+      <span>{children}</span>
+    </span>
   );
 }
 
@@ -1361,7 +1389,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
               <b data-tier={snapshot.account.trustTier}>{TRUST_LABELS[snapshot.account.trustTier]}</b>
             </div>
             <BalanceCard symbol="✦" label="기억의 재" {...snapshot.wallet.memoryAsh} locked={snapshot.wallet.memoryAsh.locked72h} tone="ash" />
-            <BalanceCard symbol="▰" label="금괴" {...snapshot.wallet.goldBars} locked={snapshot.wallet.goldBars.locked72h} tone="gold" />
+            <BalanceCard label="금괴" {...snapshot.wallet.goldBars} locked={snapshot.wallet.goldBars.locked72h} tone="gold" />
           </section>
 
           <AccountGate snapshot={snapshot} local={local} />
@@ -1550,9 +1578,9 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                 <section className="market-orderbook" aria-labelledby="orderbook-title">
                   <header><div><small>LIVE ORDER BOOK</small><h2 id="orderbook-title">실시간 호가</h2></div><span>자동 갱신</span></header>
                   <div className="market-orderbook-head"><span>구분</span><span>금괴 1개 가격</span><span>잔량</span><span>주문</span></div>
-                  <div className="market-book-side is-ask"><small>매도 호가</small>{snapshot.goldExchange.asks.length === 0 ? <p>대기 매도 주문 없음</p> : snapshot.goldExchange.asks.slice(0, 8).reverse().map((level, index) => <div key={`ask-${level.priceAshPerGold}-${index}`}><b>매도</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(level.goldAmount)}</span><em>{level.orderCount}건</em></div>)}</div>
+                  <div className="market-book-side is-ask"><small>매도 호가</small>{snapshot.goldExchange.asks.length === 0 ? <p>대기 매도 주문 없음</p> : snapshot.goldExchange.asks.slice(0, 8).reverse().map((level, index) => <div key={`ask-${level.priceAshPerGold}-${index}`}><b>매도</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span><GoldAmount>{formatEconomyAmount(level.goldAmount)}</GoldAmount></span><em>{level.orderCount}건</em></div>)}</div>
                   <div className="market-book-mid"><span>MARKET PRICE</span><strong>{snapshot.goldExchange.lastPrice === null ? "체결 기록 없음" : `✦ ${formatEconomyAmount(snapshot.goldExchange.lastPrice)}`}</strong></div>
-                  <div className="market-book-side is-bid"><small>매수 호가</small>{snapshot.goldExchange.bids.length === 0 ? <p>대기 매수 주문 없음</p> : snapshot.goldExchange.bids.slice(0, 8).map((level, index) => <div key={`bid-${level.priceAshPerGold}-${index}`}><b>매수</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(level.goldAmount)}</span><em>{level.orderCount}건</em></div>)}</div>
+                  <div className="market-book-side is-bid"><small>매수 호가</small>{snapshot.goldExchange.bids.length === 0 ? <p>대기 매수 주문 없음</p> : snapshot.goldExchange.bids.slice(0, 8).map((level, index) => <div key={`bid-${level.priceAshPerGold}-${index}`}><b>매수</b><strong>✦ {formatEconomyAmount(level.priceAshPerGold)}</strong><span><GoldAmount>{formatEconomyAmount(level.goldAmount)}</GoldAmount></span><em>{level.orderCount}건</em></div>)}</div>
                 </section>
 
                 <section className="market-order-entry" aria-labelledby="order-entry-title">
@@ -1560,7 +1588,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                   <div className="market-order-side" role="group" aria-label="주문 종류"><button type="button" className={orderSide === "buy" ? "is-active" : ""} aria-pressed={orderSide === "buy"} onClick={() => setOrderSide("buy")}>금괴 매수</button><button type="button" className={orderSide === "sell" ? "is-active" : ""} aria-pressed={orderSide === "sell"} onClick={() => setOrderSide("sell")}>금괴 매도</button></div>
                   <form onSubmit={openOrderConfirmation}>
                     <label><span>금괴 1개 가격</span><div><i>✦</i><input type="number" min="1" step="1" inputMode="numeric" value={orderPrice} onChange={(event) => setOrderPrice(event.target.value)} placeholder="기억의 재" /></div></label>
-                    <label><span>주문 수량</span><div><i>▰</i><input type="number" min="1" step="1" inputMode="numeric" value={orderAmount} onChange={(event) => setOrderAmount(event.target.value)} placeholder="금괴" /></div></label>
+                    <label><span>주문 수량</span><div><i><GoldIngotIcon className="market-order-gold-icon" /></i><input type="number" min="1" step="1" inputMode="numeric" value={orderAmount} onChange={(event) => setOrderAmount(event.target.value)} placeholder="금괴" /></div></label>
                     <dl><div><dt>주문 총액</dt><dd>✦ {formatEconomyAmount(orderPriceNumber * orderAmountNumber)}</dd></div><div><dt>보관될 재화</dt><dd>{orderSide === "buy" ? "기억의 재" : "금괴"}</dd></div></dl>
                     <button type="submit" disabled={!goldEnabled || orderPriceNumber <= 0 || orderAmountNumber <= 0 || working}>{orderSide === "buy" ? "매수 주문 확인" : "매도 주문 확인"}</button>
                   </form>
@@ -1577,7 +1605,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
                           onClick={() => openConfirmation({ kind: "fill-order", order, goldAmount: Math.min(order.remainingGold, Math.max(1, orderAmountNumber || order.remainingGold)) })}
                         >
                           <span>{order.side === "sell" ? "금괴 매수" : "금괴 매도"}</span>
-                          <strong>✦ {formatEconomyAmount(order.priceAshPerGold)} · ▰ {formatEconomyAmount(order.remainingGold)}</strong>
+                          <strong><span>✦ {formatEconomyAmount(order.priceAshPerGold)}</span><span aria-hidden="true">·</span><GoldAmount>{formatEconomyAmount(order.remainingGold)}</GoldAmount></strong>
                           <b>체결</b>
                         </button>
                       ))}
@@ -1587,12 +1615,12 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
 
                 <section className="market-my-orders" aria-labelledby="my-orders-title">
                   <header><div><small>OPEN ORDERS</small><h2 id="my-orders-title">내 미체결 주문</h2></div><b>{snapshot.goldExchange.myOrders.filter((order) => order.status === "open" || order.status === "partial").length}</b></header>
-                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {ORDER_STATUS_LABELS[order.status]}</small><strong>▰ {formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" aria-label={`${order.side === "buy" ? "금괴 매수" : "금괴 매도"} 주문 취소 · 미체결 ${formatEconomyAmount(order.remainingGold)}개`} disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => openConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
+                  {snapshot.goldExchange.myOrders.length === 0 ? <EmptyState title="열린 주문이 없습니다" body="매수 또는 매도 주문을 등록하면 체결 상황을 확인할 수 있습니다." /> : snapshot.goldExchange.myOrders.map((order) => <article key={order.orderId} className={`is-${order.side}`}><span><small>{order.side === "buy" ? "금괴 매수" : "금괴 매도"} · {ORDER_STATUS_LABELS[order.status]}</small><strong><GoldAmount>{formatEconomyAmount(order.remainingGold)} / {formatEconomyAmount(order.goldAmount)}</GoldAmount></strong></span><span><small>금괴 1개당</small><strong>✦ {formatEconomyAmount(order.priceAshPerGold)}</strong></span><button type="button" aria-label={`${order.side === "buy" ? "금괴 매수" : "금괴 매도"} 주문 취소 · 미체결 ${formatEconomyAmount(order.remainingGold)}개`} disabled={working || !(order.status === "open" || order.status === "partial")} onClick={() => openConfirmation({ kind: "cancel-order", order })}>주문 취소</button></article>)}
                 </section>
 
                 <section className="market-trade-tape" aria-labelledby="trade-tape-title">
                   <header><small>MATCHED TRADES</small><h2 id="trade-tape-title">최근 체결</h2></header>
-                  {snapshot.goldExchange.recentTrades.length === 0 ? <EmptyState title="아직 체결 기록이 없습니다" body="첫 교환이 성사되면 익명화된 시세가 표시됩니다." /> : snapshot.goldExchange.recentTrades.slice(0, 8).map((trade) => <div key={trade.tradeId}><time>{formatDate(trade.executedAt)}</time><strong>✦ {formatEconomyAmount(trade.priceAshPerGold)}</strong><span>▰ {formatEconomyAmount(trade.goldAmount)}</span></div>)}
+                  {snapshot.goldExchange.recentTrades.length === 0 ? <EmptyState title="아직 체결 기록이 없습니다" body="첫 교환이 성사되면 익명화된 시세가 표시됩니다." /> : snapshot.goldExchange.recentTrades.slice(0, 8).map((trade) => <div key={trade.tradeId}><time>{formatDate(trade.executedAt)}</time><strong>✦ {formatEconomyAmount(trade.priceAshPerGold)}</strong><span><GoldAmount>{formatEconomyAmount(trade.goldAmount)}</GoldAmount></span></div>)}
                 </section>
               </div>
             </section>
@@ -1601,8 +1629,8 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
           {tab === "charge" && (
             <section className="market-panel market-charge" id="market-panel-charge" role="tabpanel" aria-labelledby="market-tab-charge">
               <div className="market-panel-heading"><div><small>STEAM WALLET</small><h1>금괴 충전</h1></div><p>Steam 결제를 마치면 금괴가 지급됩니다. 새로 충전한 금괴는 72시간 뒤부터 교환할 수 있습니다.</p></div>
-              <section className="market-charge-hero"><span className="market-gold-stack" aria-hidden="true"><i /><i /><i /></span><div><small>PREMIUM EXCHANGE TOKEN</small><h2>금괴</h2><p>편의 상품 구매와 유저 간 기억의 재 교환에 사용하는 거래 재화입니다. 장비 성능을 직접 판매하지 않습니다.</p></div><dl><div><dt>사용 가능</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.available)}</dd></div><div><dt>72시간 잠금</dt><dd>▰ {formatEconomyAmount(snapshot.wallet.goldBars.locked72h)}</dd></div></dl></section>
-              <div className="market-pack-grid">{GOLD_PACKS.map((pack) => <article key={pack.id}><span aria-hidden="true">▰</span><small>{pack.label}</small><strong>{pack.gold}<i> 금괴</i></strong><b>{pack.priceKrw.toLocaleString("ko-KR")}원</b><button type="button" disabled={!chargeEnabled || working} onClick={() => openConfirmation({ kind: "charge", packId: pack.id, goldAmount: pack.gold, priceKrw: pack.priceKrw })}>{chargeEnabled ? "Steam으로 충전" : "결제 잠김"}</button></article>)}</div>
+              <section className="market-charge-hero"><img className="market-gold-stack" src={MARKET_GOLD_INGOT_STACK_SRC} width={512} height={512} alt="" aria-hidden="true" draggable={false} /><div><small>PREMIUM EXCHANGE TOKEN</small><h2>금괴</h2><p>편의 상품 구매와 유저 간 기억의 재 교환에 사용하는 거래 재화입니다. 장비 성능을 직접 판매하지 않습니다.</p></div><dl><div><dt>사용 가능</dt><dd><GoldAmount>{formatEconomyAmount(snapshot.wallet.goldBars.available)}</GoldAmount></dd></div><div><dt>72시간 잠금</dt><dd><GoldAmount>{formatEconomyAmount(snapshot.wallet.goldBars.locked72h)}</GoldAmount></dd></div></dl></section>
+              <div className="market-pack-grid">{GOLD_PACKS.map((pack) => <article key={pack.id}><GoldIngotIcon className="market-pack-ingot" /><small>{pack.label}</small><strong>{pack.gold}<i> 금괴</i></strong><b>{pack.priceKrw.toLocaleString("ko-KR")}원</b><button type="button" disabled={!chargeEnabled || working} onClick={() => openConfirmation({ kind: "charge", packId: pack.id, goldAmount: pack.gold, priceKrw: pack.priceKrw })}>{chargeEnabled ? "Steam으로 충전" : "결제 잠김"}</button></article>)}</div>
               <section className="market-charge-policy"><div><strong>72시간 교환 잠금</strong><p>새로 충전한 금괴는 결제 보호 기간 동안 교환소에서 사용할 수 없습니다. 남은 시간은 보유 금괴 영역에서 확인할 수 있습니다.</p></div><div><strong>결제 결과 확인</strong><p>Steam 결제가 정상 완료된 주문에만 금괴가 지급됩니다. 문제가 생기면 결제 내역과 함께 다시 확인해 주세요.</p></div><div><strong>환불·청약 정보</strong><p>구매 전 Steam 결제창에서 최종 금액과 환불 조건을 확인하세요. 사용 또는 교환된 금괴는 별도 정책이 적용될 수 있습니다.</p></div></section>
             </section>
           )}
@@ -1635,7 +1663,7 @@ export default function MarketBoard({ suggestedName }: { suggestedName?: string 
   );
 }
 
-function getConfirmationCopy(confirmation: Confirmation): { title: string; body: string; confirmLabel: string; rows: Array<[string, string]> } {
+function getConfirmationCopy(confirmation: Confirmation): { title: string; body: string; confirmLabel: string; rows: Array<[string, ReactNode]> } {
   switch (confirmation.kind) {
     case "buy": return { title: `${formatMarketGearName(confirmation.listing.item)}을 구매할까요?`, body: "구매가 완료되면 장비는 거래 금고에 보관되고 판매 대금은 판매자에게 정산됩니다.", confirmLabel: "기억의 재로 구매", rows: [["구매 가격", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["판매자", confirmation.listing.sellerName], ["받는 위치", "거래 금고"], ["장비", `${formatMarketGearLevel(confirmation.listing.item)} · ${RARITY_LABELS[confirmation.listing.item.rarity]}`]] };
     case "cancel-listing": return { title: "판매 등록을 취소할까요?", body: "아직 거래되지 않은 매물만 취소할 수 있으며 장비는 거래 금고로 돌아옵니다.", confirmLabel: "등록 취소", rows: [["장비", formatMarketGearName(confirmation.listing.item)], ["등록가", `✦ ${formatEconomyAmount(confirmation.listing.priceAsh)}`], ["반환 위치", "거래 금고"]] };
@@ -1658,7 +1686,7 @@ function getConfirmationCopy(confirmation: Confirmation): { title: string; body:
         ],
       };
     }
-    case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며, 상대가 호가창에서 이 주문을 선택해 체결할 때까지 대기합니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
+    case "order": return { title: `금괴 ${confirmation.side === "buy" ? "매수" : "매도"} 주문을 등록할까요?`, body: "주문에 필요한 재화는 즉시 거래 보관 잔액으로 이동하며, 상대가 호가창에서 이 주문을 선택해 체결할 때까지 대기합니다.", confirmLabel: `${confirmation.side === "buy" ? "매수" : "매도"} 주문 등록`, rows: [["금괴 수량", <GoldAmount key="order-gold-amount">{formatEconomyAmount(confirmation.goldAmount)}</GoldAmount>], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.priceAshPerGold)}`], ["주문 총액", `✦ ${formatEconomyAmount(confirmation.goldAmount * confirmation.priceAshPerGold)}`]] };
     case "fill-order": {
       const buyingGold = confirmation.order.side === "sell";
       const actionLabel = buyingGold ? "금괴 매수" : "금괴 매도";
@@ -1672,13 +1700,13 @@ function getConfirmationCopy(confirmation: Confirmation): { title: string; body:
         confirmLabel: `${actionLabel} 체결`,
         rows: [
           ["내 거래", actionLabel],
-          ["금괴 수량", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`],
+          ["금괴 수량", <GoldAmount key="fill-gold-amount">{formatEconomyAmount(confirmation.goldAmount)}</GoldAmount>],
           ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`],
           ["총 기억의 재", `${ashFlow} · ✦ ${formatEconomyAmount(totalAsh)}`],
         ],
       };
     }
-    case "cancel-order": return { title: "미체결 주문을 취소할까요?", body: "이미 체결된 수량은 되돌릴 수 없으며 미체결분의 거래 보관 재화만 반환됩니다.", confirmLabel: "주문 취소", rows: [["잔여 금괴", `▰ ${formatEconomyAmount(confirmation.order.remainingGold)}`], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
-    case "charge": return { title: `${confirmation.goldAmount} 금괴를 충전할까요?`, body: "Steam 결제창에서 최종 금액을 확인합니다. 결제가 완료된 주문에만 금괴가 지급되며 교환에는 72시간 잠금이 적용됩니다.", confirmLabel: "Steam 결제로 이동", rows: [["충전 금괴", `▰ ${formatEconomyAmount(confirmation.goldAmount)}`], ["결제 예정", `${confirmation.priceKrw.toLocaleString("ko-KR")}원`], ["교환 잠금", "72시간"]] };
+    case "cancel-order": return { title: "미체결 주문을 취소할까요?", body: "이미 체결된 수량은 되돌릴 수 없으며 미체결분의 거래 보관 재화만 반환됩니다.", confirmLabel: "주문 취소", rows: [["잔여 금괴", <GoldAmount key="cancel-gold-amount">{formatEconomyAmount(confirmation.order.remainingGold)}</GoldAmount>], ["개당 가격", `✦ ${formatEconomyAmount(confirmation.order.priceAshPerGold)}`]] };
+    case "charge": return { title: `${confirmation.goldAmount} 금괴를 충전할까요?`, body: "Steam 결제창에서 최종 금액을 확인합니다. 결제가 완료된 주문에만 금괴가 지급되며 교환에는 72시간 잠금이 적용됩니다.", confirmLabel: "Steam 결제로 이동", rows: [["충전 금괴", <GoldAmount key="charge-gold-amount">{formatEconomyAmount(confirmation.goldAmount)}</GoldAmount>], ["결제 예정", `${confirmation.priceKrw.toLocaleString("ko-KR")}원`], ["교환 잠금", "72시간"]] };
   }
 }

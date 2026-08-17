@@ -1,0 +1,14 @@
+{
+  "mode": "generate",
+  "tool": "image_gen",
+  "generatedAt": "2026-08-18",
+  "source": "asset-sources/imagegen/market-gold-ingot-stack-v1-source.png",
+  "output": "public/assets/ui/market/gold-ingot-stack-v1.png",
+  "processing": {
+    "sourceSize": [1254, 1254],
+    "outputSize": [512, 512],
+    "fit": "transparent trim, Lanczos3 contain at 448px, centered transparent gutter",
+    "alpha": "RGBA with fully transparent RGB zeroed"
+  },
+  "prompt": "Use case: stylized-concept. Asset type: production transparent-ready hero currency artwork for a premium Korean dark-fantasy ARPG auction house UI. Primary request: create one original stack of five heavy gold ingots as the official Mujindo gold-bar currency hero asset. Subject: five substantial trapezoidal cast-gold ingots stacked in a compact low pyramid, each with worn bevels, hammered imperfections, deep engraved corner filigree, and one simple abstract diamond-shaped memory seal stamped into the top surface; no letters, numbers, coins, chest, pouch, or extra objects. Style/medium: polished hand-painted 2D game UI art with early-2000s gothic action-RPG material rendering; believable metal, antique yellow gold, warm amber, muted bronze shadows, restrained pale ivory edge highlights, blackened recesses; premium and weighty, not cartoon or mobile-game plastic. Composition/framing: square canvas, centered three-quarter front view, complete silhouette filling about 72% of the canvas, even generous padding on every side, strong readable overlap between all five separate bars, no crop. Lighting/mood: controlled warm upper-left museum light, crisp value separation, no overexposed bloom. Scene/backdrop: perfectly flat solid RGB #FF00FF magenta chroma-key background across every background pixel, no gradient, texture, floor plane, contact shadow, cast shadow, reflection, halo, smoke, or lighting variation; do not use #FF00FF anywhere in the gold artwork. Constraints: isolated opaque ingot stack only; no text, letters, numbers, logo, watermark, pedestal, border, frame, architecture, character, currency symbol, detached debris, green/cyan crystal, floating sparks, or external shadow; clean continuous magenta moat around the entire silhouette."
+}

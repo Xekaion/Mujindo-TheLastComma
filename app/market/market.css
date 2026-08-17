@@ -146,6 +146,10 @@
 .market-balance { display: grid; grid-template-columns: 42px minmax(100px, 1fr) auto; align-items: center; gap: 10px; padding: 10px 14px; }
 .market-balance-symbol { display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid rgba(103, 201, 187, 0.34); border-radius: 50%; color: #89d9cd; background: radial-gradient(circle, rgba(52, 135, 124, 0.24), transparent 70%); }
 .market-balance--gold .market-balance-symbol { border-color: rgba(218, 173, 85, 0.42); color: #f0cb76; background: radial-gradient(circle, rgba(163, 111, 31, 0.28), transparent 70%); }
+.market-balance-gold-icon { display: block; width: 88%; height: 88%; object-fit: contain; filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.72)) drop-shadow(0 0 5px rgba(222, 166, 54, 0.18)); }
+.market-gold-icon { display: block; width: 1.45em; height: 1.45em; flex: none; object-fit: contain; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.78)); }
+.market-gold-amount { display: inline-flex; align-items: center; justify-content: inherit; gap: 0.28em; min-width: 0; color: inherit; font: inherit; line-height: 1; white-space: nowrap; }
+.market-gold-amount > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .market-balance > div { display: grid; gap: 2px; }
 .market-balance small { color: rgba(203, 209, 194, 0.5); font-size: 8px; }
 .market-balance strong { color: #9ce1d6; font: 700 21px/1 Georgia, serif; font-variant-numeric: tabular-nums; }
@@ -435,6 +439,7 @@
 .market-order-entry form { display: grid; gap: 10px; }
 .market-order-entry label > div { display: grid; grid-template-columns: 35px minmax(0, 1fr); border: 1px solid rgba(198, 160, 84, 0.2); background: rgba(4, 7, 9, 0.88); }
 .market-order-entry label i { display: grid; place-items: center; border-right: 1px solid rgba(198, 160, 84, 0.14); color: #cfac62; font-style: normal; }
+.market-order-gold-icon { display: block; width: 27px; height: 27px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7)); }
 .market-order-entry input { border: 0; }
 .market-order-entry dl { display: grid; gap: 6px; margin: 2px 0; padding: 9px; background: rgba(197, 159, 81, 0.045); }
 .market-order-entry dl > div { display: flex; justify-content: space-between; gap: 10px; }
@@ -445,7 +450,7 @@
 .market-instant-orders { display: grid; gap: 4px; margin-top: 11px; padding-top: 10px; border-top: 1px solid rgba(190, 153, 78, 0.12); }
 .market-instant-orders > small { margin-bottom: 2px; color: #756d5f; font-size: 7px; }
 .market-instant-orders > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 7px; min-height: 31px; padding: 0 7px; border: 1px solid rgba(95, 185, 163, 0.2); color: #8ab9ac; background: rgba(11, 31, 27, 0.48); font-size: 7px; text-align: left; cursor: pointer; }
-.market-instant-orders > button strong { overflow: hidden; color: #cdb77f; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
+.market-instant-orders > button strong { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; color: #cdb77f; font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .market-instant-orders > button b { color: #79cdb8; }
 
 .market-my-orders { grid-area: mine; padding: 12px; }
@@ -463,11 +468,7 @@
 .market-trade-tape span { color: #8aa99f; }
 
 .market-charge-hero { display: grid; grid-template-columns: 150px minmax(0, 1fr) minmax(230px, 0.55fr); align-items: center; gap: 22px; min-height: 180px; margin-bottom: 12px; padding: 20px 28px; border: 1px solid rgba(215, 169, 75, 0.28); background: radial-gradient(circle at 12% 50%, rgba(207, 148, 43, 0.18), transparent 24%), linear-gradient(115deg, rgba(60, 40, 13, 0.38), rgba(8, 11, 13, 0.95) 50%); }
-.market-gold-stack { position: relative; display: block; width: 120px; height: 100px; }
-.market-gold-stack i { position: absolute; display: block; width: 72px; height: 36px; border: 1px solid #e7bf61; transform: skewX(-15deg); background: linear-gradient(145deg, #ffe49a, #b37820 60%, #4a2b09); box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), 0 0 18px rgba(212, 156, 51, 0.2); }
-.market-gold-stack i:nth-child(1) { top: 49px; left: 8px; }
-.market-gold-stack i:nth-child(2) { top: 44px; left: 46px; }
-.market-gold-stack i:nth-child(3) { top: 14px; left: 28px; }
+.market-gold-stack { display: block; width: 138px; height: 132px; object-fit: contain; filter: drop-shadow(0 15px 18px rgba(0, 0, 0, 0.62)) drop-shadow(0 0 11px rgba(224, 163, 47, 0.17)); }
 .market-charge-hero > div small { color: #ae8542; font-size: 7px; font-weight: 900; letter-spacing: 0.2em; }
 .market-charge-hero h2 { margin: 5px 0; color: #f3d887; font: 500 31px/1 Georgia, "Noto Serif KR", serif; }
 .market-charge-hero p { max-width: 650px; margin: 0; color: #8b816d; font-size: 9px; line-height: 1.65; }
@@ -478,7 +479,7 @@
 .market-pack-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
 .market-pack-grid article { position: relative; display: grid; min-height: 230px; place-items: center; align-content: center; gap: 9px; padding: 18px; overflow: hidden; border: 1px solid rgba(208, 164, 74, 0.22); background: radial-gradient(circle at 50% 35%, rgba(183, 125, 34, 0.13), transparent 35%), rgba(5, 8, 10, 0.77); text-align: center; }
 .market-pack-grid article::before { position: absolute; inset: 7px; border: 1px solid rgba(208, 164, 74, 0.08); content: ""; pointer-events: none; }
-.market-pack-grid article > span { display: grid; width: 56px; height: 56px; place-items: center; border: 1px solid rgba(232, 190, 95, 0.55); border-radius: 50%; color: #f3ce70; background: radial-gradient(circle, rgba(205, 148, 39, 0.34), transparent 68%); font-size: 26px; box-shadow: 0 0 24px rgba(210, 154, 46, 0.13); }
+.market-pack-ingot { display: block; width: 74px; height: 62px; object-fit: contain; filter: drop-shadow(0 7px 8px rgba(0, 0, 0, 0.68)) drop-shadow(0 0 8px rgba(219, 159, 45, 0.16)); }
 .market-pack-grid small { color: #80735c; font-size: 8px; }
 .market-pack-grid strong { color: #f0d187; font: 700 25px/1 Georgia, serif; }
 .market-pack-grid strong i { color: #9f8757; font-size: 10px; font-style: normal; }

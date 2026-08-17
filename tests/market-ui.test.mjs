@@ -156,6 +156,27 @@ test("memory market exposes all four server-backed economy surfaces", async () =
   assert.match(css, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
+test("gold currency uses authored bitmap art instead of CSS bars or surrogate glyphs", async () => {
+  const [board, css] = await Promise.all([
+    readSource("app/market/MarketBoard.tsx"),
+    readSource("app/market/market.css"),
+  ]);
+
+  assert.match(board, /MARKET_GOLD_INGOT_STACK_SRC = "\/assets\/ui\/market\/gold-ingot-stack-v1\.png"/);
+  assert.match(board, /MARKET_GOLD_INGOT_TOKEN_SRC = "\/assets\/ui\/market\/gold-ingot-token-v1\.png"/);
+  assert.match(board, /<img className="market-gold-stack" src=\{MARKET_GOLD_INGOT_STACK_SRC\}/);
+  assert.match(board, /function GoldIngotIcon/);
+  assert.match(board, /<GoldIngotIcon className="market-pack-ingot"/);
+  assert.match(board, /<GoldAmount>/);
+  assert.doesNotMatch(board, /▰/);
+  assert.doesNotMatch(board, /className="market-gold-stack"[^>]*>\s*<i/);
+  assert.match(css, /\.market-gold-stack\s*\{[^}]*object-fit:\s*contain/s);
+  assert.match(css, /\.market-pack-ingot\s*\{[^}]*object-fit:\s*contain/s);
+  assert.match(css, /\.market-balance-gold-icon\s*\{[^}]*object-fit:\s*contain/s);
+  assert.doesNotMatch(css, /\.market-gold-stack\s+i\s*\{/);
+  assert.doesNotMatch(css, /\.market-gold-stack[^}]*skewX/);
+});
+
 test("equipment auction uses one full-width five-view workspace instead of a browse-sell split", async () => {
   const [board, css] = await Promise.all([
     readSource("app/market/MarketBoard.tsx"),

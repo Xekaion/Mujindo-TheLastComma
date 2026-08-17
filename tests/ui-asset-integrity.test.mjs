@@ -41,6 +41,8 @@ const uiPromptFiles = [
   "asset-sources/imagegen/inventory-portrait-mannequin-v1.prompt.json",
   "asset-sources/imagegen/auction-hall-backdrop-v1.prompt.json",
   "asset-sources/imagegen/auction-registry-crest-v1.prompt.json",
+  "asset-sources/imagegen/market-gold-ingot-stack-v1.prompt.json",
+  "asset-sources/imagegen/market-gold-ingot-token-v1.prompt.json",
 ];
 
 function posix(relativePath) {
@@ -309,6 +311,20 @@ test("market ImageGen art keeps fixed release geometry, clean alpha, and ratio-s
       output: "public/assets/ui/market/auction-registry-crest-v1.png",
       outputSha256: "b73fd346a53ea096f73026c412ab8e92ae9d47c8cd37276db1ad286d19bc10e1",
     },
+    {
+      prompt: "asset-sources/imagegen/market-gold-ingot-stack-v1.prompt.json",
+      source: "asset-sources/imagegen/market-gold-ingot-stack-v1-source.png",
+      sourceSha256: "053d4d161963f448f306a2372681d1c82371f65582f8932581eb8c9411b1a43a",
+      output: "public/assets/ui/market/gold-ingot-stack-v1.png",
+      outputSha256: "b5aeee355e3fcf26e70fb9a490f2a9b8bd809e88e191397e3e5c04866a2389e7",
+    },
+    {
+      prompt: "asset-sources/imagegen/market-gold-ingot-token-v1.prompt.json",
+      source: "asset-sources/imagegen/market-gold-ingot-token-v1-source.png",
+      sourceSha256: "be20174951ce4f9f777ba9a3f46148d389feeb5746009d27a2ad18be0959e384",
+      output: "public/assets/ui/market/gold-ingot-token-v1.png",
+      outputSha256: "6c5bf549ee56b3b2e9cd8ee44a74889ecf38994b62e00fe91a9c17c9f7b054e4",
+    },
   ];
 
   for (const record of records) {
@@ -371,6 +387,38 @@ test("market ImageGen art keeps fixed release geometry, clean alpha, and ratio-s
     Math.min(minimumX, minimumY, crest.info.width - 1 - maximumX, crest.info.height - 1 - maximumY) >= 4,
     "the market crest needs a transparent gutter on every side",
   );
+
+  for (const [record, expectedSize] of [
+    [records[2], 512],
+    [records[3], 256],
+  ]) {
+    const goldAsset = await sharp(path.join(root, record.output), { failOn: "error" })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    assert.deepEqual(
+      [goldAsset.info.width, goldAsset.info.height, goldAsset.info.channels],
+      [expectedSize, expectedSize, 4],
+      `${record.output} geometry or alpha layout drifted`,
+    );
+    let goldHiddenRgb = 0;
+    let goldEdgeAlpha = 0;
+    let goldVisiblePixels = 0;
+    for (let y = 0; y < goldAsset.info.height; y += 1) {
+      for (let x = 0; x < goldAsset.info.width; x += 1) {
+        const offset = (y * goldAsset.info.width + x) * 4;
+        const alpha = goldAsset.data[offset + 3];
+        if (alpha > 0) goldVisiblePixels += 1;
+        else if (goldAsset.data[offset] || goldAsset.data[offset + 1] || goldAsset.data[offset + 2]) goldHiddenRgb += 1;
+        if ((x === 0 || y === 0 || x === goldAsset.info.width - 1 || y === goldAsset.info.height - 1) && alpha > 0) {
+          goldEdgeAlpha += 1;
+        }
+      }
+    }
+    assert.equal(goldHiddenRgb, 0, `${record.output} must zero RGB beneath transparent texels`);
+    assert.equal(goldEdgeAlpha, 0, `${record.output} must retain a transparent gutter`);
+    assert.ok(goldVisiblePixels > expectedSize * expectedSize * 0.08, `${record.output} is effectively blank`);
+  }
 
   const marketCss = await readFile(path.join(root, "app", "market", "market.css"), "utf8");
   const backdropRule = marketCss.match(/\.market-backdrop\s*\{([^}]*)\}/)?.[1] ?? "";

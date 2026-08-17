@@ -1,0 +1,14 @@
+{
+  "mode": "generate",
+  "tool": "image_gen",
+  "generatedAt": "2026-08-18",
+  "source": "asset-sources/imagegen/market-gold-ingot-token-v1-source.png",
+  "output": "public/assets/ui/market/gold-ingot-token-v1.png",
+  "processing": {
+    "sourceSize": [1254, 1254],
+    "outputSize": [256, 256],
+    "fit": "transparent trim, Lanczos3 contain at 216px, centered transparent gutter",
+    "alpha": "RGBA with fully transparent RGB zeroed"
+  },
+  "prompt": "Use case: stylized-concept. Asset type: production small currency icon for a premium Korean dark-fantasy ARPG auction house UI, designed to remain readable from 16px through 64px. Primary request: create one original single Mujindo gold ingot token icon. Subject: one compact trapezoidal cast-gold ingot in a strong three-quarter front view, with a broad top face, thick dark lower edge, worn bevels, hammered texture, and one simple deeply stamped abstract diamond-shaped memory seal; the silhouette must be unmistakably a physical gold bar even at very small size. Style/medium: polished hand-painted 2D game UI icon with early-2000s gothic action-RPG material rendering; antique yellow gold, warm amber, muted bronze shadow, narrow pale-ivory specular edge, blackened engraved recesses; simplified high-contrast detail, weighty rather than cute, glossy, plastic, or flat vector. Composition/framing: square canvas, centered isolated object filling about 68% of the canvas, generous even padding, slightly elevated front edge, no crop, no circular badge or surrounding frame. Lighting/mood: controlled warm upper-left highlight, strong dark-light separation, no bloom. Scene/backdrop: perfectly flat solid RGB #FF00FF magenta chroma-key background across every background pixel, no gradient, texture, floor plane, contact shadow, cast shadow, reflection, halo, smoke, or lighting variation; do not use #FF00FF anywhere in the ingot. Constraints: exactly one opaque ingot only; no stack, coins, chest, pouch, text, letters, numbers, logo, watermark, pedestal, border, frame, architecture, character, currency symbol, detached fragments, crystal, sparks, or external shadow; clean continuous magenta moat around the full silhouette."
+}
