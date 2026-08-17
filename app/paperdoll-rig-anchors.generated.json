@@ -7,7 +7,7 @@
   "manifest": {
     "path": "app/paperdoll-rig-manifest.json",
     "bytes": 2096,
-    "sha256": "590a3651d0702bd5b187db75f51565e5bebdfd6093cbbdf77db5ae1a70f9ad1b"
+    "sha256": "bc84a5dc48d6ff45dd7a00f598241c9ed29095ac33ecced0612f9a85970fe834"
   },
   "frame": {
     "width": 256,
@@ -11977,8 +11977,8 @@
     ]
   },
   "integrity": {
-    "inputSha256": "cc584849e007cffedc2ee1f79ae30506cb29c610634ef74246a8828851125880",
+    "inputSha256": "48ee5f2921a1747770199eae48f3cb98d36d6511ef37bc59a8cc75e478d5b053",
     "geometrySha256": "14fe3fa8393a6094f88cb7af0cc3b8c076714e724fea6205e8c68f56b0686140",
-    "payloadSha256": "90d82e6758c9003c079348859574f8d39c9296342eeb6f23523e192d8a0e2940"
+    "payloadSha256": "8be9ed11241db3e29f57df14a25f23b76f5b663b524affcc27199e42909b1276"
   }
 }
