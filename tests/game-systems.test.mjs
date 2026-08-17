@@ -9786,7 +9786,7 @@ test("persistent gear drops draw only authored four-frame portrait pillar sprite
 
 test("the V5 field-loot builder keeps authored frame scale and never recolors one shared atlas", async () => {
   const builder = await readFile(
-    path.join(root, "work/build_rarity_spectacle_assets.py"),
+    path.join(root, "scripts/build_rarity_spectacle_assets.py"),
     "utf8",
   );
   const fixedResize = builder.match(
