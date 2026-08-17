@@ -11955,6 +11955,9 @@ button.equipment-slot-card:hover {
 }
 
 .inventory-screen-tooltip > .inventory-screen-tooltip-chrome {
+  --inventory-tooltip-chrome-safe-inline: 44px;
+  --inventory-tooltip-chrome-safe-top: 44px;
+  --inventory-tooltip-chrome-safe-bottom: 39px;
   position: absolute;
   z-index: 3;
   inset: -26px;
@@ -11964,6 +11967,19 @@ button.equipment-slot-card:hover {
   max-width: none;
   max-height: none;
   opacity: 1;
+  /* The canvas begins 26px outside the tooltip. Keep its filtered frame and
+     aura inside the remaining 18px inline/top and 13px bottom padding bands,
+     leaving the complete scroll/text rectangle optically clean. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) top / 100% var(--inventory-tooltip-chrome-safe-top) no-repeat,
+    linear-gradient(#000 0 0) bottom / 100% var(--inventory-tooltip-chrome-safe-bottom) no-repeat,
+    linear-gradient(#000 0 0) left / var(--inventory-tooltip-chrome-safe-inline) 100% no-repeat,
+    linear-gradient(#000 0 0) right / var(--inventory-tooltip-chrome-safe-inline) 100% no-repeat;
+  mask:
+    linear-gradient(#000 0 0) top / 100% var(--inventory-tooltip-chrome-safe-top) no-repeat,
+    linear-gradient(#000 0 0) bottom / 100% var(--inventory-tooltip-chrome-safe-bottom) no-repeat,
+    linear-gradient(#000 0 0) left / var(--inventory-tooltip-chrome-safe-inline) 100% no-repeat,
+    linear-gradient(#000 0 0) right / var(--inventory-tooltip-chrome-safe-inline) 100% no-repeat;
   filter:
     saturate(1.04)
     drop-shadow(0 0 4px color-mix(in srgb, var(--inventory-rarity) 46%, transparent))

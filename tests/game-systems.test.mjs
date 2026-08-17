@@ -8637,6 +8637,11 @@ test("inventory paperdoll keeps ten square side slots and normalizes frame and a
     /Tooltip rarity panel compositor V1[\s\S]{0,900}?\.inventory-screen-tooltip > \.inventory-screen-tooltip-chrome\s*\{[\s\S]{0,180}?position:\s*absolute;[\s\S]{0,120}?z-index:\s*3;[\s\S]{0,120}?inset:\s*-26px;[\s\S]{0,180}?width:\s*calc\(100% \+ 52px\);[\s\S]{0,120}?height:\s*calc\(100% \+ 52px\);/,
     "the rarity compositor canvas must follow all four outer tooltip edges",
   );
+  assert.match(
+    finalCss,
+    /\.inventory-screen-tooltip > \.inventory-screen-tooltip-chrome\s*\{[\s\S]{0,240}?--inventory-tooltip-chrome-safe-inline:\s*44px;[\s\S]{0,100}?--inventory-tooltip-chrome-safe-top:\s*44px;[\s\S]{0,100}?--inventory-tooltip-chrome-safe-bottom:\s*39px;[\s\S]{0,900}?-webkit-mask:[\s\S]{0,500}?top\s*\/\s*100%\s+var\(--inventory-tooltip-chrome-safe-top\)[\s\S]{0,500}?bottom\s*\/\s*100%\s+var\(--inventory-tooltip-chrome-safe-bottom\)[\s\S]{0,500}?left\s*\/\s*var\(--inventory-tooltip-chrome-safe-inline\)\s+100%[\s\S]{0,500}?right\s*\/\s*var\(--inventory-tooltip-chrome-safe-inline\)\s+100%/,
+    "the filtered rarity frame must remain outside the complete tooltip text rectangle",
+  );
   assert.match(tooltipChrome, /data-frame-layout="fixed-corners-tiled-rails-cardinal-crests"/);
   assert.match(tooltipChrome, /new ResizeObserver\(render\)[\s\S]{0,120}?resizeObserver\.observe\(canvas\)/);
   assert.match(finalCss, /\.inventory-screen-tooltip::before,[\s\S]{0,100}?\.inventory-screen-tooltip::after,[\s\S]{0,100}?\.inventory-screen-tooltip-crest::after\s*\{[\s\S]{0,120}?display:\s*none;[\s\S]{0,100}?content:\s*none;/);
