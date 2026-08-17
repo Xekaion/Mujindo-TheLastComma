@@ -8861,50 +8861,173 @@ button.equipment-slot-card:hover {
   height: 96%;
   pointer-events: none;
   transform: translate(-50%, -50%);
+  --inventory-paperdoll-rarity: #c49b58;
 }
 
 .inventory-screen-paperdoll-figure::before {
   position: absolute;
   z-index: 0;
-  inset: 0;
-  background: url("/assets/ui/inventory-paperdoll-figure.png") center / contain no-repeat;
+  inset: 4% -12%;
+  border-radius: 48%;
+  background:
+    radial-gradient(ellipse at 50% 44%, color-mix(in srgb, var(--inventory-paperdoll-rarity) 13%, transparent), transparent 58%),
+    linear-gradient(90deg, transparent 49.6%, rgba(218, 178, 105, 0.075) 50%, transparent 50.4%);
   content: "";
   filter:
     drop-shadow(0 8px 16px rgba(0, 0, 0, 0.88))
     drop-shadow(0 0 18px rgba(196, 145, 64, 0.13));
-  opacity: 0.88;
-  transition: opacity 180ms ease;
+  opacity: 0.9;
 }
 
-.inventory-screen-paperdoll-figure.is-ready::before {
-  opacity: 0;
+.inventory-screen-paperdoll-proportion-guide {
+  position: absolute;
+  z-index: 0;
+  inset: 5% -8%;
+  border: 1px solid color-mix(in srgb, var(--inventory-paperdoll-rarity) 25%, transparent);
+  border-radius: 50%;
+  box-shadow:
+    inset 0 0 34px rgba(0, 0, 0, 0.24),
+    0 0 26px color-mix(in srgb, var(--inventory-paperdoll-rarity) 7%, transparent);
+  opacity: 0.72;
 }
 
-.inventory-screen-paperdoll-canvas {
+.inventory-screen-paperdoll-proportion-guide::before {
+  position: absolute;
+  inset: 9% 16%;
+  border: 1px solid color-mix(in srgb, var(--inventory-paperdoll-rarity) 15%, transparent);
+  background:
+    linear-gradient(90deg, transparent 49.7%, rgba(221, 185, 117, 0.08) 50%, transparent 50.3%),
+    linear-gradient(0deg, transparent 49.7%, rgba(221, 185, 117, 0.055) 50%, transparent 50.3%);
+  content: "";
+}
+
+.inventory-screen-paperdoll-stage {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  filter:
+    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 14px color-mix(in srgb, var(--inventory-paperdoll-rarity, #c49b58) 22%, transparent));
+  transform: translate(-50%, -50%);
+  transform-origin: 50% 88%;
+}
+
+.inventory-screen-paperdoll-base {
   position: absolute;
   z-index: 1;
   inset: 0;
   display: block;
   width: 100%;
   height: 100%;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: contain;
+  filter: saturate(0.72) brightness(0.88) sepia(0.06);
+  opacity: 0.95;
+  user-select: none;
+}
+
+.inventory-screen-paperdoll-piece,
+.inventory-screen-paperdoll-fitted-piece {
+  --inventory-paperdoll-piece-glow: rgba(206, 184, 143, 0.28);
+}
+
+.inventory-screen-paperdoll-fitted-piece {
+  position: absolute;
+  inset: 0;
+}
+
+.inventory-screen-paperdoll-fitted-layer {
+  position: absolute;
+  inset: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: auto 109%;
   filter:
-    drop-shadow(0 8px 16px rgba(0, 0, 0, 0.9))
-    drop-shadow(0 0 14px color-mix(in srgb, var(--inventory-paperdoll-rarity, #c49b58) 22%, transparent));
-  opacity: 0;
-  transform-origin: 50% 92%;
-  transition: opacity 180ms ease;
+    hue-rotate(var(--inventory-portrait-variant-hue, 0deg))
+    saturate(1.08)
+    brightness(0.98)
+    drop-shadow(0 4px 5px rgba(0, 0, 0, 0.82))
+    drop-shadow(0 0 4px var(--inventory-paperdoll-piece-glow));
 }
 
-.inventory-screen-paperdoll-figure.is-ready .inventory-screen-paperdoll-canvas {
-  opacity: 1;
+.inventory-screen-paperdoll-fitted-layer--helm {
+  clip-path: polygon(32% 0, 68% 0, 70% 21%, 30% 21%);
 }
 
-.inventory-screen-paperdoll-figure.is-swapping .inventory-screen-paperdoll-canvas {
+.inventory-screen-paperdoll-fitted-layer--shoulders {
+  clip-path: polygon(15% 12%, 85% 12%, 88% 32%, 12% 32%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--armor {
+  clip-path: polygon(26% 18%, 74% 18%, 75% 52%, 25% 52%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--gloves {
+  clip-path: polygon(10% 22%, 39% 22%, 36% 59%, 7% 59%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--gloves-right {
+  clip-path: polygon(61% 22%, 90% 22%, 93% 59%, 64% 59%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--belt {
+  clip-path: polygon(27% 40%, 73% 40%, 73% 55%, 27% 55%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--legs {
+  clip-path: polygon(27% 47%, 73% 47%, 71% 84%, 29% 84%);
+}
+
+.inventory-screen-paperdoll-fitted-layer--boots {
+  clip-path: polygon(27% 79%, 73% 79%, 72% 100%, 28% 100%);
+}
+
+.inventory-screen-paperdoll-piece {
+  position: absolute;
+  aspect-ratio: 1;
+  filter:
+    saturate(1.05)
+    contrast(1.04)
+    drop-shadow(0 4px 5px rgba(0, 0, 0, 0.84))
+    drop-shadow(0 0 5px var(--inventory-paperdoll-piece-glow));
+  opacity: 0.98;
+  transform-origin: 50% 55%;
+}
+
+.inventory-screen-paperdoll-piece[data-rarity="magic"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="magic"] { --inventory-paperdoll-piece-glow: rgba(77, 164, 255, 0.48); }
+.inventory-screen-paperdoll-piece[data-rarity="superior"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="superior"] { --inventory-paperdoll-piece-glow: rgba(100, 201, 113, 0.48); }
+.inventory-screen-paperdoll-piece[data-rarity="rare"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="rare"] { --inventory-paperdoll-piece-glow: rgba(98, 215, 194, 0.5); }
+.inventory-screen-paperdoll-piece[data-rarity="epic"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="epic"] { --inventory-paperdoll-piece-glow: rgba(180, 93, 255, 0.54); }
+.inventory-screen-paperdoll-piece[data-rarity="legendary"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="legendary"] { --inventory-paperdoll-piece-glow: rgba(255, 155, 63, 0.58); }
+.inventory-screen-paperdoll-piece[data-rarity="mythic"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="mythic"] { --inventory-paperdoll-piece-glow: rgba(255, 72, 120, 0.6); }
+.inventory-screen-paperdoll-piece[data-rarity="cosmic"],
+.inventory-screen-paperdoll-fitted-piece[data-rarity="cosmic"] { --inventory-paperdoll-piece-glow: rgba(185, 102, 255, 0.64); }
+
+.inventory-screen-paperdoll-piece--weapon,
+.inventory-screen-paperdoll-piece--offhand {
+  filter:
+    saturate(1.08)
+    contrast(1.06)
+    drop-shadow(0 6px 7px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 0 7px var(--inventory-paperdoll-piece-glow));
+}
+
+.inventory-screen-paperdoll-stage.is-swapping {
   animation: inventory-paperdoll-equip-pulse 520ms cubic-bezier(0.2, 0.75, 0.2, 1);
 }
 
 .inventory-screen-paperdoll-figure[data-paperdoll-rarity="magic"] { --inventory-paperdoll-rarity: #4da4ff; }
-.inventory-screen-paperdoll-figure[data-paperdoll-rarity="uncommon"] { --inventory-paperdoll-rarity: #64c971; }
+.inventory-screen-paperdoll-figure[data-paperdoll-rarity="superior"] { --inventory-paperdoll-rarity: #64c971; }
 .inventory-screen-paperdoll-figure[data-paperdoll-rarity="rare"] { --inventory-paperdoll-rarity: #62d7c2; }
 .inventory-screen-paperdoll-figure[data-paperdoll-rarity="epic"] { --inventory-paperdoll-rarity: #b45dff; }
 .inventory-screen-paperdoll-figure[data-paperdoll-rarity="legendary"] { --inventory-paperdoll-rarity: #ff9b3f; }
@@ -8924,13 +9047,13 @@ button.equipment-slot-card:hover {
 }
 
 @keyframes inventory-paperdoll-equip-pulse {
-  0% { filter: brightness(1.5) drop-shadow(0 0 24px var(--inventory-paperdoll-rarity, #c49b58)); transform: scale(1.012); }
-  42% { filter: brightness(1.12) drop-shadow(0 0 18px color-mix(in srgb, var(--inventory-paperdoll-rarity, #c49b58) 58%, transparent)); }
-  100% { filter: brightness(1) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.9)); transform: scale(1); }
+  0% { filter: brightness(1.42) drop-shadow(0 0 24px var(--inventory-paperdoll-rarity, #c49b58)); transform: translate(-50%, -50%) scale(1.018); }
+  42% { filter: brightness(1.1) drop-shadow(0 0 18px color-mix(in srgb, var(--inventory-paperdoll-rarity, #c49b58) 58%, transparent)); }
+  100% { filter: brightness(1) drop-shadow(0 8px 16px rgba(0, 0, 0, 0.9)); transform: translate(-50%, -50%) scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inventory-screen-paperdoll-figure.is-swapping .inventory-screen-paperdoll-canvas {
+  .inventory-screen-paperdoll-stage.is-swapping {
     animation: none;
   }
 }

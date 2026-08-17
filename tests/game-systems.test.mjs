@@ -10418,56 +10418,90 @@ test("rare and higher inventory aura frames share one exact slot-sized normalize
   assert.match(auraCss, /@keyframes\s+inventory-rarity-aura-frames-v3\s*\{[\s\S]{0,620}?87\.5%,\s*100%\s*\{\s*background-position:\s*100%\s+100%;/);
 });
 
-test("the inventory paperdoll figure preserves its authored silhouette and generous safe area", async () => {
-  const assetPath = "public/assets/ui/inventory-paperdoll-figure.png";
-  const [png, overlay, portrait, css] = await Promise.all([
+test("the inventory uses a fixed front-facing illustrated mannequin with all ten live gear cells", async () => {
+  const assetPath = "public/assets/ui/inventory-portrait/mannequin-base-v1.png";
+  const fittedAssetPath = "public/assets/ui/inventory-portrait/fitted-armor-v1.png";
+  const equipmentUrl = await typeScriptModuleUrl("app/equipment.ts");
+  const [png, fittedPng, overlay, portrait, portraitSource, css, equipment, portraitModule, prompt] = await Promise.all([
     readFile(path.join(root, assetPath)),
+    readFile(path.join(root, fittedAssetPath)),
     readFile(path.join(root, "app/InventoryOverlay.tsx"), "utf8"),
     readFile(path.join(root, "app/InventoryPaperdollFigure.tsx"), "utf8"),
+    readFile(path.join(root, "app/inventory-paperdoll-portrait.ts"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
+    import(equipmentUrl),
+    importTypeScriptModule("app/inventory-paperdoll-portrait.ts", {
+      "./equipment": equipmentUrl,
+    }),
+    readFile(
+      path.join(root, "asset-sources/imagegen/inventory-portrait-mannequin-v1.prompt.json"),
+      "utf8",
+    ).then(JSON.parse),
   ]);
+
   const figure = decodeRgbaPng(png, assetPath);
-  assert.deepEqual([figure.width, figure.height], [1023, 1537]);
-  const margins = alphaCellMetrics(figure, 0, 0, 1, 1, "inventory paperdoll figure");
-  assert.ok(margins.left >= 200, `paperdoll left alpha gutter is ${margins.left}px`);
-  assert.ok(margins.right >= 200, `paperdoll right alpha gutter is ${margins.right}px`);
-  assert.ok(margins.top >= 70, `paperdoll top alpha gutter is ${margins.top}px`);
-  assert.ok(margins.bottom >= 120, `paperdoll bottom alpha gutter is ${margins.bottom}px`);
+  assert.deepEqual([figure.width, figure.height], [1024, 1536]);
+  const margins = alphaCellMetrics(figure, 0, 0, 1, 1, "inventory portrait mannequin");
+  assert.ok(margins.left >= 140, `mannequin left alpha gutter is ${margins.left}px`);
+  assert.ok(margins.right >= 140, `mannequin right alpha gutter is ${margins.right}px`);
+  assert.ok(margins.top >= 20, `mannequin top alpha gutter is ${margins.top}px`);
+  assert.ok(margins.bottom >= 35, `mannequin bottom alpha gutter is ${margins.bottom}px`);
+  for (const [x, y] of [[0, 0], [figure.width - 1, 0], [0, figure.height - 1], [figure.width - 1, figure.height - 1]]) {
+    assert.equal(figure.pixels[(y * figure.width + x) * 4 + 3], 0, "mannequin corners must remain transparent");
+  }
+  assert.equal(prompt.generator, "OpenAI built-in image_gen");
+  assert.equal(prompt.postprocess.totalPixels, 1024 * 1536);
+  const fittedFigure = decodeRgbaPng(fittedPng, fittedAssetPath);
+  assert.deepEqual([fittedFigure.width, fittedFigure.height], [941, 1672]);
+  for (const [x, y] of [[0, 0], [fittedFigure.width - 1, 0], [0, fittedFigure.height - 1], [fittedFigure.width - 1, fittedFigure.height - 1]]) {
+    assert.equal(fittedFigure.pixels[(y * fittedFigure.width + x) * 4 + 3], 0, "fitted armor corners must remain transparent");
+  }
+  assert.equal(prompt.fittedArmorPostprocess.totalPixels, 941 * 1672);
 
   assert.match(
     overlay,
     /<InventoryPaperdollFigure equipment=\{equipment\} \/>/,
     "the inventory center portrait must consume the live ten-slot equipment loadout",
   );
-  assert.match(
-    css,
-    /\.inventory-screen-paperdoll-figure::before\s*\{[\s\S]{0,500}?url\(["']?\/assets\/ui\/inventory-paperdoll-figure\.png["']?\)[\s\S]{0,160}?contain\s+no-repeat/,
-    "the authored high-resolution portrait must remain a bounded loading fallback",
-  );
-  assert.match(portrait, /paperdollLoadoutFromEquipment\(equipment\)/);
-  assert.match(portrait, /createPaperdollEquipmentSignature\(equipment\)/);
-  assert.match(portrait, /paperdollLayerPathsForLoadout\(loadout\)/);
-  assert.match(portrait, /drawPaperdollCharacter\(context,/);
-  assert.match(portrait, /PORTRAIT_DIRECTION\s*=\s*0/);
-  assert.match(portrait, /PORTRAIT_IDLE_FRAME\s*=\s*1/);
-  assert.match(portrait, /PORTRAIT_LOAD_POLL_MAX_MS\s*=\s*1_000/);
-  assert.match(portrait, /PORTRAIT_LOAD_TIMEOUT_MS\s*=\s*36_000/);
-  assert.match(portrait, /Date\.now\(\)\s*>=\s*loadDeadline/);
-  assert.match(portrait, /Math\.min\(PORTRAIT_LOAD_POLL_MAX_MS,\s*pollDelay\s*\*\s*2\)/);
+  assert.match(portrait, /data-portrait-mode="illustrated"/);
+  assert.match(portrait, /INVENTORY_PORTRAIT_BASE_PATH/);
+  assert.match(portrait, /INVENTORY_PORTRAIT_FITTED_ARMOR_PATH/);
+  assert.match(portrait, /inventoryPortraitPieces\(equipment\)/);
   assert.match(portrait, /role="img"[\s\S]{0,120}?aria-label=\{portraitLabel\}/);
-  assert.match(
-    portrait,
-    /layerPaths\.every\([\s\S]{0,160}?isPaperdollLayerAtlasReady/,
-    "the previous complete portrait must remain visible until every new wearable atlas is ready",
+  assert.doesNotMatch(portrait, /character-paperdoll|drawPaperdollCharacter|<canvas|requestAnimationFrame/);
+  assert.doesNotMatch(portraitSource, /character-paperdoll|PAPERDOLL_DIRECTION|PORTRAIT_IDLE_FRAME/);
+  assert.match(portraitSource, /equipment-types-v4\.png/);
+  assert.match(portraitSource, /inventory-portrait\/fitted-armor-v1\.png/);
+  assert.match(css, /\.inventory-screen-paperdoll-stage\s*\{[\s\S]{0,260}?aspect-ratio:\s*2\s*\/\s*3/);
+  assert.match(css, /\.inventory-screen-paperdoll-base\s*\{[\s\S]{0,360}?background-size:\s*contain/);
+  assert.match(css, /\.inventory-screen-paperdoll-piece\s*\{[\s\S]{0,260}?aspect-ratio:\s*1/);
+  assert.match(css, /\.inventory-screen-paperdoll-fitted-layer--armor\s*\{[\s\S]{0,180}?clip-path:\s*polygon/);
+  assert.match(css, /\.inventory-screen-paperdoll-fitted-layer--gloves-right\s*\{[\s\S]{0,180}?clip-path:\s*polygon/);
+  assert.doesNotMatch(css, /\.inventory-screen-paperdoll-figure\.is-ready::before\s*\{[^}]*opacity:\s*0/);
+
+  assert.deepEqual(
+    [...portraitModule.INVENTORY_PORTRAIT_SLOT_ORDER].sort(),
+    [...equipment.EQUIPMENT_SLOTS].sort(),
+    "the illustration compositor must cover every equipment slot exactly once",
   );
-  assert.match(
-    css,
-    /\.inventory-screen-paperdoll-figure\.is-ready::before\s*\{[^}]*opacity:\s*0;/,
-  );
-  assert.match(
-    css,
-    /\.inventory-screen-paperdoll-canvas\s*\{[\s\S]{0,260}?inset:\s*0;[\s\S]{0,220}?width:\s*100%;[\s\S]{0,120}?height:\s*100%;/,
-  );
+  for (const [slotIndex, slot] of equipment.EQUIPMENT_SLOTS.entries()) {
+    const geometry = portraitModule.INVENTORY_PORTRAIT_SLOT_GEOMETRY[slot];
+    assert.ok(geometry.left >= -5 && geometry.left + geometry.width <= 105, `${slot} horizontal placement escapes the portrait safe area`);
+    assert.ok(geometry.top >= -3 && geometry.top + geometry.width * (2 / 3) <= 115, `${slot} vertical placement escapes the portrait safe area`);
+    for (let row = 0; row < equipment.GEAR_ICON_ROWS; row += 1) {
+      const item = {
+        id: `${slot}-${row}`,
+        slot,
+        iconIndex: row * equipment.GEAR_ICON_COLUMNS + slotIndex,
+        rarity: "common",
+        enhancement: 0,
+      };
+      const piece = portraitModule.resolveInventoryPortraitPiece(slot, item);
+      assert.equal(piece.column, slotIndex, `${slot} row ${row} atlas column drifted`);
+      assert.equal(piece.row, row, `${slot} row ${row} atlas row drifted`);
+      assert.equal(piece.geometry, geometry);
+    }
+  }
 });
 
 test("tight inventory chrome and control assets keep safe alpha margins and individual CSS consumers", async () => {

@@ -1,0 +1,48 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "mode": "generate, precise-object-edit, then identity-preserving fitted armor edit",
+  "useCase": "stylized-concept",
+  "assetType": "front-facing game inventory equipment mannequin base",
+  "source": "asset-sources/imagegen/inventory-portrait-mannequin-v1-source.png",
+  "keyedSource": "asset-sources/imagegen/inventory-portrait-mannequin-v1-keyed.png",
+  "output": "public/assets/ui/inventory-portrait/mannequin-base-v1.png",
+  "generationPrompt": "Create one full-body adult human equipment mannequin for a dark gothic action RPG inventory screen: perfectly front-facing, centered, orthographic, anatomically balanced Vitruvian-inspired proportions, restrained A-pose with relaxed visible hands and slightly separated legs, matte charcoal fitted under-suit and foot wraps only, painterly 2D dark-fantasy game illustration, no equipment, weapon, shield, cloak, jewelry, text, watermark, cropped limbs, walking pose, nudity, or background scene.",
+  "backgroundEditPrompt": "Change only the background behind the anchored character to a perfectly flat fully saturated solid #00ff00 chroma key. Preserve identity, anatomy, pose, proportions, crop, under-suit, lighting on the body, sharpness, and full-body framing. Remove every halo, vignette, gradient, floor, cast shadow, reflection, and background variation.",
+  "fittedArmorSource": "asset-sources/imagegen/inventory-portrait-fitted-armor-v1-keyed.png",
+  "fittedArmorOutput": "public/assets/ui/inventory-portrait/fitted-armor-v1.png",
+  "fittedArmorPrompt": "Dress the exact anchored front-facing figure in one cohesive fitted dark-fantasy armor set: engraved dark iron helmet, symmetrical pauldrons, articulated chest armor, paired forearm gauntlets, narrow belt, segmented thigh and shin armor, and matching boots. Preserve identity, gaze, torso, A-pose arms, hands, legs, body proportions, crop, scale, and the flat #00ff00 background. Keep hands empty; no weapon, shield, relic, cloak, text, shadow, or background variation.",
+  "postprocess": {
+    "tool": "C:/Users/49ka1/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ],
+    "detectedKey": "#07f807",
+    "transparentPixels": 1182147,
+    "partiallyTransparentPixels": 8304,
+    "totalPixels": 1572864
+  },
+  "fittedArmorPostprocess": {
+    "tool": "C:/Users/49ka1/.codex/skills/.system/imagegen/scripts/remove_chroma_key.py",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill"
+    ],
+    "detectedKey": "#05f806",
+    "transparentPixels": 1162671,
+    "partiallyTransparentPixels": 9236,
+    "totalPixels": 1573352
+  }
+}

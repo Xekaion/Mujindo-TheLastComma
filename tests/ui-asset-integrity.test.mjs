@@ -38,6 +38,7 @@ const uiPromptFiles = [
   "asset-sources/imagegen/divine-forge-ui-v1.prompt.json",
   "asset-sources/imagegen/inventory-enhancement-button-v1.prompt.json",
   "asset-sources/imagegen/gothic-panel-assets-v2.prompt.json",
+  "asset-sources/imagegen/inventory-portrait-mannequin-v1.prompt.json",
 ];
 
 function posix(relativePath) {
@@ -215,7 +216,10 @@ test("runtime UI references resolve and standalone art uses ratio-safe rendering
     assert.ok(gameCss.lastIndexOf(atlas) < marker, `${atlas} must not win after the tight-asset cascade`);
   }
 
-  assert.match(gameCss, /inventory-paperdoll-figure\.png["']?\)\s+center\s*\/\s*contain\s+no-repeat/);
+  assert.match(runtimeSource, /inventory-portrait\/mannequin-base-v1\.png/);
+  assert.match(runtimeSource, /equipment\/equipment-types-v4\.png/);
+  assert.match(gameCss, /\.inventory-screen-paperdoll-base\s*\{[\s\S]{0,360}?background-size:\s*contain/);
+  assert.match(gameCss, /\.inventory-screen-paperdoll-stage\s*\{[\s\S]{0,260}?aspect-ratio:\s*2\s*\/\s*3/);
   assert.match(gameCss, /inventory-sanctum-v2\.png["']?\)\s+center\s*\/\s*cover\s+no-repeat/);
   assert.match(gameCss, /divine-forge-(?:crest|title|socket|button)-v1\.png["']?\)\s+center\s*\/\s*contain\s+no-repeat/);
   assert.match(gameCss, /enhancement-button-v1\.png["']?\)\s+27%\s+4%\s+27%\s+4%\s+fill/);
@@ -325,6 +329,8 @@ test("UI build reports and ImageGen prompts resolve only versioned, hash-locked 
     "generatedSource",
     "keyedSource",
     "selectedSource",
+    "fittedArmorSource",
+    "fittedArmorOutput",
     "productionBuilder",
     "builder",
   ]);

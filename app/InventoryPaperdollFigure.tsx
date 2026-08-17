@@ -1,378 +1,110 @@
+import type { CSSProperties } from "react";
 import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import {
-  EQUIPMENT_SLOT_LABELS,
-  EQUIPMENT_SLOTS,
-  GEAR_RARITIES,
+  GEAR_ICON_COLUMNS,
+  GEAR_ICON_ROWS,
   type EquipmentLoadout,
-  type GearRarity,
 } from "./equipment";
 import {
-  PAPERDOLL_BODY_PATH,
-  PAPERDOLL_FRAME_HEIGHT,
-  PAPERDOLL_FRAME_WIDTH,
-  createPaperdollEquipmentSignature,
-  drawPaperdollCharacter,
-  isPaperdollBodyAtlasReady,
-  isPaperdollLayerAtlasReady,
-  paperdollLayerPathsForLoadout,
-  paperdollLoadoutFromEquipment,
-} from "./character-paperdoll";
-import {
-  EQUIPPED_RARITY_VFX_PATHS,
-  drawEquippedRarityVfx,
-  resolveEquippedRarityVfxPlan,
-  type EquippedRarityVfxImageMap,
-  type EquippedRarityVfxTier,
-} from "./equipped-rarity-vfx";
-import { createBrowserPaperdollImageStore } from "./paperdoll-image-store";
+  INVENTORY_PORTRAIT_BASE_PATH,
+  INVENTORY_PORTRAIT_FITTED_ARMOR_PATH,
+  INVENTORY_PORTRAIT_GEAR_ATLAS_PATH,
+  createInventoryPortraitSignature,
+  inventoryPortraitAppearanceLabel,
+  inventoryPortraitPieces,
+  inventoryPortraitVariantHue,
+  isInventoryPortraitFittedSlot,
+  strongestInventoryPortraitRarity,
+} from "./inventory-paperdoll-portrait";
 
 export type InventoryPaperdollFigureProps = Readonly<{
   equipment: EquipmentLoadout;
 }>;
 
-const PORTRAIT_DIRECTION = 0;
-const PORTRAIT_IDLE_FRAME = 1;
-const PORTRAIT_LOAD_POLL_MS = 40;
-const PORTRAIT_LOAD_POLL_MAX_MS = 1_000;
-const PORTRAIT_LOAD_TIMEOUT_MS = 36_000;
-const PORTRAIT_RARITY_VFX_FRAME_MS = 1_000 / 11;
-const MAX_PORTRAIT_DPR = 2;
-
-function arePortraitSourcesReady(
-  imageStore: ReturnType<typeof createBrowserPaperdollImageStore>,
-  layerPaths: readonly string[],
-) {
-  const bodyAtlas = imageStore.get(PAPERDOLL_BODY_PATH);
-  if (!isPaperdollBodyAtlasReady(bodyAtlas)) return false;
-  return layerPaths.every((path) =>
-    isPaperdollLayerAtlasReady(imageStore.get(path)),
-  );
-}
-
-function strongestEquippedRarity(equipment: EquipmentLoadout): GearRarity {
-  let rarity: GearRarity = "common";
-  let rarityIndex = 0;
-  for (const slot of EQUIPMENT_SLOTS) {
-    const item = equipment[slot];
-    if (!item) continue;
-    const itemIndex = GEAR_RARITIES.indexOf(item.rarity);
-    if (itemIndex > rarityIndex) {
-      rarity = item.rarity;
-      rarityIndex = itemIndex;
-    }
-  }
-  return rarity;
-}
-
-function equippedAppearanceLabel(equipment: EquipmentLoadout): string {
-  const equippedSlots = EQUIPMENT_SLOTS.filter((slot) => equipment[slot]);
-  if (equippedSlots.length === 0) return "장비를 착용하지 않은 현재 캐릭터 전신 외형";
-  return `현재 캐릭터 전신 외형. ${equippedSlots
-    .map((slot) => EQUIPMENT_SLOT_LABELS[slot])
-    .join(", ")} 장착 반영`;
-}
-
 /**
- * Inventory-only portrait viewport for the canonical ten-slot paperdoll.
+ * Inventory-only illustrated equipment mannequin.
  *
- * The same registered body and wearable atlases used in combat are sampled at
- * their exact coordinates. The wide 4:3 source cell is deliberately rendered
- * through a narrow portrait viewport: only transparent side gutters are
- * clipped, while even the widest weapon/offhand silhouettes remain inside the
- * safe center column.
+ * Combat and plaza paperdolls intentionally use small directional animation
+ * atlases. This screen instead keeps a fixed orthographic human proportion
+ * study and composes fitted armour layers plus the equipped held-item artwork
+ * over their anatomical slots. It never samples a walk direction or movement
+ * frame.
  */
 export default function InventoryPaperdollFigure({
   equipment,
 }: InventoryPaperdollFigureProps) {
-  const hostRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const imageStoreRef = useRef<ReturnType<
-    typeof createBrowserPaperdollImageStore
-  > | null>(null);
-  const hasRenderedRef = useRef(false);
-  const [hasRendered, setHasRendered] = useState(false);
-
-  if (imageStoreRef.current === null) {
-    imageStoreRef.current = createBrowserPaperdollImageStore();
-  }
-
-  const equipmentSignature = createPaperdollEquipmentSignature(equipment);
-  const loadout = useMemo(
-    () => paperdollLoadoutFromEquipment(equipment),
-    // The HUD clones equipment for safe React snapshots. Its object identity
-    // can therefore change while the ten visual fields remain identical.
-    // The canonical signature is the actual portrait invalidation boundary.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [equipmentSignature],
-  );
-  const layerPaths = useMemo(
-    () => paperdollLayerPathsForLoadout(loadout),
-    [loadout],
-  );
-  const rarityVfxPlan = useMemo(
-    () => resolveEquippedRarityVfxPlan(loadout),
-    [loadout],
-  );
-  const portraitRarity = useMemo(
-    () => strongestEquippedRarity(equipment),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [equipmentSignature],
-  );
-  const portraitLabel = useMemo(
-    () => equippedAppearanceLabel(equipment),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [equipmentSignature],
-  );
-
-  useEffect(() => {
-    const imageStore = imageStoreRef.current;
-    return () => imageStore?.clear();
-  }, []);
-
-  useEffect(() => {
-    const host = hostRef.current;
-    const canvas = canvasRef.current;
-    const imageStore = imageStoreRef.current;
-    if (!host || !canvas || !imageStore) return undefined;
-
-    let cancelled = false;
-    let pollTimer: number | undefined;
-    let pulseTimer: number | undefined;
-    let animationFrame: number | undefined;
-    let lastAnimationDrawAt = 0;
-    let didTriggerSwapPulse = false;
-    let reducedMotion = false;
-    let pollDelay = PORTRAIT_LOAD_POLL_MS;
-    const loadDeadline = Date.now() + PORTRAIT_LOAD_TIMEOUT_MS;
-    const requiredPaths = [PAPERDOLL_BODY_PATH, ...layerPaths];
-    const rarityVfxImages: Partial<
-      Record<EquippedRarityVfxTier, HTMLImageElement>
-    > = {};
-    const rarityVfxImageList: HTMLImageElement[] = [];
-    const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    reducedMotion = motionQuery.matches;
-    imageStore.reconcile(requiredPaths);
-
-    let portraitViewport: Readonly<{
-      width: number;
-      height: number;
-      dpr: number;
-    }> | null = null;
-
-    const syncPortraitViewport = () => {
-      // All portrait geometry is authored in the untransformed game plane.
-      // getBoundingClientRect() reports post-transform pixels, so it may tune
-      // backing resolution but must never become a drawing coordinate.
-      const logicalWidth = host.clientWidth;
-      const logicalHeight = host.clientHeight;
-      if (logicalWidth <= 0 || logicalHeight <= 0) {
-        portraitViewport = null;
-        return false;
-      }
-      const renderedBounds = host.getBoundingClientRect();
-      const renderedScale = Math.max(
-        0.01,
-        Math.min(
-          renderedBounds.width / logicalWidth,
-          renderedBounds.height / logicalHeight,
-        ),
-      );
-      const dpr = Math.min(
-        MAX_PORTRAIT_DPR,
-        Math.max(1, (window.devicePixelRatio || 1) * renderedScale),
-      );
-      const pixelWidth = Math.max(1, Math.round(logicalWidth * dpr));
-      const pixelHeight = Math.max(1, Math.round(logicalHeight * dpr));
-      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
-      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
-      portraitViewport = {
-        width: logicalWidth,
-        height: logicalHeight,
-        dpr,
-      };
-      return true;
-    };
-
-    const drawLoadedPortrait = (timeMs = performance.now()) => {
-      if (cancelled) return false;
-      if (!arePortraitSourcesReady(imageStore, layerPaths)) return false;
-      const bodyAtlas = imageStore.get(PAPERDOLL_BODY_PATH)!;
-      if (!portraitViewport && !syncPortraitViewport()) return false;
-      const {
-        width: logicalWidth,
-        height: logicalHeight,
-        dpr,
-      } = portraitViewport!;
-
-      const context = canvas.getContext("2d");
-      if (!context) return false;
-      context.setTransform(dpr, 0, 0, dpr, 0, 0);
-      context.clearRect(0, 0, logicalWidth, logicalHeight);
-
-      // 1.2× the viewport width is the audited no-crop height for the widest
-      // v2 weapon/relic silhouette; the panel height remains the other bound.
-      const portraitHeight = Math.max(
-        1,
-        Math.min(logicalHeight * 0.965, logicalWidth * 1.2),
-      );
-      const portraitWidth =
-        portraitHeight * (PAPERDOLL_FRAME_WIDTH / PAPERDOLL_FRAME_HEIGHT);
-      const drawn = drawPaperdollCharacter(context, {
-        bodyAtlas,
-        layerSources: imageStore.imageMap(),
-        loadout,
-        direction: PORTRAIT_DIRECTION,
-        frame: PORTRAIT_IDLE_FRAME,
-        x: logicalWidth / 2,
-        y: logicalHeight * 0.975,
-        width: portraitWidth,
-        height: portraitHeight,
-      });
-      if (!drawn) return false;
-
-      drawEquippedRarityVfx(context, {
-        plan: rarityVfxPlan,
-        images: rarityVfxImages satisfies EquippedRarityVfxImageMap,
-        direction: PORTRAIT_DIRECTION,
-        frame: PORTRAIT_IDLE_FRAME,
-        timeMs,
-        x: logicalWidth / 2,
-        y: logicalHeight * 0.975,
-        width: portraitWidth,
-        height: portraitHeight,
-        context: "portrait",
-        reducedMotion,
-      });
-
-      if (!hasRenderedRef.current) {
-        hasRenderedRef.current = true;
-        setHasRendered(true);
-      }
-      // Re-adding on the next frame gives every successful equipment swap one
-      // restrained, visible pulse without continuously animating the canvas.
-      if (!didTriggerSwapPulse) {
-        didTriggerSwapPulse = true;
-        host.classList.remove("is-swapping");
-        window.requestAnimationFrame(() => {
-          if (cancelled) return;
-          host.classList.add("is-swapping");
-          pulseTimer = window.setTimeout(() => {
-            host.classList.remove("is-swapping");
-          }, 520);
-        });
-      }
-      return true;
-    };
-
-    const stopRarityVfxAnimation = () => {
-      if (animationFrame === undefined) return;
-      window.cancelAnimationFrame(animationFrame);
-      animationFrame = undefined;
-    };
-
-    const animateRarityVfx = (timeMs: number) => {
-      if (cancelled || reducedMotion || rarityVfxPlan.pieces.length === 0) {
-        animationFrame = undefined;
-        return;
-      }
-      if (timeMs - lastAnimationDrawAt >= PORTRAIT_RARITY_VFX_FRAME_MS) {
-        lastAnimationDrawAt = timeMs;
-        drawLoadedPortrait(timeMs);
-      }
-      animationFrame = window.requestAnimationFrame(animateRarityVfx);
-    };
-
-    const startRarityVfxAnimation = () => {
-      if (
-        cancelled ||
-        reducedMotion ||
-        rarityVfxPlan.pieces.length === 0 ||
-        animationFrame !== undefined
-      ) return;
-      lastAnimationDrawAt = 0;
-      animationFrame = window.requestAnimationFrame(animateRarityVfx);
-    };
-
-    const handleMotionPreference = (event: MediaQueryListEvent) => {
-      reducedMotion = event.matches;
-      if (reducedMotion) stopRarityVfxAnimation();
-      else startRarityVfxAnimation();
-      drawLoadedPortrait(performance.now());
-    };
-
-    motionQuery.addEventListener("change", handleMotionPreference);
-
-    if (rarityVfxPlan.pieces.length > 0) {
-      const requiredTiers = new Set(
-        rarityVfxPlan.pieces.map((piece) => piece.tier),
-      );
-      for (const tier of requiredTiers) {
-        const image = new Image();
-        rarityVfxImages[tier] = image;
-        rarityVfxImageList.push(image);
-        image.decoding = "async";
-        image.onload = () => {
-          if (cancelled) return;
-          drawLoadedPortrait(performance.now());
-          startRarityVfxAnimation();
-        };
-        image.src = EQUIPPED_RARITY_VFX_PATHS[tier];
-      }
-    }
-
-    const pollUntilReady = () => {
-      if (cancelled || drawLoadedPortrait()) return;
-      if (Date.now() >= loadDeadline) return;
-      pollTimer = window.setTimeout(pollUntilReady, pollDelay);
-      pollDelay = Math.min(PORTRAIT_LOAD_POLL_MAX_MS, pollDelay * 2);
-    };
-    pollUntilReady();
-
-    const redrawAtCanonicalScale = () => {
-      if (!syncPortraitViewport()) return;
-      if (hasRenderedRef.current) drawLoadedPortrait();
-    };
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(redrawAtCanonicalScale);
-    resizeObserver?.observe(host);
-    window.addEventListener("resize", redrawAtCanonicalScale);
-
-    return () => {
-      cancelled = true;
-      stopRarityVfxAnimation();
-      resizeObserver?.disconnect();
-      window.removeEventListener("resize", redrawAtCanonicalScale);
-      motionQuery.removeEventListener("change", handleMotionPreference);
-      for (const image of rarityVfxImageList) {
-        image.onload = null;
-        image.onerror = null;
-        image.removeAttribute("src");
-      }
-      if (pollTimer !== undefined) window.clearTimeout(pollTimer);
-      if (pulseTimer !== undefined) window.clearTimeout(pulseTimer);
-    };
-  }, [equipmentSignature, layerPaths, loadout, rarityVfxPlan]);
+  const portraitSignature = createInventoryPortraitSignature(equipment);
+  const portraitRarity = strongestInventoryPortraitRarity(equipment);
+  const portraitLabel = inventoryPortraitAppearanceLabel(equipment);
+  const pieces = inventoryPortraitPieces(equipment);
 
   return (
     <div
-      ref={hostRef}
-      className={`inventory-screen-paperdoll-figure${hasRendered ? " is-ready" : ""}`}
+      className="inventory-screen-paperdoll-figure is-ready"
       data-paperdoll-rarity={portraitRarity}
+      data-portrait-mode="illustrated"
       role="img"
       aria-label={portraitLabel}
     >
-      <canvas
-        ref={canvasRef}
-        className="inventory-screen-paperdoll-canvas"
+      <span className="inventory-screen-paperdoll-proportion-guide" aria-hidden="true" />
+      <span
+        key={portraitSignature}
+        className="inventory-screen-paperdoll-stage is-swapping"
         aria-hidden="true"
-      />
+      >
+        <span
+          className="inventory-screen-paperdoll-base"
+          style={{ backgroundImage: `url('${INVENTORY_PORTRAIT_BASE_PATH}')` }}
+        />
+        {pieces.map(({ slot, item, row, backgroundX, backgroundY, geometry }) => {
+          if (isInventoryPortraitFittedSlot(slot)) {
+            const fittedStyle = {
+              zIndex: geometry.zIndex,
+              backgroundImage: `url('${INVENTORY_PORTRAIT_FITTED_ARMOR_PATH}')`,
+              "--inventory-portrait-variant-hue": `${inventoryPortraitVariantHue(row)}deg`,
+            } satisfies CSSProperties & Record<"--inventory-portrait-variant-hue", string>;
+            return (
+              <span
+                key={`${slot}:${item.id}:${item.iconIndex}`}
+                className={`inventory-screen-paperdoll-fitted-piece inventory-screen-paperdoll-fitted-piece--${slot}`}
+                data-portrait-slot={slot}
+                data-rarity={item.rarity}
+                style={{ zIndex: geometry.zIndex }}
+              >
+                <span
+                  className={`inventory-screen-paperdoll-fitted-layer inventory-screen-paperdoll-fitted-layer--${slot}`}
+                  style={fittedStyle}
+                />
+                {slot === "gloves" && (
+                  <span
+                    className="inventory-screen-paperdoll-fitted-layer inventory-screen-paperdoll-fitted-layer--gloves-right"
+                    style={fittedStyle}
+                  />
+                )}
+              </span>
+            );
+          }
+          const style = {
+            left: `${geometry.left}%`,
+            top: `${geometry.top}%`,
+            width: `${geometry.width}%`,
+            zIndex: geometry.zIndex,
+            backgroundImage: `url('${INVENTORY_PORTRAIT_GEAR_ATLAS_PATH}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: `${GEAR_ICON_COLUMNS * 100}% ${GEAR_ICON_ROWS * 100}%`,
+            backgroundPosition: `${backgroundX}% ${backgroundY}%`,
+            transform: `rotate(${geometry.rotation}deg)`,
+          } satisfies CSSProperties;
+          return (
+            <span
+              key={`${slot}:${item.id}:${item.iconIndex}`}
+              className={`inventory-screen-paperdoll-piece inventory-screen-paperdoll-piece--${slot}`}
+              data-portrait-slot={slot}
+              data-rarity={item.rarity}
+              style={style}
+            />
+          );
+        })}
+      </span>
     </div>
   );
 }
