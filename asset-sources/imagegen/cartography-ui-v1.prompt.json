@@ -1,0 +1,27 @@
+{
+  "generator": "OpenAI built-in image_gen",
+  "createdAt": "2026-08-17",
+  "assets": [
+    {
+      "name": "cartography-frame-v1",
+      "source": "asset-sources/imagegen/cartography-frame-v1-source.png",
+      "generatedOutput": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-434310fa-1e83-43c7-bd6f-3de05d0fadf8.png",
+      "references": [
+        "public/assets/maps/map-board.webp",
+        "public/assets/ui/inventory-chrome/primary-button.png",
+        "public/assets/ui/gothic-nine-slice-frame-v2.png"
+      ],
+      "prompt": "A production-ready wide 3:2 gothic cartography modal frame for a premium Korean dark-fantasy roguelite, perfectly front-on, charcoal iron and aged bronze with restrained jade enamel and parchment-gold edges, compact ornate corners, a top compass crest and bottom wayfinder seal, a large empty center and an even outer gutter, on perfectly uniform #FF00FF chroma. No text, red areas, rectangular backing slab, perspective, smoke or center fill."
+    },
+    {
+      "name": "cartography-command-button-v1",
+      "source": "asset-sources/imagegen/cartography-command-button-v1-source.png",
+      "generatedOutput": "C:/Users/49ka1/.codex/generated_images/01a00b84-954c-7881-9ab7-ed3f8b3fc1be/exec-bc256cc7-5f6f-4229-b20a-de5d948e6ed0.png",
+      "references": [
+        "public/assets/ui/inventory-chrome/primary-button.png",
+        "asset-sources/imagegen/cartography-frame-v1-source.png"
+      ],
+      "prompt": "A single neutral affirmative wayfinder action plate with a very wide 5:1 silhouette, perfectly front-on and symmetric, slim charcoal iron and bronze frame, parchment-gold highlights, dark desaturated jade interior and restrained compass diamonds, on perfectly uniform #FF00FF chroma. Calm center for Korean text. No text, red, destructive motif, backing rectangle, perspective, particles or multiple buttons."
+    }
+  ]
+}

@@ -2246,17 +2246,37 @@ function MapGrid({
     knownCoordinates.push({ key: currentKey, x: world.roomX, y: world.roomY });
   }
 
+  const knownCoordinateKeys = new Set(knownCoordinates.map(({ key }) => key));
+  const discoveredMinimumX = Math.min(...knownCoordinates.map(({ x }) => x));
+  const discoveredMaximumX = Math.max(...knownCoordinates.map(({ x }) => x));
+  const discoveredMinimumY = Math.min(...knownCoordinates.map(({ y }) => y));
+  const discoveredMaximumY = Math.max(...knownCoordinates.map(({ y }) => y));
+  const sectorPadding = 3;
+  const minimumSectorRadius = 6;
+
   const minimumX = large
-    ? DUNGEON_MIN_COORDINATE
+    ? Math.max(
+        DUNGEON_MIN_COORDINATE,
+        Math.min(discoveredMinimumX - sectorPadding, world.roomX - minimumSectorRadius),
+      )
     : Math.max(DUNGEON_MIN_COORDINATE, world.roomX - radius);
   const maximumX = large
-    ? DUNGEON_MAX_COORDINATE
+    ? Math.min(
+        DUNGEON_MAX_COORDINATE,
+        Math.max(discoveredMaximumX + sectorPadding, world.roomX + minimumSectorRadius),
+      )
     : Math.min(DUNGEON_MAX_COORDINATE, world.roomX + radius);
   const minimumY = large
-    ? DUNGEON_MIN_COORDINATE
+    ? Math.max(
+        DUNGEON_MIN_COORDINATE,
+        Math.min(discoveredMinimumY - sectorPadding, world.roomY - minimumSectorRadius),
+      )
     : Math.max(DUNGEON_MIN_COORDINATE, world.roomY - radius);
   const maximumY = large
-    ? DUNGEON_MAX_COORDINATE
+    ? Math.min(
+        DUNGEON_MAX_COORDINATE,
+        Math.max(discoveredMaximumY + sectorPadding, world.roomY + minimumSectorRadius),
+      )
     : Math.min(DUNGEON_MAX_COORDINATE, world.roomY + radius);
   const columns = maximumX - minimumX + 1;
   const rows = maximumY - minimumY + 1;
@@ -2288,6 +2308,10 @@ function MapGrid({
       current ? "is-current" : "",
       large && teleportStatus === "available" ? "is-teleportable" : "",
       large && teleportStatus !== "available" ? "is-teleport-locked" : "",
+      large && knownCoordinateKeys.has(keyOf(x, y - 1)) ? "connect-north" : "",
+      large && knownCoordinateKeys.has(keyOf(x + 1, y)) ? "connect-east" : "",
+      large && knownCoordinateKeys.has(keyOf(x, y + 1)) ? "connect-south" : "",
+      large && knownCoordinateKeys.has(keyOf(x - 1, y)) ? "connect-west" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -2301,8 +2325,24 @@ function MapGrid({
     const baseTitle = room
       ? `${ROOM_NAMES[room.kind]} · ${status} · ${floorCoordinate}${stairsRevealed ? " · 하행 계단 발견" : ""}`
       : `미지의 방 · ${floorCoordinate}`;
+    const cellVisual = (
+      <span className="map-cell-node" aria-hidden="true">
+        {room?.cleared ? <span className="map-cell-cleared" /> : null}
+        {room?.kind === "boss" ? (
+          <span className="map-room-emblem map-room-emblem--boss" />
+        ) : null}
+        {stairsRevealed ? <span className="map-room-emblem map-room-emblem--stairs" /> : null}
+        {current ? <i /> : null}
+      </span>
+    );
 
     if (large && onTeleport) {
+      const moveFocus = (nextX: number, nextY: number) => {
+        const target = document.querySelector<HTMLElement>(
+          `.map-modal [data-coordinate="${keyOf(nextX, nextY)}"]`,
+        );
+        target?.focus();
+      };
       return (
         <button
           type="button"
@@ -2318,17 +2358,29 @@ function MapGrid({
           style={cellStyle}
           title={`${baseTitle} · ${teleportLabel}`}
           aria-label={`${baseTitle} · ${teleportLabel}`}
-          disabled={teleportStatus !== "available"}
-          onClick={() => onTeleport(x, y)}
+          aria-disabled={teleportStatus !== "available"}
+          tabIndex={current ? 0 : -1}
+          onClick={() => {
+            if (teleportStatus === "available") onTeleport(x, y);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Home") {
+              event.preventDefault();
+              document.querySelector<HTMLElement>(".map-modal .map-cell.is-current")?.focus();
+              return;
+            }
+            const direction = {
+              ArrowUp: [0, -1],
+              ArrowRight: [1, 0],
+              ArrowDown: [0, 1],
+              ArrowLeft: [-1, 0],
+            }[event.key];
+            if (!direction) return;
+            event.preventDefault();
+            moveFocus(x + direction[0], y + direction[1]);
+          }}
         >
-          {room?.kind === "boss" ? (
-            <span
-              className="map-room-emblem map-room-emblem--boss"
-              aria-hidden="true"
-            />
-          ) : null}
-          {stairsRevealed ? <span className="map-room-emblem map-room-emblem--stairs" aria-hidden="true" /> : null}
-          {current ? <i /> : null}
+          {cellVisual}
         </button>
       );
     }
@@ -2346,14 +2398,7 @@ function MapGrid({
         style={cellStyle}
         title={baseTitle}
       >
-        {room?.kind === "boss" ? (
-          <span
-            className="map-room-emblem map-room-emblem--boss"
-            aria-hidden="true"
-          />
-        ) : null}
-        {stairsRevealed ? <span className="map-room-emblem map-room-emblem--stairs" aria-hidden="true" /> : null}
-        {current ? <i /> : null}
+        {cellVisual}
       </span>
     );
   };
@@ -2375,6 +2420,9 @@ function MapGrid({
       data-map-max-y={maximumY}
       data-map-columns={columns}
       data-map-rows={rows}
+      data-map-world-columns={DUNGEON_MAX_COORDINATE - DUNGEON_MIN_COORDINATE + 1}
+      data-map-world-rows={DUNGEON_MAX_COORDINATE - DUNGEON_MIN_COORDINATE + 1}
+      data-map-view={large ? "discovered-sector" : "local"}
       style={{
         "--map-side": radius * 2 + 1,
         "--map-columns": columns,
@@ -2383,7 +2431,7 @@ function MapGrid({
       role={large && onTeleport ? "group" : "img"}
       aria-label={
         large
-          ? `지하 ${world.dungeonFloor}층 전체 지도. 현재 위치 ${dungeonDisplayCoordinate(world.roomX)},${dungeonDisplayCoordinate(world.roomY)}, 확인한 방 ${knownCoordinates.length}개`
+          ? `지하 ${world.dungeonFloor}층 99 곱하기 99 전체 지도 중 발견 구역. 현재 위치 ${dungeonDisplayCoordinate(world.roomX)},${dungeonDisplayCoordinate(world.roomY)}, 확인한 방 ${knownCoordinates.length}개`
           : `지하 ${world.dungeonFloor}층 주변 지도. 현재 위치 ${dungeonDisplayCoordinate(world.roomX)},${dungeonDisplayCoordinate(world.roomY)}`
       }
     >
@@ -2433,6 +2481,15 @@ export default function GameCanvas({
   const canvasBackingScaleRef = useRef(1);
   const canvasNeedsStaticRedrawRef = useRef(true);
   const mapBoardRef = useRef<HTMLDivElement | null>(null);
+  const mapDialogRef = useRef<HTMLElement | null>(null);
+  const mapReturnFocusRef = useRef<HTMLElement | null>(null);
+  const mapPanRef = useRef({
+    pointerId: -1,
+    startX: 0,
+    startY: 0,
+    scrollLeft: 0,
+    scrollTop: 0,
+  });
   const playerRef = useRef<Player>(makePlayer());
   const worldRef = useRef<World>(makeWorld(1));
   const stableAugmentsRef = useRef<Record<string, number>>({});
@@ -3039,6 +3096,8 @@ export default function GameCanvas({
   }, [isLocalVfxShowcase, setGameMode, syncHud]);
 
   const openMap = useCallback(() => {
+    mapReturnFocusRef.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const world = worldRef.current;
     setMapSnapshot({
       seed: world.seed,
@@ -3068,6 +3127,26 @@ export default function GameCanvas({
     setInventoryScreenOpen,
     setStatsScreenOpen,
   ]);
+
+  const closeMap = useCallback(() => {
+    setGameMode("playing");
+    window.requestAnimationFrame(() => {
+      const returnTarget = mapReturnFocusRef.current;
+      if (returnTarget?.isConnected) returnTarget.focus();
+      mapReturnFocusRef.current = null;
+    });
+  }, [setGameMode]);
+
+  const centerMapOnCurrent = useCallback(() => {
+    const board = mapBoardRef.current;
+    const current = board?.querySelector<HTMLElement>(".map-cell.is-current");
+    if (!board || !current) return;
+    board.scrollTo({
+      left: current.offsetLeft + current.offsetWidth / 2 - board.clientWidth / 2,
+      top: current.offsetTop + current.offsetHeight / 2 - board.clientHeight / 2,
+      behavior: "smooth",
+    });
+  }, []);
 
   const showStory = useCallback(
     (
@@ -4838,6 +4917,38 @@ export default function GameCanvas({
           "button, a, input, select, textarea, [contenteditable='true'], [tabindex]:not([tabindex='-1'])",
         ),
       );
+      if (gameConfirmationOpenRef.current) {
+        if (key === "escape" && !event.repeat) closeGameConfirmation();
+        return;
+      }
+      if (modeRef.current === "map") {
+        if ((key === "m" || key === "escape") && !event.repeat) {
+          event.preventDefault();
+          closeMap();
+          return;
+        }
+        if (key === "tab") {
+          const dialog = mapDialogRef.current;
+          const focusable = dialog
+            ? Array.from(
+                dialog.querySelectorAll<HTMLElement>(
+                  "button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])",
+                ),
+              ).filter((element) => element.getClientRects().length > 0)
+            : [];
+          if (focusable.length > 0) {
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+              event.preventDefault();
+              last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+              event.preventDefault();
+              first.focus();
+            }
+          }
+        }
+      }
       if (statsOpenRef.current) {
         if ((key === "escape" || key === "c") && !event.repeat) {
           setStatsScreenOpen(false);
@@ -4857,10 +4968,6 @@ export default function GameCanvas({
         return;
       }
       if (isInteractive && key !== "escape") return;
-      if (gameConfirmationOpenRef.current) {
-        if (key === "escape" && !event.repeat) closeGameConfirmation();
-        return;
-      }
       if (shopOpenRef.current) {
         if ((key === "escape" || key === "p") && !event.repeat) closeShop();
         return;
@@ -4922,7 +5029,7 @@ export default function GameCanvas({
       }
       if (key === "m" && started && !event.repeat) {
         if (modeRef.current === "playing") openMap();
-        else if (modeRef.current === "map") setGameMode("playing");
+        else if (modeRef.current === "map") closeMap();
       }
       if (key === "escape" && started && !event.repeat) {
         if (shopOpenRef.current) closeShop();
@@ -4930,7 +5037,7 @@ export default function GameCanvas({
         else if (inventoryOpenRef.current) setInventoryScreenOpen(false);
         else if (buildOpenRef.current) setBuildPanelOpen(false);
         else if (modeRef.current === "playing") setGameMode("paused");
-        else if (modeRef.current === "paused" || modeRef.current === "map") {
+        else if (modeRef.current === "paused") {
           setGameMode("playing");
         }
       }
@@ -4955,6 +5062,7 @@ export default function GameCanvas({
     chooseAugment,
     closeShop,
     closeGameConfirmation,
+    closeMap,
     descendToNextFloor,
     menuStage,
     openMap,
@@ -4982,6 +5090,7 @@ export default function GameCanvas({
         current.offsetLeft + current.offsetWidth / 2 - board.clientWidth / 2;
       board.scrollTop =
         current.offsetTop + current.offsetHeight / 2 - board.clientHeight / 2;
+      current.focus({ preventScroll: true });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [mapSnapshot, mode]);
@@ -12669,13 +12778,21 @@ export default function GameCanvas({
 
       {mode === "map" && (
         <div className="modal-layer map-layer">
-          <section className="map-modal" role="dialog" aria-modal="true" aria-labelledby="map-title">
+          <section
+            ref={mapDialogRef}
+            className="map-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="map-title"
+            tabIndex={-1}
+          >
+            <span className="map-modal-chrome" aria-hidden="true" />
             <header>
-              <div>
-                <p className="modal-kicker">99×99 FLOOR CARTOGRAPHY · M</p>
+              <div className="map-title-lockup">
+                <p className="modal-kicker">THE ENDLESS ATLAS · FLOOR {mapSnapshot.dungeonFloor}</p>
                 <h2 id="map-title">무진도 탐사도</h2>
                 <span>
-                  지하 {mapSnapshot.dungeonFloor}층 · 방 {dungeonDisplayCoordinate(mapSnapshot.roomX)} : {dungeonDisplayCoordinate(mapSnapshot.roomY)}
+                  99×99 무진도 · 발견 구역 자동 기록 중
                 </span>
               </div>
               <div className="map-header-actions">
@@ -12683,14 +12800,17 @@ export default function GameCanvas({
                   className={`map-teleport-license ${mapTeleportUnlocked ? "is-unlocked" : "is-locked"}`}
                   role="status"
                 >
-                  <small>무진도의 길잡이</small>
-                  <strong>
-                    {!mapTeleportUnlocked
-                      ? "상점 해금 필요"
-                      : mapTeleportDepartureSafe
-                        ? "방문·정복 좌표 도약 가능"
-                        : "현재 방 정복 후 사용 가능"}
-                  </strong>
+                  <span className="map-wayfinder-sigil" aria-hidden="true" />
+                  <span>
+                    <small>무진도의 길잡이</small>
+                    <strong>
+                      {!mapTeleportUnlocked
+                        ? "상점 해금 필요"
+                        : mapTeleportDepartureSafe
+                          ? "방문·정복 좌표 도약 가능"
+                          : "현재 방 정복 후 사용 가능"}
+                    </strong>
+                  </span>
                 </div>
                 {!mapTeleportUnlocked && (
                   <button
@@ -12707,53 +12827,144 @@ export default function GameCanvas({
                 <button
                   type="button"
                   className="map-close"
-                  onClick={() => setGameMode("playing")}
+                  onClick={closeMap}
                   aria-label="지도 닫기"
                 >
                   ×
                 </button>
               </div>
             </header>
-            <div className="map-board" ref={mapBoardRef}>
-              <span className="compass north">N</span>
-              <span className="compass east">E</span>
-              <span className="compass south">S</span>
-              <span className="compass west">W</span>
-              <MapGrid
-                world={mapSnapshot}
-                large
-                teleportUnlocked={mapTeleportUnlocked}
-                teleportDepartureSafe={mapTeleportDepartureSafe}
-                onTeleport={teleportToVisitedRoom}
-              />
+            <div className="map-atlas-layout">
+              <aside className="map-ledger" aria-label="현재 탐사 좌표">
+                <p>DISCOVERED SECTOR</p>
+                <div className="map-coordinate-seal">
+                  <small>현재 좌표</small>
+                  <strong>
+                    {dungeonDisplayCoordinate(mapSnapshot.roomX)}
+                    <i>:</i>
+                    {dungeonDisplayCoordinate(mapSnapshot.roomY)}
+                  </strong>
+                  <span>지하 {mapSnapshot.dungeonFloor}층</span>
+                </div>
+                <dl>
+                  <div><dt>확인</dt><dd>{mapCounts.known.toLocaleString("ko-KR")}</dd></div>
+                  <div><dt>진입</dt><dd>{mapCounts.visited.toLocaleString("ko-KR")}</dd></div>
+                  <div><dt>정복</dt><dd>{mapCounts.cleared.toLocaleString("ko-KR")}</dd></div>
+                </dl>
+                <div
+                  className="map-conquest-meter"
+                  style={{
+                    "--map-progress": `${mapCounts.known > 0 ? Math.round((mapCounts.cleared / mapCounts.known) * 100) : 0}%`,
+                  } as CSSProperties}
+                >
+                  <span />
+                  <small>발견 좌표 정복도</small>
+                  <strong>
+                    {mapCounts.known > 0
+                      ? Math.round((mapCounts.cleared / mapCounts.known) * 100)
+                      : 0}%
+                  </strong>
+                </div>
+              </aside>
+
+              <div className="map-board-shell">
+                <div
+                  className="map-board"
+                  ref={mapBoardRef}
+                  onWheel={(event) => {
+                    if (!event.shiftKey || !mapBoardRef.current) return;
+                    event.preventDefault();
+                    mapBoardRef.current.scrollLeft += event.deltaY;
+                  }}
+                  onPointerDown={(event) => {
+                    if ((event.target as HTMLElement).closest("button")) return;
+                    const board = event.currentTarget;
+                    mapPanRef.current = {
+                      pointerId: event.pointerId,
+                      startX: event.clientX,
+                      startY: event.clientY,
+                      scrollLeft: board.scrollLeft,
+                      scrollTop: board.scrollTop,
+                    };
+                    board.setPointerCapture(event.pointerId);
+                    board.dataset.panning = "true";
+                  }}
+                  onPointerMove={(event) => {
+                    const pan = mapPanRef.current;
+                    if (pan.pointerId !== event.pointerId) return;
+                    event.currentTarget.scrollLeft = pan.scrollLeft - (event.clientX - pan.startX);
+                    event.currentTarget.scrollTop = pan.scrollTop - (event.clientY - pan.startY);
+                  }}
+                  onPointerUp={(event) => {
+                    if (mapPanRef.current.pointerId !== event.pointerId) return;
+                    event.currentTarget.releasePointerCapture(event.pointerId);
+                    event.currentTarget.dataset.panning = "false";
+                    mapPanRef.current.pointerId = -1;
+                  }}
+                  onPointerCancel={(event) => {
+                    event.currentTarget.dataset.panning = "false";
+                    mapPanRef.current.pointerId = -1;
+                  }}
+                >
+                  <span className="compass north">N</span>
+                  <span className="compass east">E</span>
+                  <span className="compass south">S</span>
+                  <span className="compass west">W</span>
+                  <MapGrid
+                    world={mapSnapshot}
+                    large
+                    teleportUnlocked={mapTeleportUnlocked}
+                    teleportDepartureSafe={mapTeleportDepartureSafe}
+                    onTeleport={teleportToVisitedRoom}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="map-recenter-button"
+                  onClick={centerMapOnCurrent}
+                  aria-label="현재 위치를 지도 중앙에 맞추기"
+                >
+                  <span aria-hidden="true">◎</span>
+                </button>
+                <span className="map-board-caption">빈 공간 드래그 · 휠 / Shift+휠 이동 · Home 현재 위치</span>
+              </div>
+
+              <aside className="map-intel" aria-label="탐사 정보와 지도 범례">
+                <div className="map-route-summary">
+                  <small>ROUTE INTELLIGENCE</small>
+                  <strong>다음 길잡이</strong>
+                  <span>
+                    {mapNearestLandmark
+                      ? `가장 가까운 ${mapNearestLandmark.room.kind === "shelter" ? "쉼터" : "보스"} · ${dungeonDisplayCoordinate(mapNearestLandmark.x)} : ${dungeonDisplayCoordinate(mapNearestLandmark.y)} · ${mapNearestLandmark.distance}칸`
+                      : "사방의 문을 지나 새로운 좌표를 정찰하세요."}
+                  </span>
+                </div>
+                <div className="map-legend" aria-label="지도 범례">
+                  <span><i className="legend-current" />현재 위치</span>
+                  <span><i className="legend-teleport" />도약 가능</span>
+                  <span><i className="legend-cleared" />정복 완료</span>
+                  <span><i className="legend-visited" />진입함</span>
+                  <span><i className="legend-battle" />회랑</span>
+                  <span><i className="legend-horde" />군락</span>
+                  <span><i className="legend-elite" />정예</span>
+                  <span><i className="legend-memory" />기억</span>
+                  <span><i className="legend-shelter" />쉼터</span>
+                  <span><i className="legend-boss" />보스</span>
+                  <span><i className="legend-stairs" />하행 계단</span>
+                </div>
+              </aside>
             </div>
             <footer>
-              <div className="map-legend" aria-label="지도 범례">
-                <span><i className="legend-current" />현재 위치</span>
-                <span><i className="legend-teleport" />도약 가능</span>
-                <span><i className="legend-cleared" />정복 완료</span>
-                <span><i className="legend-visited" />진입함</span>
-                <span><i className="legend-battle" />회랑</span>
-                <span><i className="legend-horde" />군락</span>
-                <span><i className="legend-elite" />정예</span>
-                <span><i className="legend-memory" />기억</span>
-                <span><i className="legend-shelter" />쉼터</span>
-                <span><i className="legend-boss" />보스</span>
-                <span><i className="legend-stairs" />발견한 하행 계단</span>
-              </div>
-              <div className="map-route-summary">
-                <small>탐사 기록</small>
+              <div className="map-expedition-record">
+                <small>EXPEDITION RECORD</small>
                 <strong>
-                  {mapCounts.visited.toLocaleString("ko-KR")}/9,801 진입 · {mapCounts.cleared.toLocaleString("ko-KR")} 정복 · {mapCounts.known.toLocaleString("ko-KR")} 좌표 확인
+                  9,801개 좌표 중 {mapCounts.known.toLocaleString("ko-KR")}개 기록
                 </strong>
-                <span>
-                  {mapNearestLandmark
-                    ? `가장 가까운 ${mapNearestLandmark.room.kind === "shelter" ? "쉼터" : "보스"}: ${dungeonDisplayCoordinate(mapNearestLandmark.x)} : ${dungeonDisplayCoordinate(mapNearestLandmark.y)} · ${mapNearestLandmark.distance}칸`
-                    : "사방의 문을 지나 새로운 좌표를 정찰하세요."}
-                </span>
+                <span><kbd>M</kbd> 또는 <kbd>ESC</kbd>로 언제든 지도를 접을 수 있습니다.</span>
               </div>
-              <button className="primary-button compact" onClick={() => setGameMode("playing")}>
-                탐험 계속
+              <button className="map-continue-button" onClick={closeMap}>
+                <span>탐험 계속</span>
+                <small>지도를 접고 현재 방으로</small>
               </button>
             </footer>
           </section>

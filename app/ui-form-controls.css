@@ -57,6 +57,43 @@ body.game-viewport :where(button, input, select, textarea):focus-visible {
   outline-offset: 2px;
 }
 
+/* Complete art controls carry transparent gutters. A rectangular browser
+   outline or fallback box-shadow would leak through those gutters, so their
+   focus treatment follows the authored silhouette with drop shadows. */
+body.game-viewport :is(
+  .primary-button,
+  .secondary-button,
+  .map-continue-button,
+  .inventory-screen-equip-button,
+  .inventory-screen-enhancement-button,
+  .inventory-screen-salvage-button,
+  .inventory-screen-unequip-button,
+  .inventory-screen-batch-salvage-button,
+  .inventory-screen-divine-forge-action,
+  .audio-dock__trigger
+) {
+  box-shadow: none;
+}
+
+body.game-viewport :is(
+  .primary-button,
+  .secondary-button,
+  .map-continue-button,
+  .inventory-screen-equip-button,
+  .inventory-screen-enhancement-button,
+  .inventory-screen-salvage-button,
+  .inventory-screen-unequip-button,
+  .inventory-screen-batch-salvage-button,
+  .inventory-screen-divine-forge-action,
+  .audio-dock__trigger
+):focus-visible {
+  outline: none;
+  filter:
+    brightness(1.2)
+    drop-shadow(0 0 2px rgba(238, 255, 250, 0.94))
+    drop-shadow(0 0 10px rgba(113, 225, 208, 0.68));
+}
+
 /* Text and numeric inputs already receive component-specific dimensions and
    frames. These declarations remove residual platform styling without
    disturbing joined controls such as the PVP name field. */

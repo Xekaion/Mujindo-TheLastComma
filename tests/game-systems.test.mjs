@@ -220,9 +220,14 @@ test("boss rooms use a generated transparent emblem in both minimap scales", asy
     assert.equal(image.pixels[(y * image.width + x) * 4 + 3], 0);
   }
 
-  assert.equal((source.match(/room\?\.kind === "boss"/g) ?? []).length, 2);
+  assert.equal((source.match(/room\?\.kind === "boss"/g) ?? []).length, 1);
+  assert.equal(
+    (source.match(/\{cellVisual\}/g) ?? []).length,
+    2,
+    "both the compact minimap and full atlas must reuse the same boss emblem node",
+  );
   assert.match(source, /className="map-room-emblem map-room-emblem--boss"/);
-  assert.match(source, /className="map-room-emblem map-room-emblem--boss"[\s\S]{0,80}?aria-hidden="true"/);
+  assert.match(source, /className="map-cell-node" aria-hidden="true"/);
   assert.match(css, /\.map-room-emblem\s*\{[^}]*pointer-events:\s*none;/);
   assert.match(css, /\.map-room-emblem--boss\s*\{[^}]*boss-room-emblem-v1\.png/);
   assert.match(css, /\.minimap-grid\.is-large \.map-room-emblem--boss\s*\{/);
@@ -5707,7 +5712,7 @@ test("ordinary room art is deterministic, varied, and never repeats across a doo
   assert.match(game, /data-room-theme=\{ROOM_ART_NAMES\[currentRoomArtKey\]\}/);
 });
 
-test("the minimap uses one fixed 99x99 floor and reveals stairs only after conquest", async () => {
+test("the minimap preserves a 99x99 world while the full atlas frames the discovered sector", async () => {
   const [source, css] = await Promise.all([
     readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
     readFile(path.join(root, "app/game.css"), "utf8"),
@@ -5719,21 +5724,23 @@ test("the minimap uses one fixed 99x99 floor and reveals stairs only after conqu
     "north/east/south/west room offsets must match screen orientation",
   );
   assert.match(source, /const knownCoordinates = Object\.keys\(world\.rooms\)/);
+  assert.match(source, /const sectorPadding = 3;/);
+  assert.match(source, /const minimumSectorRadius = 6;/);
   assert.match(
     source,
-    /const minimumX = large\s*\? DUNGEON_MIN_COORDINATE\s*:\s*Math\.max\(DUNGEON_MIN_COORDINATE, world\.roomX - radius\)/,
+    /const minimumX = large\s*\? Math\.max\([\s\S]{0,180}?DUNGEON_MIN_COORDINATE,[\s\S]{0,180}?discoveredMinimumX - sectorPadding[\s\S]{0,120}?world\.roomX - minimumSectorRadius/,
   );
   assert.match(
     source,
-    /const maximumX = large\s*\? DUNGEON_MAX_COORDINATE\s*:\s*Math\.min\(DUNGEON_MAX_COORDINATE, world\.roomX \+ radius\)/,
+    /const maximumX = large\s*\? Math\.min\([\s\S]{0,180}?DUNGEON_MAX_COORDINATE,[\s\S]{0,180}?discoveredMaximumX \+ sectorPadding[\s\S]{0,120}?world\.roomX \+ minimumSectorRadius/,
   );
   assert.match(
     source,
-    /const minimumY = large\s*\? DUNGEON_MIN_COORDINATE\s*:\s*Math\.max\(DUNGEON_MIN_COORDINATE, world\.roomY - radius\)/,
+    /const minimumY = large\s*\? Math\.max\([\s\S]{0,180}?discoveredMinimumY - sectorPadding[\s\S]{0,120}?world\.roomY - minimumSectorRadius/,
   );
   assert.match(
     source,
-    /const maximumY = large\s*\? DUNGEON_MAX_COORDINATE\s*:\s*Math\.min\(DUNGEON_MAX_COORDINATE, world\.roomY \+ radius\)/,
+    /const maximumY = large\s*\? Math\.min\([\s\S]{0,180}?discoveredMaximumY \+ sectorPadding[\s\S]{0,120}?world\.roomY \+ minimumSectorRadius/,
   );
   assert.match(source, /gridColumn: x - minimumX \+ 1/);
   assert.match(source, /gridRow: y - minimumY \+ 1/);
@@ -5750,9 +5757,12 @@ test("the minimap uses one fixed 99x99 floor and reveals stairs only after conqu
   assert.match(source, /stairsRevealed \? "is-stairs" : ""/);
   assert.equal(
     (source.match(/stairsRevealed \? <span className="map-room-emblem map-room-emblem--stairs"/g) ?? []).length,
-    2,
-    "both minimap scales must render the same revealed-stair emblem",
+    1,
+    "the shared cell visual must own one revealed-stair emblem",
   );
+  assert.match(source, /data-map-world-columns=\{DUNGEON_MAX_COORDINATE - DUNGEON_MIN_COORDINATE \+ 1\}/);
+  assert.match(source, /data-map-world-rows=\{DUNGEON_MAX_COORDINATE - DUNGEON_MIN_COORDINATE \+ 1\}/);
+  assert.match(source, /data-map-view=\{large \? "discovered-sector" : "local"\}/);
   assert.match(source, /rooms: Object\.fromEntries\(/);
   assert.match(source, /visited: \[\.\.\.world\.visited\]/);
   assert.match(source, /dungeonFloor: world\.dungeonFloor/);
@@ -5772,6 +5782,8 @@ test("the minimap uses one fixed 99x99 floor and reveals stairs only after conqu
   );
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-columns/);
   assert.match(css, /\.minimap-grid\.is-large \{[\s\S]*?var\(--map-rows/);
+  assert.match(css, /\.minimap-grid\.is-large \.map-cell::after\s*\{[\s\S]*?--path-north/);
+  assert.match(css, /\.map-cell-node\s*\{[\s\S]*?clip-path:\s*polygon/);
   assert.match(css, /\.map-cell\.is-stairs\s*\{/);
   assert.match(css, /\.map-room-emblem--stairs\s*\{/);
   for (const kind of ["battle", "horde", "elite", "memory", "shelter", "boss"]) {
@@ -5874,7 +5886,10 @@ test("the purchased wayfinder teleports only between safe visited and cleared ma
   assert.match(source, /onClick=\{\(\) => \{[\s\S]{0,160}?openWayfinderShop\(\)/);
   assert.match(source, /if \(large && onTeleport\) \{[\s\S]{0,1600}?<button/);
   assert.match(source, /role=\{large && onTeleport \? "group" : "img"\}/);
-  assert.match(source, /disabled=\{teleportStatus !== "available"\}/);
+  assert.match(source, /aria-disabled=\{teleportStatus !== "available"\}/);
+  assert.match(source, /tabIndex=\{current \? 0 : -1\}/);
+  assert.match(source, /ArrowUp:\s*\[0, -1\]/);
+  assert.match(source, /event\.key === "Home"/);
   assert.match(source, /<MapGrid world=\{hud\.world\} \/>/);
   assert.match(shopOverlay, /shop-product--travel/);
   assert.match(shopOverlay, /preferredProductId\?: ShopProductId \| null/);
@@ -5886,6 +5901,85 @@ test("the purchased wayfinder teleports only between safe visited and cleared ma
   assert.match(shopOverlay, /지도 순간이동/);
   assert.match(css, /button\.map-cell\.is-teleportable/);
   assert.match(css, /\.shop-bag-illustration\.is-wayfinder::before/);
+});
+
+test("the release cartography UI uses authored chrome without rectangular underpaint", async () => {
+  const framePath = "public/assets/ui/cartography/cartography-frame-v1.png";
+  const buttonPath = "public/assets/ui/cartography/cartography-command-button-v1.png";
+  const [source, css, formCss, framePng, buttonPng, manifest] = await Promise.all([
+    readFile(path.join(root, "app/GameCanvas.tsx"), "utf8"),
+    readFile(path.join(root, "app/game.css"), "utf8"),
+    readFile(path.join(root, "app/ui-form-controls.css"), "utf8"),
+    readFile(path.join(root, framePath)),
+    readFile(path.join(root, buttonPath)),
+    readFile(path.join(root, "public/assets/ui/cartography/cartography-ui-v1.build.json"), "utf8").then(JSON.parse),
+  ]);
+
+  const frame = decodeRgbaPng(framePng, framePath);
+  const button = decodeRgbaPng(buttonPng, buttonPath);
+  assert.deepEqual([frame.width, frame.height], [1536, 1024]);
+  assert.deepEqual([button.width, button.height], [1200, 240]);
+  for (const [image, label, minimumMoat] of [
+    [frame, framePath, 20],
+    [button, buttonPath, 20],
+  ]) {
+    const margins = alphaCellMetrics(image, 0, 0, 1, 1, label);
+    for (const side of ["left", "right", "top", "bottom"]) {
+      assert.ok(margins[side] >= minimumMoat, `${label} ${side} moat is only ${margins[side]}px`);
+    }
+    for (const [x, y] of [[0, 0], [image.width - 1, 0], [0, image.height - 1], [image.width - 1, image.height - 1]]) {
+      assert.equal(image.pixels[(y * image.width + x) * 4 + 3], 0, `${label} corner must stay transparent`);
+    }
+  }
+  assert.equal(manifest.generator, "OpenAI built-in image_gen");
+  assert.equal(manifest.outputs.length, 2);
+
+  const primaryRule = css.match(/\.primary-button,\s*\.secondary-button\s*\{([\s\S]*?)\}/)?.[1] ?? "";
+  assert.match(primaryRule, /primary-button\.png/);
+  assert.doesNotMatch(primaryRule, /destructive-button\.png/);
+  assert.match(primaryRule, /background:\s*transparent;/);
+  assert.match(primaryRule, /box-shadow:\s*none;/);
+  assert.match(primaryRule, /filter:\s*drop-shadow/);
+  assert.match(css, /\.primary-button::after,[\s\S]{0,80}?\.secondary-button::after\s*\{[\s\S]{0,80}?content:\s*none;/);
+
+  assert.match(css, /\.map-modal-chrome\s*\{[\s\S]{0,260}?cartography-frame-v1\.png/);
+  assert.match(css, /\.map-modal\s*\{[\s\S]{0,340}?aspect-ratio:\s*3\s*\/\s*2/);
+  assert.match(css, /\.map-modal\s*\{[\s\S]{0,520}?background:\s*transparent;[\s\S]{0,80}?box-shadow:\s*none/);
+  assert.match(css, /\.map-modal::before\s*\{[\s\S]{0,220}?inset:\s*52px 58px;[\s\S]{0,420}?clip-path:\s*polygon/);
+  assert.match(css, /\.map-modal > :not\(\.map-modal-chrome\):is\(header, footer\)\s*\{[\s\S]{0,80}?z-index:\s*6/);
+  assert.match(css, /\.map-modal > header \.map-close\s*\{[\s\S]{0,420}?inventory-controls\/close\.png/);
+  assert.match(css, /\.map-continue-button\s*\{[\s\S]{0,420}?aspect-ratio:\s*5\s*\/\s*1[\s\S]{0,420}?cartography-command-button-v1\.png[\s\S]{0,180}?box-shadow:\s*none/);
+  assert.match(css, /\.map-board\s*\{[\s\S]{0,760}?scrollbar-width:\s*none/);
+  assert.match(css, /\.map-board::-webkit-scrollbar\s*\{[\s\S]{0,100}?display:\s*none/);
+  assert.match(css, /\.game-viewport \.map-board::-webkit-scrollbar-track-piece,[\s\S]{0,360}?background:\s*transparent\s*!important/);
+  assert.match(css, /\.map-recenter-button\s*\{/);
+  assert.doesNotMatch(source, /className="primary-button compact"[^>]*>[\s\S]{0,80}?탐험 계속/);
+  assert.match(source, /className="map-continue-button"[\s\S]{0,120}?탐험 계속/);
+
+  assert.match(formCss, /Complete art controls carry transparent gutters/);
+  assert.match(formCss, /\.map-continue-button,[\s\S]{0,520}?:focus-visible\s*\{[\s\S]{0,120}?outline:\s*none/);
+});
+
+test("the full map traps focus, restores its caller, and supports keyboard and pointer panning", async () => {
+  const source = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
+  assert.match(source, /const mapDialogRef = useRef<HTMLElement \| null>\(null\)/);
+  assert.match(source, /const mapReturnFocusRef = useRef<HTMLElement \| null>\(null\)/);
+  assert.match(source, /mapReturnFocusRef\.current =\s*document\.activeElement instanceof HTMLElement/);
+  assert.match(source, /const closeMap = useCallback\([\s\S]{0,380}?returnTarget\?\.isConnected[\s\S]{0,80}?returnTarget\.focus\(\)/);
+  assert.match(source, /ref=\{mapDialogRef\}[\s\S]{0,180}?aria-modal="true"[\s\S]{0,80}?tabIndex=\{-1\}/);
+  assert.match(source, /if \(gameConfirmationOpenRef\.current\) \{[\s\S]{0,180}?closeGameConfirmation\(\);[\s\S]{0,80}?return;[\s\S]{0,120}?if \(modeRef\.current === "map"\)/);
+  assert.match(source, /if \(modeRef\.current === "map"\) \{[\s\S]{0,220}?key === "m" \|\| key === "escape"/);
+  assert.ok(
+    source.indexOf('if (modeRef.current === "map")') < source.indexOf('if (isInteractive && key !== "escape") return;'),
+    "map keyboard handling must run before the generic interactive-control early return",
+  );
+  assert.match(source, /key === "tab"[\s\S]{0,760}?last\.focus\(\)[\s\S]{0,260}?first\.focus\(\)/);
+  assert.match(source, /onPointerDown=\{\(event\) =>[\s\S]{0,760}?setPointerCapture/);
+  assert.match(source, /onPointerMove=\{\(event\) =>[\s\S]{0,560}?scrollLeft[\s\S]{0,180}?scrollTop/);
+  assert.match(source, /onWheel=\{\(event\) =>[\s\S]{0,220}?event\.shiftKey[\s\S]{0,220}?scrollLeft/);
+  assert.match(source, /className="map-recenter-button"[\s\S]{0,120}?onClick=\{centerMapOnCurrent\}/);
+  assert.match(source, /className="map-close"[\s\S]{0,100}?onClick=\{closeMap\}/);
+  assert.match(source, /className="map-continue-button" onClick=\{closeMap\}/);
 });
 
 test("player movement is constrained to the walkable floor while open door corridors remain passable", async () => {

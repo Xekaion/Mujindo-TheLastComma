@@ -735,3 +735,8 @@
     margin-bottom: 24px;
   }
 }
+
+/* Keep the opaque inscription surface inside its transparent gothic rails. */
+.character-entry-panel {
+  background-clip: padding-box;
+}

@@ -76,9 +76,13 @@ body.game-viewport :is(
   .inventory-screen-divine-forge-close,
   .plaza-character-profile__close
 ):focus-visible {
-  outline: 2px solid rgba(113, 225, 208, 0.92);
-  outline-offset: 3px;
-  filter: brightness(1.18) saturate(1.1) drop-shadow(0 0 7px rgba(113, 225, 208, 0.5));
+  outline: none;
+  filter:
+    brightness(1.28)
+    saturate(1.14)
+    drop-shadow(0 0 2px rgba(238, 255, 250, 0.96))
+    drop-shadow(0 0 9px rgba(113, 225, 208, 0.72));
+  transform: translateZ(0) scale(1.075);
 }
 
 body.game-viewport :is(

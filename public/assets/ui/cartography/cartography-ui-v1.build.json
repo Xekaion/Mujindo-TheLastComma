@@ -1,0 +1,114 @@
+{
+  "asset": "cartography-ui-v1",
+  "version": 1,
+  "builder": "scripts/build_cartography_ui_v1.py",
+  "generator": "OpenAI built-in image_gen",
+  "inputs": [
+    {
+      "path": "asset-sources/imagegen/cartography-frame-v1-source.png",
+      "sha256": "cfd9683a6bf34d7a3acc9605a2a5c90147cbda1e6db1f1bd4d9d64c840ac3622",
+      "bytes": 1576529,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/cartography-frame-v1-keyed.png",
+      "sha256": "34031628ea2ae3d0a25e9e6a22f1c5230afc610b622a170ef1620c8ebb615aea",
+      "bytes": 613545,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/cartography-command-button-v1-source.png",
+      "sha256": "21c06c2fb6b2bcd72e315dec239b2d02d9bf5133757662ef119058fe4723625f",
+      "bytes": 1383200,
+      "size": [
+        1983,
+        793
+      ],
+      "mode": "RGB"
+    },
+    {
+      "path": "asset-sources/imagegen/cartography-command-button-v1-keyed.png",
+      "sha256": "1ba68ca60607fd12d591bc252f71cfe953da79024b1394cf7c73b7c11a1cec98",
+      "bytes": 789871,
+      "size": [
+        1983,
+        793
+      ],
+      "mode": "RGBA"
+    },
+    {
+      "path": "asset-sources/imagegen/cartography-ui-v1.prompt.json",
+      "sha256": "e8e7a504708b588cdd507a163ee266eacb6033215d660ee27ecc4b4864ce2f1a",
+      "bytes": 1909
+    }
+  ],
+  "pipeline": {
+    "chromaRemoval": "remove_chroma_key.py --key-color #FF00FF --soft-matte --transparent-threshold 10 --opaque-threshold 160 --despill",
+    "alphaThreshold": 4,
+    "frameCanvas": "1536x1024 with >=24px transparent moat",
+    "buttonCrop": "rows/columns with >=1% opaque occupancy",
+    "buttonCanvas": "1200x240 with >=20px transparent moat",
+    "resampling": "premultiplied-look RGBA Lanczos",
+    "zeroAlphaRgbCleared": true
+  },
+  "outputs": [
+    {
+      "path": "public/assets/ui/cartography/cartography-frame-v1.png",
+      "sha256": "0988ed65d2c24ddf179bfac9feac869279d06a30f14595d1c20e6f7e7b7828b1",
+      "bytes": 553192,
+      "size": [
+        1536,
+        1024
+      ],
+      "mode": "RGBA",
+      "role": "fixed-ratio full-map modal chrome",
+      "visibleBbox": [
+        36,
+        36,
+        1500,
+        1000
+      ],
+      "transparentPixels": 1350198,
+      "partiallyTransparentPixels": 19657,
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    {
+      "path": "public/assets/ui/cartography/cartography-command-button-v1.png",
+      "sha256": "9a99216ab72605037ece1f2f8a270c61fae2053b8008e73bd3f6d3372919c2f9",
+      "bytes": 317321,
+      "size": [
+        1200,
+        240
+      ],
+      "mode": "RGBA",
+      "role": "neutral full-map continue-expedition action plate",
+      "visibleBbox": [
+        20,
+        33,
+        1180,
+        206
+      ],
+      "transparentPixels": 134578,
+      "partiallyTransparentPixels": 6947,
+      "cornerAlpha": [
+        0,
+        0,
+        0,
+        0
+      ]
+    }
+  ]
+}

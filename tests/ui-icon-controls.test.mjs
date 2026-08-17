@@ -53,12 +53,16 @@ test("icon-only close controls expose complete interactive and reduced-motion st
   const css = await read("app/ui-controls.css");
 
   assert.match(css, /:not\(:disabled\):hover\s*\{[\s\S]*?filter:\s*brightness\(/);
-  assert.match(css, /:focus-visible\s*\{[\s\S]*?outline:\s*2px solid/);
+  assert.match(
+    css,
+    /:focus-visible\s*\{[\s\S]*?outline:\s*none;[\s\S]*?drop-shadow\(0 0 2px[\s\S]*?drop-shadow\(0 0 9px/,
+    "authored close medallions need a shape-following keyboard focus halo",
+  );
   assert.match(css, /:not\(:disabled\):active\s*\{[\s\S]*?scale\(0\.955\)/);
   assert.match(css, /:disabled\s*\{[\s\S]*?cursor:\s*not-allowed;/);
   assert.match(css, /@media\s*\(prefers-reduced-motion:\s*reduce\)/);
   assert.match(css, /cursor:\s*pointer;/);
-  assert.doesNotMatch(css, /outline:\s*none;/, "keyboard focus must remain visible");
+  assert.match(css, /:focus-visible[\s\S]*?scale\(1\.075\)/, "keyboard focus must remain visibly enlarged");
 });
 
 test("every unified icon close remains a labelled native button", async () => {

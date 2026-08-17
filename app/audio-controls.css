@@ -248,3 +248,7 @@
 .audio-dock__track button {
   font-size: 11px;
 }
+
+.audio-dock__panel {
+  background-clip: padding-box;
+}

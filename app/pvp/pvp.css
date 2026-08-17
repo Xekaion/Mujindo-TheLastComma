@@ -946,3 +946,8 @@
   border: 0;
   box-shadow: none;
 }
+
+.pvp-combatant,
+.pvp-scoreboard {
+  background-clip: padding-box;
+}
