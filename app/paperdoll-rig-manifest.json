@@ -8,9 +8,9 @@
     "sourceAggregateSha256": "bd8bd90e752a3b86d59700c65939798c77dcee83251394f0970c313c35954b07",
     "bodySha256": "9c62e1efe23325158af8362d2ac0291451afc28640b640ee3e45346d331a8705",
     "silhouetteReferencePath": "asset-sources/paperdoll/paperdoll-slot-silhouette-reference-v2.json",
-    "silhouetteReferenceSha256": "09a8fa9c50f80ca1b41700923f9115f1e211ea54cd62f89ecf38931d3a0ceef5",
+    "silhouetteReferenceSha256": "009f5859dff8977cd7435e36235bf79abe8f261988d2ebd3cf8308797edac0dd",
     "warningAllowlistPath": "asset-sources/paperdoll/paperdoll-slot-region-warning-allowlist-v2.json",
-    "warningAllowlistSha256": "6d9385ff4f305b760a2b4bdf58acf7104a8130a663ff3c6e1702bbf31f1ee998"
+    "warningAllowlistSha256": "6e8932f37ff4f3ded86776cb1292b31ff5b3b47b59f7748fcac2a70dc7d5fdc8"
   },
   "bodyPath": "/assets/walk/harin-mannequin-v1.png",
   "layerRoot": "/assets/paperdoll/v1",

@@ -808,6 +808,7 @@ def write_silhouette_reference(
     output_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     return report
 
@@ -1674,6 +1675,7 @@ def write_warning_allowlist(
     output_path.write_text(
         json.dumps(report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
     return report
 
