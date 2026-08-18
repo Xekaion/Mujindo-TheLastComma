@@ -91,17 +91,18 @@ function lowerIou(left, right) {
 test("halted characters always render the balanced standing frame", async () => {
   const motion = await importTypeScriptModule("app/character-motion.ts");
   assert.equal(motion.CHARACTER_IDLE_FRAME, 1);
+  assert.equal(rigManifest.frame.idleColumn, motion.CHARACTER_IDLE_FRAME);
   for (const cycle of [-11, 0, 0.75, 1.9, 3.99, 99, Number.NaN]) {
     assert.equal(motion.settleCharacterWalkCycle(cycle), 1);
     assert.equal(motion.characterWalkFrameIndex(cycle, false), 1);
   }
   assert.equal(motion.characterRenderFrameIndex(0, 3.2, false), 1);
   assert.equal(motion.characterRenderFrameIndex(4, 0.2, false), 1);
-  for (const facing of [1, 2, 3, 5, 6, 7]) {
+  for (const facing of [0, 1, 2, 3, 4, 5, 6, 7]) {
     assert.equal(
       motion.characterRenderFrameIndex(facing, 0.2, false),
-      3,
-      `facing ${facing} must retain its angled neutral stance`,
+      1,
+      `facing ${facing} must use its authored balanced stance`,
     );
   }
   assert.deepEqual([0, 1, 2, 3].map((cycle) => motion.characterWalkFrameIndex(cycle, true)), [0, 1, 2, 3]);
@@ -111,7 +112,7 @@ test("the active rig's north and south contact poses alternate", async () => {
   const image = decodePng(
     await readFile(path.join(root, "public", rigManifest.bodyPath.replace(/^\/+/, ""))),
   );
-  assert.equal(rigManifest.version, "v1");
+  assert.equal(rigManifest.version, "v6");
   assert.deepEqual(
     [image.width, image.height],
     [
@@ -136,7 +137,7 @@ test("runtime paperdoll revision and provenance pins match exact production byte
         const filename = `${String(variant).padStart(2, "0")}-${name}.png`;
         const relative = `${slot}/${filename}`;
         const bytes = await readFile(
-          path.join(root, "public/assets/paperdoll/v1", relative),
+          path.join(root, "public", rigManifest.layerRoot.replace(/^\/+/, ""), relative),
         );
         return [relative, sha256(bytes)];
       }),
@@ -163,7 +164,7 @@ test("runtime paperdoll revision and provenance pins match exact production byte
     "harin-equipped-sealed-v1.png",
     "harin-equipped-cosmic-v1.png",
   ];
-  const sourceRecords = [["body/harin-mannequin-v1.png", sha256(bodyBytes)]];
+  const sourceRecords = [["body/harin-mannequin-v6.png", sha256(bodyBytes)]];
   for (const filename of sourceProfiles) {
     const bytes = await readFile(path.join(root, "public/assets/walk", filename));
     sourceRecords.push([`profile/${filename}`, sha256(bytes)]);
@@ -173,9 +174,12 @@ test("runtime paperdoll revision and provenance pins match exact production byte
     rigManifest.assetIntegrity.sourceAggregateSha256,
   );
 
-  const [reference, allowlist, runtime, fixture] = await Promise.all([
+  const [reference, allowlist, builder, prompt, auditor, runtime, fixture] = await Promise.all([
     readFile(path.join(root, rigManifest.assetIntegrity.silhouetteReferencePath)),
     readFile(path.join(root, rigManifest.assetIntegrity.warningAllowlistPath)),
+    readFile(path.join(root, rigManifest.assetIntegrity.builderPath)),
+    readFile(path.join(root, rigManifest.assetIntegrity.imagegenPromptPath)),
+    readFile(path.join(root, rigManifest.assetIntegrity.auditorPath)),
     readFile(path.join(root, "app/character-paperdoll.ts"), "utf8"),
     readFile(path.join(root, "tests/fixtures/paperdoll-visual-qa.html"), "utf8"),
   ]);
@@ -187,6 +191,9 @@ test("runtime paperdoll revision and provenance pins match exact production byte
     sha256(allowlist),
     rigManifest.assetIntegrity.warningAllowlistSha256,
   );
+  assert.equal(sha256(builder), rigManifest.assetIntegrity.builderSha256);
+  assert.equal(sha256(prompt), rigManifest.assetIntegrity.imagegenPromptSha256);
+  assert.equal(sha256(auditor), rigManifest.assetIntegrity.auditorSha256);
   assert.match(
     runtime,
     /\.png\?v=\$\{encodeURIComponent\(PAPERDOLL_ASSET_REVISION\)\}/,
@@ -238,9 +245,9 @@ test("static and local paperdoll QA consume the active runtime rig manifest", as
     readFile(path.join(root, "scripts/serve-paperdoll-visual-qa.mjs"), "utf8"),
   ]);
 
-  assert.equal(rigManifest.version, "v1");
-  assert.equal(rigManifest.bodyPath, "/assets/walk/harin-mannequin-v1.png");
-  assert.equal(rigManifest.layerRoot, "/assets/paperdoll/v1");
+  assert.equal(rigManifest.version, "v6");
+  assert.equal(rigManifest.bodyPath, "/assets/walk/harin-mannequin-v6.png");
+  assert.equal(rigManifest.layerRoot, "/assets/paperdoll/v6");
 
   const setupStart = fixture.indexOf("const slots = ");
   const setupEnd = fixture.indexOf("const images = ", setupStart);

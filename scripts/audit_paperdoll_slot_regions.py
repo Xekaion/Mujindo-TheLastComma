@@ -1933,7 +1933,8 @@ def main() -> None:
     parser.add_argument(
         "--integrity-manifest",
         type=Path,
-        default=workspace / "app/paperdoll-rig-manifest.json",
+        default=workspace
+        / "asset-sources/paperdoll/v1/paperdoll-rig-manifest.json",
         help="external approval pins for assets, sources, reference, and allowlist",
     )
     parser.add_argument(

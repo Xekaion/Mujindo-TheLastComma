@@ -219,12 +219,16 @@ def main() -> None:
     }
     scale = 2
     tile_w, tile_h = CELL_W * scale, CELL_H * scale
-    sheet = Image.new("RGBA", (tile_w * 5, tile_h * len(ROWS) * len(PHASES)), (16, 17, 20, 255))
-    draw = ImageDraw.Draw(sheet)
     builds = [
         (str(build["label"]), list(build["variants"]))
         for build in RIG_MANIFEST["qaCompositeBuilds"]
     ]
+    sheet = Image.new(
+        "RGBA",
+        (tile_w * len(builds), tile_h * len(ROWS) * len(PHASES)),
+        (16, 17, 20, 255),
+    )
+    draw = ImageDraw.Draw(sheet)
     for row_index, authored_row in enumerate(ROWS):
         for phase in PHASES:
             qa_row = row_index * len(PHASES) + phase

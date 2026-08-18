@@ -7431,7 +7431,7 @@ test("expedition and plaza render independent fitted layers and preserve public 
       "direction-row ownership must stay in the shared character modules",
     );
   }
-  assert.equal(paperdollRigManifest.version, "v1");
+  assert.equal(paperdollRigManifest.version, "v6");
   assert.match(paperdollSource, /paperdoll-rig-manifest\.json/);
   assert.match(
     paperdollSource,

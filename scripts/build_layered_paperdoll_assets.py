@@ -901,7 +901,10 @@ def build_assets(
         )
         silhouette_reference_summary = silhouette_reference["summary"]
     else:
-        rig_manifest_path = workspace / "app/paperdoll-rig-manifest.json"
+        rig_manifest_path = (
+            workspace
+            / "asset-sources/paperdoll/v1/paperdoll-rig-manifest.json"
+        )
         rig_manifest = json.loads(rig_manifest_path.read_text(encoding="utf-8"))
         approved_reference_sha256 = str(
             rig_manifest.get("assetIntegrity", {}).get(

@@ -143,7 +143,6 @@ test("canvas and measured overlays retain a resize fallback without ResizeObserv
     "app/pvp/PvpArena.tsx",
     "app/PlazaHub.tsx",
     "app/InventoryOverlay.tsx",
-    "app/InventoryPaperdollFigure.tsx",
   ]) {
     const source = await readFile(path.join(root, relativePath), "utf8");
     assert.match(
@@ -156,7 +155,6 @@ test("canvas and measured overlays retain a resize fallback without ResizeObserv
     "app/GameCanvas.tsx",
     "app/pvp/PvpArena.tsx",
     "app/PlazaHub.tsx",
-    "app/InventoryPaperdollFigure.tsx",
   ]) {
     const source = await readFile(path.join(root, relativePath), "utf8");
     assert.match(
@@ -165,6 +163,16 @@ test("canvas and measured overlays retain a resize fallback without ResizeObserv
       `${relativePath} must retain a browser resize fallback`,
     );
   }
+  const portrait = await readFile(
+    path.join(root, "app/InventoryPaperdollFigure.tsx"),
+    "utf8",
+  );
+  assert.match(portrait, /data-portrait-mode="illustrated"/);
+  assert.doesNotMatch(
+    portrait,
+    /ResizeObserver|window\.addEventListener\("resize"|<canvas/,
+    "the static illustrated portrait must not own a measured canvas lifecycle",
+  );
   const expedition = await readFile(path.join(root, "app/GameCanvas.tsx"), "utf8");
   assert.match(
     expedition,

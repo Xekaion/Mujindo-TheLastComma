@@ -39,7 +39,6 @@ export const CHARACTER_CONTACT_FRAMES = [0, 2] as const;
  * looking as though one foot is still planted mid-stride.
  */
 export const CHARACTER_IDLE_FRAME = 1;
-export const CHARACTER_CARDINAL_STANDING_FACINGS = [0, 4] as const;
 /** World-space distance covered by one complete four-pose gait. */
 export const CHARACTER_WALK_CYCLE_DISTANCE = 96;
 /**
@@ -186,19 +185,13 @@ export function characterWalkFrameIndex(
   );
 }
 
-/**
- * Cardinal directions own a newly authored straight standing pose. Diagonal
- * and side directions retain their correctly angled neutral frame so halting
- * never snaps the actor to a front/back silhouette.
- */
+/** Every authored direction owns its balanced second-column idle pose. */
 export function characterRenderFrameIndex(
   facing: number,
   walkCycle: number,
   moving: boolean,
 ): number {
   if (moving) return characterWalkFrameIndex(walkCycle, true);
-  const normalizedFacing = normalizeCharacterFacing(facing);
-  return normalizedFacing === 0 || normalizedFacing === 4
-    ? CHARACTER_IDLE_FRAME
-    : 3;
+  void facing;
+  return CHARACTER_IDLE_FRAME;
 }

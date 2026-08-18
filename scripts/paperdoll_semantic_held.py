@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -123,6 +124,7 @@ def strict_hand_masks(
     authored_row: int,
 ) -> SemanticHandMasks:
     body_mask = image_mask(body, BODY_ALPHA)
+    actual_palm = actual_palm_mask(body, slot, authored_row)
     _left, top, _right, bottom, center_x, half_width = body_geometry(body)
     height = bottom - top + 1
     side_left = expected_left(slot, authored_row)
@@ -160,7 +162,15 @@ def strict_hand_masks(
         near_three=dilate(boundary, 7),
         near_seven=dilate(boundary, 15),
         body_near_three=dilate(body_mask, 7),
-        body_core=erode(body_mask, 7),
+        # The palm is the one intentional body intersection: the equipment
+        # must enter the real hand alpha by at least three pixels so it cannot
+        # float beside the pose.  Torso, sleeve and every other body-core
+        # pixel remain forbidden.
+        body_core=(
+            erode(body_mask, 7)
+            & ~dilate(boundary, 15)
+            & ~actual_palm
+        ),
         foot_core=erode(body_mask, 5) & foot_zone,
     )
 
@@ -168,6 +178,7 @@ def strict_hand_masks(
 def semantic_masks(body: Image.Image, slot: str, authored_row: int) -> SemanticMasks:
     hand = strict_hand_masks(body, slot, authored_row)
     body_mask = image_mask(body, BODY_ALPHA)
+    actual_palm = actual_palm_mask(body, slot, authored_row)
     _left, top, _right, bottom, center_x, half_width = body_geometry(body)
     height = bottom - top + 1
     near_body = dilate(body_mask, 13)
@@ -187,8 +198,102 @@ def semantic_masks(body: Image.Image, slot: str, authored_row: int) -> SemanticM
         hand=hand,
         head_near=near_body & head_band,
         foot_near=near_body & foot_band,
-        expected_side=side,
+        # A projected side pose can put the real palm a few pixels across the
+        # torso's median.  Permit only that measured alpha island across the
+        # half-plane; the rest of the item must remain on its authored side.
+        expected_side=side | actual_palm,
         exterior_side=exterior_side,
+    )
+
+
+def actual_palm_mask(
+    body: Image.Image,
+    slot: str,
+    authored_row: int,
+) -> np.ndarray:
+    """Locate the pose's real exposed palm instead of a fixed torso ratio.
+
+    The clean mannequin deliberately keeps both hands bare.  Their warm skin
+    pixels are separable from the neutral grey tunic, while the face is
+    excluded by the forearm height band.  Selecting the outer component on the
+    slot's authored side follows raised, lowered and side-profile hands without
+    any direction/phase coordinate table.
+    """
+
+    rgba = np.asarray(body.convert("RGBA"), dtype=np.int16)
+    alpha = rgba[:, :, 3] > BODY_ALPHA
+    occupied_y, _occupied_x = np.where(alpha)
+    if not len(occupied_y):
+        raise ValueError("mannequin frame is empty")
+    top = int(occupied_y.min())
+    bottom = int(occupied_y.max())
+    height = max(1, bottom - top + 1)
+    y_grid = np.indices(alpha.shape)[0]
+    red, green, blue = [rgba[:, :, index] for index in range(3)]
+    exposed_skin = (
+        alpha
+        & (red >= 100)
+        & (green >= 45)
+        & (blue >= 25)
+        & (red >= green + 25)
+        & (green >= blue - 5)
+        & (y_grid >= top + height * 0.28)
+        & (y_grid <= top + height * 0.76)
+    )
+    candidates: list[tuple[float, int, np.ndarray]] = []
+    side_left = expected_left(slot, authored_row)
+    # Skin highlights can be split by a one- or two-pixel knuckle shadow.
+    # Group on a seven-pixel neighbourhood, then project the label back onto
+    # real skin pixels so the returned mask never contains synthetic skin.
+    grouped_skin = dilate(exposed_skin, 7)
+    for component_y, component_x in connected_components(grouped_skin):
+        label = np.zeros_like(alpha)
+        label[component_y, component_x] = True
+        component_skin = exposed_skin & label
+        component_y, component_x = np.where(component_skin)
+        if len(component_x) < 12:
+            continue
+        center_x = float(component_x.mean())
+        exterior_score = -center_x if side_left else center_x
+        component = np.zeros_like(alpha)
+        component[component_y, component_x] = True
+        candidates.append((exterior_score, len(component_x), component))
+    if not candidates:
+        raise ValueError(f"{slot}@{authored_row}: no exposed palm component")
+    _score, _area, skin_component = max(
+        candidates,
+        key=lambda item: (item[0], item[1]),
+    )
+    # Include the antialiased palm rim, but never invent pixels outside the
+    # mannequin's actual alpha silhouette.
+    return dilate(skin_component, 3) & alpha
+
+
+def actual_palm_contact_pixels(
+    layer: Image.Image,
+    body: Image.Image,
+    slot: str,
+    authored_row: int,
+) -> int:
+    return int(
+        (
+            image_mask(layer, VISIBLE_ALPHA)
+            & actual_palm_mask(body, slot, authored_row)
+        ).sum()
+    )
+
+
+def actual_body_alpha_contact_pixels(
+    layer: Image.Image,
+    body: Image.Image,
+) -> int:
+    """Count final equipment pixels that directly meet mannequin alpha."""
+
+    return int(
+        (
+            image_mask(layer, VISIBLE_ALPHA)
+            & image_mask(body, BODY_ALPHA)
+        ).sum()
     )
 
 
@@ -500,6 +605,81 @@ def layer_metrics(
     }
 
 
+def legacy_human_metrics(
+    layer: Image.Image,
+    legacy_body: Image.Image,
+    masks: SemanticMasks,
+    variant_median_visible_pixels: float,
+    canonical_reference: Image.Image | None = None,
+) -> dict[str, object]:
+    """Detect displaced legacy head/body/boot art inside a held silhouette.
+
+    A whole old outfit can remain hand-connected while sitting just outside
+    the new mannequin, so the normal clean-body core test cannot see it.  The
+    source mannequin is compared at the same ground-normalized cell offset.
+    Thresholds are deliberately conjunctive around feet and broad body areas
+    so legitimate long weapons and large shields remain valid.
+    """
+
+    layer_visible = image_mask(layer, VISIBLE_ALPHA)
+    if canonical_reference is not None:
+        # Canonical equipment pixels are the held item itself, even when a
+        # shield rim or grip passes near the source mannequin.  Only pixels
+        # outside that independently reconstructed silhouette can be a copied
+        # arm, garment, boot, or second weapon.
+        canonical_visible = image_mask(canonical_reference, VISIBLE_ALPHA)
+        layer_visible &= ~dilate(canonical_visible, 3)
+    legacy_visible = image_mask(legacy_body, BODY_ALPHA)
+    legacy_y, _legacy_x = np.where(legacy_visible)
+    if not len(legacy_y):
+        raise ValueError("legacy mannequin frame is empty")
+    top = int(legacy_y.min())
+    bottom = int(legacy_y.max())
+    height = max(1, bottom - top)
+    y_grid = np.indices(legacy_visible.shape)[0]
+    non_hand = ~masks.hand.near_seven
+    body_near = dilate(legacy_visible, 21)
+    head_near = dilate(
+        legacy_visible & (y_grid <= top + height * 0.25),
+        15,
+    )
+    foot_near = dilate(
+        legacy_visible & (y_grid >= top + height * 0.75),
+        15,
+    )
+    visible_pixels = int(layer_visible.sum())
+    variant_ratio = visible_pixels / max(1.0, variant_median_visible_pixels)
+    body_pixels = int((layer_visible & body_near & non_hand).sum())
+    head_pixels = int((layer_visible & head_near & non_hand).sum())
+    foot_pixels = int((layer_visible & foot_near & non_hand).sum())
+    contaminated = bool(
+        head_pixels >= 70
+        or body_pixels > 600
+        or variant_ratio > 4.0
+        or (foot_pixels >= 140 and variant_ratio >= 1.5)
+    )
+    return {
+        "legacyBodyNear21NonHandPixels": body_pixels,
+        "legacyHeadNear15NonHandPixels": head_pixels,
+        "legacyFootNear15NonHandPixels": foot_pixels,
+        "variantMedianRatio": round(variant_ratio, 8),
+        "legacyHumanContaminated": contaminated,
+    }
+
+
+def strip_legacy_body_near(
+    layer: Image.Image,
+    legacy_body: Image.Image,
+    masks: SemanticMasks,
+) -> Image.Image:
+    """Remove source-person pixels while retaining the correct hand corridor."""
+
+    visible = image_mask(layer, VISIBLE_ALPHA)
+    legacy_visible = image_mask(legacy_body, BODY_ALPHA)
+    remove = dilate(legacy_visible, 21) & ~masks.hand.near_seven
+    return alpha_with_mask(layer, visible & ~remove)
+
+
 def has_padding(bounds: tuple[int, int, int, int] | None) -> bool:
     return bool(
         bounds
@@ -557,6 +737,7 @@ def recover_same_row_phase(
     slot: str,
     row: int,
     target_column: int,
+    candidate_accepts: Callable[[Image.Image], bool] | None = None,
 ) -> tuple[Image.Image, dict[str, object]]:
     """Recover an empty cell without ever crossing the authored direction."""
 
@@ -577,6 +758,8 @@ def recover_same_row_phase(
         filtered, _components = semantic_component_filter(aligned, target_masks)
         padded, metrics = padded_candidate(filtered, target_masks)
         if padded is None or metrics is None:
+            continue
+        if candidate_accepts is not None and not candidate_accepts(padded):
             continue
         candidates.append((cyclic_distance, source_column, padded, metrics))
     if not candidates:

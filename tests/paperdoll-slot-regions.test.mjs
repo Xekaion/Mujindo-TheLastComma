@@ -12,6 +12,10 @@ const warningAllowlistPath = path.join(
   root,
   "asset-sources/paperdoll/paperdoll-slot-region-warning-allowlist-v2.json",
 );
+const historicalManifestPath = path.join(
+  root,
+  "asset-sources/paperdoll/v1/paperdoll-rig-manifest.json",
+);
 
 const findPython = () => {
   const candidates = [process.env.PYTHON, "python", "python3"].filter(Boolean);
@@ -112,7 +116,7 @@ stale_reference = module.load_silhouette_reference(
 )
 warning_path = workspace / "asset-sources/paperdoll/paperdoll-slot-region-warning-allowlist-v2.json"
 valid_integrity = module.verify_integrity_manifest(
-    workspace / "app/paperdoll-rig-manifest.json",
+    workspace / "asset-sources/paperdoll/v1/paperdoll-rig-manifest.json",
     workspace,
     workspace / "public/assets/paperdoll/v1",
     workspace / "public/assets/walk/harin-mannequin-v1.png",
@@ -148,7 +152,7 @@ rig_integrity = module.verify_integrity_manifest(
     warning_path,
 )
 outside_integrity = module.verify_integrity_manifest(
-    workspace / "app/paperdoll-rig-manifest.json",
+    workspace / "asset-sources/paperdoll/v1/paperdoll-rig-manifest.json",
     Path(sys.argv[13]),
     workspace / "public/assets/paperdoll/v1",
     workspace / "public/assets/walk/harin-mannequin-v1.png",
@@ -473,7 +477,7 @@ test("alignment provenance and warning exceptions are current-PNG hash-bound", a
   );
   const alignment = JSON.parse(await readFile(alignmentPath, "utf8"));
   const rigManifest = JSON.parse(
-    await readFile(path.join(root, "app/paperdoll-rig-manifest.json"), "utf8"),
+    await readFile(historicalManifestPath, "utf8"),
   );
   const firstOutput = Object.keys(alignment.outputs).sort()[0];
   const tamperedAlignment = structuredClone(alignment);
@@ -741,6 +745,8 @@ test("all 3,200 paperdoll cells obey absolute slot-isolation limits", async (t) 
     python,
     [
       auditScript,
+      "--integrity-manifest",
+      historicalManifestPath,
       "--report",
       reportPath,
       "--warning-allowlist",

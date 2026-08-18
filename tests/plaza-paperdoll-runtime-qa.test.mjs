@@ -217,12 +217,12 @@ test("each runtime QA item is canonical common +0 equipment in exactly one slot"
 });
 
 test("runtime plaza QA also covers full and mixed ten-slot loadouts", () => {
-  assert.equal(runtimeQa.PAPERDOLL_RUNTIME_QA_COMPOSITE_BUILDS.length, 5);
+  assert.equal(runtimeQa.PAPERDOLL_RUNTIME_QA_COMPOSITE_BUILDS.length, 13);
   assert.deepEqual(
     runtimeQa.PAPERDOLL_RUNTIME_QA_COMPOSITE_BUILDS,
     rigManifest.qaCompositeBuilds,
   );
-  assert.equal(runtimeQa.PAPERDOLL_RUNTIME_QA_COMPOSITE_TOTAL, 160);
+  assert.equal(runtimeQa.PAPERDOLL_RUNTIME_QA_COMPOSITE_TOTAL, 416);
   const keys = new Set();
   for (
     let index = 0;
@@ -255,13 +255,13 @@ test("runtime plaza QA also covers full and mixed ten-slot loadouts", () => {
     });
     keys.add(state.key);
   }
-  assert.equal(keys.size, 160);
+  assert.equal(keys.size, 416);
   assert.equal(
     runtimeQa.paperdollRuntimeQaCompositeStateAt(0).key,
     "full/00-00-00-00-00-00-00-00-00-00/0/0",
   );
   assert.equal(
-    runtimeQa.paperdollRuntimeQaCompositeStateAt(159).key,
+    runtimeQa.paperdollRuntimeQaCompositeStateAt(415).key,
     "full/09-00-08-01-07-02-06-03-05-04/7/3",
   );
 });
@@ -302,8 +302,8 @@ test("runtime QA request parsing is localhost-only and deterministically address
     "composite",
   );
   assert.equal(
-    runtimeQa.resolvePaperdollRuntimeQaCompositeInitialIndex({ index: "159" }),
-    159,
+    runtimeQa.resolvePaperdollRuntimeQaCompositeInitialIndex({ index: "415" }),
+    415,
   );
 });
 

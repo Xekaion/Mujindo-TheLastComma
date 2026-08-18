@@ -4803,7 +4803,7 @@ export default function GameCanvas({
         }, 0);
     const imagePaths: Record<string, string> = {
       sprites: "/assets/characters-sprite-atlas.png",
-      walkHarinLegacy: "/assets/walk/harin-walk.png",
+      walkHarinLegacy: PAPERDOLL_BODY_PATH,
       walkWithered: "/assets/walk/withered-walk-v2.png",
       walkThreader: "/assets/walk/threader-walk.png",
       walkGuardian: "/assets/walk/guardian-walk.png",

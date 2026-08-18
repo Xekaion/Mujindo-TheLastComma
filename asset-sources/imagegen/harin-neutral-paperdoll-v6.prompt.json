@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 3,
+  "asset": "harin-neutral-paperdoll-v6",
+  "tool": "image_gen.imagegen",
+  "mode": "precise-object-edit",
+  "generatedOn": "2026-08-17",
+  "originalReference": "public/assets/walk/harin-mannequin-v1.png",
+  "originalReferenceSha256": "9c62e1efe23325158af8362d2ac0291451afc28640b640ee3e45346d331a8705",
+  "referencedImage": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk-keyed-input.png",
+  "referencedImageSha256": "2189791075d10bc9e1fafd492fe7e1ac00d5718756533ea8f9c7ad4e8d4744e2",
+  "prompt": "Use case: precise-object-edit on a production sprite atlas. Preserve the exact 1024x1536 canvas, flat green background, exact 4-column by 8-row grid, character scale, all cell anchors, lighting, painted top-down dark-fantasy ARPG style, and every pixel of the other 24 cells as closely as possible. Edit ONLY the lower body from the hips downward in the SECOND COLUMN (column index 1) of each of the 8 rows. Those 8 second-column cells are the dedicated idle poses. In every edited cell, keep the exact authored viewing direction and keep the head, neck, torso, shoulders, arms, hands, pelvis height, body center, and ground position unchanged. Replace the walking/mid-stride legs with a clearly stationary balanced human stance: both knees relaxed but nearly straight, both feet flat and visibly planted on the same ground baseline, feet only shoulder-width apart with no leg far forward or far behind, weight centered between both legs, no lifted heel, no raised trailing foot, no running or walking silhouette. Preserve the fitted charcoal neutral under-suit and bare head. Do not add or remove any character, weapon, shield, armor, helmet, boot, cape, shadow, grid line, label, or text. Make no changes above the hips and no changes in columns 0, 2, or 3.",
+  "edits": [
+    {
+      "stage": "neutral-under-suit",
+      "mode": "precise-object-edit",
+      "callId": "exec-53872b9a-96b4-45cc-9096-829eec293287",
+      "referencedImage": "public/assets/walk/harin-mannequin-v1.png",
+      "referencedImageSha256": "9c62e1efe23325158af8362d2ac0291451afc28640b640ee3e45346d331a8705",
+      "prompt": "Use case: precise-object-edit\nAsset type: production 2D top-down ARPG neutral paperdoll body atlas, exactly 4 columns by 8 rows (32 independent cells)\nInput images: Image 1 is the exact edit target and strict pose/grid/alignment reference.\nPrimary request: In every one of the 32 cells, remove the red hood and loose scarf completely, remove the robe/coat silhouette, armor-like panels, belts, red sashes, boots/shoes, sheathed blades, daggers, weapons, shields, jewelry, and accessories. Replace only those garments with one clean, fitted matte charcoal-gray long-sleeve under-suit that follows the existing body silhouette, a close-fitting smooth dark charcoal fabric head cap/balaclava with no loose cloth around the head or shoulders, plain uncovered hands, and slim charcoal foot-wrap socks that are not boots. This is an unarmed neutral mannequin intended to receive separate helmet, armor, glove, belt, leg, boot, weapon, offhand, and relic layers.\nScene/backdrop: Every otherwise empty pixel across the entire atlas must be one perfectly uniform flat solid #00ff00 chroma-key background, with no checkerboard, black field, floor, shadow, gradient, texture, bloom, reflection, grid line, border, or lighting variation. Do not use #00ff00 on the character.\nStyle/medium: preserve the exact painterly dark-fantasy pixel-painted game-sprite style, resolution, sharpness, lighting, and three-quarter top-down view of Image 1.\nComposition/framing: preserve the exact 1024x1536 canvas; exactly four equal 256x192 cells per row and exactly eight rows; keep every character in the identical cell, direction, gait phase, anatomical pose, screen position, scale, torso anchor, hand position, foot position, floor baseline, and padding as Image 1.\nConstraints: change only clothing/gear into the neutral mannequin described above; preserve all 32 distinct frames and their order; no missing, merged, duplicated, shifted, resized, cropped, or redrawn poses; no red fabric anywhere; no loose hood, cowl, scarf, cape, robe tail, armor, footwear, weapon, shield, or extra object; no text, watermark, cell borders, or labels.",
+      "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6-hooded-keyed-input.png",
+      "outputSha256": "20b241fc784d1c360b7d19050c6af0c27154d8affb85485100e95680b2014747"
+    },
+    {
+      "stage": "bare-head",
+      "mode": "precise-object-edit",
+      "callId": "exec-e5354c3c-70a4-40ff-84aa-4012b35fbcda",
+      "referencedImage": "asset-sources/imagegen/harin-neutral-paperdoll-v6-hooded-keyed-input.png",
+      "referencedImageSha256": "20b241fc784d1c360b7d19050c6af0c27154d8affb85485100e95680b2014747",
+      "prompt": "Use case: precise-object-edit. Edit only the head and neck underlayer in every one of the exact 32 sprite cells of this production 4-column by 8-row top-down ARPG atlas. Completely remove the charcoal balaclava, cap, hood, scarf, eye opening, and all cloth folds around the skull and neck. Replace them with an unmistakably bare human head and exposed neck, with very short close-cropped dark brown hair painted directly on the scalp (or a clean shaved scalp in rear views), natural skin visible on scalp, face, ears, and neck wherever the direction permits. There must be no hood, cap, mask, scarf, cowl, loose cloth, or fabric above the fitted charcoal under-suit collar. Preserve the exact same 1024x1536 canvas, flat #00ff00 background, 4x8 cell layout, all body poses, gait phases, directions, character scale, feet, hands, body clothing, cell anchors, floor position, and painted ARPG style. Do not add weapons, shields, armor, helmets, boots, jewelry, shadows, grid lines, labels, or text. Make no changes below the collar except unavoidable one-pixel blending.",
+      "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk-keyed-input.png",
+      "outputSha256": "2189791075d10bc9e1fafd492fe7e1ac00d5718756533ea8f9c7ad4e8d4744e2"
+    },
+    {
+      "stage": "balanced-idle",
+      "mode": "precise-object-edit",
+      "callId": "exec-19a777f0-5164-4bf6-b891-71667eb492a4",
+      "referencedImage": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk-keyed-input.png",
+      "referencedImageSha256": "2189791075d10bc9e1fafd492fe7e1ac00d5718756533ea8f9c7ad4e8d4744e2",
+      "prompt": "Use case: precise-object-edit on a production sprite atlas. Preserve the exact 1024x1536 canvas, flat green background, exact 4-column by 8-row grid, character scale, all cell anchors, lighting, painted top-down dark-fantasy ARPG style, and every pixel of the other 24 cells as closely as possible. Edit ONLY the lower body from the hips downward in the SECOND COLUMN (column index 1) of each of the 8 rows. Those 8 second-column cells are the dedicated idle poses. In every edited cell, keep the exact authored viewing direction and keep the head, neck, torso, shoulders, arms, hands, pelvis height, body center, and ground position unchanged. Replace the walking/mid-stride legs with a clearly stationary balanced human stance: both knees relaxed but nearly straight, both feet flat and visibly planted on the same ground baseline, feet only shoulder-width apart with no leg far forward or far behind, weight centered between both legs, no lifted heel, no raised trailing foot, no running or walking silhouette. Preserve the fitted charcoal neutral under-suit and bare head. Do not add or remove any character, weapon, shield, armor, helmet, boot, cape, shadow, grid line, label, or text. Make no changes above the hips and no changes in columns 0, 2, or 3.",
+      "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6-keyed.png",
+      "outputSha256": "6a2f4288e9383e6c3c010ce7c46dcf3b30461809ef8fbc0c7997769de849fe91"
+    }
+  ],
+  "outputs": {
+    "keyedSource": "asset-sources/imagegen/harin-neutral-paperdoll-v6-keyed.png",
+    "keyedSourceSha256": "6a2f4288e9383e6c3c010ce7c46dcf3b30461809ef8fbc0c7997769de849fe91",
+    "bareWalkTransparent": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk.png",
+    "bareWalkTransparentSha256": "58215b3f3f554240afd73b0f6570307300fd2ddfeb35080df1fe08cc3e8d5e0a",
+    "idleEditTransparent": "asset-sources/imagegen/harin-neutral-paperdoll-v6-idle-edit.png",
+    "idleEditTransparentSha256": "74719e774a52fa6ed93daba8f5fb664d801208aab9def62e2c293d3537f95c6f",
+    "transparentSource": "asset-sources/imagegen/harin-neutral-paperdoll-v6.png",
+    "transparentSourceSha256": "a374a9b34be97d1d22fee3ca0b277bc44bae8c29d6dadb31d4313c6cc233bea0",
+    "runtimeBody": "public/assets/walk/harin-mannequin-v6.png"
+  },
+  "postprocess": {
+    "script": "scripts/remove_chroma_key.py",
+    "scriptSha256": "3f7b9b14ad5c90f37618bc1c16a039a2076abca12ddc41b3ae470e2b1cad6c0e",
+    "arguments": [
+      "--auto-key",
+      "border",
+      "--soft-matte",
+      "--transparent-threshold",
+      "12",
+      "--opaque-threshold",
+      "220",
+      "--despill",
+      "--force"
+    ],
+    "runs": [
+      {
+        "input": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk-keyed-input.png",
+        "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6-bare-walk.png",
+        "detectedKey": "#14e51c",
+        "transparentPixels": 1375862,
+        "partiallyTransparentPixels": 20638
+      },
+      {
+        "input": "asset-sources/imagegen/harin-neutral-paperdoll-v6-keyed.png",
+        "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6-idle-edit.png",
+        "detectedKey": "#1ed52a",
+        "transparentPixels": 1375436,
+        "partiallyTransparentPixels": 19093
+      }
+    ],
+    "compositor": {
+      "script": "scripts/compose_paperdoll_idle_source.py",
+      "scriptSha256": "4bc25adfb753f7886dd98e23ec3674c152cc538e014b4f9dc8d0bfa057928080",
+      "output": "asset-sources/imagegen/harin-neutral-paperdoll-v6.png"
+    },
+    "totalPixels": 1572864
+  },
+  "constraints": {
+    "size": [1024, 1536],
+    "columns": 4,
+    "rows": 8,
+    "cell": [256, 192],
+    "transparentCorners": true,
+    "edgeClippedCells": 0
+  }
+}

@@ -170,6 +170,169 @@ def body_bounds(frame: Image.Image) -> tuple[int, int, int, int]:
     return bounds
 
 
+def legacy_hood_remove_region(source_body: Image.Image) -> np.ndarray:
+    """Return the pose-local region in which legacy red cloth may be removed."""
+
+    body = np.asarray(source_body.convert("RGBA"), dtype=np.uint8)
+    body_alpha = body[:, :, 3] > MIN_ALPHA
+    visible_y, _visible_x = np.where(body_alpha)
+    if not len(visible_y):
+        return np.zeros(body_alpha.shape, dtype=bool)
+    top = int(visible_y.min())
+    bottom = int(visible_y.max())
+    height = max(1, bottom - top)
+    y_grid = np.indices(body_alpha.shape)[0]
+
+    red_body = (
+        body_alpha
+        & (body[:, :, 0].astype(np.int16) >= body[:, :, 1].astype(np.int16) + 18)
+        & (body[:, :, 0].astype(np.int16) >= body[:, :, 2].astype(np.int16) + 14)
+        & (body[:, :, 0] >= 58)
+        & (y_grid <= top + height * 0.43)
+    )
+    legacy_hood_region = np.asarray(
+        Image.fromarray((red_body * 255).astype(np.uint8), mode="L").filter(
+            ImageFilter.MaxFilter(17)
+        ),
+        dtype=np.uint8,
+    ) > 0
+    broad_head_region = (
+        np.asarray(
+            Image.fromarray((body_alpha * 255).astype(np.uint8), mode="L").filter(
+                ImageFilter.MaxFilter(41)
+            ),
+            dtype=np.uint8,
+        )
+        > 0
+    ) & (y_grid <= top + height * 0.38)
+    return legacy_hood_region | broad_head_region
+
+
+def legacy_lower_cloth_core_mask(source_body: Image.Image) -> np.ndarray:
+    """Return exact strong-crimson pixels of the legacy sash and coat tails."""
+
+    body = np.asarray(source_body.convert("RGBA"), dtype=np.uint8)
+    body_alpha = body[:, :, 3] > MIN_ALPHA
+    visible_y, _visible_x = np.where(body_alpha)
+    if not len(visible_y):
+        return np.zeros(body_alpha.shape, dtype=bool)
+    top = int(visible_y.min())
+    bottom = int(visible_y.max())
+    height = max(1, bottom - top)
+    y_grid = np.indices(body_alpha.shape)[0]
+    return (
+        body_alpha
+        & (body[:, :, 0].astype(np.int16) >= body[:, :, 1].astype(np.int16) + 18)
+        & (body[:, :, 0].astype(np.int16) >= body[:, :, 2].astype(np.int16) + 14)
+        & (body[:, :, 0] >= 58)
+        & (y_grid >= top + height * 0.34)
+        & (y_grid <= top + height * 0.82)
+    )
+
+
+def legacy_lower_cloth_remove_region(source_body: Image.Image) -> np.ndarray:
+    """Return the pose-local footprint of the legacy waist sash and coat tails.
+
+    The v1 body is not a neutral mannequin: in addition to its hood it carries
+    a crimson sash with two long coat tails.  Fitted equipment profiles retain
+    that same garment, so a delta extractor can otherwise mistake the cloth
+    for armor, gloves, belt or leg art.  Derive the footprint from the actual
+    pose instead of using direction-, frame- or item-specific coordinates.
+    """
+
+    red_body = legacy_lower_cloth_core_mask(source_body)
+    return (
+        np.asarray(
+            Image.fromarray((red_body * 255).astype(np.uint8), mode="L").filter(
+                ImageFilter.MaxFilter(11)
+            ),
+            dtype=np.uint8,
+        )
+        > 0
+    )
+
+
+def remove_legacy_lower_cloth(
+    frame: Image.Image,
+    source_body: Image.Image,
+    removal_region: np.ndarray | None = None,
+) -> Image.Image:
+    """Remove the legacy sash, including its dark antialiased folds.
+
+    The first pass only rejected saturated crimson.  That left the same
+    garment's brown shadow pixels and two long coat-tail contours in every
+    otherwise unrelated equipment family.  The pose-derived footprint keeps
+    this local: remove either cloth-red pixels or pixels that still closely
+    match the old mannequin at the exact location.  Item art outside the old
+    garment footprint is untouched.
+    """
+
+    layer = np.asarray(frame.convert("RGBA"), dtype=np.uint8).copy()
+    region = removal_region
+    if region is None:
+        region = legacy_lower_cloth_remove_region(source_body)
+    if not np.any(region):
+        return frame.copy()
+    layer_rgb = layer[:, :, :3].astype(np.int32)
+    source_rgb = np.asarray(
+        source_body.convert("RGBA"),
+        dtype=np.uint8,
+    )[:, :, :3].astype(np.int32)
+    red, green, blue = [layer_rgb[:, :, channel] for channel in range(3)]
+    chroma = (
+        np.maximum.reduce((red, green, blue))
+        - np.minimum.reduce((red, green, blue))
+    )
+    layer_cloth_red = (
+        (red >= 45)
+        & (red >= green + 12)
+        & (red >= blue + 5)
+        & (chroma >= 24)
+    )
+    legacy_colour_match = (
+        np.max(np.abs(layer_rgb - source_rgb), axis=2) <= 24
+    )
+    layer[
+        (layer[:, :, 3] > 0)
+        & region
+        & (layer_cloth_red | legacy_colour_match)
+    ] = 0
+    return Image.fromarray(layer, mode="RGBA")
+
+
+def remove_legacy_hood(
+    frame: Image.Image,
+    source_body: Image.Image,
+    removal_region: np.ndarray | None = None,
+) -> Image.Image:
+    """Remove the old red cloth that leaked into fitted upper-body layers.
+
+    The v1 mannequin already wore a red hood and scarf.  Image-generated fitted
+    profiles changed that cloth just enough for the delta extractor to mistake
+    it for helmet art.  A clean mannequin must never re-introduce those pixels.
+    Keep metal, bone and luminous helmet details, but suppress red cloth and
+    near-identical dark folds inside the legacy hood silhouette before the
+    layer is retargeted.
+    """
+
+    layer = np.asarray(frame.convert("RGBA"), dtype=np.uint8).copy()
+    region = removal_region
+    if region is None:
+        region = legacy_hood_remove_region(source_body)
+    if not np.any(region):
+        return frame.copy()
+
+    layer_rgb = layer[:, :, :3].astype(np.int32)
+    layer_red = (
+        (layer_rgb[:, :, 0] >= layer_rgb[:, :, 1] + 8)
+        & (layer_rgb[:, :, 0] >= layer_rgb[:, :, 2] + 5)
+        & (layer_rgb[:, :, 0] >= 48)
+    )
+    remove = (layer[:, :, 3] > 0) & layer_red & region
+    layer[remove] = 0
+    return Image.fromarray(layer, mode="RGBA")
+
+
 def rigid_retarget(
     frame: Image.Image,
     source_body: Image.Image,
@@ -633,6 +796,8 @@ def remap_atlas(
             frame = atlas.crop(cell_box(row, column))
             source_body = old_body.crop(cell_box(row, column))
             destination_body = new_body.crop(cell_box(row, column))
+            if slot == "helm":
+                frame = remove_legacy_hood(frame, source_body)
             if slot in HELD_SLOTS:
                 warped = held_candidate(
                     frame,

@@ -23,6 +23,12 @@ export type PaperdollRigManifest = Readonly<{
     silhouetteReferenceSha256: string;
     warningAllowlistPath: string;
     warningAllowlistSha256: string;
+    builderPath: string;
+    builderSha256: string;
+    imagegenPromptPath: string;
+    imagegenPromptSha256: string;
+    auditorPath: string;
+    auditorSha256: string;
   }>;
   bodyPath: string;
   layerRoot: string;
@@ -30,6 +36,7 @@ export type PaperdollRigManifest = Readonly<{
     width: number;
     height: number;
     columns: number;
+    idleColumn: number;
     directionRows: readonly number[];
     groundBaseline: number;
   }>;

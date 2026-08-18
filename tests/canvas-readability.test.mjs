@@ -100,35 +100,19 @@ test("the PVP canvas scales names, respawn text, and countdown copy with the who
   );
 });
 
-test("the inventory portrait draws in layout coordinates and only uses visual scale for backing resolution", async () => {
+test("the inventory portrait is a static illustrated compositor rather than a gameplay canvas", async () => {
   const source = await readSource("app/InventoryPaperdollFigure.tsx");
 
-  assert.match(source, /const logicalWidth = host\.clientWidth;/);
-  assert.match(source, /const logicalHeight = host\.clientHeight;/);
-  assert.match(
-    source,
-    /Math\.min\(\s*renderedBounds\.width \/ logicalWidth,\s*renderedBounds\.height \/ logicalHeight,\s*\)/,
-  );
-  assert.match(
-    source,
-    /Math\.max\(1, \(window\.devicePixelRatio \|\| 1\) \* renderedScale\)/,
-  );
-  assert.match(source, /Math\.round\(logicalWidth \* dpr\)/);
-  assert.match(source, /Math\.round\(logicalHeight \* dpr\)/);
-  assert.match(source, /context\.clearRect\(0, 0, logicalWidth, logicalHeight\)/);
-  assert.match(source, /x: logicalWidth \/ 2,/);
-  assert.match(source, /y: logicalHeight \* 0\.975,/);
-  assert.doesNotMatch(source, /Math\.min\(bounds\.height|bounds\.width \* 1\.2/);
-  assert.match(source, /window\.addEventListener\("resize", redrawAtCanonicalScale\)/);
-  assert.match(source, /window\.removeEventListener\("resize", redrawAtCanonicalScale\)/);
-  const animatedDraw = source.slice(
-    source.indexOf("const drawLoadedPortrait ="),
-    source.indexOf("const stopRarityVfxAnimation ="),
-  );
+  assert.match(source, /data-portrait-mode="illustrated"/);
+  assert.match(source, /INVENTORY_PORTRAIT_BASE_PATH/);
+  assert.match(source, /INVENTORY_PORTRAIT_FITTED_ARMOR_PATH/);
+  assert.match(source, /INVENTORY_PORTRAIT_GEAR_ATLAS_PATH/);
+  assert.match(source, /left: `\$\{geometry\.left\}%`/);
+  assert.match(source, /top: `\$\{geometry\.top\}%`/);
+  assert.match(source, /width: `\$\{geometry\.width\}%`/);
   assert.doesNotMatch(
-    animatedDraw,
-    /getBoundingClientRect\(\)|\.clientWidth|\.clientHeight/,
-    "animated rarity frames must reuse cached layout metrics",
+    source,
+    /<canvas|getContext\(|devicePixelRatio|requestAnimationFrame|characterRenderFrameIndex|PAPERDOLL_BODY_PATH/,
   );
 });
 
